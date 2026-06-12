@@ -231,6 +231,79 @@ input[readonly] { background: var(--cinza-fundo); }
 .alerta-amarelo { background: var(--amarelo-claro); border: 1px solid var(--amarelo); color: #6e5a00; }
 .alerta-vermelho { background: var(--vermelho-claro); border: 1px solid var(--vermelho); color: #8f1f1f; }
 
+/* ---------- Fluxo de serviços ---------- */
+.indicador-passo {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--azul);
+  margin: 0 0 4px;
+}
+
+.grade-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.os-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--cinza-borda);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--texto);
+}
+.os-item:active { background: var(--azul-claro); }
+.os-numero { font-weight: 700; color: var(--azul-escuro); }
+.os-andamento {
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: var(--amarelo-claro);
+  border: 1px solid var(--amarelo);
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-left: 6px;
+  color: #6e5a00;
+}
+.os-cliente { font-size: 0.95rem; }
+.os-resumo { font-size: 0.83rem; color: var(--cinza-texto); }
+
+.grade-tipos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
+.card-tipo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 2px solid var(--cinza-borda);
+  border-radius: 12px;
+  padding: 18px 8px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--azul-escuro);
+  cursor: pointer;
+}
+.card-tipo-icone { font-size: 1.8rem; }
+.card-tipo-ativo { border-color: var(--verde); background: var(--verde-claro); }
+
+.resumo-linha {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--cinza-borda);
+  padding: 9px 0;
+  font-size: 0.92rem;
+}
+.resumo-linha span { color: var(--cinza-texto); flex-shrink: 0; }
+.resumo-linha strong { text-align: right; word-break: break-word; }
+
 /* ---------- Componente GPS ---------- */
 .grade-3 { display: grid; grid-template-columns: 1fr 1.4fr 1.4fr; gap: 8px; }
 .gps-status { margin: 10px 0; font-size: 0.92rem; min-height: 1.2em; }

@@ -8,6 +8,9 @@
  *  - barra de pendências offline (detecção online/offline; sync real: Fase 7)
  *  - overlays-placeholder do header (Histórico, Rascunhos, Agenda, Biblioteca)
  *  - bancada de teste dos componentes transversais (com dados mockados)
+ *
+ * Expõe EC.app = { mostrarTela, mostrarToast, abrirOverlay, fecharOverlay }
+ * para os módulos de fluxo (fluxo.js) reutilizarem a navegação e o feedback.
  */
 (function () {
   'use strict';
@@ -110,7 +113,7 @@
 
   /* ============ Escolha da ação ============ */
   $('btn-servicos').addEventListener('click', function () {
-    mostrarTela('tela-servicos');
+    EC.fluxo.iniciar();
   });
   $('btn-reembolso').addEventListener('click', function () {
     $('fase2-titulo').textContent = '💰 Solicitação de reembolso';
@@ -128,11 +131,12 @@
     $('overlay-conteudo').innerHTML = html;
     $('overlay').classList.remove('oculto');
   }
-  $('overlay-fechar').addEventListener('click', function () {
+  function fecharOverlay() {
     $('overlay').classList.add('oculto');
-  });
+  }
+  $('overlay-fechar').addEventListener('click', fecharOverlay);
   $('overlay').addEventListener('click', function (evento) {
-    if (evento.target === $('overlay')) $('overlay').classList.add('oculto');
+    if (evento.target === $('overlay')) fecharOverlay();
   });
 
   $('btn-historico').addEventListener('click', function () {
@@ -252,8 +256,15 @@
   }
 
   /* ============ Botões de voltar dos placeholders ============ */
-  $('servicos-voltar').addEventListener('click', function () { mostrarTela('tela-acao'); });
   $('fase2-voltar').addEventListener('click', function () { mostrarTela('tela-acao'); });
+
+  /* ============ Funções compartilhadas com os módulos de fluxo ============ */
+  EC.app = {
+    mostrarTela: mostrarTela,
+    mostrarToast: mostrarToast,
+    abrirOverlay: abrirOverlay,
+    fecharOverlay: fecharOverlay
+  };
 
   /* ============ Inicialização ============ */
   if (sessaoAtual()) {

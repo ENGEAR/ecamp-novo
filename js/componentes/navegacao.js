@@ -12,6 +12,10 @@
  *                            OS_[NºOS]_[TIPO]_[PONTO] (o componente acrescenta
  *                            _[AAAAMMDD_HHMMSS] no primeiro salvamento e reutiliza
  *                            a mesma chave nos seguintes, atualizando o conteúdo)
+ *     opcoes.aoSalvarRascunho : função () → boolean — se fornecida, SUBSTITUI o
+ *                            salvamento padrão (o chamador grava onde quiser,
+ *                            ex.: o estado do fluxo de serviços); devolver false
+ *                            indica falha. O feedback visual continua o mesmo.
  *
  * Comportamento do "💾 Salvar rascunho": grava { dados, salvoEm } em
  * localStorage com prefixo 'rascunho:' e mostra o feedback verde
@@ -51,15 +55,20 @@ EC.navegacao = (function () {
     if (botaoProximo) botaoProximo.addEventListener('click', function () { opcoes.aoProximo(); });
 
     botaoRascunho.addEventListener('click', function () {
-      const dados = (typeof opcoes.obterDados === 'function') ? opcoes.obterDados() : {};
-      if (!chaveCompleta) {
-        const base = opcoes.chaveRascunho || 'rascunho-sem-identificacao';
-        chaveCompleta = 'rascunho:' + base + '_' + carimboDataHora(new Date());
+      let gravou;
+      if (typeof opcoes.aoSalvarRascunho === 'function') {
+        gravou = opcoes.aoSalvarRascunho() !== false;
+      } else {
+        const dados = (typeof opcoes.obterDados === 'function') ? opcoes.obterDados() : {};
+        if (!chaveCompleta) {
+          const base = opcoes.chaveRascunho || 'rascunho-sem-identificacao';
+          chaveCompleta = 'rascunho:' + base + '_' + carimboDataHora(new Date());
+        }
+        gravou = EC.storage.salvar(chaveCompleta, {
+          dados: dados,
+          salvoEm: new Date().toISOString()
+        });
       }
-      const gravou = EC.storage.salvar(chaveCompleta, {
-        dados: dados,
-        salvoEm: new Date().toISOString()
-      });
 
       if (gravou) {
         botaoRascunho.textContent = '✅ Rascunho salvo!';
