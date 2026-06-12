@@ -232,15 +232,6 @@ input[readonly] { background: var(--cinza-fundo); }
 .alerta-vermelho { background: var(--vermelho-claro); border: 1px solid var(--vermelho); color: #8f1f1f; }
 
 /* ---------- Fluxo de serviços ---------- */
-.indicador-passo {
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--azul);
-  margin: 0 0 4px;
-}
-
 .grade-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
 .os-item {
