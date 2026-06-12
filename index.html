@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#16276e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="eCamp">
+  <title>eCamp — ENGEAR Laboratório</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="public/icone-192.png">
+  <link rel="apple-touch-icon" href="public/icone-192.png">
+  <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+
+  <!-- ======= Header persistente (aparece após o login) ======= -->
+  <header id="header" class="oculto">
+    <img src="public/logo.png" id="header-logo" alt="eCamp — voltar à tela inicial" title="Voltar à tela inicial">
+    <div class="header-acoes">
+      <button type="button" class="botao-icone" id="btn-historico" title="Histórico de monitoramentos">🕐</button>
+      <button type="button" class="botao-icone" id="btn-rascunhos" title="Rascunhos salvos">📝</button>
+      <button type="button" class="botao-icone" id="btn-agenda" title="Agenda">📅</button>
+      <button type="button" class="botao-icone" id="btn-biblioteca" title="Biblioteca">📚</button>
+      <button type="button" id="chip-usuario" title="Sair do eCamp">
+        <span id="chip-avatar">?</span>
+        <span id="chip-nome">Técnico</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ======= Barra de pendências offline ======= -->
+  <div id="barra-pendencias" class="oculto">
+    <span id="pendencias-texto">📡 Sem conexão</span>
+    <button type="button" id="pendencias-ver" class="link-pendencias">Ver cadastros pendentes de sincronização</button>
+    <button type="button" id="pendencias-sincronizar" class="botao botao-mini">🔄 Sincronizar</button>
+  </div>
+
+  <main id="conteudo">
+
+    <!-- ======= Tela de Login ======= -->
+    <section id="tela-login" class="tela">
+      <div class="cartao cartao-login">
+        <img src="public/logo.png" class="logo-login" alt="eCamp — ENGEAR Laboratório">
+        <form id="form-login" autocomplete="off">
+          <label>Nome do técnico
+            <input type="text" id="login-nome" placeholder="Digite seu nome" required>
+          </label>
+          <label>Senha do app
+            <input type="password" id="login-senha" placeholder="Senha" required>
+          </label>
+          <label class="linha-check">
+            <input type="checkbox" id="login-salvar-senha">
+            <span>Salvar senha neste dispositivo</span>
+          </label>
+          <div id="login-erro" class="alerta alerta-vermelho oculto"></div>
+          <button type="submit" class="botao botao-primario botao-largo">Entrar</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- ======= Tela de Escolha da ação ======= -->
+    <section id="tela-acao" class="tela oculto">
+      <div class="cartao">
+        <h1>O que você vai fazer?</h1>
+        <div class="pilha-botoes">
+          <button type="button" class="botao botao-acao" id="btn-servicos">🛠️ Serviços</button>
+          <button type="button" class="botao botao-acao botao-acao-fase2" id="btn-reembolso">💰 Solicitação de reembolso<span class="selo-fase">Fase 2</span></button>
+          <button type="button" class="botao botao-acao botao-acao-fase2" id="btn-agenda-acao">📅 Agenda<span class="selo-fase">Fase 2</span></button>
+        </div>
+        <button type="button" class="link-discreto" id="btn-bancada">🧪 Testar componentes (Fase 0)</button>
+      </div>
+    </section>
+
+    <!-- ======= Placeholder do fluxo de serviços ======= -->
+    <section id="tela-servicos" class="tela oculto">
+      <div class="cartao">
+        <h1>🛠️ Fluxo de serviços — em construção</h1>
+        <p>As telas de OS, dados gerais, tipo de monitoramento, pré-campo e campo entram a partir da <strong>Fase 1</strong>.</p>
+        <button type="button" class="botao botao-secundario" id="servicos-voltar">← Voltar</button>
+      </div>
+    </section>
+
+    <!-- ======= Placeholder Fase 2 (Reembolso / Agenda) ======= -->
+    <section id="tela-fase2" class="tela oculto">
+      <div class="cartao">
+        <h1 id="fase2-titulo">Disponível na Fase 2</h1>
+        <p class="texto-grande">🔒 Disponível na Fase 2.</p>
+        <p>Este módulo será construído depois que o app de campo estiver pronto.</p>
+        <button type="button" class="botao botao-secundario" id="fase2-voltar">← Voltar</button>
+      </div>
+    </section>
+
+    <!-- ======= Bancada de teste dos componentes transversais (Fase 0) ======= -->
+    <section id="tela-teste" class="tela oculto">
+      <div class="cartao">
+        <h1>🧪 Componentes transversais — bancada de teste</h1>
+        <p>Cada bloco abaixo é um componente isolado que os formulários das próximas fases vão reutilizar. Dados de OS/tipo/ponto estão <strong>mockados</strong>: OS <code>2026-0158</code> · tipo <code>RUIDOEXTERNO</code> · ponto <code>P03</code>.</p>
+      </div>
+
+      <div class="cartao">
+        <h2>📍 Campo de GPS (captura + UTM + endereço)</h2>
+        <div id="teste-gps"></div>
+      </div>
+
+      <div class="cartao">
+        <h2>📷 Foto com carimbo UTM</h2>
+        <p class="texto-apoio">Capture o GPS acima primeiro para o carimbo usar a coordenada real; sem GPS, usa uma coordenada de exemplo.</p>
+        <div id="teste-foto"></div>
+      </div>
+
+      <div class="cartao">
+        <h2>🔢 Paginação de pontos</h2>
+        <div id="teste-paginacao"></div>
+        <p id="teste-paginacao-info" class="texto-apoio"></p>
+      </div>
+
+      <div class="cartao">
+        <h2>🌬️ Alerta de vento (≥ 5 m/s)</h2>
+        <div id="teste-vento"></div>
+      </div>
+
+      <div class="cartao">
+        <h2>🎚️ Diferença entre checagens (≥ 0,5 dB)</h2>
+        <p class="texto-apoio">Exemplo da especificação: inicial = − 0,10 e final = + 0,45 → diferença 0,55 → alerta.</p>
+        <div id="teste-checagens"></div>
+      </div>
+
+      <div class="cartao">
+        <h2>🧭 Botões padrão de navegação</h2>
+        <label>Campo de exemplo (entra no rascunho)
+          <input type="text" id="teste-campo-exemplo" placeholder="Digite algo e salve o rascunho">
+        </label>
+        <div id="teste-navegacao"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ======= Overlay genérico (Histórico / Rascunhos / Agenda / Biblioteca / Pendentes) ======= -->
+  <div id="overlay" class="oculto">
+    <div class="overlay-caixa">
+      <div class="overlay-topo">
+        <h2 id="overlay-titulo"></h2>
+        <button type="button" id="overlay-fechar" title="Fechar">✕</button>
+      </div>
+      <div id="overlay-conteudo"></div>
+    </div>
+  </div>
+
+  <!-- ======= Toast de feedback ======= -->
+  <div id="toast" class="oculto"></div>
+
+  <!-- ======= Rodapé fixo ======= -->
+  <footer id="rodape">eCamp — Software desenvolvido pela ENGEAR Laboratório Ltda · Versão 0.0.0</footer>
+
+  <script src="js/storage.js"></script>
+  <script src="js/esquemas.js"></script>
+  <script src="js/componentes/gps.js"></script>
+  <script src="js/componentes/foto.js"></script>
+  <script src="js/componentes/navegacao.js"></script>
+  <script src="js/componentes/paginacao.js"></script>
+  <script src="js/componentes/alerta-vento.js"></script>
+  <script src="js/componentes/checagens.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
