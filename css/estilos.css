@@ -58,7 +58,7 @@ code { background: var(--azul-claro); padding: 1px 5px; border-radius: 4px; font
   box-shadow: var(--sombra);
 }
 
-#header-logo { height: 38px; cursor: pointer; }
+#header-logo { height: 42px; cursor: pointer; }
 
 .header-acoes { display: flex; align-items: center; gap: 4px; }
 
