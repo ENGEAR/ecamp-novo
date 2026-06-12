@@ -17,6 +17,8 @@
  *     textoUtm (ex.: "23K 612345 E 7791234 N")
  *   }
  *   instância.textoCarimbo() → texto UTM curto para o carimbo de foto, ou ''
+ *   instância.definirDados(dados) → restaura uma captura salva (mesmo formato
+ *     de obterDados) — usado ao reabrir rascunhos/pontos já preenchidos
  *
  *   EC.gps.latLonParaUtm(lat, lon) → { zona, hemisferio, leste, norte }
  *   EC.gps.geocodificarReverso(lat, lon) → Promise<string>  *** MOCK na Fase 0 ***
@@ -175,9 +177,22 @@ EC.gps = (function () {
       );
     });
 
+    function definirDados(novos) {
+      if (!novos || !novos.utm) return;
+      dados = novos;
+      campoZona.value = novos.utm.zona + novos.utm.hemisferio;
+      campoLeste.value = novos.utm.leste + ' m';
+      campoNorte.value = novos.utm.norte + ' m';
+      campoEndereco.value = novos.endereco || '';
+      status.innerHTML = '✅ GPS capturado — precisão de <strong>' + novos.precisao + ' m</strong>';
+    }
+
+    if (opcoes.dadosIniciais) definirDados(opcoes.dadosIniciais);
+
     return {
       obterDados: function () { return dados; },
-      textoCarimbo: function () { return dados ? dados.textoUtm : ''; }
+      textoCarimbo: function () { return dados ? dados.textoUtm : ''; },
+      definirDados: definirDados
     };
   }
 

@@ -146,7 +146,7 @@ label {
   margin-bottom: 12px;
 }
 
-input[type="text"], input[type="password"], input[type="number"], select {
+input[type="text"], input[type="password"], input[type="number"], input[type="date"], input[type="time"], select, textarea {
   display: block;
   width: 100%;
   margin-top: 4px;
@@ -157,8 +157,9 @@ input[type="text"], input[type="password"], input[type="number"], select {
   background: #fff;
   color: var(--texto);
 }
-input:focus, select:focus { outline: 2px solid var(--azul); border-color: var(--azul); }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--azul); border-color: var(--azul); }
 input[readonly] { background: var(--cinza-fundo); }
+textarea { resize: vertical; font-family: inherit; }
 
 .linha-check {
   display: flex;
@@ -230,6 +231,65 @@ input[readonly] { background: var(--cinza-fundo); }
 }
 .alerta-amarelo { background: var(--amarelo-claro); border: 1px solid var(--amarelo); color: #6e5a00; }
 .alerta-vermelho { background: var(--vermelho-claro); border: 1px solid var(--vermelho); color: #8f1f1f; }
+.alerta-info { background: var(--azul-claro); border: 1px solid var(--azul); color: var(--azul-escuro); }
+
+/* ---------- Checklists (romaneio e campo) ---------- */
+.romaneio-titulo { font-size: 1rem; color: var(--azul-escuro); margin: 18px 0 6px; }
+.romaneio-subtitulo { font-style: italic; color: var(--cinza-texto); font-size: 0.88rem; margin: 10px 0 4px; }
+.romaneio-item { padding: 4px 0; }
+.romaneio-resumo {
+  margin-top: 14px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: var(--amarelo-claro);
+  border: 1px solid var(--amarelo);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #6e5a00;
+}
+.romaneio-completo { background: var(--verde-claro); border-color: var(--verde); color: var(--verde); }
+
+.check-campo { align-items: flex-start; padding: 4px 0; }
+.check-campo input { margin-top: 2px; flex-shrink: 0; }
+.check-campo small { color: var(--cinza-texto); }
+.grupo-checks-titulo { font-weight: 700; color: var(--azul-escuro); font-size: 0.92rem; margin: 16px 0 6px; }
+
+/* ---------- Formulário de campo (pontos) ---------- */
+.cartao-ponto {
+  border: 2px solid var(--azul-claro);
+  border-radius: 12px;
+  padding: 14px 12px;
+  margin-top: 12px;
+}
+.cr-paginacao { margin: 14px 0 4px; }
+.cr-resultado-checagem { font-size: 0.95rem; min-height: 1.2em; }
+
+/* ---------- Canvas da sala ---------- */
+.canvas-barra { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.canvas-ferramenta {
+  border: 1px solid var(--cinza-borda);
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.canvas-ferramenta-ativa { background: var(--azul-escuro); color: #fff; border-color: var(--azul-escuro); }
+.canvas-limpar { color: var(--vermelho); }
+.canvas-desenho { width: 100%; border-radius: 8px; touch-action: none; display: block; }
+.canvas-dica { margin-top: 6px; }
+
+/* ---------- Revisão ---------- */
+.revisao-secao {
+  border: 1px solid var(--cinza-borda);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+.revisao-secao-topo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.revisao-secao-topo h2 { margin: 4px 0; }
+.lista-avisos { margin: 8px 0 0; padding-left: 20px; }
+.lista-avisos li { margin-bottom: 3px; }
 
 /* ---------- Fluxo de serviços ---------- */
 .grade-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

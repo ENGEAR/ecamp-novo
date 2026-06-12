@@ -22,6 +22,8 @@
  *     dataUrl      : 'data:image/jpeg;base64,...' (para <img> e PDF)
  *     capturadaEm  : ISO 8601
  *   }
+ *   instância.definirFoto(foto) → restaura uma foto salva (precisa ter ao
+ *     menos nomeArquivo e dataUrl) — usado ao reabrir rascunhos/pontos
  *
  * Na Fase 0 os valores de OS/tipo/ponto chegam mockados; nas próximas fases
  * os formulários passam os valores reais.
@@ -145,8 +147,20 @@ EC.foto = (function () {
       leitor.readAsDataURL(arquivo);
     });
 
+    function definirFoto(nova) {
+      if (!nova || !nova.dataUrl) return;
+      foto = nova;
+      previa.src = nova.dataUrl;
+      previa.classList.remove('oculto');
+      nome.textContent = '📎 ' + (nova.nomeArquivo || '');
+      status.textContent = '✅ Foto salva.';
+    }
+
+    if (opcoes.fotoInicial) definirFoto(opcoes.fotoInicial);
+
     return {
-      obterFoto: function () { return foto; }
+      obterFoto: function () { return foto; },
+      definirFoto: definirFoto
     };
   }
 

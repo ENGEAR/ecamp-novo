@@ -140,10 +140,20 @@
   });
 
   $('btn-historico').addEventListener('click', function () {
-    const itens = EC.storage.listar('historico:');
+    const itens = EC.storage.listar('historico:').sort(function (a, b) {
+      return ((b.valor && b.valor.salvoEm) || '').localeCompare((a.valor && a.valor.salvoEm) || '');
+    });
     abrirOverlay('🕐 Histórico', itens.length === 0
-      ? '<p class="overlay-vazio">Nenhum monitoramento finalizado ainda.<br>A gestão completa do histórico entra na Fase 5.</p>'
-      : itens.map(function (item) { return '<div class="overlay-item">' + item.chave + '</div>'; }).join(''));
+      ? '<p class="overlay-vazio">Nenhum monitoramento finalizado ainda.</p>'
+      : itens.map(function (item) {
+          const r = item.valor || {};
+          return '<div class="overlay-item">' +
+            '<strong>OS ' + (r.os ? r.os.numero : '?') + '</strong> — ' + (r.os ? r.os.cliente : '') +
+            '<br><small>' + (r.tipo || '') + ' · ' + (r.tecnico || '') +
+            (r.salvoEm ? ' · ' + new Date(r.salvoEm).toLocaleString('pt-BR') : '') + '</small>' +
+            '</div>';
+        }).join('') +
+        '<p class="texto-apoio">"Ver detalhes" (com PDF) entra nas Fases 3 e 5.</p>');
   });
 
   $('btn-rascunhos').addEventListener('click', function () {

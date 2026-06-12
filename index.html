@@ -116,8 +116,7 @@
     <section id="tela-passo3a" class="tela oculto">
       <div class="cartao">
         <h1>🔧 Seleção de equipamentos</h1>
-        <p class="texto-grande">🚧 Em construção.</p>
-        <p>A seleção real (lista da planilha F021, validação de calibração) entra na <strong>Fase 6</strong>. Até lá, os formulários usarão uma lista de equipamentos de exemplo.</p>
+        <div id="equipamentos-conteudo"></div>
         <div id="passo3a-nav"></div>
       </div>
     </section>
@@ -126,8 +125,8 @@
     <section id="tela-passo3b" class="tela oculto">
       <div class="cartao">
         <h1>✅ Pré-campo / Romaneio</h1>
-        <p class="texto-grande">🚧 Em construção.</p>
-        <p>O checklist por tipo de monitoramento entra na <strong>Fase 2</strong> (Ruído) e na <strong>Fase 4</strong> (demais tipos).</p>
+        <p class="texto-apoio">Conferir antes de sair do laboratório.</p>
+        <div id="precampo-conteudo"></div>
         <div id="passo3b-nav"></div>
       </div>
     </section>
@@ -136,8 +135,7 @@
     <section id="tela-passo4" class="tela oculto">
       <div class="cartao">
         <h1>📡 Monitoramento em campo</h1>
-        <p class="texto-grande">🚧 Em construção.</p>
-        <p>O formulário de coleta por tipo/subtipo entra na <strong>Fase 2</strong> (Ruído) e na <strong>Fase 4</strong> (demais tipos).</p>
+        <div id="campo-conteudo"></div>
         <div id="passo4-nav"></div>
       </div>
     </section>
@@ -146,7 +144,7 @@
     <section id="tela-revisao" class="tela oculto">
       <div class="cartao">
         <h1>🔍 Revisão</h1>
-        <p class="texto-apoio">Conferência do que foi preenchido até aqui. O conteúdo completo desta tela ainda será definido.</p>
+        <p class="texto-apoio">Confira o que foi preenchido. Os botões "Corrigir" levam direto à tela de cada parte.</p>
         <div id="revisao-conteudo"></div>
         <div id="revisao-nav"></div>
       </div>
@@ -156,12 +154,23 @@
     <section id="tela-passo5" class="tela oculto">
       <div class="cartao">
         <h1>🏁 Finalizar</h1>
-        <p>O salvamento real do registro (com tela de sucesso e PDF) entra nas <strong>Fases 2 e 3</strong>.</p>
-        <div class="pilha-botoes">
-          <button type="button" class="botao botao-primario" id="finalizar-salvar">Salvar registro ✓</button>
-          <button type="button" class="botao botao-secundario" id="finalizar-novo">🏠 Novo registro</button>
+        <div id="finalizar-area">
+          <p>O registro será salvo no histórico deste dispositivo. A sincronização com o SharePoint entra na fase final.</p>
+          <div id="finalizar-avisos"></div>
+          <div class="pilha-botoes">
+            <button type="button" class="botao botao-primario" id="finalizar-salvar">Salvar registro ✓</button>
+            <button type="button" class="botao botao-secundario" id="finalizar-novo">🏠 Novo registro</button>
+          </div>
+          <div id="passo5-nav"></div>
         </div>
-        <div id="passo5-nav"></div>
+        <div id="sucesso-area" class="oculto">
+          <div class="alerta alerta-info">🎉 <strong>Registro salvo com sucesso!</strong></div>
+          <div id="sucesso-resumo"></div>
+          <div class="pilha-botoes">
+            <button type="button" class="botao botao-primario" id="sucesso-novo">🏠 Novo registro</button>
+            <button type="button" class="botao botao-secundario" id="sucesso-pdf">📄 Gerar PDF</button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -247,6 +256,10 @@
   <script src="js/componentes/paginacao.js"></script>
   <script src="js/componentes/alerta-vento.js"></script>
   <script src="js/componentes/checagens.js"></script>
+  <script src="js/componentes/canvas-sala.js"></script>
+  <script src="js/equipamentos-mock.js"></script>
+  <script src="js/romaneios.js"></script>
+  <script src="js/campo-ruido.js"></script>
   <script src="js/fluxo.js"></script>
   <script src="js/app.js"></script>
 </body>

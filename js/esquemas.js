@@ -37,7 +37,45 @@
 window.EC = window.EC || {};
 
 EC.esquemas = {
-  // ruido:     preenchido na Fase 2 (piloto)
+  // Esquema do tipo RUÍDO (Fase 2 — piloto).
+  // Cada linha da aba corresponde a UM PONTO de um registro; os campos vêm
+  // do objeto registro (r) e do ponto (p) montados pelo fluxo.
+  ruido: {
+    aba: 'Ruido',
+    colunas: [
+      { campo: 'codificacao', coluna: 'Codificação' },
+      { campo: 'os', coluna: 'Nº OS' },
+      { campo: 'cliente', coluna: 'Cliente' },
+      { campo: 'tecnico', coluna: 'Técnico' },
+      { campo: 'dataInicio', coluna: 'Data' },
+      { campo: 'horaInicio', coluna: 'Hora de início' },
+      { campo: 'subtipo', coluna: 'Subtipo' },
+      { campo: 'finalidade', coluna: 'Finalidade' },
+      { campo: 'ponto', coluna: 'Ponto' },
+      { campo: 'nomePonto', coluna: 'Nome do ponto' },
+      { campo: 'horaInicialPonto', coluna: 'Hora inicial do ponto' },
+      { campo: 'utmZona', coluna: 'UTM Zona' },
+      { campo: 'utmLeste', coluna: 'UTM Leste (E)' },
+      { campo: 'utmNorte', coluna: 'UTM Norte (N)' },
+      { campo: 'precisaoGps', coluna: 'Precisão GPS (m)' },
+      { campo: 'endereco', coluna: 'Endereço do ponto' },
+      { campo: 'equipamentos', coluna: 'Equipamentos utilizados' },
+      { campo: 'chkIni', coluna: 'Checagem inicial (dB)' },
+      { campo: 'chkFim', coluna: 'Checagem final (dB)' },
+      { campo: 'diffChecagens', coluna: 'Diferença entre checagens (dB)' },
+      { campo: 'temperatura', coluna: 'Temperatura (°C)' },
+      { campo: 'umidade', coluna: 'Umidade (%)' },
+      { campo: 'vento', coluna: 'Vento (m/s)' },
+      { campo: 'altura', coluna: 'Altura do sonômetro (m)' },
+      { campo: 'fontesEmpresa', coluna: 'Fontes percebidas — empresa' },
+      { campo: 'fontesAmbiente', coluna: 'Fontes percebidas — ambiente' },
+      { campo: 'eventualidade', coluna: 'Eventualidade' },
+      { campo: 'observacoes', coluna: 'Observações' },
+      { campo: 'horaTerminoPonto', coluna: 'Hora de término do ponto' },
+      { campo: 'fotos', coluna: 'Fotos (nomes dos arquivos)' },
+      { campo: 'salvoEm', coluna: 'Salvo em' }
+    ]
+  }
   // sismo:     preenchido na Fase 4
   // qar:       preenchido na Fase 4
   // opacidade: preenchido na Fase 4
