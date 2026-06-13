@@ -68,7 +68,10 @@ EC.fluxo = (function () {
   function novoEstado(os) {
     const agora = new Date();
     return {
-      os: { numero: os.numero, cliente: os.cliente, endereco: os.endereco, resumo: os.resumo, qtdePontos: os.qtdePontos },
+      os: {
+        numero: os.numero, cliente: os.cliente, endereco: os.endereco, resumo: os.resumo,
+        escopo: os.escopo, qtdePontos: os.qtdePontos, metodo: os.metodo, periodo: os.periodo, observacao: os.observacao
+      },
       codificacaoBase: os.numero + '_' + os.cliente,
       dadosGerais: {
         dataInicio: agora.getFullYear() + '-' + doisDigitos(agora.getMonth() + 1) + '-' + doisDigitos(agora.getDate()),
@@ -174,6 +177,14 @@ EC.fluxo = (function () {
 
   /* ---------- Dados gerais ---------- */
 
+  // Detalhe da OS (escopo, método, período, observação): usa o que está no
+  // estado; se faltar (rascunho antigo), busca na lista de OS pelo número.
+  function osDetalhe(campo) {
+    if (estado.os[campo] !== undefined && estado.os[campo] !== null && estado.os[campo] !== '') return estado.os[campo];
+    const m = EC.osMock.filter(function (o) { return o.numero === estado.os.numero; })[0];
+    return (m && m[campo]) || '';
+  }
+
   function preencherDadosGerais() {
     $('dg-data').value = estado.dadosGerais.dataInicio;
     $('dg-hora').value = estado.dadosGerais.horaInicio;
@@ -181,7 +192,11 @@ EC.fluxo = (function () {
     $('dg-cliente').value = estado.os.cliente;
     $('dg-endereco').value = estado.os.endereco;
     $('dg-resumo').value = estado.os.resumo;
+    $('dg-escopo').value = osDetalhe('escopo');
     $('dg-pontos').value = estado.dadosGerais.qtdePontos;
+    $('dg-metodo').value = osDetalhe('metodo');
+    $('dg-periodo').value = osDetalhe('periodo');
+    $('dg-observacao').value = osDetalhe('observacao');
     $('dg-maps').value = estado.dadosGerais.linkMaps || '';
 
     EC.foto.criar($('dg-foto'), {
@@ -352,8 +367,12 @@ EC.fluxo = (function () {
       linhaResumo('Nº da OS', estado.os.numero) +
       linhaResumo('Cliente', estado.os.cliente) +
       linhaResumo('Endereço', estado.os.endereco) +
+      linhaResumo('Escopo', osDetalhe('escopo')) +
       linhaResumo('Início', estado.dadosGerais.dataInicio.split('-').reverse().join('/') + ' às ' + estado.dadosGerais.horaInicio) +
-      linhaResumo('Quantidade de pontos', estado.dadosGerais.qtdePontos) +
+      linhaResumo('Pontos', estado.dadosGerais.qtdePontos) +
+      linhaResumo('Método', osDetalhe('metodo')) +
+      linhaResumo('Período', osDetalhe('periodo')) +
+      linhaResumo('Observação', osDetalhe('observacao')) +
       linhaResumo('Link do Google Maps', estado.dadosGerais.linkMaps) +
       linhaResumo('Foto do local', estado.dadosGerais.foto ? '✅ anexada' : '—'),
       'tela-dados-gerais');

@@ -158,7 +158,7 @@ input[type="text"], input[type="password"], input[type="number"], input[type="da
   color: var(--texto);
 }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--azul); border-color: var(--azul); }
-input[readonly] { background: var(--cinza-fundo); }
+input[readonly], textarea[readonly] { background: var(--cinza-fundo); }
 textarea { resize: vertical; font-family: inherit; }
 
 .linha-check {
