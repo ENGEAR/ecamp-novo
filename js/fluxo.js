@@ -224,6 +224,22 @@ EC.fluxo = (function () {
   /* ---------- Tipo de monitoramento ---------- */
 
   function renderizarTipos() {
+    // Pré-seleciona o tipo a partir do escopo da OS (o técnico pode trocar).
+    const detectado = EC.mapaEscopo.tipoPorEscopo(osDetalhe('escopo'));
+    if (!estado.tipo && detectado) {
+      estado.tipo = detectado;
+      salvarEstado();
+    }
+
+    const hint = $('tipo-hint');
+    if (detectado && estado.tipo === detectado) {
+      hint.className = 'alerta alerta-info';
+      hint.innerHTML = '✓ Pré-selecionado pelo escopo da OS (“' + osDetalhe('escopo') + '”). Você pode alterar se necessário.';
+    } else {
+      hint.className = '';
+      hint.innerHTML = '';
+    }
+
     const grade = $('grade-tipos');
     grade.innerHTML = TIPOS.map(function (tipo) {
       const ativo = estado.tipo === tipo.id;
