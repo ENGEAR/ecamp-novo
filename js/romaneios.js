@@ -6,15 +6,22 @@
  * o tipo escolhido. Nesta fase só o Ruído está preenchido; os demais tipos
  * entram na Fase 4 usando a mesma estrutura.
  *
+ * Blocos marcados com `opcional: true` (ex.: itens de longa duração e de
+ * monitoramento online no Ruído) NÃO entram na obrigatoriedade — o resto do
+ * checklist precisa estar conferido para o fluxo liberar o "Próximo →".
+ *
  * Interface (namespace global EC.romaneios):
- *   EC.romaneios.dados[tipo] → array de blocos { titulo, grupos: [{ subtitulo?, itens: [string] }] }
+ *   EC.romaneios.dados[tipo] → array de blocos { titulo, opcional?, grupos: [{ subtitulo?, itens: [string] }] }
+ *   EC.romaneios.pendentesObrigatorios(tipo, marcados) → nº de itens
+ *     obrigatórios ainda não conferidos (0 = pré-campo liberado; tipo sem
+ *     romaneio também devolve 0, não trava)
  *   EC.romaneios.renderizar(container, tipo, marcados, aoMudar) → instância
  *     container : HTMLElement
  *     tipo      : 'ruido' | ... (se não houver romaneio, mostra aviso)
  *     marcados  : objeto { 'b0g0i0': true, ... } com o estado salvo dos checks
  *                 (a chave codifica bloco/grupo/item; o objeto é MUTADO em uso)
  *     aoMudar   : callback opcional chamado a cada check (recebe o resumo)
- *   instância.resumo() → { total, marcados }
+ *   instância.resumo() → { total, obrigatoriosTotal, obrigatoriosMarcados, obrigatoriosPendentes }
  */
 window.EC = window.EC || {};
 
@@ -70,6 +77,7 @@ EC.romaneios = (function () {
       },
       {
         titulo: '3. Itens adicionais para monitoramentos de longa duração',
+        opcional: true,
         grupos: [{
           itens: [
             'Cabo de extensão',
@@ -79,6 +87,7 @@ EC.romaneios = (function () {
       },
       {
         titulo: '4. Itens adicionais para monitoramento online',
+        opcional: true,
         grupos: [{
           itens: [
             'Roteador 4G',
@@ -103,17 +112,39 @@ EC.romaneios = (function () {
     // sismo / qar / opacidade / qarint: Fase 4
   };
 
+  // Chaves dos itens OBRIGATÓRIOS (ignora blocos marcados como opcional).
+  function chavesObrigatorias(tipo) {
+    const blocos = dados[tipo];
+    const chaves = [];
+    if (!blocos) return chaves;
+    blocos.forEach(function (bloco, b) {
+      if (bloco.opcional) return;
+      bloco.grupos.forEach(function (grupo, g) {
+        grupo.itens.forEach(function (item, i) {
+          chaves.push('b' + b + 'g' + g + 'i' + i);
+        });
+      });
+    });
+    return chaves;
+  }
+
+  function pendentesObrigatorios(tipo, marcados) {
+    marcados = marcados || {};
+    return chavesObrigatorias(tipo).filter(function (chave) { return !marcados[chave]; }).length;
+  }
+
   function renderizar(container, tipo, marcados, aoMudar) {
     const blocos = dados[tipo];
     if (!blocos) {
       container.innerHTML = '<p class="texto-apoio">O checklist de pré-campo deste tipo entra na Fase 4.</p>';
-      return { resumo: function () { return { total: 0, marcados: 0 }; } };
+      return { resumo: function () { return { total: 0, obrigatoriosTotal: 0, obrigatoriosMarcados: 0, obrigatoriosPendentes: 0 }; } };
     }
 
     let total = 0;
     let html = '';
     blocos.forEach(function (bloco, b) {
-      html += '<h2 class="romaneio-titulo">' + bloco.titulo + '</h2>';
+      html += '<h2 class="romaneio-titulo">' + bloco.titulo +
+        (bloco.opcional ? ' <span class="romaneio-opcional">(opcional)</span>' : '') + '</h2>';
       bloco.grupos.forEach(function (grupo, g) {
         if (grupo.subtitulo) html += '<p class="romaneio-subtitulo">' + grupo.subtitulo + '</p>';
         grupo.itens.forEach(function (item, i) {
@@ -128,17 +159,26 @@ EC.romaneios = (function () {
     container.innerHTML = html;
 
     const caixaResumo = container.querySelector('.romaneio-resumo');
+    const obrigatorias = chavesObrigatorias(tipo);
 
     function resumo() {
-      let qtde = 0;
-      Object.keys(marcados).forEach(function (chave) { if (marcados[chave]) qtde++; });
-      return { total: total, marcados: qtde };
+      let obrigMarcados = 0;
+      obrigatorias.forEach(function (chave) { if (marcados[chave]) obrigMarcados++; });
+      return {
+        total: total,
+        obrigatoriosTotal: obrigatorias.length,
+        obrigatoriosMarcados: obrigMarcados,
+        obrigatoriosPendentes: obrigatorias.length - obrigMarcados
+      };
     }
 
     function atualizarResumo() {
       const r = resumo();
-      caixaResumo.textContent = r.marcados + ' de ' + r.total + ' itens conferidos';
-      caixaResumo.classList.toggle('romaneio-completo', r.marcados === r.total);
+      const completo = r.obrigatoriosPendentes === 0;
+      caixaResumo.textContent = completo
+        ? '✓ Itens obrigatórios conferidos (' + r.obrigatoriosTotal + '/' + r.obrigatoriosTotal + ')'
+        : r.obrigatoriosMarcados + ' de ' + r.obrigatoriosTotal + ' itens obrigatórios conferidos';
+      caixaResumo.classList.toggle('romaneio-completo', completo);
     }
 
     container.querySelectorAll('input[data-chave]').forEach(function (caixa) {
@@ -153,5 +193,5 @@ EC.romaneios = (function () {
     return { resumo: resumo };
   }
 
-  return { dados: dados, renderizar: renderizar };
+  return { dados: dados, renderizar: renderizar, pendentesObrigatorios: pendentesObrigatorios };
 })();
