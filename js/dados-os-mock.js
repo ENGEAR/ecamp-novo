@@ -4,20 +4,25 @@
  * A lista real virá do SGE (seção 4.4 da especificação); a ponte de leitura
  * ainda será definida. Enquanto isso, o fluxo de serviços usa esta lista fixa.
  *
- * Os campos espelham o modelo de OS da ENGEAR (seção "Descrição do serviço,
- * metodologia e valor da logística"):
+ * Uma OS pode conter VÁRIOS serviços (escopos), eventualmente em campanhas
+ * diferentes (ex.: Ruído + Vibração na mesma campanha; QAR numa campanha
+ * posterior). Cada serviço é monitorado de forma independente e vira um
+ * registro/PDF próprio.
  *
  * Interface (namespace global EC.osMock):
  *   EC.osMock → array de OS, cada uma com:
  *     numero      : nº da OS               (ex.: '2026-0158')
- *     cliente     : nome do cliente
- *     endereco    : endereço do local do serviço
- *     resumo      : resumo do serviço (texto curto)
- *     escopo      : escopo/norma do serviço (ex.: 'Ruído Ambiental – NBR 10151')
- *     qtdePontos  : quantidade de pontos prevista (o técnico pode editar)
- *     metodo      : metodologia + procedimento interno (norma e POP)
- *     periodo     : período previsto (datas / dias de medição / campanhas)
- *     observacao  : observações da OS
+ *     cliente     : nome do cliente        (nível OS)
+ *     endereco    : endereço do local      (nível OS)
+ *     resumo      : resumo do serviço      (nível OS)
+ *     observacao  : observações da OS      (nível OS)
+ *     servicos    : array de serviços, cada um com:
+ *       campanha    : rótulo da campanha   (ex.: 'Campanha 1' / 'Campanha única')
+ *       escopo      : escopo/norma         (define o tipo de monitoramento)
+ *       qtdePontos  : quantidade de pontos prevista (o técnico pode editar)
+ *       metodo      : metodologia + procedimento interno
+ *       periodo     : período previsto (datas / dias / campanha)
+ *       observacao  : observações do serviço
  *
  * Quando a ponte com o SGE existir, este arquivo será substituído pela
  * leitura real — mantendo os mesmos campos.
@@ -30,43 +35,125 @@ EC.osMock = [
     cliente: 'Mineração Alfa Ltda',
     endereco: 'Rodovia BR-040, km 12 — Sete Lagoas/MG',
     resumo: 'Monitoramento de ruído ambiental na divisa com área residencial',
-    escopo: 'Ruído Ambiental – NBR 10151',
-    qtdePontos: 3,
-    metodo: 'ABNT NBR 10151:2019 · Procedimento interno: POP 001',
-    periodo: 'Campanha única — 1 dia de medição (período diurno e noturno)',
-    observacao: 'Acesso pela portaria principal; avisar a segurança na chegada.'
+    observacao: 'Acesso pela portaria principal; avisar a segurança na chegada.',
+    servicos: [
+      {
+        campanha: 'Campanha única',
+        escopo: 'Ruído Ambiental – NBR 10151',
+        qtdePontos: 3,
+        metodo: 'ABNT NBR 10151:2019 · Procedimento interno: POP 001',
+        periodo: '1 dia de medição (período diurno e noturno)',
+        observacao: 'Medir na divisa com as residências.'
+      }
+    ]
   },
   {
     numero: '2026-0163',
     cliente: 'Construtora Beta S.A.',
     endereco: 'Av. dos Andradas, 4500 — Belo Horizonte/MG',
-    resumo: 'Sismografia de desmonte de rocha — obra de fundação',
-    escopo: 'Sismografia – NBR 9653',
-    qtdePontos: 2,
-    metodo: 'ABNT NBR 9653:2018 · Procedimento interno: POP 002',
-    periodo: 'Campanha 1 — 1 dia | Campanha 2 — 1 dia',
-    observacao: 'Confirmar horário do desmonte com o responsável da obra.'
+    resumo: 'Ruído e vibração do desmonte de rocha — obra de fundação',
+    observacao: 'Confirmar horário do desmonte com o responsável da obra.',
+    servicos: [
+      {
+        campanha: 'Campanha 1',
+        escopo: 'Ruído Ambiental – NBR 10151',
+        qtdePontos: 2,
+        metodo: 'ABNT NBR 10151:2019 · Procedimento interno: POP 001',
+        periodo: 'Campanha 1 — 1 dia',
+        observacao: 'Pontos na divisa com as residências vizinhas.'
+      },
+      {
+        campanha: 'Campanha 1',
+        escopo: 'Sismografia – NBR 9653',
+        qtdePontos: 2,
+        metodo: 'ABNT NBR 9653:2018 · Procedimento interno: POP 002',
+        periodo: 'Campanha 1 — 1 dia (dia do desmonte)',
+        observacao: 'Sincronizar a medição com o horário do fogo.'
+      }
+    ]
   },
   {
     numero: '2026-0171',
     cliente: 'Indústria Gama Alimentos',
     endereco: 'Distrito Industrial, Quadra 8 — Contagem/MG',
     resumo: 'Qualidade do ar externo — particulados no entorno da caldeira',
-    escopo: 'Qualidade do Ar Externo – PTS e PM10',
-    qtdePontos: 4,
-    metodo: 'ABNT NBR 9547 / NBR 13412 · Procedimento interno: POP 010',
-    periodo: 'Campanha única — 4 dias de amostragem (24 h por ponto)',
-    observacao: 'Local de instalação com tomada confirmada; levar cabo de extensão.'
+    observacao: 'Local de instalação com tomada confirmada; levar cabo de extensão.',
+    servicos: [
+      {
+        campanha: 'Campanha única',
+        escopo: 'Qualidade do Ar Externo – PTS e PM10',
+        qtdePontos: 4,
+        metodo: 'ABNT NBR 9547 / NBR 13412 · Procedimento interno: POP 010',
+        periodo: '4 dias de amostragem (24 h por ponto)',
+        observacao: 'Instalar a sotavento da fonte.'
+      }
+    ]
   },
   {
     numero: '2026-0185',
     cliente: 'Hospital Delta',
     endereco: 'Rua das Acácias, 120 — Nova Lima/MG',
     resumo: 'Qualidade do ar interno (MQAI) — bloco cirúrgico',
-    escopo: 'Qualidade do Ar Interno – MQAI (RE 09/2003 ANVISA)',
-    qtdePontos: 5,
-    metodo: 'RE ANVISA 09/2003 · Procedimento interno: POP 015',
-    periodo: 'Campanha única — 1 dia (ambientes climatizados)',
-    observacao: 'Coleta microbiológica; logística de retorno das amostras ao laboratório no mesmo dia.'
+    observacao: 'Coleta microbiológica; retorno das amostras ao laboratório no mesmo dia.',
+    servicos: [
+      {
+        campanha: 'Campanha única',
+        escopo: 'Qualidade do Ar Interno – MQAI (RE 09/2003 ANVISA)',
+        qtdePontos: 5,
+        metodo: 'RE ANVISA 09/2003 · Procedimento interno: POP 015',
+        periodo: '1 dia (ambientes climatizados)',
+        observacao: 'Confirmar ambientes climatizados com a engenharia clínica.'
+      }
+    ]
+  },
+  {
+    numero: '2026-0192',
+    cliente: 'Pedreira São João Ltda',
+    endereco: 'Rodovia MG-050, km 78 — Juatuba/MG',
+    resumo: 'Monitoramento ambiental do desmonte e do entorno (várias campanhas)',
+    observacao: 'Campanhas em meses diferentes; confirmar a agenda com o cliente antes de cada ida.',
+    servicos: [
+      {
+        campanha: 'Campanha 1',
+        escopo: 'Ruído Ambiental – NBR 10151',
+        qtdePontos: 3,
+        metodo: 'ABNT NBR 10151:2019 · Procedimento interno: POP 001',
+        periodo: 'Campanha 1 — 1 dia',
+        observacao: 'Pontos na divisa norte e leste.'
+      },
+      {
+        campanha: 'Campanha 1',
+        escopo: 'Sismografia – NBR 9653',
+        qtdePontos: 2,
+        metodo: 'ABNT NBR 9653:2018 · Procedimento interno: POP 002',
+        periodo: 'Campanha 1 — 1 dia (dia do desmonte)',
+        observacao: 'Sincronizar com o fogo; geofones no solo consolidado.'
+      },
+      {
+        campanha: 'Campanha 2',
+        escopo: 'Qualidade do Ar Externo – Poeira Sedimentável',
+        qtdePontos: 4,
+        metodo: 'ABNT NBR 15402 · Procedimento interno: POP 012',
+        periodo: 'Campanha 2 — 30 dias de exposição',
+        observacao: 'Instalar os frascos; coletar após 30 dias.'
+      }
+    ]
+  },
+  {
+    numero: '2026-0205',
+    cliente: 'Transportadora Horizonte',
+    endereco: 'Pátio logístico, Av. das Indústrias, 2200 — Betim/MG',
+    resumo: 'Opacidade da frota de veículos a diesel',
+    observacao: 'Veículos disponibilizados no pátio; conferir aquecimento do motor antes da medição.',
+    servicos: [
+      {
+        campanha: 'Campanha única',
+        escopo: 'Fuligem – Opacímetro',
+        qtdePontos: 10,
+        metodo: 'CONAMA 418 / ABNT NBR 13037 · Procedimento interno: POP 020',
+        periodo: '1 dia',
+        observacao: '10 veículos; 3 leituras válidas por veículo.'
+      }
+    ]
   }
 ];

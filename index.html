@@ -73,13 +73,24 @@
       </div>
     </section>
 
-    <!-- ======= Fluxo de serviços — Tela 1.1: Escolha da OS ======= -->
+    <!-- ======= Fluxo de serviços — Escolha da OS ======= -->
     <section id="tela-os" class="tela oculto">
       <div class="cartao">
         <h1>📋 Escolha da OS</h1>
         <p class="texto-apoio">Lista de exemplo (mockada) — a lista real virá do SGE.</p>
         <div id="lista-os"></div>
         <button type="button" class="botao botao-secundario" id="os-voltar">← Voltar</button>
+      </div>
+    </section>
+
+    <!-- ======= Serviços desta OS (quando a OS tem mais de um) ======= -->
+    <section id="tela-servicos-os" class="tela oculto">
+      <div class="cartao">
+        <h1>📋 Serviços desta OS</h1>
+        <p class="texto-apoio" id="servicos-os-sub"></p>
+        <p class="texto-apoio">Abra os serviços na ordem que quiser — dá para começar um, voltar e abrir outro.</p>
+        <div id="lista-servicos"></div>
+        <button type="button" class="botao botao-secundario" id="servicos-os-voltar">← Voltar</button>
       </div>
     </section>
 
@@ -172,6 +183,7 @@
           <div class="alerta alerta-info">🎉 <strong>Registro salvo com sucesso!</strong></div>
           <div id="sucesso-resumo"></div>
           <div class="pilha-botoes">
+            <button type="button" class="botao botao-secundario oculto" id="sucesso-servicos">📋 Voltar aos serviços desta OS</button>
             <button type="button" class="botao botao-primario" id="sucesso-novo">🏠 Novo registro</button>
             <button type="button" class="botao botao-secundario" id="sucesso-pdf">📄 Gerar PDF</button>
           </div>

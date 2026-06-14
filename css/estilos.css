@@ -326,6 +326,28 @@ textarea { resize: vertical; font-family: inherit; }
 .os-cliente { font-size: 0.95rem; }
 .os-resumo { font-size: 0.83rem; color: var(--cinza-texto); }
 
+/* Serviços desta OS */
+.servico-campanha {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--cinza-texto);
+  margin: 16px 0 6px;
+}
+.servico-item { gap: 5px; }
+.servico-status {
+  align-self: flex-start;
+  font-size: 0.74rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 2px 9px;
+  margin-top: 2px;
+}
+.status-novo { background: var(--cinza-fundo); border: 1px solid var(--cinza-borda); color: var(--cinza-texto); }
+.status-andamento { background: var(--amarelo-claro); border: 1px solid var(--amarelo); color: #6e5a00; }
+.status-concluido { background: var(--verde-claro); border: 1px solid var(--verde); color: var(--verde); }
+
 .grade-tipos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
 .card-tipo {
   display: flex;
