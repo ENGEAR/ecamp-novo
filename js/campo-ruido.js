@@ -44,10 +44,17 @@ EC.campoRuido = (function () {
 
   /* ===== Textos dos checks (da especificação) ===== */
 
-  const CHECKS_POSICIONAMENTO_EXTERNO = [
-    { grupo: 'Externo', itens: ['Altura entre 1,2 m e 1,5 m do solo', 'Distância mínima de 2 m de superfícies refletoras', 'Protetor de vento instalado'] },
-    { grupo: 'Fachada', itens: ['Distância mínima de 1 m da fachada'] },
-    { grupo: 'Longa duração', itens: ['Altura mínima de 4 m do solo'] }
+  // Posicionamento do microfone (ruído externo): a altura muda conforme seja
+  // longa duração (≥ 4 m) ou medição comum (1,2 a 1,5 m).
+  const POSICIONAMENTO_EXTERNO_PADRAO = [
+    'Altura entre 1,2 m e 1,5 m do solo',
+    'Distância mínima de 2 m de superfícies refletoras',
+    'Protetor de vento instalado'
+  ];
+  const POSICIONAMENTO_EXTERNO_LONGA = [
+    'Altura mínima de 4 m do solo',
+    'Distância mínima de 2 m de superfícies refletoras',
+    'Protetor de vento instalado'
   ];
 
   const CHECKS_MONTAGEM_EXTERNO = [
@@ -148,6 +155,7 @@ EC.campoRuido = (function () {
   function $(seletor) { return raiz.querySelector(seletor); }
 
   function campo() { return ctx.estado.campo; }
+  function ehLongaDuracao() { return /longa\s*dura/i.test((ctx.estado.servico && ctx.estado.servico.metodo) || ''); }
 
   function salvar() { ctx.salvar(); }
 
@@ -531,9 +539,7 @@ EC.campoRuido = (function () {
         '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
         '<div class="cr-gps"></div>' +
         '<p class="grupo-checks-titulo">📍 Posicionamento do microfone</p>' +
-        CHECKS_POSICIONAMENTO_EXTERNO.map(function (gr, gi) {
-          return '<p class="romaneio-subtitulo">' + gr.grupo + '</p>' + htmlChecks(gr.itens, 'pos' + gi + '_');
-        }).join('') +
+        htmlChecks(ehLongaDuracao() ? POSICIONAMENTO_EXTERNO_LONGA : POSICIONAMENTO_EXTERNO_PADRAO, 'pos') +
         '<p class="grupo-checks-titulo">⚙️ Montagem do equipamento</p>' + htmlChecks(CHECKS_MONTAGEM_EXTERNO, 'mont') +
         htmlChecagem('Checagem inicial', 'chkIni') +
         '<div class="cr-foto-tela-ini"></div>' +
