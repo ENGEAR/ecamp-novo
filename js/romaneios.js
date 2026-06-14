@@ -151,9 +151,9 @@ EC.romaneios = (function () {
     let total = 0;
     let html = '';
     blocos.forEach(function (bloco, b) {
-      const obrig = blocoObrigatorio(bloco, opcoes);
-      const selo = !obrig ? ' <span class="romaneio-opcional">(opcional)</span>'
-        : (bloco.opcional ? ' <span class="romaneio-exigido">(obrigatório — longa duração)</span>' : '');
+      // Bloco obrigatório não recebe tag (em longa duração, todos são
+      // obrigatórios → todos sem tag). Só blocos opcionais mostram "(opcional)".
+      const selo = blocoObrigatorio(bloco, opcoes) ? '' : ' <span class="romaneio-opcional">(opcional)</span>';
       html += '<h2 class="romaneio-titulo">' + bloco.titulo + selo + '</h2>';
       bloco.grupos.forEach(function (grupo, g) {
         if (grupo.subtitulo) html += '<p class="romaneio-subtitulo">' + grupo.subtitulo + '</p>';
