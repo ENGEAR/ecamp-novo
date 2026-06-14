@@ -30,6 +30,7 @@ EC.fluxo = (function () {
     'tela-tipo',
     'tela-passo3a',
     'tela-passo3b',
+    'tela-checkpoint',
     'tela-passo4',
     'tela-revisao',
     'tela-passo5'
@@ -147,6 +148,7 @@ EC.fluxo = (function () {
     if (idTela === 'tela-tipo') renderizarTipos();
     if (idTela === 'tela-passo3a') renderizarEquipamentos();
     if (idTela === 'tela-passo3b') renderizarPreCampo();
+    if (idTela === 'tela-checkpoint') renderizarCheckpoint();
     if (idTela === 'tela-passo4') renderizarCampo();
     if (idTela === 'tela-revisao') renderizarRevisao();
     if (idTela === 'tela-passo5') prepararFinalizar();
@@ -236,24 +238,48 @@ EC.fluxo = (function () {
       if (campanhas.indexOf(nome) === -1) campanhas.push(nome);
     });
 
-    lista.innerHTML = campanhas.map(function (campanha) {
+    // Cadeado sequencial: uma campanha só libera quando a anterior está toda
+    // concluída (o resto da OS é planejado no laboratório, campanha a campanha).
+    let liberada = true;
+    let campanhaAnterior = '';
+    let html = '';
+    campanhas.forEach(function (campanha) {
       const itens = os.servicos.map(function (s, i) { return { s: s, i: i }; })
         .filter(function (o) { return (o.s.campanha || 'Serviços') === campanha; });
-      return '<p class="servico-campanha">' + campanha + '</p>' +
-        itens.map(function (o) {
-          const st = situacaoServico(os.numero, o.i);
-          return (
-            '<button type="button" class="os-item servico-item" data-indice="' + o.i + '">' +
-            '  <span class="os-numero">▶️ ' + o.s.escopo + '</span>' +
-            '  <span class="os-resumo">' + (o.s.qtdePontos ? o.s.qtdePontos + ' ponto(s)' : '') +
-            (o.s.periodo ? ' · ' + o.s.periodo : '') + '</span>' +
-            '  ' + SELO[st] +
-            '</button>'
-          );
-        }).join('');
-    }).join('');
+      const estaLiberada = liberada;
+      const todasConcluidas = itens.every(function (o) { return situacaoServico(os.numero, o.i) === 'concluido'; });
 
-    lista.querySelectorAll('.servico-item').forEach(function (item) {
+      html += '<p class="servico-campanha">' + campanha +
+        (estaLiberada ? '' : ' <span class="servico-status status-bloqueado">🔒 bloqueada</span>') + '</p>';
+      if (!estaLiberada) {
+        html += '<p class="servico-bloqueio">Disponível depois de concluir a ' + campanhaAnterior + '.</p>';
+      }
+
+      html += itens.map(function (o) {
+        const st = situacaoServico(os.numero, o.i);
+        const info = '<span class="os-resumo">' + (o.s.qtdePontos ? o.s.qtdePontos + ' ponto(s)' : '') +
+          (o.s.periodo ? ' · ' + o.s.periodo : '') + '</span>';
+        if (!estaLiberada) {
+          return (
+            '<div class="os-item servico-item servico-bloqueado">' +
+            '  <span class="os-numero">🔒 ' + o.s.escopo + '</span>' + info +
+            '</div>'
+          );
+        }
+        return (
+          '<button type="button" class="os-item servico-item" data-indice="' + o.i + '">' +
+          '  <span class="os-numero">▶️ ' + o.s.escopo + '</span>' + info +
+          '  ' + SELO[st] +
+          '</button>'
+        );
+      }).join('');
+
+      campanhaAnterior = campanha;
+      if (!todasConcluidas) liberada = false; // próximas campanhas ficam travadas
+    });
+    lista.innerHTML = html;
+
+    lista.querySelectorAll('.servico-item[data-indice]').forEach(function (item) {
       item.addEventListener('click', function () {
         aoTocarServico(os, parseInt(item.dataset.indice, 10));
       });
@@ -454,6 +480,17 @@ EC.fluxo = (function () {
     EC.romaneios.renderizar($('precampo-conteudo'), estado.tipo, estado.preCampo, function () {
       salvarEstado();
     });
+  }
+
+  /* ---------- Transição preparação → campo ---------- */
+
+  function renderizarCheckpoint() {
+    const equip = estado.equipamentos.length;
+    const pendentesPre = EC.romaneios.pendentesObrigatorios(estado.tipo, estado.preCampo);
+    $('checkpoint-resumo').innerHTML =
+      linhaResumo('Tipo', nomeTipo(estado.tipo)) +
+      linhaResumo('Equipamentos', equip ? equip + ' selecionado(s)' : '—') +
+      linhaResumo('Pré-campo', pendentesPre === 0 ? '✓ obrigatórios conferidos' : 'falta(m) ' + pendentesPre + ' item(ns)');
   }
 
   /* ---------- Monitoramento em campo ---------- */
@@ -676,10 +713,12 @@ EC.fluxo = (function () {
           EC.app.mostrarToast('Conclua o pré-campo: falta(m) ' + pendentes + ' item(ns) obrigatório(s).');
           return;
         }
-        irPara('tela-passo4');
+        irPara('tela-checkpoint');
       }
     });
-    montarNavegacao('tela-passo4');
+    $('checkpoint-ir').addEventListener('click', function () { irPara('tela-passo4'); });
+    $('checkpoint-voltar').addEventListener('click', function () { irPara('tela-passo3b'); });
+    montarNavegacao('tela-passo4', { aoVoltar: function () { irPara('tela-passo3b'); } });
     montarNavegacao('tela-revisao');
     montarNavegacao('tela-passo5', { aoProximo: null });
 

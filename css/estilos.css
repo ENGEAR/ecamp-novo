@@ -347,6 +347,28 @@ textarea { resize: vertical; font-family: inherit; }
 .status-novo { background: var(--cinza-fundo); border: 1px solid var(--cinza-borda); color: var(--cinza-texto); }
 .status-andamento { background: var(--amarelo-claro); border: 1px solid var(--amarelo); color: #6e5a00; }
 .status-concluido { background: var(--verde-claro); border: 1px solid var(--verde); color: var(--verde); }
+.status-bloqueado { background: var(--cinza-fundo); border: 1px solid var(--cinza-borda); color: var(--cinza-texto); }
+
+/* Serviço bloqueado (campanha ainda não liberada) */
+.servico-bloqueado { opacity: 0.55; cursor: default; }
+.servico-bloqueio { font-size: 0.82rem; color: var(--cinza-texto); margin: 0 0 8px; }
+
+/* Etiqueta de fase (Preparação / Em campo) */
+.fase-tag {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 999px;
+  padding: 3px 11px;
+  margin: 0 0 8px;
+}
+.fase-lab { background: var(--azul-claro); color: var(--azul-escuro); }
+.fase-campo { background: var(--verde-claro); color: var(--verde); }
+
+/* Tela de transição (preparação concluída) */
+.checkpoint-icone { font-size: 3rem; line-height: 1; margin-bottom: 6px; }
 
 .grade-tipos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
 .card-tipo {

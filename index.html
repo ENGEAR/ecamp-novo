@@ -97,6 +97,7 @@
     <!-- ======= Tela 1.2: Dados gerais do serviço ======= -->
     <section id="tela-dados-gerais" class="tela oculto">
       <div class="cartao">
+        <p class="fase-tag fase-lab">🧪 Preparação · laboratório</p>
         <h1>📄 Dados gerais do serviço</h1>
         <div class="grade-2">
           <label>Data de início<input type="date" id="dg-data"></label>
@@ -120,6 +121,7 @@
     <!-- ======= Passo 2: Tipo de monitoramento ======= -->
     <section id="tela-tipo" class="tela oculto">
       <div class="cartao">
+        <p class="fase-tag fase-lab">🧪 Preparação · laboratório</p>
         <h1>🧭 Tipo de monitoramento</h1>
         <p class="texto-apoio">O tipo define o romaneio de pré-campo, o formulário de campo e a matriz de equipamentos.</p>
         <div id="tipo-hint"></div>
@@ -131,6 +133,7 @@
     <!-- ======= Passo 3a: Seleção de equipamentos (placeholder) ======= -->
     <section id="tela-passo3a" class="tela oculto">
       <div class="cartao">
+        <p class="fase-tag fase-lab">🧪 Preparação · laboratório</p>
         <h1>🔧 Seleção de equipamentos</h1>
         <div id="equipamentos-conteudo"></div>
         <div id="passo3a-nav"></div>
@@ -140,6 +143,7 @@
     <!-- ======= Passo 3b: Pré-campo / Romaneio (placeholder) ======= -->
     <section id="tela-passo3b" class="tela oculto">
       <div class="cartao">
+        <p class="fase-tag fase-lab">🧪 Preparação · laboratório</p>
         <h1>✅ Pré-campo / Romaneio</h1>
         <p class="texto-apoio">Conferir antes de sair do laboratório.</p>
         <div id="precampo-conteudo"></div>
@@ -147,9 +151,25 @@
       </div>
     </section>
 
+    <!-- ======= Transição: preparação concluída → campo ======= -->
+    <section id="tela-checkpoint" class="tela oculto">
+      <div class="cartao" style="text-align:center;">
+        <div class="checkpoint-icone">✅</div>
+        <h1>Preparação concluída</h1>
+        <p>A parte de <strong>laboratório</strong> está pronta: dados gerais, tipo, equipamentos e pré-campo.</p>
+        <div id="checkpoint-resumo"></div>
+        <p class="fase-tag fase-campo" style="margin-top:10px;">📡 A seguir: em campo</p>
+        <div class="pilha-botoes">
+          <button type="button" class="botao botao-primario" id="checkpoint-ir">Ir para o campo →</button>
+          <button type="button" class="botao botao-secundario" id="checkpoint-voltar">← Voltar ao pré-campo</button>
+        </div>
+      </div>
+    </section>
+
     <!-- ======= Passo 4: Monitoramento em campo (placeholder) ======= -->
     <section id="tela-passo4" class="tela oculto">
       <div class="cartao">
+        <p class="fase-tag fase-campo">📡 Em campo</p>
         <h1>📡 Monitoramento em campo</h1>
         <div id="campo-conteudo"></div>
         <div id="passo4-nav"></div>
@@ -159,6 +179,7 @@
     <!-- ======= Revisão ======= -->
     <section id="tela-revisao" class="tela oculto">
       <div class="cartao">
+        <p class="fase-tag fase-campo">📡 Em campo</p>
         <h1>🔍 Revisão</h1>
         <p class="texto-apoio">Confira o que foi preenchido. Os botões "Corrigir" levam direto à tela de cada parte.</p>
         <div id="revisao-conteudo"></div>
@@ -169,6 +190,7 @@
     <!-- ======= Passo 5: Finalizar (placeholder) ======= -->
     <section id="tela-passo5" class="tela oculto">
       <div class="cartao">
+        <p class="fase-tag fase-campo">📡 Em campo</p>
         <h1>🏁 Finalizar</h1>
         <div id="finalizar-area">
           <p>O registro será salvo no histórico deste dispositivo. A sincronização com o SharePoint entra na fase final.</p>
