@@ -294,6 +294,7 @@ textarea { resize: vertical; font-family: inherit; }
 
 /* ---------- Fluxo de serviços ---------- */
 .grade-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rotulo-apoio { font-weight: 400; color: var(--cinza-texto); font-size: 0.82rem; }
 
 .os-item {
   display: flex;

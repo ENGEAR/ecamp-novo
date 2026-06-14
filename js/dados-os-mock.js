@@ -36,6 +36,7 @@ EC.osMock = [
     endereco: 'Rodovia BR-040, km 12 — Sete Lagoas/MG',
     resumo: 'Monitoramento de ruído ambiental na divisa com área residencial',
     observacao: 'Acesso pela portaria principal; avisar a segurança na chegada.',
+    linkMaps: 'https://maps.app.goo.gl/exemplo-alfa-setelagoas',
     servicos: [
       {
         campanha: 'Campanha única',
@@ -53,6 +54,7 @@ EC.osMock = [
     endereco: 'Av. dos Andradas, 4500 — Belo Horizonte/MG',
     resumo: 'Ruído e vibração do desmonte de rocha — obra de fundação',
     observacao: 'Confirmar horário do desmonte com o responsável da obra.',
+    linkMaps: 'https://maps.app.goo.gl/exemplo-beta-bh',
     servicos: [
       {
         campanha: 'Campanha 1',
@@ -78,6 +80,7 @@ EC.osMock = [
     endereco: 'Distrito Industrial, Quadra 8 — Contagem/MG',
     resumo: 'Qualidade do ar externo — particulados no entorno da caldeira',
     observacao: 'Local de instalação com tomada confirmada; levar cabo de extensão.',
+    linkMaps: 'https://maps.app.goo.gl/exemplo-gama-contagem',
     servicos: [
       {
         campanha: 'Campanha única',
@@ -95,6 +98,7 @@ EC.osMock = [
     endereco: 'Rua das Acácias, 120 — Nova Lima/MG',
     resumo: 'Qualidade do ar interno (MQAI) — bloco cirúrgico',
     observacao: 'Coleta microbiológica; retorno das amostras ao laboratório no mesmo dia.',
+    linkMaps: 'https://maps.app.goo.gl/exemplo-delta-novalima',
     servicos: [
       {
         campanha: 'Campanha única',
@@ -112,6 +116,7 @@ EC.osMock = [
     endereco: 'Rodovia MG-050, km 78 — Juatuba/MG',
     resumo: 'Monitoramento ambiental do desmonte e do entorno (várias campanhas)',
     observacao: 'Campanhas em meses diferentes; confirmar a agenda com o cliente antes de cada ida.',
+    linkMaps: 'https://maps.app.goo.gl/exemplo-pedreira-juatuba',
     servicos: [
       {
         campanha: 'Campanha 1',
@@ -145,6 +150,7 @@ EC.osMock = [
     endereco: 'Pátio logístico, Av. das Indústrias, 2200 — Betim/MG',
     resumo: 'Opacidade da frota de veículos a diesel',
     observacao: 'Veículos disponibilizados no pátio; conferir aquecimento do motor antes da medição.',
+    linkMaps: 'https://maps.app.goo.gl/exemplo-horizonte-betim',
     servicos: [
       {
         campanha: 'Campanha única',

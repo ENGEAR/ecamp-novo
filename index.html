@@ -99,20 +99,26 @@
       <div class="cartao">
         <p class="fase-tag fase-lab">🧪 Preparação · laboratório</p>
         <h1>📄 Dados gerais do serviço</h1>
+        <p class="texto-apoio">Estes dados vêm da OS e não podem ser alterados. A única exceção é o nº de pontos — que, se mudar, pede uma justificativa.</p>
         <div class="grade-2">
-          <label>Data de início<input type="date" id="dg-data"></label>
-          <label>Hora de início<input type="time" id="dg-hora"></label>
+          <label>Data de início<input type="date" id="dg-data" readonly></label>
+          <label>Hora de início<input type="time" id="dg-hora" readonly></label>
         </div>
         <label>Nº da OS<input type="text" id="dg-os" readonly></label>
         <label>Nome do cliente<input type="text" id="dg-cliente" readonly></label>
         <label>Endereço do local do serviço<input type="text" id="dg-endereco" readonly></label>
         <label>Resumo do serviço<input type="text" id="dg-resumo" readonly></label>
         <label>Escopo<input type="text" id="dg-escopo" readonly></label>
-        <label>Pontos<input type="number" id="dg-pontos" min="1" max="50" inputmode="numeric"></label>
+        <label>Pontos <span class="rotulo-apoio" id="dg-pontos-os"></span><input type="number" id="dg-pontos" min="1" max="50" inputmode="numeric"></label>
+        <div id="dg-justificativa-bloco" class="oculto">
+          <label>Justificativa da alteração do nº de pontos
+            <textarea id="dg-justificativa" rows="2" placeholder="Explique por que o nº de pontos ficou diferente do previsto na OS"></textarea>
+          </label>
+        </div>
         <label>Método<textarea id="dg-metodo" rows="2" readonly></textarea></label>
         <label>Período<input type="text" id="dg-periodo" readonly></label>
         <label>Observação<textarea id="dg-observacao" rows="2" readonly></textarea></label>
-        <label>Local do monitoramento — link do Google Maps (opcional)<input type="text" id="dg-maps" placeholder="https://maps.app.goo.gl/..."></label>
+        <label>Local do monitoramento — link do Google Maps<input type="text" id="dg-maps" readonly></label>
         <div id="dg-foto"></div>
         <div id="dados-gerais-nav"></div>
       </div>

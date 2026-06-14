@@ -65,14 +65,13 @@ EC.fluxo = (function () {
 
   /* ---------- Dados compartilhados da OS (link Maps, foto do local) ---------- */
 
+  // Dados compartilhados da OS preenchidos pelo técnico: apenas a foto do local
+  // (o link do Maps agora vem da OS e é só leitura).
   function lerShared(numeroOs) {
-    return EC.storage.ler(chaveOs(numeroOs)) || { linkMaps: '', foto: null };
+    return EC.storage.ler(chaveOs(numeroOs)) || { foto: null };
   }
   function salvarShared(numeroOs) {
-    EC.storage.salvar(chaveOs(numeroOs), {
-      linkMaps: estado.dadosGerais.linkMaps || '',
-      foto: estado.dadosGerais.foto || null
-    });
+    EC.storage.salvar(chaveOs(numeroOs), { foto: estado.dadosGerais.foto || null });
   }
 
   /* ---------- Situação de cada serviço ---------- */
@@ -107,7 +106,7 @@ EC.fluxo = (function () {
       osNumero: os.numero,
       servicoIndice: indice,
       servicoId: servicoId(os.numero, indice),
-      os: { numero: os.numero, cliente: os.cliente, endereco: os.endereco, resumo: os.resumo, observacao: os.observacao },
+      os: { numero: os.numero, cliente: os.cliente, endereco: os.endereco, resumo: os.resumo, observacao: os.observacao, linkMaps: os.linkMaps || '' },
       servico: {
         campanha: servico.campanha, escopo: servico.escopo, metodo: servico.metodo,
         periodo: servico.periodo, observacao: servico.observacao
@@ -116,7 +115,8 @@ EC.fluxo = (function () {
         dataInicio: agora.getFullYear() + '-' + doisDigitos(agora.getMonth() + 1) + '-' + doisDigitos(agora.getDate()),
         horaInicio: doisDigitos(agora.getHours()) + ':' + doisDigitos(agora.getMinutes()),
         qtdePontos: servico.qtdePontos,
-        linkMaps: shared.linkMaps || '',
+        qtdePontosOS: servico.qtdePontos, // valor previsto na OS (fixo, p/ comparar)
+        justificativaPontos: '',
         foto: shared.foto || null
       },
       tipo: null,
@@ -338,10 +338,13 @@ EC.fluxo = (function () {
   function abrirServico(os, indice, rascunhoExistente) {
     telaExibida = null; // entrando em serviço novo: não coletar da tela anterior
     estado = rascunhoExistente || novoEstadoServico(os, indice);
-    // dados compartilhados podem ter mudado em outro serviço — recarrega
+    // foto do local é compartilhada pela OS — recarrega a mais recente
     const shared = lerShared(os.numero);
-    estado.dadosGerais.linkMaps = shared.linkMaps || estado.dadosGerais.linkMaps || '';
     estado.dadosGerais.foto = shared.foto || estado.dadosGerais.foto || null;
+    // garante campos novos em rascunhos antigos
+    estado.os.linkMaps = os.linkMaps || estado.os.linkMaps || '';
+    if (estado.dadosGerais.qtdePontosOS === undefined) estado.dadosGerais.qtdePontosOS = os.servicos[indice].qtdePontos;
+    if (estado.dadosGerais.justificativaPontos === undefined) estado.dadosGerais.justificativaPontos = '';
     salvarEstado();
     irPara(estado.passoAtual || 'tela-dados-gerais');
   }
@@ -357,10 +360,23 @@ EC.fluxo = (function () {
     $('dg-resumo').value = estado.os.resumo;
     $('dg-escopo').value = servicoDetalhe('escopo');
     $('dg-pontos').value = estado.dadosGerais.qtdePontos;
+    $('dg-pontos-os').textContent = '(previsto na OS: ' + estado.dadosGerais.qtdePontosOS + ')';
+    $('dg-justificativa').value = estado.dadosGerais.justificativaPontos || '';
     $('dg-metodo').value = servicoDetalhe('metodo');
     $('dg-periodo').value = servicoDetalhe('periodo');
     $('dg-observacao').value = servicoDetalhe('observacao');
-    $('dg-maps').value = estado.dadosGerais.linkMaps || '';
+    $('dg-maps').value = estado.os.linkMaps || '';
+    atualizarJustificativaPontos();
+
+    $('dg-pontos').oninput = function () {
+      estado.dadosGerais.qtdePontos = parseInt($('dg-pontos').value, 10) || estado.dadosGerais.qtdePontos;
+      atualizarJustificativaPontos();
+      salvarEstado();
+    };
+    $('dg-justificativa').oninput = function () {
+      estado.dadosGerais.justificativaPontos = $('dg-justificativa').value;
+      salvarEstado();
+    };
 
     EC.foto.criar($('dg-foto'), {
       os: estado.os.numero,
@@ -377,13 +393,19 @@ EC.fluxo = (function () {
     });
   }
 
+  function pontosAlterados() {
+    return parseInt(estado.dadosGerais.qtdePontos, 10) !== parseInt(estado.dadosGerais.qtdePontosOS, 10);
+  }
+
+  function atualizarJustificativaPontos() {
+    $('dg-justificativa-bloco').classList.toggle('oculto', !pontosAlterados());
+  }
+
   function coletarDadosGerais() {
     if (!estado) return;
-    estado.dadosGerais.dataInicio = $('dg-data').value;
-    estado.dadosGerais.horaInicio = $('dg-hora').value;
+    // data/hora e Maps são só leitura (vêm da OS/preenchimento automático)
     estado.dadosGerais.qtdePontos = parseInt($('dg-pontos').value, 10) || estado.dadosGerais.qtdePontos;
-    estado.dadosGerais.linkMaps = $('dg-maps').value.trim();
-    salvarShared(estado.os.numero); // link do Maps é compartilhado pela OS
+    estado.dadosGerais.justificativaPontos = $('dg-justificativa').value.trim();
   }
 
   /* ---------- Tipo de monitoramento ---------- */
@@ -520,6 +542,7 @@ EC.fluxo = (function () {
 
   function avisosRevisao() {
     const avisos = [];
+    if (pontosAlterados() && !estado.dadosGerais.justificativaPontos) avisos.push('Nº de pontos alterado sem justificativa.');
     if (!estado.tipo) avisos.push('Tipo de monitoramento não escolhido.');
 
     if (estado.tipo === 'ruido') {
@@ -559,11 +582,12 @@ EC.fluxo = (function () {
       linhaResumo('Campanha', servicoDetalhe('campanha')) +
       linhaResumo('Escopo', servicoDetalhe('escopo')) +
       linhaResumo('Início', estado.dadosGerais.dataInicio.split('-').reverse().join('/') + ' às ' + estado.dadosGerais.horaInicio) +
-      linhaResumo('Pontos', estado.dadosGerais.qtdePontos) +
+      linhaResumo('Pontos', estado.dadosGerais.qtdePontos + (pontosAlterados() ? ' (OS previa ' + estado.dadosGerais.qtdePontosOS + ')' : '')) +
+      (pontosAlterados() ? linhaResumo('Justificativa dos pontos', estado.dadosGerais.justificativaPontos) : '') +
       linhaResumo('Método', servicoDetalhe('metodo')) +
       linhaResumo('Período', servicoDetalhe('periodo')) +
       linhaResumo('Observação', servicoDetalhe('observacao')) +
-      linhaResumo('Link do Google Maps', estado.dadosGerais.linkMaps) +
+      linhaResumo('Link do Google Maps', estado.os.linkMaps) +
       linhaResumo('Foto do local', estado.dadosGerais.foto ? '✅ anexada' : '—'),
       'tela-dados-gerais');
 
@@ -698,7 +722,19 @@ EC.fluxo = (function () {
       EC.app.mostrarTela('tela-os');
     });
 
-    montarNavegacao('tela-dados-gerais', { aoVoltar: voltarDoServico });
+    montarNavegacao('tela-dados-gerais', {
+      aoVoltar: voltarDoServico,
+      aoProximo: function () {
+        coletarDadosGerais();
+        if (pontosAlterados() && !estado.dadosGerais.justificativaPontos) {
+          EC.app.mostrarToast('Você alterou o nº de pontos — preencha a justificativa.');
+          atualizarJustificativaPontos();
+          $('dg-justificativa').focus();
+          return;
+        }
+        irPara('tela-tipo');
+      }
+    });
     montarNavegacao('tela-tipo', {
       aoProximo: function () {
         if (!estado.tipo) { EC.app.mostrarToast('Escolha um tipo de monitoramento para continuar.'); return; }
