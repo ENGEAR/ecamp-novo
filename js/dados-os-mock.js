@@ -18,10 +18,11 @@
  *     observacao  : observações da OS      (nível OS)
  *     servicos    : array de serviços, cada um com:
  *       campanha    : rótulo da campanha   (ex.: 'Campanha 1' / 'Campanha única')
- *       escopo      : escopo/norma         (define o tipo de monitoramento)
- *       qtdePontos  : quantidade de pontos prevista (o técnico pode editar)
- *       metodo      : metodologia + procedimento interno
- *       periodo     : período previsto (datas / dias / campanha)
+ *       escopo      : escopo/norma         (define o tipo e o subtipo do monitoramento)
+ *       qtdePontos  : quantidade de pontos prevista (o técnico pode editar c/ justificativa)
+ *       dias        : nº de dias de medição previstos
+ *       periodo     : período da medição (ex.: '24 h contínuas', '15 min')
+ *       metodo      : modalidade da medição (ex.: 'Longa duração', 'Pontual')
  *       observacao  : observações do serviço
  *
  * Quando a ponte com o SGE existir, este arquivo será substituído pela
@@ -159,6 +160,84 @@ EC.osMock = [
         metodo: 'CONAMA 418 / ABNT NBR 13037 · Procedimento interno: POP 020',
         periodo: '1 dia',
         observacao: '10 veículos; 3 leituras válidas por veículo.'
+      }
+    ]
+  },
+
+  // ===== OS de validação do RUÍDO (uma de cada subtipo) =====
+  {
+    numero: '2026-0210',
+    cliente: 'Colégio Monte Verde',
+    endereco: 'Rua das Hortênsias, 75 — Belo Horizonte/MG',
+    resumo: 'Ruído interno em salas de aula (NBR 10152)',
+    observacao: 'Medir preferencialmente sem alunos; agendar fora do horário de aula.',
+    linkMaps: 'https://maps.app.goo.gl/exemplo-monteverde-bh',
+    servicos: [
+      {
+        campanha: 'Campanha única',
+        escopo: 'Ruído Interno – NBR 10152',
+        qtdePontos: 3,
+        dias: 1,
+        periodo: '1 dia (horário de uso típico)',
+        metodo: 'Pontual',
+        observacao: 'Avaliar 3 salas; esquadrias fechadas.'
+      }
+    ]
+  },
+  {
+    numero: '2026-0211',
+    cliente: 'Ferrovia Central de Carga',
+    endereco: 'Travessia urbana, km 230 — Sabará/MG',
+    resumo: 'Ruído de transporte ferroviário (NBR 16425-4)',
+    observacao: 'Confirmar a janela de passagem das composições com o operador da via.',
+    linkMaps: 'https://maps.app.goo.gl/exemplo-ferrovia-sabara',
+    servicos: [
+      {
+        campanha: 'Campanha única',
+        escopo: 'Transportes – Ferroviário (NBR 16425-4)',
+        qtdePontos: 2,
+        dias: 1,
+        periodo: '1 dia (mínimo de 3 passagens)',
+        metodo: 'Passagem de composição',
+        observacao: 'Pontos em residências próximas ao cruzamento.'
+      }
+    ]
+  },
+  {
+    numero: '2026-0212',
+    cliente: 'Aeroporto Regional Serra Azul',
+    endereco: 'Estrada do Aeroporto, s/n — Confins/MG',
+    resumo: 'Ruído de transporte aéreo (NBR 16425-2)',
+    observacao: 'Acesso à área operacional mediante credenciamento prévio.',
+    linkMaps: 'https://maps.app.goo.gl/exemplo-aeroporto-confins',
+    servicos: [
+      {
+        campanha: 'Campanha única',
+        escopo: 'Transportes – Aéreo (NBR 16425-2)',
+        qtdePontos: 2,
+        dias: 1,
+        periodo: '1 dia',
+        metodo: 'Receptores críticos',
+        observacao: 'Pontos em receptores críticos (residências sob a rota).'
+      }
+    ]
+  },
+  {
+    numero: '2026-0213',
+    cliente: 'Condomínio Parque das Águas',
+    endereco: 'Alameda dos Ipês, 1000 — Nova Lima/MG',
+    resumo: 'Ruído ambiental de longa duração — 24 h (NBR 10151)',
+    observacao: 'Instalação para longa duração; garantir autonomia de energia e microfone a ≥ 4 m.',
+    linkMaps: 'https://maps.app.goo.gl/exemplo-parqueaguas-novalima',
+    servicos: [
+      {
+        campanha: 'Campanha única',
+        escopo: 'Ruído Ambiental – NBR 10151',
+        qtdePontos: 1,
+        dias: 1,
+        periodo: '24 h contínuas',
+        metodo: 'Longa duração',
+        observacao: 'Microfone a ≥ 4 m do solo; itens de longa duração do romaneio (estação meteorológica, power bank/roteador).'
       }
     ]
   }

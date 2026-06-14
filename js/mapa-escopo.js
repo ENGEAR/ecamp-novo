@@ -20,6 +20,9 @@
  * Interface (namespace global EC.mapaEscopo):
  *   EC.mapaEscopo.tipoPorEscopo(escopo) → 'ruido' | 'sismo' | 'qar' |
  *     'opacidade' | 'qarint' | 'outro' | null  (null = não reconhecido)
+ *   EC.mapaEscopo.subtipoPorEscopo(escopo) → subtipo de RUÍDO:
+ *     'externo' (NBR 10151) | 'interno' (NBR 10152) |
+ *     'ferroviario' (NBR 16425-4) | 'aeronautico' (NBR 16425-2) | null
  */
 window.EC = window.EC || {};
 
@@ -58,5 +61,16 @@ EC.mapaEscopo = (function () {
     return null;
   }
 
-  return { tipoPorEscopo: tipoPorEscopo };
+  // Subtipo de RUÍDO a partir do escopo (transportes antes de ambiental/interno)
+  function subtipoPorEscopo(escopo) {
+    const e = normalizar(escopo);
+    if (!e) return null;
+    if (/16425-4|ferroviari/.test(e)) return 'ferroviario';
+    if (/16425-2|aereo|aeronautic/.test(e)) return 'aeronautico';
+    if (/10152|interno/.test(e)) return 'interno';
+    if (/10151|ambiental|externo/.test(e)) return 'externo';
+    return null;
+  }
+
+  return { tipoPorEscopo: tipoPorEscopo, subtipoPorEscopo: subtipoPorEscopo };
 })();

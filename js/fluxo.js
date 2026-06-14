@@ -109,7 +109,7 @@ EC.fluxo = (function () {
       os: { numero: os.numero, cliente: os.cliente, endereco: os.endereco, resumo: os.resumo, observacao: os.observacao, linkMaps: os.linkMaps || '' },
       servico: {
         campanha: servico.campanha, escopo: servico.escopo, metodo: servico.metodo,
-        periodo: servico.periodo, observacao: servico.observacao
+        periodo: servico.periodo, observacao: servico.observacao, dias: servico.dias
       },
       dadosGerais: {
         dataInicio: agora.getFullYear() + '-' + doisDigitos(agora.getMonth() + 1) + '-' + doisDigitos(agora.getDate()),
@@ -362,8 +362,9 @@ EC.fluxo = (function () {
     $('dg-pontos').value = estado.dadosGerais.qtdePontos;
     $('dg-pontos-os').textContent = '(previsto na OS: ' + estado.dadosGerais.qtdePontosOS + ')';
     $('dg-justificativa').value = estado.dadosGerais.justificativaPontos || '';
-    $('dg-metodo').value = servicoDetalhe('metodo');
+    $('dg-dias').value = (estado.servico.dias !== undefined && estado.servico.dias !== null && estado.servico.dias !== '') ? estado.servico.dias : '—';
     $('dg-periodo').value = servicoDetalhe('periodo');
+    $('dg-metodo').value = servicoDetalhe('metodo');
     $('dg-observacao').value = servicoDetalhe('observacao');
     $('dg-maps').value = estado.os.linkMaps || '';
     atualizarJustificativaPontos();
@@ -584,8 +585,9 @@ EC.fluxo = (function () {
       linhaResumo('Início', estado.dadosGerais.dataInicio.split('-').reverse().join('/') + ' às ' + estado.dadosGerais.horaInicio) +
       linhaResumo('Pontos', estado.dadosGerais.qtdePontos + (pontosAlterados() ? ' (OS previa ' + estado.dadosGerais.qtdePontosOS + ')' : '')) +
       (pontosAlterados() ? linhaResumo('Justificativa dos pontos', estado.dadosGerais.justificativaPontos) : '') +
-      linhaResumo('Método', servicoDetalhe('metodo')) +
+      linhaResumo('Dias de medição', estado.servico.dias) +
       linhaResumo('Período', servicoDetalhe('periodo')) +
+      linhaResumo('Método', servicoDetalhe('metodo')) +
       linhaResumo('Observação', servicoDetalhe('observacao')) +
       linhaResumo('Link do Google Maps', estado.os.linkMaps) +
       linhaResumo('Foto do local', estado.dadosGerais.foto ? '✅ anexada' : '—'),

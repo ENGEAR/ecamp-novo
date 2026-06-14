@@ -310,6 +310,19 @@ EC.campoRuido = (function () {
         '<span class="card-tipo-icone">' + s.icone + '</span><span>' + s.nome + '</span></button>';
     }).join('');
 
+    const det = EC.mapaEscopo && EC.mapaEscopo.subtipoPorEscopo
+      ? EC.mapaEscopo.subtipoPorEscopo(ctx.estado.servico && ctx.estado.servico.escopo) : null;
+    const hint = $('#cr-subtipo-hint');
+    if (hint) {
+      if (det && campo().subtipo === det) {
+        hint.className = 'alerta alerta-info';
+        hint.innerHTML = '✓ Subtipo pré-selecionado pelo escopo da OS. Você pode alterar se necessário.';
+      } else {
+        hint.className = '';
+        hint.innerHTML = '';
+      }
+    }
+
     grade.querySelectorAll('[data-subtipo]').forEach(function (botao) {
       botao.addEventListener('click', function () {
         const novo = botao.dataset.subtipo;
@@ -615,9 +628,16 @@ EC.campoRuido = (function () {
     if (!ctx.estado.campo) ctx.estado.campo = { subtipo: null, geral: {}, pontos: [] };
     pontoExibido = 1;
 
+    // Pré-seleciona o subtipo pelo escopo da OS (o técnico pode trocar)
+    if (!campo().subtipo && EC.mapaEscopo && EC.mapaEscopo.subtipoPorEscopo) {
+      const sub = EC.mapaEscopo.subtipoPorEscopo(ctx.estado.servico && ctx.estado.servico.escopo);
+      if (sub) { campo().subtipo = sub; if (ctx.salvar) ctx.salvar(); }
+    }
+
     container.innerHTML =
       '<p class="grupo-checks-titulo">Subtipo do monitoramento</p>' +
       '<div class="grade-tipos" id="cr-subtipos"></div>' +
+      '<div id="cr-subtipo-hint"></div>' +
       '<div id="cr-geral"></div>' +
       '<div id="cr-paginacao" class="cr-paginacao"></div>' +
       '<div id="cr-ponto"></div>';
