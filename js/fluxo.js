@@ -474,9 +474,15 @@ EC.fluxo = (function () {
     });
 
     area.innerHTML =
-      '<p class="texto-apoio">Lista de exemplo — a lista real (planilha F021, com validação de calibração) entra na Fase 6. Marque os equipamentos que vão para o campo.</p>' +
+      '<p class="texto-apoio">Lista de exemplo — a lista real (planilha F021, com validação de calibração) entra na Fase 6. Marque os equipamentos que vão para o campo. É necessário ao menos um de cada categoria.</p>' +
       categorias.map(function (categoria) {
-        return '<p class="grupo-checks-titulo">' + categoria + '</p>' +
+        let tag = '';
+        if (ehEstacaoMeteorologica(categoria)) {
+          tag = ehLongaDuracao()
+            ? ' <span class="romaneio-opcional">(obrigatório em longa duração)</span>'
+            : ' <span class="romaneio-opcional">(opcional)</span>';
+        }
+        return '<p class="grupo-checks-titulo">' + categoria + tag + '</p>' +
           lista.filter(function (e) { return e.categoria === categoria; }).map(function (e) {
             const marcado = estado.equipamentos.indexOf(e.codigo) !== -1;
             return '<label class="linha-check check-campo"><input type="checkbox" data-codigo="' + e.codigo + '"' + (marcado ? ' checked' : '') + '>' +
@@ -506,6 +512,28 @@ EC.fluxo = (function () {
 
   function opcoesRomaneio() {
     return { longaDuracao: ehLongaDuracao() };
+  }
+
+  /* ---------- Obrigatoriedade dos equipamentos (≥ 1 por categoria) ---------- */
+
+  function ehEstacaoMeteorologica(categoria) {
+    return /esta[çc].*meteor/i.test(categoria || '');
+  }
+
+  // Categorias obrigatórias ainda sem nenhum equipamento selecionado.
+  // Toda categoria exige ao menos um, EXCETO Estação Meteorológica, que só é
+  // obrigatória em longa duração.
+  function categoriasEquipFaltando() {
+    const lista = EC.equipamentosMock[estado.tipo];
+    if (!lista) return []; // tipos sem lista (Fase 6) não validam aqui
+    const categorias = [];
+    lista.forEach(function (e) { if (categorias.indexOf(e.categoria) === -1) categorias.push(e.categoria); });
+    return categorias.filter(function (cat) {
+      const obrigatoria = ehEstacaoMeteorologica(cat) ? ehLongaDuracao() : true;
+      if (!obrigatoria) return false;
+      const temUm = lista.some(function (e) { return e.categoria === cat && estado.equipamentos.indexOf(e.codigo) !== -1; });
+      return !temUm;
+    });
   }
 
   function renderizarPreCampo() {
@@ -556,7 +584,8 @@ EC.fluxo = (function () {
     if (!estado.tipo) avisos.push('Tipo de monitoramento não escolhido.');
 
     if (estado.tipo === 'ruido') {
-      if (!estado.equipamentos.length) avisos.push('Nenhum equipamento selecionado.');
+      const faltandoEquip = categoriasEquipFaltando();
+      if (faltandoEquip.length) avisos.push('Equipamentos: falta selecionar ' + faltandoEquip.join(', ') + '.');
       const pendentesPre = EC.romaneios.pendentesObrigatorios(estado.tipo, estado.preCampo, opcoesRomaneio());
       if (pendentesPre > 0) avisos.push('Pré-campo com ' + pendentesPre + ' item(ns) obrigatório(s) não conferido(s).');
 
@@ -752,7 +781,16 @@ EC.fluxo = (function () {
         irPara('tela-passo3a');
       }
     });
-    montarNavegacao('tela-passo3a');
+    montarNavegacao('tela-passo3a', {
+      aoProximo: function () {
+        const faltando = categoriasEquipFaltando();
+        if (faltando.length) {
+          EC.app.mostrarToast('Selecione ao menos um equipamento de: ' + faltando.join(', ') + '.');
+          return;
+        }
+        irPara('tela-passo3b');
+      }
+    });
     montarNavegacao('tela-passo3b', {
       aoProximo: function () {
         const pendentes = EC.romaneios.pendentesObrigatorios(estado.tipo, estado.preCampo, opcoesRomaneio());
