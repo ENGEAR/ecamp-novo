@@ -801,6 +801,12 @@ EC.fluxo = (function () {
         irPara('tela-checkpoint');
       }
     });
+    // DEV: marcar todos os itens do pré-campo de uma vez — REMOVER antes de produção
+    $('precampo-marcar-tudo').addEventListener('click', function () {
+      document.querySelectorAll('#precampo-conteudo input[data-chave]').forEach(function (cb) {
+        if (!cb.checked) { cb.checked = true; cb.dispatchEvent(new Event('change')); }
+      });
+    });
     $('checkpoint-ir').addEventListener('click', function () { irPara('tela-passo4'); });
     $('checkpoint-voltar').addEventListener('click', function () { irPara('tela-passo3b'); });
     montarNavegacao('tela-passo4', { aoVoltar: function () { irPara('tela-passo3b'); } });
