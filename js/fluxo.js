@@ -499,10 +499,19 @@ EC.fluxo = (function () {
 
   /* ---------- Pré-campo / Romaneio ---------- */
 
+  // OS de longa duração: o método do serviço diz "Longa duração"
+  function ehLongaDuracao() {
+    return /longa\s*dura/i.test((estado.servico && estado.servico.metodo) || '');
+  }
+
+  function opcoesRomaneio() {
+    return { longaDuracao: ehLongaDuracao() };
+  }
+
   function renderizarPreCampo() {
     EC.romaneios.renderizar($('precampo-conteudo'), estado.tipo, estado.preCampo, function () {
       salvarEstado();
-    });
+    }, opcoesRomaneio());
   }
 
   /* ---------- Transição preparação → campo ---------- */
@@ -548,7 +557,7 @@ EC.fluxo = (function () {
 
     if (estado.tipo === 'ruido') {
       if (!estado.equipamentos.length) avisos.push('Nenhum equipamento selecionado.');
-      const pendentesPre = EC.romaneios.pendentesObrigatorios(estado.tipo, estado.preCampo);
+      const pendentesPre = EC.romaneios.pendentesObrigatorios(estado.tipo, estado.preCampo, opcoesRomaneio());
       if (pendentesPre > 0) avisos.push('Pré-campo com ' + pendentesPre + ' item(ns) obrigatório(s) não conferido(s).');
 
       const campo = estado.campo;
@@ -601,7 +610,7 @@ EC.fluxo = (function () {
 
     let resumoPre = '—';
     if (EC.romaneios.dados[estado.tipo]) {
-      const pendentesPre = EC.romaneios.pendentesObrigatorios(estado.tipo, estado.preCampo);
+      const pendentesPre = EC.romaneios.pendentesObrigatorios(estado.tipo, estado.preCampo, opcoesRomaneio());
       resumoPre = pendentesPre === 0 ? '✓ itens obrigatórios conferidos' : 'falta(m) ' + pendentesPre + ' item(ns) obrigatório(s)';
     }
     html += secaoRevisao('✅ Pré-campo', linhaResumo('Checklist', resumoPre), 'tela-passo3b');
@@ -746,7 +755,7 @@ EC.fluxo = (function () {
     montarNavegacao('tela-passo3a');
     montarNavegacao('tela-passo3b', {
       aoProximo: function () {
-        const pendentes = EC.romaneios.pendentesObrigatorios(estado.tipo, estado.preCampo);
+        const pendentes = EC.romaneios.pendentesObrigatorios(estado.tipo, estado.preCampo, opcoesRomaneio());
         if (pendentes > 0) {
           EC.app.mostrarToast('Conclua o pré-campo: falta(m) ' + pendentes + ' item(ns) obrigatório(s).');
           return;

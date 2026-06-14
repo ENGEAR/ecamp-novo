@@ -276,16 +276,37 @@ EC.campoRuido = (function () {
     });
   }
 
+  function categoriaDoEquip(codigo) {
+    const lista = EC.equipamentosMock[ctx.estado.tipo] || [];
+    const e = lista.filter(function (x) { return x.codigo === codigo; })[0];
+    return e ? e.categoria : ('__' + codigo); // sem categoria conhecida: trata como única
+  }
+
+  // Padrão por ponto: marca só os equipamentos cuja categoria tem UMA unidade
+  // selecionada. Categorias com 2+ unidades (ex.: dois sonômetros) vêm
+  // DESMARCADAS, para o técnico escolher qual foi usado no ponto.
+  function padraoEquipamentosPonto(selecionados) {
+    const contagem = {};
+    selecionados.forEach(function (c) { const cat = categoriaDoEquip(c); contagem[cat] = (contagem[cat] || 0) + 1; });
+    return selecionados.filter(function (c) { return contagem[categoriaDoEquip(c)] === 1; });
+  }
+
   function htmlEquipamentosPonto(alvo) {
     const selecionados = ctx.estado.equipamentos || [];
     if (!selecionados.length) {
       return '<p class="texto-apoio">Nenhum equipamento selecionado no pré-campo — volte à seleção de equipamentos se precisar.</p>';
     }
-    if (!alvo.equipamentos) alvo.equipamentos = selecionados.slice(); // todos por padrão
-    return selecionados.map(function (codigo, i) {
-      const marcado = alvo.equipamentos.indexOf(codigo) !== -1;
-      return '<label class="linha-check check-campo"><input type="checkbox" data-equip="' + codigo + '"' + (marcado ? ' checked' : '') + '><span>' + codigo + '</span></label>';
-    }).join('');
+    if (!alvo.equipamentos) alvo.equipamentos = padraoEquipamentosPonto(selecionados);
+
+    const contagem = {};
+    selecionados.forEach(function (c) { const cat = categoriaDoEquip(c); contagem[cat] = (contagem[cat] || 0) + 1; });
+    const temMultiplos = Object.keys(contagem).some(function (k) { return contagem[k] > 1; });
+
+    return (temMultiplos ? '<p class="texto-apoio">Onde há mais de uma unidade do mesmo tipo, marque qual foi usada neste ponto.</p>' : '') +
+      selecionados.map(function (codigo) {
+        const marcado = alvo.equipamentos.indexOf(codigo) !== -1;
+        return '<label class="linha-check check-campo"><input type="checkbox" data-equip="' + codigo + '"' + (marcado ? ' checked' : '') + '><span>' + codigo + '</span></label>';
+      }).join('');
   }
 
   function vincularEquipamentos(elemento, alvo) {

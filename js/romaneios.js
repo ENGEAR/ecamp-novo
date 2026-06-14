@@ -78,6 +78,7 @@ EC.romaneios = (function () {
       {
         titulo: '3. Itens adicionais para monitoramentos de longa duração',
         opcional: true,
+        exigeLongaDuracao: true,
         grupos: [{
           itens: [
             'Cabo de extensão',
@@ -88,6 +89,7 @@ EC.romaneios = (function () {
       {
         titulo: '4. Itens adicionais para monitoramento online',
         opcional: true,
+        exigeLongaDuracao: true,
         grupos: [{
           itens: [
             'Roteador 4G',
@@ -112,13 +114,19 @@ EC.romaneios = (function () {
     // sismo / qar / opacidade / qarint: Fase 4
   };
 
-  // Chaves dos itens OBRIGATÓRIOS (ignora blocos marcados como opcional).
-  function chavesObrigatorias(tipo) {
+  // Um bloco é obrigatório se não é opcional OU se a OS é de longa duração e o
+  // bloco está marcado como exigido nesse caso (itens de longa duração/online).
+  function blocoObrigatorio(bloco, opcoes) {
+    return !bloco.opcional || ((opcoes || {}).longaDuracao && bloco.exigeLongaDuracao);
+  }
+
+  // Chaves dos itens OBRIGATÓRIOS (considera o contexto de longa duração).
+  function chavesObrigatorias(tipo, opcoes) {
     const blocos = dados[tipo];
     const chaves = [];
     if (!blocos) return chaves;
     blocos.forEach(function (bloco, b) {
-      if (bloco.opcional) return;
+      if (!blocoObrigatorio(bloco, opcoes)) return;
       bloco.grupos.forEach(function (grupo, g) {
         grupo.itens.forEach(function (item, i) {
           chaves.push('b' + b + 'g' + g + 'i' + i);
@@ -128,12 +136,12 @@ EC.romaneios = (function () {
     return chaves;
   }
 
-  function pendentesObrigatorios(tipo, marcados) {
+  function pendentesObrigatorios(tipo, marcados, opcoes) {
     marcados = marcados || {};
-    return chavesObrigatorias(tipo).filter(function (chave) { return !marcados[chave]; }).length;
+    return chavesObrigatorias(tipo, opcoes).filter(function (chave) { return !marcados[chave]; }).length;
   }
 
-  function renderizar(container, tipo, marcados, aoMudar) {
+  function renderizar(container, tipo, marcados, aoMudar, opcoes) {
     const blocos = dados[tipo];
     if (!blocos) {
       container.innerHTML = '<p class="texto-apoio">O checklist de pré-campo deste tipo entra na Fase 4.</p>';
@@ -143,8 +151,10 @@ EC.romaneios = (function () {
     let total = 0;
     let html = '';
     blocos.forEach(function (bloco, b) {
-      html += '<h2 class="romaneio-titulo">' + bloco.titulo +
-        (bloco.opcional ? ' <span class="romaneio-opcional">(opcional)</span>' : '') + '</h2>';
+      const obrig = blocoObrigatorio(bloco, opcoes);
+      const selo = !obrig ? ' <span class="romaneio-opcional">(opcional)</span>'
+        : (bloco.opcional ? ' <span class="romaneio-exigido">(obrigatório — longa duração)</span>' : '');
+      html += '<h2 class="romaneio-titulo">' + bloco.titulo + selo + '</h2>';
       bloco.grupos.forEach(function (grupo, g) {
         if (grupo.subtitulo) html += '<p class="romaneio-subtitulo">' + grupo.subtitulo + '</p>';
         grupo.itens.forEach(function (item, i) {
@@ -159,7 +169,7 @@ EC.romaneios = (function () {
     container.innerHTML = html;
 
     const caixaResumo = container.querySelector('.romaneio-resumo');
-    const obrigatorias = chavesObrigatorias(tipo);
+    const obrigatorias = chavesObrigatorias(tipo, opcoes);
 
     function resumo() {
       let obrigMarcados = 0;
