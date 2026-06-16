@@ -35,6 +35,15 @@ EC.campoRuido = (function () {
     { id: 'aeronautico', icone: '✈️', nome: 'Aeronáutico' }
   ];
 
+  // Fotos obrigatórias por subtipo (chave do dado → rótulo). Não se sai do
+  // ponto sem todas tiradas.
+  const FOTOS_POR_SUBTIPO = {
+    externo: [['fotoTelaIni', 'foto da tela (checagem inicial)'], ['fotoPonto', 'foto do ponto'], ['fotoTelaFim', 'foto da tela (checagem final)']],
+    interno: [['fotoTelaIni', 'foto da tela (checagem inicial)'], ['fotoPonto', 'foto do ponto']],
+    ferroviario: [['fotoTelaIni', 'foto da tela (checagem inicial)'], ['fotoPonto', 'foto do ponto'], ['fotoTelaFim', 'foto da tela (checagem final)']],
+    aeronautico: [['fotoTelaIni', 'foto da tela (checagem inicial)'], ['fotoPonto', 'foto do ponto'], ['fotoTelaFim', 'foto da tela (checagem final)']]
+  };
+
   const TIPOS_CARIMBO = {
     externo: 'RUIDOEXTERNO',
     interno: 'RUIDOINTERNO',
@@ -156,6 +165,18 @@ EC.campoRuido = (function () {
 
   function campo() { return ctx.estado.campo; }
   function ehLongaDuracao() { return /longa\s*dura/i.test((ctx.estado.servico && ctx.estado.servico.metodo) || ''); }
+
+  // Rótulos das fotos obrigatórias ainda não tiradas de um ponto.
+  function fotosFaltando(ponto, subtipo) {
+    const reqs = FOTOS_POR_SUBTIPO[subtipo] || [['fotoPonto', 'foto do ponto']];
+    return reqs.filter(function (f) { return !ponto || !ponto[f[0]]; }).map(function (f) { return f[1]; });
+  }
+
+  // Fotos que faltam no ponto exibido no momento (usado pelo "Próximo →" do fluxo).
+  function pontoAtualIncompleto() {
+    if (!ctx || !campo()) return [];
+    return fotosFaltando(campo().pontos[pontoExibido - 1], campo().subtipo);
+  }
 
   function salvar() { ctx.salvar(); }
 
@@ -512,6 +533,15 @@ EC.campoRuido = (function () {
     pontoExibido = Math.min(pontoExibido, total);
     EC.paginacao.criar($('#cr-paginacao'), {
       total: total,
+      // Não deixa sair de um ponto sem as fotos obrigatórias dele
+      aoSair: function (numero) {
+        const faltando = fotosFaltando(campo().pontos[numero - 1], campo().subtipo);
+        if (faltando.length) {
+          EC.app.mostrarToast('Tire a(s) foto(s) do ponto P' + numero + ' antes de sair: ' + faltando.join(', ') + '.');
+          return false;
+        }
+        return true;
+      },
       aoMudar: function (n) {
         pontoExibido = n;
         renderizarPonto(n);
@@ -673,5 +703,11 @@ EC.campoRuido = (function () {
     renderizarGeral();
   }
 
-  return { renderizar: renderizar, TIPOS_CARIMBO: TIPOS_CARIMBO, SUBTIPOS: SUBTIPOS };
+  return {
+    renderizar: renderizar,
+    TIPOS_CARIMBO: TIPOS_CARIMBO,
+    SUBTIPOS: SUBTIPOS,
+    FOTOS_POR_SUBTIPO: FOTOS_POR_SUBTIPO,
+    pontoAtualIncompleto: pontoAtualIncompleto
+  };
 })();

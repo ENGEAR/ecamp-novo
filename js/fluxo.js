@@ -617,14 +617,6 @@ EC.fluxo = (function () {
       corpoHtml + '</div>';
   }
 
-  // Fotos esperadas por subtipo de ruído (todas obrigatórias)
-  const FOTOS_RUIDO = {
-    externo: [['fotoTelaIni', 'foto da tela (checagem inicial)'], ['fotoPonto', 'foto do ponto'], ['fotoTelaFim', 'foto da tela (checagem final)']],
-    interno: [['fotoTelaIni', 'foto da tela (checagem inicial)'], ['fotoPonto', 'foto do ponto']],
-    ferroviario: [['fotoTelaIni', 'foto da tela (checagem inicial)'], ['fotoPonto', 'foto do ponto'], ['fotoTelaFim', 'foto da tela (checagem final)']],
-    aeronautico: [['fotoTelaIni', 'foto da tela (checagem inicial)'], ['fotoPonto', 'foto do ponto'], ['fotoTelaFim', 'foto da tela (checagem final)']]
-  };
-
   function avisosRevisao() {
     const avisos = [];
     if (!estado.dadosGerais.foto) avisos.push('Foto do local não anexada.');
@@ -649,7 +641,7 @@ EC.fluxo = (function () {
           if (!p.nome) avisos.push(nome + ': sem nome/identificação.');
           if (!p.gps) avisos.push(nome + ': GPS não capturado.');
           if (!p.chkIniValor) avisos.push(nome + ': checagem inicial não preenchida.');
-          (FOTOS_RUIDO[campo.subtipo] || [['fotoPonto', 'foto do ponto']]).forEach(function (f) {
+          (EC.campoRuido.FOTOS_POR_SUBTIPO[campo.subtipo] || [['fotoPonto', 'foto do ponto']]).forEach(function (f) {
             if (!p[f[0]]) avisos.push(nome + ': falta ' + f[1] + '.');
           });
           const precisaFinal = campo.subtipo !== 'interno' || i === total - 1;
@@ -859,7 +851,19 @@ EC.fluxo = (function () {
     });
     $('checkpoint-ir').addEventListener('click', function () { irPara('tela-passo4'); });
     $('checkpoint-voltar').addEventListener('click', function () { irPara('tela-passo3b'); });
-    montarNavegacao('tela-passo4', { aoVoltar: function () { irPara('tela-passo3b'); } });
+    montarNavegacao('tela-passo4', {
+      aoVoltar: function () { irPara('tela-passo3b'); },
+      aoProximo: function () {
+        if (estado.tipo === 'ruido' && EC.campoRuido.pontoAtualIncompleto) {
+          const faltando = EC.campoRuido.pontoAtualIncompleto();
+          if (faltando && faltando.length) {
+            EC.app.mostrarToast('Tire a(s) foto(s) deste ponto antes de continuar: ' + faltando.join(', ') + '.');
+            return;
+          }
+        }
+        irPara('tela-revisao');
+      }
+    });
     montarNavegacao('tela-revisao');
     montarNavegacao('tela-passo5', { aoProximo: null });
 

@@ -12,6 +12,9 @@
  *     opcoes.rotulo   : prefixo dos pontos (opcional, padrão 'P')
  *     opcoes.aoMudar  : callback (numero) chamado ao trocar de ponto — numero é
  *                       1-based (P1 = 1). Também é chamado uma vez na criação.
+ *     opcoes.aoSair   : (opcional) callback (numeroAtual) → boolean, chamado
+ *                       ANTES de trocar de ponto. Se devolver false, a troca é
+ *                       cancelada (ex.: faltam fotos obrigatórias no ponto).
  *   instância.atual()          → número do ponto ativo (1-based)
  *   instância.irPara(n)        → ativa o ponto n (ignora fora do intervalo)
  *   instância.definirTotal(n)  → redesenha com nova quantidade de pontos
@@ -53,6 +56,7 @@ EC.paginacao = (function () {
 
     function irPara(n) {
       if (n < 1 || n > total || n === atual) return;
+      if (typeof opcoes.aoSair === 'function' && opcoes.aoSair(atual) === false) return;
       atual = n;
       desenhar();
       notificar();
