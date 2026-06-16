@@ -597,27 +597,17 @@ EC.fluxo = (function () {
       const pendentesPre = EC.romaneios.pendentesObrigatorios(estado.tipo, estado.preCampo, opcoesRomaneio());
       if (pendentesPre > 0) avisos.push('Pré-campo com ' + pendentesPre + ' item(ns) obrigatório(s) não conferido(s).');
 
-      const campo = estado.campo;
-      if (!campo || !campo.subtipo) {
-        avisos.push('Monitoramento em campo não iniciado.');
-      } else {
-        const total = Math.min(20, Math.max(1, parseInt(campo.geral.qtdePontos, 10) || 0));
-        if (!total) avisos.push('Quantidade de pontos do campo não definida.');
-        for (let i = 0; i < total; i++) {
-          const p = campo.pontos[i] || {};
-          const nome = 'P' + (i + 1);
-          if (!p.nome) avisos.push(nome + ': sem nome/identificação.');
-          if (!p.gps) avisos.push(nome + ': GPS não capturado.');
-          if (!p.chkIniValor) avisos.push(nome + ': checagem inicial não preenchida.');
-          (EC.campoRuido.FOTOS_POR_SUBTIPO[campo.subtipo] || [['fotoPonto', 'foto do ponto']]).forEach(function (f) {
-            if (!p[f[0]]) avisos.push(nome + ': falta ' + f[1] + '.');
-          });
-          const precisaFinal = campo.subtipo !== 'interno' || i === total - 1;
-          if (precisaFinal && !p.chkFimValor) avisos.push(nome + ': checagem final não preenchida.');
-        }
-      }
     }
     return avisos;
+  }
+
+  // Itens em branco do "Monitoramento em campo" que IMPEDEM o salvamento
+  // (qualquer item, exceto hora de término). Só vale para o ruído por enquanto.
+  function bloqueiosSalvar() {
+    if (estado.tipo === 'ruido' && EC.campoRuido.itensFaltando) {
+      return EC.campoRuido.itensFaltando(estado);
+    }
+    return [];
   }
 
   function renderizarRevisao() {
@@ -672,12 +662,18 @@ EC.fluxo = (function () {
     }
     html += secaoRevisao('📡 Em campo', corpoCampo, 'tela-passo4');
 
+    const bloqueios = bloqueiosSalvar();
     const avisos = avisosRevisao();
+    if (bloqueios.length) {
+      html += '<div class="alerta alerta-vermelho"><strong>🛑 Itens obrigatórios em branco no monitoramento em campo (impedem o salvamento):</strong><ul class="lista-avisos">' +
+        bloqueios.map(function (a) { return '<li>' + a + '</li>'; }).join('') + '</ul></div>';
+    }
     if (avisos.length) {
-      html += '<div class="alerta alerta-amarelo"><strong>⚠️ Itens em branco (não impedem o salvamento):</strong><ul class="lista-avisos">' +
+      html += '<div class="alerta alerta-amarelo"><strong>⚠️ Outros itens em branco (não impedem o salvamento):</strong><ul class="lista-avisos">' +
         avisos.map(function (a) { return '<li>' + a + '</li>'; }).join('') + '</ul></div>';
-    } else {
-      html += '<div class="alerta alerta-info">✅ Tudo preenchido — nenhum aviso.</div>';
+    }
+    if (!bloqueios.length && !avisos.length) {
+      html += '<div class="alerta alerta-info">✅ Tudo preenchido.</div>';
     }
 
     area.innerHTML = html;
@@ -691,10 +687,19 @@ EC.fluxo = (function () {
   function prepararFinalizar() {
     $('finalizar-area').classList.remove('oculto');
     $('sucesso-area').classList.add('oculto');
+    const bloqueios = bloqueiosSalvar();
     const avisos = avisosRevisao();
-    $('finalizar-avisos').innerHTML = avisos.length
-      ? '<div class="alerta alerta-amarelo">⚠️ ' + avisos.length + ' item(ns) em branco — veja na Revisão. O salvamento não é impedido.</div>'
-      : '';
+    const btn = $('finalizar-salvar');
+    let html = '';
+    if (bloqueios.length) {
+      html = '<div class="alerta alerta-vermelho"><strong>🛑 Não dá para salvar: há item(ns) obrigatório(s) em branco no monitoramento em campo.</strong><ul class="lista-avisos">' +
+        bloqueios.map(function (a) { return '<li>' + a + '</li>'; }).join('') + '</ul></div>';
+      btn.disabled = true;
+    } else {
+      btn.disabled = false;
+      if (avisos.length) html = '<div class="alerta alerta-amarelo">⚠️ ' + avisos.length + ' item(ns) em branco (não impedem o salvamento) — veja na Revisão.</div>';
+    }
+    $('finalizar-avisos').innerHTML = html;
   }
 
   function montarRegistro() {
@@ -719,6 +724,12 @@ EC.fluxo = (function () {
   }
 
   function salvarRegistro() {
+    const bloqueios = bloqueiosSalvar();
+    if (bloqueios.length) {
+      EC.app.mostrarToast('Há item(ns) obrigatório(s) em branco no monitoramento em campo.');
+      prepararFinalizar();
+      return;
+    }
     const registro = montarRegistro();
     if (!EC.storage.salvar('historico:' + registro.codificacao, registro)) {
       EC.app.mostrarToast('⚠️ Não foi possível salvar (memória do navegador cheia?).');

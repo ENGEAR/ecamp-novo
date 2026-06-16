@@ -178,6 +178,68 @@ EC.campoRuido = (function () {
     return fotosFaltando(campo().pontos[pontoExibido - 1], campo().subtipo);
   }
 
+  // Itens em branco de um ponto (campos + GPS + checagens + fotos). NÃO inclui
+  // a hora de término (sempre opcional) nem os checks de confirmação.
+  function itensFaltandoDoPonto(ponto, subtipo, indice, total, geral) {
+    ponto = ponto || {};
+    const falta = [];
+    const reqVal = function (chave, rotulo) {
+      const v = ponto[chave];
+      if (v === undefined || v === null || String(v).trim() === '') falta.push(rotulo);
+    };
+    const primeiro = indice === 0;
+    const ultimo = indice === total - 1;
+    const operacional = geral && geral.finalidade === 'Monitoramento operacional';
+
+    // comuns a todos os subtipos
+    reqVal('nome', 'nome do ponto');
+    reqVal('horaInicial', 'hora inicial');
+    if (!ponto.gps) falta.push('GPS');
+    reqVal('chkIniValor', 'checagem inicial');
+    if (!ponto.fotoTelaIni) falta.push('foto da tela (checagem inicial)');
+    if (!ponto.fotoPonto) falta.push('foto do ponto');
+
+    if (subtipo === 'externo') {
+      reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento');
+      reqVal('fontesEmpresa', 'fontes da empresa'); reqVal('fontesAmbiente', 'fontes do ambiente');
+      reqVal('chkFimValor', 'checagem final');
+      if (!ponto.fotoTelaFim) falta.push('foto da tela (checagem final)');
+      reqVal('observacoes', 'observações');
+    } else if (subtipo === 'interno') {
+      reqVal('altura', 'altura do sonômetro');
+      if (primeiro) { reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento'); }
+      reqVal('eventualidade', 'eventualidade');
+      if (ponto.eventualidade === 'Sim') reqVal('eventualidadeDesc', 'descrição da eventualidade');
+      if (ultimo) reqVal('chkFimValor', 'checagem final');
+    } else if (subtipo === 'ferroviario') {
+      reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento');
+      reqVal('chkFimValor', 'checagem final');
+      if (!ponto.fotoTelaFim) falta.push('foto da tela (checagem final)');
+      reqVal('observacoes', 'observações');
+    } else if (subtipo === 'aeronautico') {
+      if (!operacional) { reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento'); }
+      reqVal('chkFimValor', 'checagem final');
+      if (!ponto.fotoTelaFim) falta.push('foto da tela (checagem final)');
+      reqVal('observacoes', 'observações');
+    }
+    return falta;
+  }
+
+  // Lista "P{n}: falta ..." de TODOS os pontos (usada para travar o salvamento).
+  function itensFaltando(estado) {
+    const campo = estado && estado.campo;
+    if (!campo || !campo.subtipo) return ['o monitoramento em campo não foi iniciado'];
+    const total = Math.min(20, Math.max(1, parseInt(campo.geral.qtdePontos, 10) || 0));
+    if (!total) return ['a quantidade de pontos do campo não foi definida'];
+    const lista = [];
+    for (let i = 0; i < total; i++) {
+      itensFaltandoDoPonto(campo.pontos[i], campo.subtipo, i, total, campo.geral).forEach(function (x) {
+        lista.push('P' + (i + 1) + ': ' + x);
+      });
+    }
+    return lista;
+  }
+
   function salvar() { ctx.salvar(); }
 
   function salvarDevagar() {
@@ -708,6 +770,7 @@ EC.campoRuido = (function () {
     TIPOS_CARIMBO: TIPOS_CARIMBO,
     SUBTIPOS: SUBTIPOS,
     FOTOS_POR_SUBTIPO: FOTOS_POR_SUBTIPO,
-    pontoAtualIncompleto: pontoAtualIncompleto
+    pontoAtualIncompleto: pontoAtualIncompleto,
+    itensFaltando: itensFaltando
   };
 })();

@@ -157,6 +157,9 @@ input[type="text"], input[type="password"], input[type="number"], input[type="da
   background: #fff;
   color: var(--texto);
 }
+/* normaliza a altura dos campos de hora/data (o controle nativo fica mais alto) */
+input[type="time"], input[type="date"] { -webkit-appearance: none; appearance: none; height: 44px; }
+input[type="text"], input[type="password"], input[type="number"] { height: 44px; }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--azul); border-color: var(--azul); }
 input[readonly], textarea[readonly] { background: var(--cinza-fundo); }
 textarea { resize: vertical; font-family: inherit; }
@@ -184,6 +187,7 @@ textarea { resize: vertical; font-family: inherit; }
   cursor: pointer;
 }
 .botao:active { transform: scale(0.98); }
+.botao:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .botao-primario { background: var(--azul-escuro); color: #fff; }
 .botao-secundario { background: var(--azul-claro); color: var(--azul-escuro); border: 1px solid var(--cinza-borda); }
