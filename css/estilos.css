@@ -268,6 +268,7 @@ textarea { resize: vertical; font-family: inherit; }
 .check-campo input { margin-top: 2px; flex-shrink: 0; }
 .check-campo small { color: var(--cinza-texto); }
 .grupo-checks-titulo { font-weight: 700; color: var(--azul-escuro); font-size: 0.92rem; margin: 16px 0 6px; }
+.unidade { display: block; } /* unidade (°C / % / m/s) na linha de baixo do rótulo */
 
 /* Lembretes de calibração na seleção de equipamentos */
 .cal-aviso { display: inline-block; font-size: 0.8rem; font-weight: 600; border-radius: 6px; padding: 3px 8px; margin-top: 4px; }

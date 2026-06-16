@@ -191,6 +191,14 @@ EC.campoRuido = (function () {
     const ultimo = indice === total - 1;
     const operacional = geral && geral.finalidade === 'Monitoramento operacional';
 
+    // checks do ponto (todos obrigatórios): conta os não marcados por grupo
+    const checks = ponto.checks || {};
+    const grupoChecks = function (prefixo, qtde, rotulo) {
+      let n = 0;
+      for (let i = 0; i < qtde; i++) if (!checks[prefixo + i]) n++;
+      if (n) falta.push(n + ' confirmação(ões) de ' + rotulo);
+    };
+
     // comuns a todos os subtipos
     reqVal('nome', 'nome do ponto');
     reqVal('horaInicial', 'hora inicial');
@@ -200,29 +208,64 @@ EC.campoRuido = (function () {
     if (!ponto.fotoPonto) falta.push('foto do ponto');
 
     if (subtipo === 'externo') {
+      grupoChecks('pos', POSICIONAMENTO_EXTERNO_PADRAO.length, 'posicionamento do microfone');
+      grupoChecks('mont', CHECKS_MONTAGEM_EXTERNO.length, 'montagem do equipamento');
       reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento');
+      grupoChecks('ruido', 2, 'ruído residual/total');
       reqVal('fontesEmpresa', 'fontes da empresa'); reqVal('fontesAmbiente', 'fontes do ambiente');
       reqVal('chkFimValor', 'checagem final');
       if (!ponto.fotoTelaFim) falta.push('foto da tela (checagem final)');
       reqVal('observacoes', 'observações');
     } else if (subtipo === 'interno') {
       reqVal('altura', 'altura do sonômetro');
-      if (primeiro) { reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento'); }
+      grupoChecks('altura', 1, 'altura do sonômetro');
+      if (primeiro) { reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento'); grupoChecks('chuva', 1, 'condições ambientais'); }
+      grupoChecks('ltot', CHECKS_LTOT.length, 'ruído total');
+      grupoChecks('lres', CHECKS_LRES.length, 'ruído residual');
       reqVal('eventualidade', 'eventualidade');
       if (ponto.eventualidade === 'Sim') reqVal('eventualidadeDesc', 'descrição da eventualidade');
       if (ultimo) reqVal('chkFimValor', 'checagem final');
     } else if (subtipo === 'ferroviario') {
+      grupoChecks('ferro', CHECKS_PONTO_FERRO.length, 'checks do ponto');
       reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento');
       reqVal('chkFimValor', 'checagem final');
       if (!ponto.fotoTelaFim) falta.push('foto da tela (checagem final)');
       reqVal('observacoes', 'observações');
     } else if (subtipo === 'aeronautico') {
-      if (!operacional) { reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento'); }
+      if (operacional) {
+        grupoChecks('estacao', 1, 'estação meteorológica funcionando');
+      } else {
+        grupoChecks('aero', CHECKS_PONTO_AERO_RECEPTORES.length, 'checks do ponto');
+        reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento');
+      }
       reqVal('chkFimValor', 'checagem final');
       if (!ponto.fotoTelaFim) falta.push('foto da tela (checagem final)');
       reqVal('observacoes', 'observações');
     }
     return falta;
+  }
+
+  // Checks de PREPARAÇÃO do campo (ficam no nível do serviço, não do ponto):
+  // posicionamento/montagem (interno) e instalação (ferroviário/aeronáutico).
+  function geralChecksFaltando(campo) {
+    const g = campo.geral || {};
+    const checks = g.checks || {};
+    const out = [];
+    const grupo = function (prefixo, qtde, rotulo) {
+      let n = 0;
+      for (let i = 0; i < qtde; i++) if (!checks[prefixo + i]) n++;
+      if (n) out.push('Preparação: ' + n + ' confirmação(ões) de ' + rotulo);
+    };
+    if (campo.subtipo === 'interno') {
+      grupo('pos', CHECKS_POSICIONAMENTO_INTERNO.length, 'posicionamento dos pontos');
+      grupo('mont', CHECKS_MONTAGEM_INTERNO.length, 'montagem do equipamento');
+    } else if (campo.subtipo === 'ferroviario' && g.finalidade === 'Passagem de composição ferroviária') {
+      grupo('instal', CHECKS_INSTALACAO_FERRO.length, 'instalação');
+    } else if (campo.subtipo === 'aeronautico') {
+      if (g.finalidade === 'Receptores críticos') grupo('instal', CHECKS_INSTALACAO_AERO_RECEPTORES.length, 'instalação');
+      else if (g.finalidade === 'Monitoramento operacional') grupo('instal', CHECKS_INSTALACAO_AERO_OPERACIONAL.length, 'instalação');
+    }
+    return out;
   }
 
   // Lista "P{n}: falta ..." de TODOS os pontos (usada para travar o salvamento).
@@ -232,6 +275,7 @@ EC.campoRuido = (function () {
     const total = Math.min(20, Math.max(1, parseInt(campo.geral.qtdePontos, 10) || 0));
     if (!total) return ['a quantidade de pontos do campo não foi definida'];
     const lista = [];
+    geralChecksFaltando(campo).forEach(function (x) { lista.push(x); });
     for (let i = 0; i < total; i++) {
       itensFaltandoDoPonto(campo.pontos[i], campo.subtipo, i, total, campo.geral).forEach(function (x) {
         lista.push('P' + (i + 1) + ': ' + x);
@@ -270,9 +314,9 @@ EC.campoRuido = (function () {
   function htmlClima(incluirChuva) {
     return (
       '<div class="grade-3">' +
-      '  <label>Temperatura (°C)<input type="number" step="0.1" inputmode="decimal" data-campo="temperatura"></label>' +
-      '  <label>Umidade (%)<input type="number" step="1" min="0" max="100" inputmode="numeric" data-campo="umidade"></label>' +
-      '  <label>Vento (m/s)<input type="number" step="0.1" min="0" inputmode="decimal" data-campo="vento"></label>' +
+      '  <label>Temperatura<span class="unidade">(°C)</span><input type="number" step="0.1" inputmode="decimal" data-campo="temperatura"></label>' +
+      '  <label>Umidade<span class="unidade">(%)</span><input type="number" step="1" min="0" max="100" inputmode="numeric" data-campo="umidade"></label>' +
+      '  <label>Vento<span class="unidade">(m/s)</span><input type="number" step="0.1" min="0" inputmode="decimal" data-campo="vento"></label>' +
       '</div>' +
       '<div class="alerta alerta-amarelo cr-alerta-vento oculto">⚠️ Esperar o vento abaixar. Não é aceito monitoramento com vento acima de 5 m/s.</div>' +
       (incluirChuva ? htmlChecks(['Não monitorar com chuva'], 'chuva') : '')
