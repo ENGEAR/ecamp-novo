@@ -8,7 +8,7 @@
  * Todos os caminhos são RELATIVOS, para funcionar no GitHub Pages
  * (https://usuario.github.io/repositorio/) sem ajuste.
  */
-const VERSAO_CACHE = 'ecamp-v0.5.7';
+const VERSAO_CACHE = 'ecamp-v0.5.8';
 
 const ARQUIVOS_APP = [
   './',

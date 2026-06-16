@@ -564,6 +564,7 @@ EC.fluxo = (function () {
   /* ---------- Monitoramento em campo ---------- */
 
   function renderizarCampo() {
+    $('campo-bloqueio').innerHTML = '';
     const area = $('campo-conteudo');
     if (estado.tipo === 'ruido') {
       EC.campoRuido.renderizar(area, { estado: estado, salvar: salvarEstado });
@@ -832,13 +833,15 @@ EC.fluxo = (function () {
     montarNavegacao('tela-passo4', {
       aoVoltar: function () { irPara('tela-passo3b'); },
       aoProximo: function () {
-        if (estado.tipo === 'ruido' && EC.campoRuido.pontoAtualIncompleto) {
-          const faltando = EC.campoRuido.pontoAtualIncompleto();
-          if (faltando && faltando.length) {
-            EC.app.mostrarToast('Tire a(s) foto(s) deste ponto antes de continuar: ' + faltando.join(', ') + '.');
-            return;
-          }
+        const faltando = bloqueiosSalvar();
+        if (faltando.length) {
+          $('campo-bloqueio').innerHTML =
+            '<div class="alerta alerta-vermelho"><strong>🛑 Não é possível continuar — itens obrigatórios em branco no monitoramento em campo:</strong>' +
+            '<ul class="lista-avisos">' + faltando.map(function (a) { return '<li>' + a + '</li>'; }).join('') + '</ul></div>';
+          $('campo-bloqueio').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          return;
         }
+        $('campo-bloqueio').innerHTML = '';
         irPara('tela-revisao');
       }
     });
