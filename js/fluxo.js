@@ -81,19 +81,7 @@ EC.fluxo = (function () {
   /* ---------- Chaves de armazenamento ---------- */
 
   function chaveServico(numeroOs, indice) { return 'rascunho:fluxo_' + numeroOs + '__s' + indice; }
-  function chaveOs(numeroOs) { return 'rascunho:os_' + numeroOs; }
   function servicoId(numeroOs, indice) { return numeroOs + '__s' + indice; }
-
-  /* ---------- Dados compartilhados da OS (link Maps, foto do local) ---------- */
-
-  // Dados compartilhados da OS preenchidos pelo técnico: apenas a foto do local
-  // (o link do Maps agora vem da OS e é só leitura).
-  function lerShared(numeroOs) {
-    return EC.storage.ler(chaveOs(numeroOs)) || { foto: null };
-  }
-  function salvarShared(numeroOs) {
-    EC.storage.salvar(chaveOs(numeroOs), { foto: estado.dadosGerais.foto || null });
-  }
 
   /* ---------- Situação de cada serviço ---------- */
 
@@ -122,7 +110,6 @@ EC.fluxo = (function () {
   function novoEstadoServico(os, indice) {
     const agora = new Date();
     const servico = os.servicos[indice];
-    const shared = lerShared(os.numero);
     return {
       osNumero: os.numero,
       servicoIndice: indice,
@@ -137,8 +124,7 @@ EC.fluxo = (function () {
         horaInicio: doisDigitos(agora.getHours()) + ':' + doisDigitos(agora.getMinutes()),
         qtdePontos: servico.qtdePontos,
         qtdePontosOS: servico.qtdePontos, // valor previsto na OS (fixo, p/ comparar)
-        justificativaPontos: '',
-        foto: shared.foto || null
+        justificativaPontos: ''
       },
       tipo: null,
       equipamentos: [],
@@ -359,9 +345,6 @@ EC.fluxo = (function () {
   function abrirServico(os, indice, rascunhoExistente) {
     telaExibida = null; // entrando em serviço novo: não coletar da tela anterior
     estado = rascunhoExistente || novoEstadoServico(os, indice);
-    // foto do local é compartilhada pela OS — recarrega a mais recente
-    const shared = lerShared(os.numero);
-    estado.dadosGerais.foto = shared.foto || estado.dadosGerais.foto || null;
     // garante campos novos em rascunhos antigos
     estado.os.linkMaps = os.linkMaps || estado.os.linkMaps || '';
     if (estado.dadosGerais.qtdePontosOS === undefined) estado.dadosGerais.qtdePontosOS = os.servicos[indice].qtdePontos;
@@ -399,20 +382,6 @@ EC.fluxo = (function () {
       estado.dadosGerais.justificativaPontos = $('dg-justificativa').value;
       salvarEstado();
     };
-
-    EC.foto.criar($('dg-foto'), {
-      os: estado.os.numero,
-      tipo: 'LOCAL',
-      ponto: 'P0',
-      rotulo: '📷 Foto do local do monitoramento (obrigatória)',
-      fotoInicial: estado.dadosGerais.foto || null,
-      obterUtm: function () { return ''; },
-      aoCapturar: function (foto) {
-        estado.dadosGerais.foto = { nomeArquivo: foto.nomeArquivo, dataUrl: foto.dataUrl };
-        salvarShared(estado.os.numero);
-        salvarEstado();
-      }
-    });
   }
 
   function pontosAlterados() {
@@ -619,7 +588,6 @@ EC.fluxo = (function () {
 
   function avisosRevisao() {
     const avisos = [];
-    if (!estado.dadosGerais.foto) avisos.push('Foto do local não anexada.');
     if (pontosAlterados() && !estado.dadosGerais.justificativaPontos) avisos.push('Nº de pontos alterado sem justificativa.');
     if (!estado.tipo) avisos.push('Tipo de monitoramento não escolhido.');
 
@@ -669,8 +637,7 @@ EC.fluxo = (function () {
       linhaResumo('Período', servicoDetalhe('periodo')) +
       linhaResumo('Método', servicoDetalhe('metodo')) +
       linhaResumo('Observação', servicoDetalhe('observacao')) +
-      linhaResumo('Link do Google Maps', estado.os.linkMaps) +
-      linhaResumo('Foto do local', estado.dadosGerais.foto ? '✅ anexada' : '—'),
+      linhaResumo('Link do Google Maps', estado.os.linkMaps),
       'tela-dados-gerais');
 
     html += secaoRevisao('🧭 Tipo de monitoramento', linhaResumo('Tipo', nomeTipo(estado.tipo)), 'tela-tipo');
