@@ -61,8 +61,15 @@ EC.mapaEscopo = (function () {
     return null;
   }
 
-  // Subtipo de RUÍDO a partir do escopo (transportes antes de ambiental/interno)
-  function subtipoPorEscopo(escopo) {
+  // Subtipo de RUÍDO. O MÉTODO tem prioridade (no SGE, a NBR 10151 pode ser
+  // "Ambiente interno", "Ambiente externo" ou "Longa duração"); na falta de
+  // método, decide pelo escopo (transportes antes de ambiental/interno).
+  function subtipoPorEscopo(escopo, metodo) {
+    const m = normalizar(metodo);
+    if (/ambiente interno/.test(m)) return 'interno';
+    if (/ambiente externo/.test(m)) return 'externo';
+    if (/longa\s*dura/.test(m)) return 'externo';
+
     const e = normalizar(escopo);
     if (!e) return null;
     if (/16425-4|ferroviari/.test(e)) return 'ferroviario';

@@ -43,7 +43,7 @@ EC.osMock = [
         campanha: 'Campanha única',
         escopo: 'Ruído Ambiental – NBR 10151',
         qtdePontos: 3,
-        metodo: 'ABNT NBR 10151:2019 · Procedimento interno: POP 001',
+        metodo: 'Ambiente externo',
         periodo: '1 dia de medição (período diurno e noturno)',
         observacao: 'Medir na divisa com as residências.'
       }
@@ -61,7 +61,7 @@ EC.osMock = [
         campanha: 'Campanha 1',
         escopo: 'Ruído Ambiental – NBR 10151',
         qtdePontos: 2,
-        metodo: 'ABNT NBR 10151:2019 · Procedimento interno: POP 001',
+        metodo: 'Ambiente externo',
         periodo: 'Campanha 1 — 1 dia',
         observacao: 'Pontos na divisa com as residências vizinhas.'
       },
@@ -123,7 +123,7 @@ EC.osMock = [
         campanha: 'Campanha 1',
         escopo: 'Ruído Ambiental – NBR 10151',
         qtdePontos: 3,
-        metodo: 'ABNT NBR 10151:2019 · Procedimento interno: POP 001',
+        metodo: 'Ambiente externo',
         periodo: 'Campanha 1 — 1 dia',
         observacao: 'Pontos na divisa norte e leste.'
       },
@@ -178,8 +178,8 @@ EC.osMock = [
         escopo: 'Ruído Interno – NBR 10152',
         qtdePontos: 3,
         dias: 1,
-        periodo: '1 dia (horário de uso típico)',
-        metodo: 'Pontual',
+        periodo: 'Diurno',
+        metodo: '',
         observacao: 'Avaliar 3 salas; esquadrias fechadas.'
       }
     ]
@@ -197,8 +197,8 @@ EC.osMock = [
         escopo: 'Transportes – Ferroviário (NBR 16425-4)',
         qtdePontos: 2,
         dias: 1,
-        periodo: '1 dia (mínimo de 3 passagens)',
-        metodo: 'Passagem de composição',
+        periodo: 'Diurno',
+        metodo: '',
         observacao: 'Pontos em residências próximas ao cruzamento.'
       }
     ]
@@ -216,8 +216,8 @@ EC.osMock = [
         escopo: 'Transportes – Aéreo (NBR 16425-2)',
         qtdePontos: 2,
         dias: 1,
-        periodo: '1 dia',
-        metodo: 'Receptores críticos',
+        periodo: 'Diurno',
+        metodo: '',
         observacao: 'Pontos em receptores críticos (residências sob a rota).'
       }
     ]
@@ -238,6 +238,25 @@ EC.osMock = [
         periodo: '24 h contínuas',
         metodo: 'Longa duração',
         observacao: 'Microfone a ≥ 4 m do solo; itens de longa duração do romaneio (estação meteorológica, power bank/roteador).'
+      }
+    ]
+  },
+  {
+    numero: '2026-0220',
+    cliente: 'Escritório Central Sul',
+    endereco: 'Av. Afonso Pena, 1500 — Belo Horizonte/MG',
+    resumo: 'Ruído ambiental medido no interior do imóvel afetado (NBR 10151 – ambiente interno)',
+    observacao: 'Medição interna conforme NBR 10151; ambiente cedido pelo reclamante.',
+    linkMaps: 'https://maps.app.goo.gl/exemplo-escritorio-bh',
+    servicos: [
+      {
+        campanha: 'Campanha única',
+        escopo: 'Ruído Ambiental – NBR 10151',
+        qtdePontos: 2,
+        dias: 1,
+        periodo: 'Diurno e noturno',
+        metodo: 'Ambiente interno',
+        observacao: 'Avaliar os ambientes internos do imóvel afetado.'
       }
     ]
   }

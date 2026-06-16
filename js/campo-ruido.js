@@ -164,7 +164,10 @@ EC.campoRuido = (function () {
   function $(seletor) { return raiz.querySelector(seletor); }
 
   function campo() { return ctx.estado.campo; }
-  function ehLongaDuracao() { return /longa\s*dura/i.test((ctx.estado.servico && ctx.estado.servico.metodo) || ''); }
+  function ehLongaDuracao() {
+    const s = ctx.estado.servico || {};
+    return /longa\s*dura/i.test((s.metodo || '') + ' ' + (s.periodo || ''));
+  }
 
   // Rótulos das fotos obrigatórias ainda não tiradas de um ponto.
   function fotosFaltando(ponto, subtipo) {
@@ -278,7 +281,8 @@ EC.campoRuido = (function () {
     if (!campo || !campo.subtipo) return ['o monitoramento em campo não foi iniciado'];
     const total = Math.min(20, Math.max(1, parseInt(campo.geral.qtdePontos, 10) || 0));
     if (!total) return ['a quantidade de pontos do campo não foi definida'];
-    const longaDuracao = /longa\s*dura/i.test((estado.servico && estado.servico.metodo) || '');
+    const s = estado.servico || {};
+    const longaDuracao = /longa\s*dura/i.test((s.metodo || '') + ' ' + (s.periodo || ''));
     const lista = [];
     geralChecksFaltando(campo).forEach(function (x) { lista.push(x); });
     for (let i = 0; i < total; i++) {
@@ -471,8 +475,9 @@ EC.campoRuido = (function () {
         '<span class="card-tipo-icone">' + s.icone + '</span><span>' + s.nome + '</span></button>';
     }).join('');
 
+    const serv = ctx.estado.servico || {};
     const det = EC.mapaEscopo && EC.mapaEscopo.subtipoPorEscopo
-      ? EC.mapaEscopo.subtipoPorEscopo(ctx.estado.servico && ctx.estado.servico.escopo) : null;
+      ? EC.mapaEscopo.subtipoPorEscopo(serv.escopo, serv.metodo) : null;
     const hint = $('#cr-subtipo-hint');
     if (hint) {
       if (det && campo().subtipo === det) {
@@ -801,7 +806,8 @@ EC.campoRuido = (function () {
 
     // Pré-seleciona o subtipo pelo escopo da OS (o técnico pode trocar)
     if (!campo().subtipo && EC.mapaEscopo && EC.mapaEscopo.subtipoPorEscopo) {
-      const sub = EC.mapaEscopo.subtipoPorEscopo(ctx.estado.servico && ctx.estado.servico.escopo);
+      const serv = ctx.estado.servico || {};
+      const sub = EC.mapaEscopo.subtipoPorEscopo(serv.escopo, serv.metodo);
       if (sub) { campo().subtipo = sub; if (ctx.salvar) ctx.salvar(); }
     }
 

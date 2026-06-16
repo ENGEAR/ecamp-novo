@@ -511,9 +511,10 @@ EC.fluxo = (function () {
 
   /* ---------- Pré-campo / Romaneio ---------- */
 
-  // OS de longa duração: o método do serviço diz "Longa duração"
+  // OS de longa duração: o método (ou o período) do serviço diz "Longa duração"
   function ehLongaDuracao() {
-    return /longa\s*dura/i.test((estado.servico && estado.servico.metodo) || '');
+    const s = estado.servico || {};
+    return /longa\s*dura/i.test((s.metodo || '') + ' ' + (s.periodo || ''));
   }
 
   function opcoesRomaneio() {
