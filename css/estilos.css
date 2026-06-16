@@ -419,7 +419,13 @@ textarea { resize: vertical; font-family: inherit; }
 .resumo-linha strong { text-align: right; word-break: break-word; }
 
 /* ---------- Componente GPS ---------- */
-.grade-3 { display: grid; grid-template-columns: 1fr 1.4fr 1.4fr; gap: 8px; }
+.grade-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+/* Em grades de campos lado a lado, alinhar os campos pela base mesmo quando um
+   rótulo quebra em duas linhas (ex.: "Temperatura (°C)"). */
+.grade-2 > label, .grade-3 > label { display: flex; flex-direction: column; margin-bottom: 0; }
+.grade-2 > label > input, .grade-2 > label > select,
+.grade-3 > label > input, .grade-3 > label > select { margin-top: auto; }
 .gps-status { margin: 10px 0; font-size: 0.92rem; min-height: 1.2em; }
 
 /* ---------- Componente Foto ---------- */
