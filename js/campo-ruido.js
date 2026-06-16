@@ -44,6 +44,14 @@ EC.campoRuido = (function () {
     aeronautico: [['fotoTelaIni', 'foto da tela (checagem inicial)'], ['fotoPonto', 'foto do ponto'], ['fotoTelaFim', 'foto da tela (checagem final)']]
   };
 
+  // Finalidades = métodos do SGE (Aéreo / Ferroviário). Mantidas iguais às do
+  // SGE para o método da OS pré-selecionar a finalidade no formulário.
+  const FINALIDADES_FERRO = ['Passagem de Composição Férrea', 'Pátios / Manobras / Cruzamentos'];
+  const FINALIDADES_AERO = ['Monitoramento de Receptores Potencialmente Críticos', 'Monitoramento Operacional no Aeródromo'];
+  const FERRO_PASSAGEM = FINALIDADES_FERRO[0];
+  const AERO_RECEPTORES = FINALIDADES_AERO[0];
+  const AERO_OPERACIONAL = FINALIDADES_AERO[1];
+
   const TIPOS_CARIMBO = {
     externo: 'RUIDOEXTERNO',
     interno: 'RUIDOINTERNO',
@@ -169,8 +177,8 @@ EC.campoRuido = (function () {
     return /longa\s*dura/i.test((s.metodo || '') + ' ' + (s.periodo || ''));
   }
 
-  // Casa o método da OS (ex.: "Receptores críticos", "Passagem de composição")
-  // com uma das finalidades do formulário, para pré-selecioná-la.
+  // Casa o método da OS com uma das finalidades do formulário, para
+  // pré-selecioná-la (no Aéreo/Ferroviário o método do SGE é a finalidade).
   function finalidadePorMetodo(opcoes) {
     const m = ((ctx.estado.servico && ctx.estado.servico.metodo) || '').trim().toLowerCase();
     if (!m) return '';
@@ -204,7 +212,7 @@ EC.campoRuido = (function () {
     };
     const primeiro = indice === 0;
     const ultimo = indice === total - 1;
-    const operacional = geral && geral.finalidade === 'Monitoramento operacional';
+    const operacional = geral && geral.finalidade === AERO_OPERACIONAL;
 
     // checks do ponto (todos obrigatórios): conta os não marcados por grupo
     const checks = ponto.checks || {};
@@ -278,11 +286,11 @@ EC.campoRuido = (function () {
     if (campo.subtipo === 'interno') {
       grupo('pos', CHECKS_POSICIONAMENTO_INTERNO.length, 'posicionamento dos pontos');
       grupo('mont', CHECKS_MONTAGEM_INTERNO.length, 'montagem do equipamento');
-    } else if (campo.subtipo === 'ferroviario' && g.finalidade === 'Passagem de composição ferroviária') {
+    } else if (campo.subtipo === 'ferroviario' && g.finalidade === FERRO_PASSAGEM) {
       grupo('instal', CHECKS_INSTALACAO_FERRO.length, 'instalação');
     } else if (campo.subtipo === 'aeronautico') {
-      if (g.finalidade === 'Receptores críticos') grupo('instal', CHECKS_INSTALACAO_AERO_RECEPTORES.length, 'instalação');
-      else if (g.finalidade === 'Monitoramento operacional') grupo('instal', CHECKS_INSTALACAO_AERO_OPERACIONAL.length, 'instalação');
+      if (g.finalidade === AERO_RECEPTORES) grupo('instal', CHECKS_INSTALACAO_AERO_RECEPTORES.length, 'instalação');
+      else if (g.finalidade === AERO_OPERACIONAL) grupo('instal', CHECKS_INSTALACAO_AERO_OPERACIONAL.length, 'instalação');
     }
     return out;
   }
@@ -563,18 +571,18 @@ EC.campoRuido = (function () {
 
     } else if (campo().subtipo === 'ferroviario') {
       area.innerHTML =
-        '<label>Finalidade<select data-campo="finalidade">' +
-        '<option value="">Selecione…</option><option>Passagem de composição ferroviária</option><option>Operações em pátios</option><option>Manobras</option><option>Cruzamentos</option>' +
+        '<label>Finalidade<select data-campo="finalidade"><option value="">Selecione…</option>' +
+        FINALIDADES_FERRO.map(function (o) { return '<option>' + o + '</option>'; }).join('') +
         '</select></label>' +
         '<div id="cr-instalacao"></div>' +
         '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>';
       if (g.qtdePontos === undefined) g.qtdePontos = ctx.estado.dadosGerais.qtdePontos;
-      if (!g.finalidade) { const f = finalidadePorMetodo(['Passagem de composição ferroviária', 'Operações em pátios', 'Manobras', 'Cruzamentos']); if (f) { g.finalidade = f; if (ctx.salvar) ctx.salvar(); } }
+      if (!g.finalidade) { const f = finalidadePorMetodo(FINALIDADES_FERRO); if (f) { g.finalidade = f; if (ctx.salvar) ctx.salvar(); } }
       vincular(area, g);
 
       function instalacaoFerro() {
         const div = area.querySelector('#cr-instalacao');
-        if (g.finalidade === 'Passagem de composição ferroviária') {
+        if (g.finalidade === FERRO_PASSAGEM) {
           div.innerHTML = '<p class="grupo-checks-titulo">Requisitos de instalação — passagem de composição</p>' + htmlChecks(CHECKS_INSTALACAO_FERRO, 'instal');
           vincular(div, g);
         } else {
@@ -588,20 +596,20 @@ EC.campoRuido = (function () {
 
     } else if (campo().subtipo === 'aeronautico') {
       area.innerHTML =
-        '<label>Finalidade<select data-campo="finalidade">' +
-        '<option value="">Selecione…</option><option>Receptores críticos</option><option>Monitoramento operacional</option>' +
+        '<label>Finalidade<select data-campo="finalidade"><option value="">Selecione…</option>' +
+        FINALIDADES_AERO.map(function (o) { return '<option>' + o + '</option>'; }).join('') +
         '</select></label>' +
         '<div id="cr-instalacao"></div>' +
         '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>';
       if (g.qtdePontos === undefined) g.qtdePontos = ctx.estado.dadosGerais.qtdePontos;
-      if (!g.finalidade) { const f = finalidadePorMetodo(['Receptores críticos', 'Monitoramento operacional']); if (f) { g.finalidade = f; if (ctx.salvar) ctx.salvar(); } }
+      if (!g.finalidade) { const f = finalidadePorMetodo(FINALIDADES_AERO); if (f) { g.finalidade = f; if (ctx.salvar) ctx.salvar(); } }
       vincular(area, g);
 
       function instalacaoAero() {
         const div = area.querySelector('#cr-instalacao');
-        if (g.finalidade === 'Receptores críticos') {
+        if (g.finalidade === AERO_RECEPTORES) {
           div.innerHTML = '<p class="grupo-checks-titulo">Checks de instalação — receptores críticos</p>' + htmlChecks(CHECKS_INSTALACAO_AERO_RECEPTORES, 'instal');
-        } else if (g.finalidade === 'Monitoramento operacional') {
+        } else if (g.finalidade === AERO_OPERACIONAL) {
           div.innerHTML = '<p class="grupo-checks-titulo">Checks de instalação — monitoramento operacional</p>' + htmlChecks(CHECKS_INSTALACAO_AERO_OPERACIONAL, 'instal');
         } else {
           div.innerHTML = '';
@@ -760,7 +768,7 @@ EC.campoRuido = (function () {
         '<label>Hora de término<input type="time" data-campo="horaTermino"></label>';
 
     } else if (sub === 'aeronautico') {
-      const operacional = g.finalidade === 'Monitoramento operacional';
+      const operacional = g.finalidade === AERO_OPERACIONAL;
       html +=
         '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
         '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
