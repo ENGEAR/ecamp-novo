@@ -626,9 +626,9 @@ EC.campoRuido = (function () {
     ativarAlertaVento(area, ponto);
     ativarAlertaChecagens(area, ponto);
     const gpsInstancia = montarGps(area, ponto);
-    montarFoto(area, '.cr-foto-tela-ini', ponto, 'fotoTelaIni', '📷 Foto da tela após checagem inicial', gpsInstancia, n);
-    montarFoto(area, '.cr-foto-ponto', ponto, 'fotoPonto', '📷 Foto do ponto', gpsInstancia, n);
-    montarFoto(area, '.cr-foto-tela-fim', ponto, 'fotoTelaFim', '📷 Foto da tela após checagem final', gpsInstancia, n);
+    montarFoto(area, '.cr-foto-tela-ini', ponto, 'fotoTelaIni', '📷 Foto da tela após checagem inicial (obrigatória)', gpsInstancia, n);
+    montarFoto(area, '.cr-foto-ponto', ponto, 'fotoPonto', '📷 Foto do ponto (obrigatória)', gpsInstancia, n);
+    montarFoto(area, '.cr-foto-tela-fim', ponto, 'fotoTelaFim', '📷 Foto da tela após checagem final (obrigatória)', gpsInstancia, n);
 
     // descrição da eventualidade (interno)
     const seletorEvent = area.querySelector('[data-campo="eventualidade"]');

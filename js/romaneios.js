@@ -48,10 +48,10 @@ EC.romaneios = (function () {
           {
             subtitulo: 'Equipamentos de medição',
             itens: [
-              'Sonômetro com calibração válida',
-              'Calibrador acústico com calibração válida',
-              'Microfone com calibração válida',
-              'Termohigroanemômetro com calibração válida'
+              'Etiqueta do Sonômetro com calibração válida',
+              'Etiqueta do Calibrador acústico com calibração válida',
+              'Etiqueta do Microfone com calibração válida',
+              'Etiqueta do Termohigroanemômetro com calibração válida'
             ]
           },
           {
@@ -102,7 +102,6 @@ EC.romaneios = (function () {
         grupos: [{
           itens: [
             'Todos os equipamentos conferidos',
-            'Certificados de calibração disponíveis',
             'Baterias carregadas',
             'Materiais acondicionados adequadamente para transporte',
             'Equipe alinhada quanto ao escopo do serviço',

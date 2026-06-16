@@ -19,10 +19,10 @@ window.EC = window.EC || {};
 EC.equipamentosMock = {
   ruido: [
     { categoria: 'Sonômetro', codigo: 'SON-001', descricao: 'Instrutherm | DOS-600 | nº 123456', ultimaCal: '2026-03-01', proximaCal: '2027-03-01' },
-    { categoria: 'Sonômetro', codigo: 'SON-002', descricao: 'Brüel & Kjær | 2250 | nº 789012', ultimaCal: '2026-01-15', proximaCal: '2027-01-15' },
+    { categoria: 'Sonômetro', codigo: 'SON-002', descricao: 'Brüel & Kjær | 2250 | nº 789012', ultimaCal: '2025-05-20', proximaCal: '2026-05-20' },
     { categoria: 'Calibrador Acústico', codigo: 'CAL-001', descricao: 'Instrutherm | CAL-4000 | nº 345678', ultimaCal: '2026-02-10', proximaCal: '2027-02-10' },
     { categoria: 'Microfone', codigo: 'MIC-001', descricao: 'GRAS | 46AE | nº 901234', ultimaCal: '2026-04-05', proximaCal: '2027-04-05' },
-    { categoria: 'Termohigroanemômetro', codigo: 'THA-001', descricao: 'Instrutherm | THAR-185 | nº 567890', ultimaCal: '2026-05-20', proximaCal: '2027-05-20' },
+    { categoria: 'Termohigroanemômetro', codigo: 'THA-001', descricao: 'Instrutherm | THAR-185 | nº 567890', ultimaCal: '2025-06-18', proximaCal: '2026-06-18' },
     { categoria: 'Estação Meteorológica', codigo: 'EST-001', descricao: 'Davis | Vantage Pro2 | nº 112233', ultimaCal: '2026-01-30', proximaCal: '2027-01-30' },
     { categoria: 'Tripé', codigo: 'TRI-001', descricao: 'Greika | WT-3730 | nº 445566', ultimaCal: '', proximaCal: '' },
     { categoria: 'Tripé', codigo: 'TRI-002', descricao: 'Greika | WT-3730 | nº 778899', ultimaCal: '', proximaCal: '' },

@@ -57,6 +57,27 @@ EC.fluxo = (function () {
       + '_' + doisDigitos(data.getHours()) + doisDigitos(data.getMinutes()) + doisDigitos(data.getSeconds());
   }
 
+  // Toda data exibida no app fica no formato DD/MM/AAAA (recebe ISO AAAA-MM-DD)
+  function formatarDataBR(iso) {
+    if (!iso) return '';
+    const p = String(iso).split('-');
+    return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso;
+  }
+
+  // Situação da calibração de um equipamento pela data da próxima calibração:
+  //   vencida (já passou) ou vencendo (faltam menos de 5 dias). null = ok.
+  function statusCalibracao(proximaCalISO) {
+    if (!proximaCalISO) return null;
+    const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+    const p = String(proximaCalISO).split('-');
+    if (p.length !== 3) return null;
+    const prox = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+    const dias = Math.round((prox - hoje) / 86400000);
+    if (dias < 0) return { nivel: 'vencida', texto: 'Calibração vencida. Não usar este equipamento.' };
+    if (dias < 5) return { nivel: 'vencendo', texto: 'Calibração próxima do vencimento. Confirmar se este equipamento pode ser usado.' };
+    return null;
+  }
+
   /* ---------- Chaves de armazenamento ---------- */
 
   function chaveServico(numeroOs, indice) { return 'rascunho:fluxo_' + numeroOs + '__s' + indice; }
@@ -352,7 +373,7 @@ EC.fluxo = (function () {
   /* ---------- Dados gerais ---------- */
 
   function preencherDadosGerais() {
-    $('dg-data').value = estado.dadosGerais.dataInicio;
+    $('dg-data').value = formatarDataBR(estado.dadosGerais.dataInicio);
     $('dg-hora').value = estado.dadosGerais.horaInicio;
     $('dg-os').value = estado.os.numero;
     $('dg-cliente').value = estado.os.cliente;
@@ -383,7 +404,7 @@ EC.fluxo = (function () {
       os: estado.os.numero,
       tipo: 'LOCAL',
       ponto: 'P0',
-      rotulo: '📷 Foto do local do monitoramento',
+      rotulo: '📷 Foto do local do monitoramento (obrigatória)',
       fotoInicial: estado.dadosGerais.foto || null,
       obterUtm: function () { return ''; },
       aoCapturar: function (foto) {
@@ -485,9 +506,13 @@ EC.fluxo = (function () {
         return '<p class="grupo-checks-titulo">' + categoria + tag + '</p>' +
           lista.filter(function (e) { return e.categoria === categoria; }).map(function (e) {
             const marcado = estado.equipamentos.indexOf(e.codigo) !== -1;
+            const cal = statusCalibracao(e.proximaCal);
+            const aviso = cal ? '<br><span class="cal-aviso cal-' + cal.nivel + '">' +
+              (cal.nivel === 'vencida' ? '⛔ ' : '⚠️ ') + cal.texto + '</span>' : '';
             return '<label class="linha-check check-campo"><input type="checkbox" data-codigo="' + e.codigo + '"' + (marcado ? ' checked' : '') + '>' +
               '<span><strong>' + e.codigo + '</strong> — ' + e.descricao +
-              (e.proximaCal ? '<br><small>próxima calibração: ' + e.proximaCal.split('-').reverse().join('/') + '</small>' : '') +
+              (e.proximaCal ? '<br><small>próxima calibração: ' + formatarDataBR(e.proximaCal) + '</small>' : '') +
+              aviso +
               '</span></label>';
           }).join('');
       }).join('');
@@ -549,6 +574,8 @@ EC.fluxo = (function () {
     const pendentesPre = EC.romaneios.pendentesObrigatorios(estado.tipo, estado.preCampo);
     $('checkpoint-resumo').innerHTML =
       linhaResumo('Tipo', nomeTipo(estado.tipo)) +
+      linhaResumo('Método', servicoDetalhe('metodo')) +
+      linhaResumo('Período', servicoDetalhe('periodo')) +
       linhaResumo('Equipamentos', equip ? equip + ' selecionado(s)' : '—') +
       linhaResumo('Pré-campo', pendentesPre === 0 ? '✓ obrigatórios conferidos' : 'falta(m) ' + pendentesPre + ' item(ns)');
   }
@@ -578,8 +605,17 @@ EC.fluxo = (function () {
       corpoHtml + '</div>';
   }
 
+  // Fotos esperadas por subtipo de ruído (todas obrigatórias)
+  const FOTOS_RUIDO = {
+    externo: [['fotoTelaIni', 'foto da tela (checagem inicial)'], ['fotoPonto', 'foto do ponto'], ['fotoTelaFim', 'foto da tela (checagem final)']],
+    interno: [['fotoTelaIni', 'foto da tela (checagem inicial)'], ['fotoPonto', 'foto do ponto']],
+    ferroviario: [['fotoTelaIni', 'foto da tela (checagem inicial)'], ['fotoPonto', 'foto do ponto'], ['fotoTelaFim', 'foto da tela (checagem final)']],
+    aeronautico: [['fotoTelaIni', 'foto da tela (checagem inicial)'], ['fotoPonto', 'foto do ponto'], ['fotoTelaFim', 'foto da tela (checagem final)']]
+  };
+
   function avisosRevisao() {
     const avisos = [];
+    if (!estado.dadosGerais.foto) avisos.push('Foto do local não anexada.');
     if (pontosAlterados() && !estado.dadosGerais.justificativaPontos) avisos.push('Nº de pontos alterado sem justificativa.');
     if (!estado.tipo) avisos.push('Tipo de monitoramento não escolhido.');
 
@@ -601,7 +637,9 @@ EC.fluxo = (function () {
           if (!p.nome) avisos.push(nome + ': sem nome/identificação.');
           if (!p.gps) avisos.push(nome + ': GPS não capturado.');
           if (!p.chkIniValor) avisos.push(nome + ': checagem inicial não preenchida.');
-          if (!p.fotoPonto) avisos.push(nome + ': sem foto do ponto.');
+          (FOTOS_RUIDO[campo.subtipo] || [['fotoPonto', 'foto do ponto']]).forEach(function (f) {
+            if (!p[f[0]]) avisos.push(nome + ': falta ' + f[1] + '.');
+          });
           const precisaFinal = campo.subtipo !== 'interno' || i === total - 1;
           if (precisaFinal && !p.chkFimValor) avisos.push(nome + ': checagem final não preenchida.');
         }
@@ -620,7 +658,7 @@ EC.fluxo = (function () {
       linhaResumo('Endereço', estado.os.endereco) +
       linhaResumo('Campanha', servicoDetalhe('campanha')) +
       linhaResumo('Escopo', servicoDetalhe('escopo')) +
-      linhaResumo('Início', estado.dadosGerais.dataInicio.split('-').reverse().join('/') + ' às ' + estado.dadosGerais.horaInicio) +
+      linhaResumo('Início', formatarDataBR(estado.dadosGerais.dataInicio) + ' às ' + estado.dadosGerais.horaInicio) +
       linhaResumo('Pontos', estado.dadosGerais.qtdePontos + (pontosAlterados() ? ' (OS previa ' + estado.dadosGerais.qtdePontosOS + ')' : '')) +
       (pontosAlterados() ? linhaResumo('Justificativa dos pontos', estado.dadosGerais.justificativaPontos) : '') +
       linhaResumo('Dias de medição', estado.servico.dias) +
