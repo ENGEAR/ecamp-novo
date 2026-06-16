@@ -198,7 +198,7 @@ EC.osMock = [
         qtdePontos: 2,
         dias: 1,
         periodo: 'Diurno',
-        metodo: '',
+        metodo: 'Passagem de composição ferroviária',
         observacao: 'Pontos em residências próximas ao cruzamento.'
       }
     ]
@@ -217,7 +217,7 @@ EC.osMock = [
         qtdePontos: 2,
         dias: 1,
         periodo: 'Diurno',
-        metodo: '',
+        metodo: 'Receptores críticos',
         observacao: 'Pontos em receptores críticos (residências sob a rota).'
       }
     ]

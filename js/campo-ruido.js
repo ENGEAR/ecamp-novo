@@ -169,6 +169,18 @@ EC.campoRuido = (function () {
     return /longa\s*dura/i.test((s.metodo || '') + ' ' + (s.periodo || ''));
   }
 
+  // Casa o método da OS (ex.: "Receptores críticos", "Passagem de composição")
+  // com uma das finalidades do formulário, para pré-selecioná-la.
+  function finalidadePorMetodo(opcoes) {
+    const m = ((ctx.estado.servico && ctx.estado.servico.metodo) || '').trim().toLowerCase();
+    if (!m) return '';
+    for (let i = 0; i < opcoes.length; i++) {
+      const o = opcoes[i].toLowerCase();
+      if (o === m || o.indexOf(m) === 0 || m.indexOf(o) === 0) return opcoes[i];
+    }
+    return '';
+  }
+
   // Rótulos das fotos obrigatórias ainda não tiradas de um ponto.
   function fotosFaltando(ponto, subtipo) {
     const reqs = FOTOS_POR_SUBTIPO[subtipo] || [['fotoPonto', 'foto do ponto']];
@@ -557,6 +569,7 @@ EC.campoRuido = (function () {
         '<div id="cr-instalacao"></div>' +
         '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>';
       if (g.qtdePontos === undefined) g.qtdePontos = ctx.estado.dadosGerais.qtdePontos;
+      if (!g.finalidade) { const f = finalidadePorMetodo(['Passagem de composição ferroviária', 'Operações em pátios', 'Manobras', 'Cruzamentos']); if (f) { g.finalidade = f; if (ctx.salvar) ctx.salvar(); } }
       vincular(area, g);
 
       function instalacaoFerro() {
@@ -581,6 +594,7 @@ EC.campoRuido = (function () {
         '<div id="cr-instalacao"></div>' +
         '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>';
       if (g.qtdePontos === undefined) g.qtdePontos = ctx.estado.dadosGerais.qtdePontos;
+      if (!g.finalidade) { const f = finalidadePorMetodo(['Receptores críticos', 'Monitoramento operacional']); if (f) { g.finalidade = f; if (ctx.salvar) ctx.salvar(); } }
       vincular(area, g);
 
       function instalacaoAero() {
