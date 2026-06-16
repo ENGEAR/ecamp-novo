@@ -180,7 +180,7 @@ EC.campoRuido = (function () {
 
   // Itens em branco de um ponto (campos + GPS + checagens + fotos). NÃO inclui
   // a hora de término (sempre opcional) nem os checks de confirmação.
-  function itensFaltandoDoPonto(ponto, subtipo, indice, total, geral) {
+  function itensFaltandoDoPonto(ponto, subtipo, indice, total, geral, longaDuracao) {
     ponto = ponto || {};
     const falta = [];
     const reqVal = function (chave, rotulo) {
@@ -210,7 +210,11 @@ EC.campoRuido = (function () {
     if (subtipo === 'externo') {
       grupoChecks('pos', POSICIONAMENTO_EXTERNO_PADRAO.length, 'posicionamento do microfone');
       grupoChecks('mont', CHECKS_MONTAGEM_EXTERNO.length, 'montagem do equipamento');
-      reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento');
+      if (longaDuracao) {
+        grupoChecks('climacont', 1, 'monitoramento contínuo de temperatura/umidade/vento');
+      } else {
+        reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento');
+      }
       grupoChecks('ruido', 2, 'ruído residual/total');
       reqVal('fontesEmpresa', 'fontes da empresa'); reqVal('fontesAmbiente', 'fontes do ambiente');
       reqVal('chkFimValor', 'checagem final');
@@ -274,10 +278,11 @@ EC.campoRuido = (function () {
     if (!campo || !campo.subtipo) return ['o monitoramento em campo não foi iniciado'];
     const total = Math.min(20, Math.max(1, parseInt(campo.geral.qtdePontos, 10) || 0));
     if (!total) return ['a quantidade de pontos do campo não foi definida'];
+    const longaDuracao = /longa\s*dura/i.test((estado.servico && estado.servico.metodo) || '');
     const lista = [];
     geralChecksFaltando(campo).forEach(function (x) { lista.push(x); });
     for (let i = 0; i < total; i++) {
-      itensFaltandoDoPonto(campo.pontos[i], campo.subtipo, i, total, campo.geral).forEach(function (x) {
+      itensFaltandoDoPonto(campo.pontos[i], campo.subtipo, i, total, campo.geral, longaDuracao).forEach(function (x) {
         lista.push('P' + (i + 1) + ': ' + x);
       });
     }
@@ -680,7 +685,10 @@ EC.campoRuido = (function () {
         htmlChecagem('Checagem inicial', 'chkIni') +
         '<div class="cr-foto-tela-ini"></div>' +
         '<div class="cr-foto-ponto"></div>' +
-        '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' + htmlClima(false) +
+        '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' +
+        (ehLongaDuracao()
+          ? htmlChecks(['Monitorar e registrar temperatura, umidade e vento de forma contínua'], 'climacont')
+          : htmlClima(false)) +
         htmlChecks(['Ruído residual monitorado', 'Ruído total monitorado'], 'ruido') +
         '<label>Fontes percebidas da EMPRESA<input type="text" data-campo="fontesEmpresa"></label>' +
         '<label>Fontes percebidas do AMBIENTE<input type="text" data-campo="fontesAmbiente"></label>' +
