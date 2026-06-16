@@ -269,6 +269,8 @@ textarea { resize: vertical; font-family: inherit; }
 .cal-aviso { display: inline-block; font-size: 0.8rem; font-weight: 600; border-radius: 6px; padding: 3px 8px; margin-top: 4px; }
 .cal-vencida { background: var(--vermelho-claro); border: 1px solid var(--vermelho); color: #8f1f1f; }
 .cal-vencendo { background: var(--amarelo-claro); border: 1px solid var(--amarelo); color: #6e5a00; }
+.equip-bloqueado { opacity: 0.6; }
+.equip-bloqueado input { cursor: not-allowed; }
 
 /* ---------- Formulário de campo (pontos) ---------- */
 .cartao-ponto {

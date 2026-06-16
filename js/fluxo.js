@@ -489,6 +489,16 @@ EC.fluxo = (function () {
       return;
     }
 
+    // Equipamento com calibração vencida não pode ser usado: se algum estava
+    // selecionado e venceu, remove da seleção antes de desenhar.
+    const antes = estado.equipamentos.length;
+    estado.equipamentos = estado.equipamentos.filter(function (cod) {
+      const e = lista.filter(function (x) { return x.codigo === cod; })[0];
+      const cal = e ? statusCalibracao(e.proximaCal) : null;
+      return !(cal && cal.nivel === 'vencida');
+    });
+    if (estado.equipamentos.length !== antes) salvarEstado();
+
     const categorias = [];
     lista.forEach(function (equip) {
       if (categorias.indexOf(equip.categoria) === -1) categorias.push(equip.categoria);
@@ -505,11 +515,13 @@ EC.fluxo = (function () {
         }
         return '<p class="grupo-checks-titulo">' + categoria + tag + '</p>' +
           lista.filter(function (e) { return e.categoria === categoria; }).map(function (e) {
-            const marcado = estado.equipamentos.indexOf(e.codigo) !== -1;
             const cal = statusCalibracao(e.proximaCal);
+            const vencida = cal && cal.nivel === 'vencida';
+            const marcado = !vencida && estado.equipamentos.indexOf(e.codigo) !== -1;
             const aviso = cal ? '<br><span class="cal-aviso cal-' + cal.nivel + '">' +
               (cal.nivel === 'vencida' ? '⛔ ' : '⚠️ ') + cal.texto + '</span>' : '';
-            return '<label class="linha-check check-campo"><input type="checkbox" data-codigo="' + e.codigo + '"' + (marcado ? ' checked' : '') + '>' +
+            return '<label class="linha-check check-campo' + (vencida ? ' equip-bloqueado' : '') + '">' +
+              '<input type="checkbox" data-codigo="' + e.codigo + '"' + (marcado ? ' checked' : '') + (vencida ? ' disabled' : '') + '>' +
               '<span><strong>' + e.codigo + '</strong> — ' + e.descricao +
               (e.proximaCal ? '<br><small>próxima calibração: ' + formatarDataBR(e.proximaCal) + '</small>' : '') +
               aviso +
