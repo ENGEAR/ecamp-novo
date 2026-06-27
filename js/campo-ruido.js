@@ -708,6 +708,7 @@ EC.campoRuido = (function () {
         '<div class="cr-gps"></div>' +
         '<p class="grupo-checks-titulo">📍 Posicionamento do microfone</p>' +
         htmlChecks(ehLongaDuracao() ? POSICIONAMENTO_EXTERNO_LONGA : POSICIONAMENTO_EXTERNO_PADRAO, 'pos') +
+        htmlChecks(['Se monitoramento em fachada: distância mínima de 1 m da fachada (opcional)'], 'posfachada') +
         '<p class="grupo-checks-titulo">⚙️ Montagem do equipamento</p>' + htmlChecks(CHECKS_MONTAGEM_EXTERNO, 'mont') +
         htmlChecagem('Checagem inicial', 'chkIni') +
         '<div class="cr-foto-tela-ini"></div>' +
