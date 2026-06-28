@@ -133,7 +133,7 @@ EC.campoRuido = (function () {
     'Distância mínima de 2 m de superfícies refletoras',
     'Uso obrigatório de protetor de vento',
     'Microfone direcionado para a trajetória do tráfego ferroviário',
-    'Definir pontos de medição em locais críticos (casas, escolas, hospitais etc.)'
+    'Definir pontos de medição: locais críticos ao longo da linha férrea (casas, escolas, hospitais, etc.)'
   ];
 
   const CHECKS_PONTO_FERRO = [
