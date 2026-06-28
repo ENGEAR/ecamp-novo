@@ -38,16 +38,23 @@
           if (!worker) return;
           mostrarAvisoAtualizacao(function () { worker.postMessage({ type: 'SKIP_WAITING' }); });
         }
-        // Já havia uma versão nova em espera ao abrir
-        if (registro.waiting) avisar(registro.waiting);
-        // Uma versão nova terminou de baixar enquanto o app estava aberto
-        registro.addEventListener('updatefound', function () {
-          const novo = registro.installing;
-          if (!novo) return;
-          novo.addEventListener('statechange', function () {
-            if (novo.state === 'installed' && navigator.serviceWorker.controller) avisar(novo);
+        // Acompanha um worker que está baixando até ficar "instalado" (em espera).
+        function acompanhar(worker) {
+          if (!worker) return;
+          worker.addEventListener('statechange', function () {
+            if (worker.state === 'installed' && navigator.serviceWorker.controller) avisar(worker);
           });
-        });
+        }
+        // Cobre as três situações possíveis ao abrir (evita a corrida que deixava
+        // o app preso na versão antiga): já em espera, ainda baixando, ou nova.
+        if (registro.waiting) avisar(registro.waiting);
+        if (registro.installing) acompanhar(registro.installing);
+        registro.addEventListener('updatefound', function () { acompanhar(registro.installing); });
+
+        // Força uma checagem agora e a cada 60 s (o app de campo fica aberto
+        // muito tempo; sem isso o navegador só checaria de vez em quando).
+        registro.update();
+        setInterval(function () { registro.update(); }, 60000);
       }).catch(function (erro) {
         console.error('Falha ao registrar o service worker:', erro);
       });
