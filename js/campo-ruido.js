@@ -136,29 +136,22 @@ EC.campoRuido = (function () {
     'Definir pontos de medição: locais críticos ao longo da linha férrea (casas, escolas, hospitais, etc.)'
   ];
 
+  // Checks do ponto (ferroviário) — iguais nos dois métodos: "curto período"/
+  // "longa duração" em negrito; condições ambientais em dois checks (chuva/vento).
   const CHECKS_PONTO_FERRO = [
-    '🚃 Som residual — curto período: ao menos 15 min de medição (contínua ou não); monitoramento antes ou após a passagem da composição',
-    '🚃 Som residual — longa duração: instalar equipamento para longa duração; diurno ≥ 60 min (contínua ou não); noturno ≥ 30 min (contínua ou não)',
+    '🚃 Som residual — <strong>curto período</strong>: ao menos 15 min de medição (contínua ou não); monitoramento antes ou após a passagem da composição',
+    '🚃 Som residual — <strong>longa duração</strong>: instalar equipamento para longa duração; diurno ≥ 60 min (contínua ou não); noturno ≥ 30 min (contínua ou não)',
     '🚂 Som da passagem ferroviária: considerar todo o tempo da passagem; mínimo de 3 passagens monitoradas; pelo menos 1 passagem em cada sentido; se densidade ≤ 3 composições/dia, medir pelo menos uma passagem; ⚠️ NÃO realizar durante cruzamento em linha dupla; sirenes, sinos, buzinas e campainhas são sons intrusivos; registrar características das composições (ex.: trem de carga, passageiro)',
-    '🌡️ Condições ambientais: não monitorar com chuva (exceto se aprovação prévia); não monitorar com vento > 5 m/s'
+    '🌡️ Condições ambientais: não monitorar com chuva (exceto se aprovação prévia)',
+    '🌡️ Condições ambientais: não monitorar com vento > 5 m/s'
   ];
 
-  // Pátios / Manobras / Cruzamentos: requisitos de instalação próprios e os
-  // checks do ponto com "curto período"/"longa duração" em negrito e o check
-  // de condições ambientais separado em dois (chuva / vento).
+  // Pátios / Manobras / Cruzamentos: requisitos de instalação próprios.
   const CHECKS_INSTALACAO_FERRO_PATIOS = [
     'Altura ≥ 4 m do solo',
     'Distância mínima de 2 m de superfícies refletoras',
     'Uso obrigatório de protetor de vento',
     'Microfone direcionado para o tráfego ferroviário'
-  ];
-
-  const CHECKS_PONTO_FERRO_PATIOS = [
-    '🚃 Som residual — <strong>curto período</strong>: ao menos 15 min de medição (contínua ou não); monitoramento antes ou após a passagem da composição',
-    '🚃 Som residual — <strong>longa duração</strong>: instalar equipamento para longa duração; diurno ≥ 60 min (contínua ou não); noturno ≥ 30 min (contínua ou não)',
-    CHECKS_PONTO_FERRO[2], // som da passagem ferroviária (igual ao da passagem)
-    '🌡️ Condições ambientais: não monitorar com chuva (exceto se aprovação prévia)',
-    '🌡️ Condições ambientais: não monitorar com vento > 5 m/s'
   ];
 
   // Checklist de operações em pátios (preparação, abaixo da qtde de pontos).
@@ -173,10 +166,6 @@ EC.campoRuido = (function () {
     { sub: null, texto: 'Pelo menos dois eventos de cruzamento ou ultrapassagem (diurno ou noturno)' },
     { sub: null, texto: 'Mínimo de 30 eventos de operações de engates em período entre 60 min e 240 min — registrar LAFmax de cada evento' }
   ];
-
-  function checksPontoFerro(finalidade) {
-    return finalidade === FERRO_PATIOS ? CHECKS_PONTO_FERRO_PATIOS : CHECKS_PONTO_FERRO;
-  }
 
   const CHECKS_INSTALACAO_AERO_RECEPTORES = [
     'Altura entre 1,2 m e 1,5 m do solo',
@@ -305,7 +294,7 @@ EC.campoRuido = (function () {
       if (ponto.eventualidade === 'Sim') reqVal('eventualidadeDesc', 'descrição da eventualidade');
       if (ultimo) reqVal('chkFimValor', 'checagem final');
     } else if (subtipo === 'ferroviario') {
-      grupoChecks('ferro', checksPontoFerro(geral && geral.finalidade).length, 'checks do ponto');
+      grupoChecks('ferro', CHECKS_PONTO_FERRO.length, 'checks do ponto');
       reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento');
       reqVal('chkFimValor', 'checagem final');
       if (!ponto.fotoTelaFim) falta.push('foto da tela (checagem final)');
@@ -839,7 +828,7 @@ EC.campoRuido = (function () {
         '<div class="cr-gps"></div>' +
         htmlChecagem('Checagem inicial', 'chkIni') +
         '<div class="cr-foto-tela-ini"></div>' +
-        htmlChecks(checksPontoFerro(g.finalidade), 'ferro') +
+        htmlChecks(CHECKS_PONTO_FERRO, 'ferro') +
         '<div class="cr-foto-ponto"></div>' +
         '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' + htmlClima(false) +
         htmlChecagem('Checagem final', 'chkFim') +
