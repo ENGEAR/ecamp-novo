@@ -43,7 +43,7 @@ Login
 | Transportes – Aéreo (NBR 16425-2) | Monitoramento de Receptores Potencialmente Críticos | Ruído | **Aeronáutico** (finalidade já marcada) | 8 checks de instalação |
 | Transportes – Aéreo (NBR 16425-2) | Monitoramento Operacional no Aeródromo | Ruído | **Aeronáutico** (finalidade já marcada) | 16 checks; clima vem da estação (só um check) |
 | Transportes – Ferroviário (NBR 16425-4) | Passagem de Composição Férrea | Ruído | **Ferroviário** (finalidade já marcada) | 6 checks de instalação |
-| Transportes – Ferroviário (NBR 16425-4) | Pátios / Manobras / Cruzamentos | Ruído | **Ferroviário** (finalidade já marcada) | sem checks de instalação |
+| Transportes – Ferroviário (NBR 16425-4) | Pátios / Manobras / Cruzamentos | Ruído | **Ferroviário** (finalidade já marcada) | 4 checks de instalação + checklist "🚧 Operações em pátios" (não bloqueia) + ponto com clima separado (chuva/vento) |
 
 ---
 
@@ -51,7 +51,9 @@ Login
 
 - **Externo:** finalidade (Laudo PBH / Obra / Background / Operações / Outros) · por ponto: nome, equipamentos, hora inicial, GPS, posicionamento do microfone (3 checks + item opcional de fachada), montagem (4 checks), checagem inicial + foto da tela, foto do ponto, condições ambientais, ruído residual/total, fontes (empresa/ambiente), checagem final + foto da tela, observações, hora de término.
 - **Interno (10151 e 10152):** condição das esquadrias, condição do ambiente, área + "calcular pontos" (1 a cada 30 m²), posicionamento dos pontos (8 checks) + montagem (5 checks), desenho da sala · por ponto: hora, nome, GPS, altura, clima só no 1º ponto, Ltot (2 checks), Lres (3 checks), checagem inicial + foto, foto do ponto, eventualidade, checagem final só no último ponto. **Diferenças do 10151 hoje:** nota "com pessoas" (10152 = "sem pessoas") e, no 1º ponto, escolha obrigatória **Condições do ambiente: ( ) Ambiente vazio ( ) Ambiente mobiliado** (logo antes do bloco de condições ambientais). Resto idêntico — conteúdo específico de cada um a detalhar.
-- **Ferroviário:** finalidade · instalação (6 checks, se "Passagem de Composição Férrea") · por ponto: checagens, fotos, checks do ponto (som residual curto/longa, passagem, ambientais), clima.
+- **Ferroviário:** finalidade · por método:
+  - **Passagem de Composição Férrea:** instalação (6 checks) · por ponto: som residual curto/longa + passagem + 1 check ambiental combinado (chuva/vento) + clima numérico.
+  - **Pátios / Manobras / Cruzamentos:** instalação (4 checks) · checklist "🚧 Operações em pátios / manobras / cruzamentos" abaixo da qtde de pontos (sub-títulos Manobras / Composição parada / Cruzamentos·Ultrapassagens; **não bloqueia** salvar) · por ponto: som residual curto/longa (em negrito) + passagem + clima separado em 2 checks (chuva / vento) + clima numérico.
 - **Aeronáutico:** finalidade · instalação (8 ou 16 checks) · por ponto: checagens, fotos; se **operacional** → check "estação meteorológica" (sem clima manual); se **receptores** → clima + 4 checks.
 
 ---
@@ -85,7 +87,7 @@ Blocos: **Ordem de serviço** (nº, código, emitido por, data emissão) · **Cl
 
 1. **10151 · Ambiente interno** e **10152** já são subtipos separados (`interno10151` / `interno10152`). Por ora a única diferença é a nota "com/sem pessoas" — falta definir o que mais muda no conteúdo de cada um.
 2. **Vibração / QAR Externo / QAR Interno / Opacidade:** definir o conteúdo de cada formulário de campo (Fase 4).
-3. **Métodos sem checks próprios** (ex.: Ferroviário "Pátios / Manobras / Cruzamentos") — precisam de checks específicos?
+3. ~~Métodos sem checks próprios (Ferroviário "Pátios / Manobras / Cruzamentos")~~ — **resolvido (27/06/2026):** Pátios ganhou instalação própria, checklist de operações e checks de ponto específicos.
 
 ---
 
