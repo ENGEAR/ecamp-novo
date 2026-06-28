@@ -36,10 +36,10 @@ Login
 
 | Escopo (OS) | Método (OS) | Tipo | **Formulário que abre** | Observações |
 |---|---|---|---|---|
-| Ruído Ambiental – NBR 10151 | Ambiente interno | Ruído | **Interno** | ⚠️ hoje usa o MESMO formulário do 10152 — confirmar se deve ser distinto |
+| Ruído Ambiental – NBR 10151 | Ambiente interno | Ruído | **Interno 10151** | nota "monitorar, preferencialmente, **com** pessoas" |
 | Ruído Ambiental – NBR 10151 | Ambiente externo | Ruído | **Externo** | |
 | Ruído Ambiental – NBR 10151 | Longa duração | Ruído | **Externo (longa duração)** | troca clima por check "monitorar contínuo"; altura ≥ 4 m; itens de longa duração/online viram obrigatórios no pré-campo |
-| Ruído Interno – NBR 10152 | (sem método) | Ruído | **Interno** | período pode ser "Longa Duração" |
+| Ruído Interno – NBR 10152 | (sem método) | Ruído | **Interno 10152** | nota "monitorar, preferencialmente, **sem** pessoas"; período pode ser "Longa Duração" |
 | Transportes – Aéreo (NBR 16425-2) | Monitoramento de Receptores Potencialmente Críticos | Ruído | **Aeronáutico** (finalidade já marcada) | 8 checks de instalação |
 | Transportes – Aéreo (NBR 16425-2) | Monitoramento Operacional no Aeródromo | Ruído | **Aeronáutico** (finalidade já marcada) | 16 checks; clima vem da estação (só um check) |
 | Transportes – Ferroviário (NBR 16425-4) | Passagem de Composição Férrea | Ruído | **Ferroviário** (finalidade já marcada) | 6 checks de instalação |
@@ -50,7 +50,7 @@ Login
 ## 3. O que cada formulário de ruído contém (resumo)
 
 - **Externo:** finalidade (Laudo PBH / Obra / Background / Operações / Outros) · por ponto: nome, equipamentos, hora inicial, GPS, posicionamento do microfone (3 checks + item opcional de fachada), montagem (4 checks), checagem inicial + foto da tela, foto do ponto, condições ambientais, ruído residual/total, fontes (empresa/ambiente), checagem final + foto da tela, observações, hora de término.
-- **Interno:** condição das esquadrias, condição do ambiente, área + "calcular pontos" (1 a cada 30 m²), posicionamento dos pontos (8 checks) + montagem (5 checks), desenho da sala · por ponto: hora, nome, GPS, altura, clima só no 1º ponto, Ltot (2 checks), Lres (3 checks), checagem inicial + foto, foto do ponto, eventualidade, checagem final só no último ponto.
+- **Interno (10151 e 10152):** condição das esquadrias, condição do ambiente, área + "calcular pontos" (1 a cada 30 m²), posicionamento dos pontos (8 checks) + montagem (5 checks), desenho da sala · por ponto: hora, nome, GPS, altura, clima só no 1º ponto, Ltot (2 checks), Lres (3 checks), checagem inicial + foto, foto do ponto, eventualidade, checagem final só no último ponto. **Hoje os dois são idênticos, exceto a nota com/sem pessoas** — conteúdo específico de cada um a detalhar.
 - **Ferroviário:** finalidade · instalação (6 checks, se "Passagem de Composição Férrea") · por ponto: checagens, fotos, checks do ponto (som residual curto/longa, passagem, ambientais), clima.
 - **Aeronáutico:** finalidade · instalação (8 ou 16 checks) · por ponto: checagens, fotos; se **operacional** → check "estação meteorológica" (sem clima manual); se **receptores** → clima + 4 checks.
 
@@ -83,7 +83,7 @@ Blocos: **Ordem de serviço** (nº, código, emitido por, data emissão) · **Cl
 
 ## 7. Pontos em aberto (decidir na planilha)
 
-1. **10151 · Ambiente interno** abre o mesmo formulário do **10152**. A planilha sugere "ruido interno" e "ruido interno 10152" separados — são dois formulários distintos? O que muda entre eles?
+1. **10151 · Ambiente interno** e **10152** já são subtipos separados (`interno10151` / `interno10152`). Por ora a única diferença é a nota "com/sem pessoas" — falta definir o que mais muda no conteúdo de cada um.
 2. **Vibração / QAR Externo / QAR Interno / Opacidade:** definir o conteúdo de cada formulário de campo (Fase 4).
 3. **Métodos sem checks próprios** (ex.: Ferroviário "Pátios / Manobras / Cruzamentos") — precisam de checks específicos?
 

@@ -1,8 +1,10 @@
 /**
  * campo-ruido.js — Monitoramento em campo: RUÍDO (tipo piloto)
  *
- * Desenha o formulário de coleta do tipo Ruído com os 4 subtipos:
- *   🌳 externo · 🏠 interno · 🚆 ferroviário · ✈️ aeronáutico
+ * Desenha o formulário de coleta do tipo Ruído com os subtipos:
+ *   🌳 externo · 🏠 interno (NBR 10151) · 🏠 interno (NBR 10152) ·
+ *   🚆 ferroviário · ✈️ aeronáutico
+ * Os dois internos são iguais por ora (só muda a nota "com/sem pessoas").
  * Cada subtipo tem campos gerais próprios e campos por ponto (paginados).
  * Regras especiais implementadas:
  *   - interno: condições ambientais só no 1º ponto; checagem final só no último;
@@ -30,16 +32,21 @@ EC.campoRuido = (function () {
 
   const SUBTIPOS = [
     { id: 'externo', icone: '🌳', nome: 'Ambiente Externo' },
-    { id: 'interno', icone: '🏠', nome: 'Ambiente Interno' },
+    { id: 'interno10151', icone: '🏠', nome: 'Ambiente Interno (NBR 10151)' },
+    { id: 'interno10152', icone: '🏠', nome: 'Ambiente Interno (NBR 10152)' },
     { id: 'ferroviario', icone: '🚆', nome: 'Ferroviário' },
     { id: 'aeronautico', icone: '✈️', nome: 'Aeronáutico' }
   ];
+
+  // Os dois subtipos internos (10151 e 10152) compartilham o mesmo formulário.
+  function ehInterno(sub) { return sub === 'interno10151' || sub === 'interno10152'; }
 
   // Fotos obrigatórias por subtipo (chave do dado → rótulo). Não se sai do
   // ponto sem todas tiradas.
   const FOTOS_POR_SUBTIPO = {
     externo: [['fotoTelaIni', 'foto da tela (checagem inicial)'], ['fotoPonto', 'foto do ponto'], ['fotoTelaFim', 'foto da tela (checagem final)']],
-    interno: [['fotoTelaIni', 'foto da tela (checagem inicial)'], ['fotoPonto', 'foto do ponto']],
+    interno10151: [['fotoTelaIni', 'foto da tela (checagem inicial)'], ['fotoPonto', 'foto do ponto']],
+    interno10152: [['fotoTelaIni', 'foto da tela (checagem inicial)'], ['fotoPonto', 'foto do ponto']],
     ferroviario: [['fotoTelaIni', 'foto da tela (checagem inicial)'], ['fotoPonto', 'foto do ponto'], ['fotoTelaFim', 'foto da tela (checagem final)']],
     aeronautico: [['fotoTelaIni', 'foto da tela (checagem inicial)'], ['fotoPonto', 'foto do ponto'], ['fotoTelaFim', 'foto da tela (checagem final)']]
   };
@@ -54,7 +61,8 @@ EC.campoRuido = (function () {
 
   const TIPOS_CARIMBO = {
     externo: 'RUIDOEXTERNO',
-    interno: 'RUIDOINTERNO',
+    interno10151: 'RUIDOINTERNO10151',
+    interno10152: 'RUIDOINTERNO10152',
     ferroviario: 'RUIDOFERROVIARIO',
     aeronautico: 'RUIDOAERONAUTICO'
   };
@@ -243,7 +251,7 @@ EC.campoRuido = (function () {
       reqVal('chkFimValor', 'checagem final');
       if (!ponto.fotoTelaFim) falta.push('foto da tela (checagem final)');
       reqVal('observacoes', 'observações');
-    } else if (subtipo === 'interno') {
+    } else if (ehInterno(subtipo)) {
       reqVal('altura', 'altura do sonômetro');
       grupoChecks('altura', 1, 'altura do sonômetro');
       if (primeiro) { reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento'); grupoChecks('chuva', 1, 'condições ambientais'); }
@@ -283,7 +291,7 @@ EC.campoRuido = (function () {
       for (let i = 0; i < qtde; i++) if (!checks[prefixo + i]) n++;
       if (n) out.push('Preparação: ' + n + ' confirmação(ões) de ' + rotulo);
     };
-    if (campo.subtipo === 'interno') {
+    if (ehInterno(campo.subtipo)) {
       grupo('pos', CHECKS_POSICIONAMENTO_INTERNO.length, 'posicionamento dos pontos');
       grupo('mont', CHECKS_MONTAGEM_INTERNO.length, 'montagem do equipamento');
     } else if (campo.subtipo === 'ferroviario' && g.finalidade === FERRO_PASSAGEM) {
@@ -547,13 +555,17 @@ EC.campoRuido = (function () {
       area.querySelector('[data-campo="qtdePontos"]').addEventListener('input', renderizarPontos);
       renderizarPontos();
 
-    } else if (campo().subtipo === 'interno') {
+    } else if (ehInterno(campo().subtipo)) {
+      // NBR 10151 interno: monitorar com pessoas; NBR 10152: sem pessoas.
+      const notaPessoas = campo().subtipo === 'interno10151'
+        ? '💡 Monitorar, preferencialmente, com pessoas.'
+        : '💡 Monitorar, preferencialmente, sem pessoas.';
       area.innerHTML =
         '<div class="grade-2">' +
         '  <label>Condição das esquadrias<select data-campo="esquadrias"><option value="">Selecione…</option><option>Aberta</option><option>Fechada</option></select></label>' +
         '  <label>Condição do ambiente<select data-campo="condicao"><option value="">Selecione…</option><option>Sala vazia</option><option>Com pessoas</option></select></label>' +
         '</div>' +
-        '<p class="texto-apoio">💡 Monitorar, preferencialmente, sem pessoas.</p>' +
+        '<p class="texto-apoio">' + notaPessoas + '</p>' +
         '<label>Área do ambiente (m²)<input type="number" min="1" step="0.1" inputmode="decimal" data-campo="area"></label>' +
         '<button type="button" class="botao botao-secundario" id="cr-calcular">Calcular pontos necessários</button>' +
         '<div id="cr-interno-resultado"></div>';
@@ -727,7 +739,7 @@ EC.campoRuido = (function () {
         '<label>Observações do ponto<textarea rows="2" data-campo="observacoes"></textarea></label>' +
         '<label>Hora de término<input type="time" data-campo="horaTermino"></label>';
 
-    } else if (sub === 'interno') {
+    } else if (ehInterno(sub)) {
       html +=
         '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
         '<label>Nome do ponto<input type="text" data-campo="nome"></label>' +

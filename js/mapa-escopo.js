@@ -21,8 +21,9 @@
  *   EC.mapaEscopo.tipoPorEscopo(escopo) → 'ruido' | 'sismo' | 'qar' |
  *     'opacidade' | 'qarint' | 'outro' | null  (null = não reconhecido)
  *   EC.mapaEscopo.subtipoPorEscopo(escopo) → subtipo de RUÍDO:
- *     'externo' (NBR 10151) | 'interno' (NBR 10152) |
- *     'ferroviario' (NBR 16425-4) | 'aeronautico' (NBR 16425-2) | null
+ *     'externo' (NBR 10151 ext./longa) | 'interno10151' (NBR 10151 interno) |
+ *     'interno10152' (NBR 10152) | 'ferroviario' (NBR 16425-4) |
+ *     'aeronautico' (NBR 16425-2) | null
  */
 window.EC = window.EC || {};
 
@@ -66,16 +67,22 @@ EC.mapaEscopo = (function () {
   // método, decide pelo escopo (transportes antes de ambiental/interno).
   function subtipoPorEscopo(escopo, metodo) {
     const m = normalizar(metodo);
-    if (/ambiente interno/.test(m)) return 'interno';
+    const e = normalizar(escopo);
+
+    // Internos distintos: NBR 10151 "Ambiente interno" → interno10151;
+    // NBR 10152 (sem método) → interno10152. Formulários hoje iguais, exceto
+    // a nota "com/sem pessoas" — a Raisa vai detalhar o resto depois.
+    if (/ambiente interno/.test(m)) return 'interno10151';
     if (/ambiente externo/.test(m)) return 'externo';
     if (/longa\s*dura/.test(m)) return 'externo';
 
-    const e = normalizar(escopo);
     if (!e) return null;
     if (/16425-4|ferroviari/.test(e)) return 'ferroviario';
     if (/16425-2|aereo|aeronautic/.test(e)) return 'aeronautico';
-    if (/10152|interno/.test(e)) return 'interno';
-    if (/10151|ambiental|externo/.test(e)) return 'externo';
+    if (/10152/.test(e)) return 'interno10152';
+    if (/10151/.test(e)) return /interno/.test(e) ? 'interno10151' : 'externo';
+    if (/interno/.test(e)) return 'interno10152';
+    if (/ambiental|externo/.test(e)) return 'externo';
     return null;
   }
 
