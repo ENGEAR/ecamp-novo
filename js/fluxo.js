@@ -622,6 +622,8 @@ EC.fluxo = (function () {
     const area = $('campo-conteudo');
     if (estado.tipo === 'ruido') {
       EC.campoRuido.renderizar(area, { estado: estado, salvar: salvarEstado });
+    } else if (estado.tipo === 'sismo') {
+      EC.campoVibracao.renderizar(area, { estado: estado, salvar: salvarEstado });
     } else {
       area.innerHTML = '<p class="texto-grande">🚧 Em construção.</p>' +
         '<p>O formulário de campo de <strong>' + nomeTipo(estado.tipo) + '</strong> entra na Fase 4. O tipo Ruído já está completo — ele é o piloto.</p>';
@@ -646,7 +648,7 @@ EC.fluxo = (function () {
     if (pontosAlterados() && !estado.dadosGerais.justificativaPontos) avisos.push('Nº de pontos alterado sem justificativa.');
     if (!estado.tipo) avisos.push('Tipo de monitoramento não escolhido.');
 
-    if (estado.tipo === 'ruido') {
+    if (estado.tipo === 'ruido' || estado.tipo === 'sismo') {
       const faltandoEquip = categoriasEquipFaltando();
       if (faltandoEquip.length) avisos.push('Equipamentos: falta selecionar ' + faltandoEquip.join(', ') + '.');
       const pendentesPre = EC.romaneios.pendentesObrigatorios(estado.tipo, estado.preCampo, opcoesRomaneio());
@@ -661,6 +663,9 @@ EC.fluxo = (function () {
   function bloqueiosSalvar() {
     if (estado.tipo === 'ruido' && EC.campoRuido.itensFaltando) {
       return EC.campoRuido.itensFaltando(estado);
+    }
+    if (estado.tipo === 'sismo' && EC.campoVibracao.itensFaltando) {
+      return EC.campoVibracao.itensFaltando(estado);
     }
     return [];
   }
@@ -708,7 +713,17 @@ EC.fluxo = (function () {
     html += secaoRevisao('✅ Pré-campo', linhaResumo('Checklist', resumoPre), 'tela-passo3b');
 
     let corpoCampo = '<p class="texto-apoio">Monitoramento em campo não iniciado.</p>';
-    if (estado.campo && estado.campo.subtipo) {
+    if (estado.tipo === 'sismo' && estado.campo && estado.campo.geral) {
+      const campo = estado.campo;
+      corpoCampo = (campo.geral.objetivo ? linhaResumo('Objetivo', campo.geral.objetivo) : '');
+      const total = Math.min(20, Math.max(0, parseInt(campo.geral.qtdePontos, 10) || 0));
+      for (let i = 0; i < total; i++) {
+        const p = campo.pontos[i] || {};
+        corpoCampo += linhaResumo('P' + (i + 1) + (p.nome ? ' — ' + p.nome : ''),
+          (p.gps ? '📍GPS ✓' : '📍GPS —') + ' · ' + (p.fotoPonto ? '📷 ✓' : '📷 —'));
+      }
+      if (!corpoCampo) corpoCampo = '<p class="texto-apoio">Monitoramento em campo não iniciado.</p>';
+    } else if (estado.campo && estado.campo.subtipo) {
       const campo = estado.campo;
       const sub = EC.campoRuido.SUBTIPOS.filter(function (s) { return s.id === campo.subtipo; })[0];
       corpoCampo = linhaResumo('Subtipo', sub ? sub.icone + ' ' + sub.nome : campo.subtipo) +

@@ -109,8 +109,100 @@ EC.romaneios = (function () {
           ]
         }]
       }
+    ],
+    sismo: [
+      {
+        titulo: '1. Antes de sair do laboratório',
+        grupos: [{
+          itens: [
+            'Ordem de Serviço (OS) avaliada',
+            'Pontos amostrais previamente identificados por coordenadas',
+            'Trajeto planejado, considerando chegada ao local com antecedência mínima de 1 hora',
+            'Acesso ao local confirmado com o cliente',
+            'EPIs disponíveis e em boas condições'
+          ]
+        }]
+      },
+      {
+        titulo: '2. Equipamentos e insumos',
+        grupos: [
+          {
+            subtitulo: 'Equipamentos de medição',
+            itens: [
+              'Sismógrafo com calibração válida',
+              'Geofone com calibração válida',
+              'Microfone com calibração válida',
+              'Termohigroanemômetro'
+            ]
+          },
+          {
+            subtitulo: 'Cabos e acessórios',
+            itens: [
+              'Cabo de conexão entre sismógrafo e geofone',
+              'Tripé para microfone',
+              'Protetor de vento para microfone'
+            ]
+          },
+          {
+            subtitulo: 'Alimentação e energia',
+            itens: [
+              'Carregadores dos equipamentos',
+              'Baterias reservas',
+              'Power Bank carregado',
+              'Celular carregado',
+              'Carregador do celular'
+            ]
+          },
+          {
+            subtitulo: 'Informática',
+            itens: [
+              'Notebook com software SISTEX instalado e funcional (confirmar necessidade com o coordenador)'
+            ]
+          },
+          {
+            subtitulo: 'Transporte e apoio',
+            itens: [
+              'Maleta de transporte (obrigatória)',
+              'Trena métrica'
+            ]
+          }
+        ]
+      },
+      {
+        titulo: '3. Insumos para fixação do geofone',
+        grupos: [
+          {
+            subtitulo: 'Instalação em solo',
+            itens: ['Cravos para fixação do geofone']
+          },
+          {
+            subtitulo: 'Instalação em superfícies rígidas',
+            itens: [
+              'Gesso de secagem rápida',
+              'Água potável para preparo do gesso',
+              'Vasilhame para preparo da massa',
+              'Fita adesiva para proteção dos furos do geofone',
+              'Espátula para remoção do gesso após a medição'
+            ]
+          }
+        ]
+      },
+      {
+        titulo: '4. Verificação final',
+        grupos: [{
+          itens: [
+            'Equipamentos conferidos e funcionando',
+            'Certificados de calibração disponíveis',
+            'Baterias carregadas',
+            'Materiais acondicionados adequadamente para transporte',
+            'Software SISTEX testado (quando aplicável)',
+            'Equipe alinhada quanto ao escopo do serviço',
+            'Horário de saída confirmado'
+          ]
+        }]
+      }
     ]
-    // sismo / qar / opacidade / qarint: Fase 4
+    // qar / opacidade / qarint: Fase 4
   };
 
   // Um bloco é obrigatório se não é opcional OU se a OS é de longa duração e o

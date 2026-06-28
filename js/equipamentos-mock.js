@@ -45,6 +45,40 @@ window.EC = window.EC || {};
       { categoria: 'Tripé', codigo: 'TRI-001', descricao: 'Greika | WT-3730 | nº 445566', ultimaCal: '', proximaCal: '' },
       { categoria: 'Tripé', codigo: 'TRI-002', descricao: 'Greika | WT-3730 | nº 778899', ultimaCal: '', proximaCal: '' },
       { categoria: 'Trena', codigo: 'TRE-001', descricao: 'Stanley | 30 m | nº 990011', ultimaCal: ULT, proximaCal: VALIDA }
+    ],
+
+    // Vibração — equipamentos REAIS da F021 (coluna M = matriz "Sismografia"),
+    // apenas os "EM USO". As datas são RELATIVAS, derivadas do status atual de
+    // calibração (Vencido → bloqueia; Próximo do vencimento → alerta; A vencer →
+    // em dia), para não vencerem com o tempo. Datas reais virão da F021 (Fase 6).
+    sismo: [
+      // Sismógrafos (ZTEX, modelos S100/S200/S210/S220)
+      { categoria: 'Sismógrafo', codigo: 'SIS 002', descricao: 'ZTEX | S210 | 00014', ultimaCal: ULT, proximaCal: VALIDA },
+      { categoria: 'Sismógrafo', codigo: 'SIS 003', descricao: 'ZTEX | S100 | 0203', ultimaCal: ULT, proximaCal: VALIDA },
+      { categoria: 'Sismógrafo', codigo: 'SIS 004', descricao: 'ZTEX | S100 | 0204', ultimaCal: ULT, proximaCal: VALIDA },
+      { categoria: 'Sismógrafo', codigo: 'SIS 005', descricao: 'ZTEX | S100 | 0205', ultimaCal: ULT, proximaCal: VALIDA },
+      { categoria: 'Sismógrafo', codigo: 'SIS 006', descricao: 'ZTEX | S220 | 0077', ultimaCal: ULT, proximaCal: VALIDA },
+      { categoria: 'Sismógrafo', codigo: 'SIS 007', descricao: 'ZTEX | S100 | 0037', ultimaCal: ULT, proximaCal: VALIDA },
+      { categoria: 'Sismógrafo', codigo: 'SIS 008', descricao: 'ZTEX | S220 | 0078', ultimaCal: ULT, proximaCal: VALIDA },
+      { categoria: 'Sismógrafo', codigo: 'SIS 0056', descricao: 'ZTEX | S100 | 0056', ultimaCal: ULT, proximaCal: VALIDA },
+      { categoria: 'Sismógrafo', codigo: 'SIS 0128', descricao: 'ZTEX | S100 | 0128', ultimaCal: ULT, proximaCal: VALIDA },
+      { categoria: 'Sismógrafo', codigo: 'SIS 0129', descricao: 'ZTEX | S100 | 0129', ultimaCal: ULT, proximaCal: VALIDA },
+      { categoria: 'Sismógrafo', codigo: 'SIS 0131', descricao: 'ZTEX | S100 | 0131', ultimaCal: ULT, proximaCal: VALIDA },
+      { categoria: 'Sismógrafo', codigo: 'SIS 0207', descricao: 'ZTEX | S100 | 0207', ultimaCal: ULT, proximaCal: VALIDA },
+      { categoria: 'Sismógrafo', codigo: 'SIS 05 (0077)', descricao: 'ZTEX | S100 | 0077', ultimaCal: ULT, proximaCal: VALIDA },
+      { categoria: 'Sismógrafo', codigo: 'AQVI 001', descricao: 'ZTEX | S100 | 0123', ultimaCal: ULT, proximaCal: VENCENDO },
+      { categoria: 'Sismógrafo', codigo: 'GEO-SISMOGRAFO-02', descricao: 'ZTEX | S100 | 0102', ultimaCal: ULT, proximaCal: VENCENDO },
+      { categoria: 'Sismógrafo', codigo: 'SIS 0080', descricao: 'ZTEX | S100 | 0080', ultimaCal: ULT, proximaCal: VENCENDO },
+      { categoria: 'Sismógrafo', codigo: 'AQVI 003', descricao: 'ZTEX | S100 | 0013', ultimaCal: isoEmDias(-405), proximaCal: VENCIDA },
+      { categoria: 'Sismógrafo', codigo: 'SIS 00010', descricao: 'ZTEX | S200 | 00010', ultimaCal: isoEmDias(-405), proximaCal: VENCIDA },
+      { categoria: 'Sismógrafo', codigo: 'SIS 0046', descricao: 'ZTEX | S100 | 0046', ultimaCal: isoEmDias(-405), proximaCal: VENCIDA },
+      { categoria: 'Sismógrafo', codigo: 'SIS 0147', descricao: 'ZTEX | S100 | 0147', ultimaCal: isoEmDias(-405), proximaCal: VENCIDA },
+      // Geofones
+      { categoria: 'Geofone', codigo: 'AQGF 001', descricao: 'ZTEX | S100 | 0123', ultimaCal: ULT, proximaCal: VENCENDO },
+      { categoria: 'Geofone', codigo: 'AQGF 003', descricao: 'ZTEX | S100 | 0013', ultimaCal: isoEmDias(-405), proximaCal: VENCIDA },
+      // Microfones
+      { categoria: 'Microfone', codigo: 'AQMI 005', descricao: 'ZTEX | S100 | 0123', ultimaCal: ULT, proximaCal: VENCENDO },
+      { categoria: 'Microfone', codigo: 'AQMI 012', descricao: 'ZTEX | S100 | 0013', ultimaCal: isoEmDias(-405), proximaCal: VENCIDA }
     ]
   };
 })();
