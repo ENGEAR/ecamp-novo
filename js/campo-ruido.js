@@ -90,6 +90,20 @@ EC.campoRuido = (function () {
     'Verificada a bateria e o funcionamento geral'
   ];
 
+  // Montagem (externo): na LONGA DURAÇÃO a configuração inclui fast (F) e há
+  // quatro checks extras (energia, cabo, verificações intermediárias, internet).
+  function checksMontagemExterno(longaDuracao) {
+    if (!longaDuracao) return CHECKS_MONTAGEM_EXTERNO;
+    const base = CHECKS_MONTAGEM_EXTERNO.slice();
+    base[2] = 'Conferidas as configurações do equipamento (ponderação A, fast (F), tempo de integração, filtro de 1/3 oitava, áudio)';
+    return base.concat([
+      'Fonte de energia garantida (bateria/rede)',
+      'Cabo de extensão validado (quando aplicável)',
+      'Programar "Verificações intermediárias ao longo da campanha (quando aplicável)"',
+      'Verificar comunicação com internet (quando online)'
+    ]);
+  }
+
   const CHECKS_POSICIONAMENTO_INTERNO = [
     'Distribuir os pontos de forma uniforme no ambiente',
     'Garantir representatividade do campo sonoro',
@@ -272,7 +286,7 @@ EC.campoRuido = (function () {
 
     if (subtipo === 'externo') {
       grupoChecks('pos', POSICIONAMENTO_EXTERNO_PADRAO.length, 'posicionamento do microfone');
-      grupoChecks('mont', CHECKS_MONTAGEM_EXTERNO.length, 'montagem do equipamento');
+      grupoChecks('mont', checksMontagemExterno(longaDuracao).length, 'montagem do equipamento');
       if (longaDuracao) {
         grupoChecks('climacont', 1, 'monitoramento contínuo de temperatura/umidade/vento');
       } else {
@@ -772,7 +786,7 @@ EC.campoRuido = (function () {
         '<p class="grupo-checks-titulo">📍 Posicionamento do microfone</p>' +
         htmlChecks(ehLongaDuracao() ? POSICIONAMENTO_EXTERNO_LONGA : POSICIONAMENTO_EXTERNO_PADRAO, 'pos') +
         htmlChecks(['Se monitoramento em fachada: distância mínima de 1 m da fachada (opcional)'], 'posfachada') +
-        '<p class="grupo-checks-titulo">⚙️ Montagem do equipamento</p>' + htmlChecks(CHECKS_MONTAGEM_EXTERNO, 'mont') +
+        '<p class="grupo-checks-titulo">⚙️ Montagem do equipamento</p>' + htmlChecks(checksMontagemExterno(ehLongaDuracao()), 'mont') +
         htmlChecagem('Checagem inicial', 'chkIni') +
         '<div class="cr-foto-tela-ini"></div>' +
         '<div class="cr-foto-ponto"></div>' +
