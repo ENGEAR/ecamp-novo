@@ -55,6 +55,15 @@ EC.campoVibracao = (function () {
     'Trigger configurado (0,5 mm/s)',
     'Memória verificada'
   ];
+  const CHECKS_GEOFONE_ALT = [
+    'Quando o solo permitir uma boa fixação, o sensor pode ser simplesmente cravado na superfície limpa do terreno'
+  ];
+  // Instalação do geofone: o técnico preenche UMA das três opções.
+  const INSTAL_GEOFONE = {
+    'Solo': { prefixo: 'geosolo', checks: CHECKS_GEOFONE_SOLO },
+    'Superfície rígida': { prefixo: 'georigido', checks: CHECKS_GEOFONE_RIGIDO },
+    'Alternativa': { prefixo: 'geoalt', checks: CHECKS_GEOFONE_ALT }
+  };
   const CHECKS_MICROFONE = [
     'Instalado externamente à edificação',
     'Distância máxima de 3 m da estrutura monitorada',
@@ -145,7 +154,9 @@ EC.campoVibracao = (function () {
       '<label>Objetivo<select data-campo="objetivo">' +
       '<option value="">Selecione…</option><option>Vibrações da Empresa</option><option>Vibrações do Ambiente</option>' +
       '</select></label>' +
-      '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>';
+      '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>' +
+      '<p class="grupo-checks-titulo">⚙️ Configuração do aparelho</p>' +
+      htmlChecks(['Configuração do aparelho em sismograma (trigger) e histograma'], 'cfg');
     if (g.qtdePontos === undefined) g.qtdePontos = ctx.estado.dadosGerais.qtdePontos;
     vincular(area, g);
     area.querySelector('[data-campo="qtdePontos"]').addEventListener('input', renderizarPontos);
@@ -193,10 +204,10 @@ EC.campoVibracao = (function () {
       '<div class="cv-gps"></div>' +
       // 2. Escolha do local
       '<p class="grupo-checks-titulo">📍 Escolha do local</p>' + htmlChecks(CHECKS_LOCAL, 'local') +
-      // 3. Instalação do geofone — solo
-      '<p class="grupo-checks-titulo">⚙️ Instalação do geofone — solo</p>' + htmlChecks(CHECKS_GEOFONE_SOLO, 'geosolo') +
-      // 4. Instalação do geofone — solo rígido
-      '<p class="grupo-checks-titulo">⚙️ Instalação do geofone — solo rígido</p>' + htmlChecks(CHECKS_GEOFONE_RIGIDO, 'georigido') +
+      // 3. Instalação do geofone — preencher UMA das três opções
+      '<label>Instalação do geofone (preencher uma opção)<select data-campo="instalGeofone"><option value="">Selecione…</option>' +
+      '<option>Solo</option><option>Superfície rígida</option><option>Alternativa</option></select></label>' +
+      '<div id="cv-instal-geofone"></div>' +
       // 5. Instalação do microfone
       '<p class="grupo-checks-titulo">🎙️ Instalação do microfone</p>' + htmlChecks(CHECKS_MICROFONE, 'mic') +
       // 6. Fonte de vibração
@@ -219,6 +230,21 @@ EC.campoVibracao = (function () {
     vincular(area, ponto);
     const gpsInstancia = montarGps(area, ponto);
     montarFoto(area, '.cv-foto-ponto', ponto, 'fotoPonto', '📷 Foto do ponto (obrigatória)', gpsInstancia, n);
+
+    // instalação do geofone: mostra os checks da opção escolhida (uma das três)
+    const selGeo = area.querySelector('[data-campo="instalGeofone"]');
+    const divGeo = area.querySelector('#cv-instal-geofone');
+    function renderGeofone() {
+      const cfg = INSTAL_GEOFONE[selGeo.value];
+      if (cfg) {
+        divGeo.innerHTML = '<p class="grupo-checks-titulo">⚙️ Instalação do geofone — ' + selGeo.value.toLowerCase() + '</p>' + htmlChecks(cfg.checks, cfg.prefixo);
+        vincular(divGeo, ponto);
+      } else {
+        divGeo.innerHTML = '';
+      }
+    }
+    selGeo.addEventListener('change', renderGeofone);
+    renderGeofone();
 
     // descrição da intercorrência (quando "Sim")
     const seletor = area.querySelector('[data-campo="intercorrencia"]');
@@ -257,6 +283,9 @@ EC.campoVibracao = (function () {
     reqVal('numeroEquip', 'nº do equipamento');
     if (!ponto.gps) falta.push('GPS');
     reqVal('fonteVibracao', 'fonte de vibração');
+    reqVal('instalGeofone', 'instalação do geofone');
+    const cfgGeo = INSTAL_GEOFONE[ponto.instalGeofone];
+    if (cfgGeo) grupoChecks(cfgGeo.prefixo, cfgGeo.checks.length, 'instalação do geofone (' + ponto.instalGeofone.toLowerCase() + ')');
     grupoChecks('autoverif', 1, 'auto verificação');
     if (!ponto.fotoPonto) falta.push('foto do ponto');
     grupoChecks('monit', CHECKS_MONITORAMENTO.length, 'durante o monitoramento');
@@ -273,6 +302,7 @@ EC.campoVibracao = (function () {
     const total = Math.min(20, Math.max(1, parseInt(c.geral.qtdePontos, 10) || 0));
     const out = [];
     if (!c.geral.objetivo) out.push('objetivo do monitoramento');
+    if (!(c.geral.checks && c.geral.checks.cfg0)) out.push('configuração do aparelho (sismograma/histograma)');
     if (!total) { out.push('a quantidade de pontos do campo não foi definida'); return out; }
     for (let i = 0; i < total; i++) {
       itensFaltandoDoPonto(c.pontos[i], i).forEach(function (x) { out.push('P' + (i + 1) + ': ' + x); });
