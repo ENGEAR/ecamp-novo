@@ -254,6 +254,7 @@ EC.campoRuido = (function () {
     } else if (ehInterno(subtipo)) {
       reqVal('altura', 'altura do sonômetro');
       grupoChecks('altura', 1, 'altura do sonômetro');
+      if (primeiro && subtipo === 'interno10151') reqVal('condAmbiente', 'condições do ambiente (vazio/mobiliado)');
       if (primeiro) { reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento'); grupoChecks('chuva', 1, 'condições ambientais'); }
       grupoChecks('ltot', CHECKS_LTOT.length, 'ruído total');
       grupoChecks('lres', CHECKS_LRES.length, 'ruído residual');
@@ -747,7 +748,14 @@ EC.campoRuido = (function () {
         '<label>Altura do sonômetro (m)<input type="number" step="0.01" inputmode="decimal" data-campo="altura"></label>' +
         htmlChecks(['Altura variando entre 1,2 e 1,5 m'], 'altura') +
         (primeiro
-          ? '<p class="grupo-checks-titulo">🌡️ Condições ambientais (somente no primeiro ponto)</p>' + htmlClima(true)
+          ? (sub === 'interno10151'
+              ? '<p class="grupo-checks-titulo">Condições do ambiente</p>' +
+                ['Ambiente vazio', 'Ambiente mobiliado'].map(function (op) {
+                  return '<label class="linha-check"><input type="radio" name="cr-cond-ambiente" value="' + op + '"' +
+                    (ponto.condAmbiente === op ? ' checked' : '') + '><span>' + op + '</span></label>';
+                }).join('')
+              : '') +
+            '<p class="grupo-checks-titulo">🌡️ Condições ambientais (somente no primeiro ponto)</p>' + htmlClima(true)
           : '') +
         '<p class="grupo-checks-titulo">Ruído total (Ltot)</p>' + htmlChecks(CHECKS_LTOT, 'ltot') +
         '<p class="grupo-checks-titulo">Ruído residual (Lres)</p>' + htmlChecks(CHECKS_LRES, 'lres') +
@@ -813,6 +821,13 @@ EC.campoRuido = (function () {
     montarFoto(area, '.cr-foto-tela-ini', ponto, 'fotoTelaIni', '📷 Foto da tela após checagem inicial (obrigatória)', gpsInstancia, n);
     montarFoto(area, '.cr-foto-ponto', ponto, 'fotoPonto', '📷 Foto do ponto (obrigatória)', gpsInstancia, n);
     montarFoto(area, '.cr-foto-tela-fim', ponto, 'fotoTelaFim', '📷 Foto da tela após checagem final (obrigatória)', gpsInstancia, n);
+
+    // Condições do ambiente (interno 10151, só no 1º ponto): radios vazio/mobiliado
+    area.querySelectorAll('input[name="cr-cond-ambiente"]').forEach(function (r) {
+      r.addEventListener('change', function () {
+        if (r.checked) { ponto.condAmbiente = r.value; salvarDevagar(); }
+      });
+    });
 
     // descrição da eventualidade (interno)
     const seletorEvent = area.querySelector('[data-campo="eventualidade"]');
