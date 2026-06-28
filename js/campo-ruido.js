@@ -100,13 +100,20 @@ EC.campoRuido = (function () {
     'Não é obrigatório usar protetor de vento no microfone'
   ];
 
-  const CHECKS_MONTAGEM_INTERNO = [
-    'Instalar em tripé estável',
-    'Garantir ausência de vibrações',
-    'Conferir configurações do equipamento (ponderação A, fast (F) e slow (S), tempo de medição, áudio)',
-    'Configurar filtro 1/1 de oitava',
-    'Verificar bateria e funcionamento geral'
-  ];
+  // Montagem (interno): a configuração de resposta muda por norma —
+  // 10151 usa fast (F); 10152 usa slow (S). O resto é igual (5 itens).
+  function checksMontagemInterno(sub) {
+    const config = sub === 'interno10151'
+      ? 'Conferir configurações do equipamento (ponderação A, fast (F), tempo de medição, áudio)'
+      : 'Conferir configurações do equipamento (ponderação A, slow (S), tempo de medição, áudio)';
+    return [
+      'Instalar em tripé estável',
+      'Garantir ausência de vibrações',
+      config,
+      'Configurar filtro 1/1 de oitava',
+      'Verificar bateria e funcionamento geral'
+    ];
+  }
 
   const CHECKS_LTOT = [
     'Medir com todas as fontes em operação',
@@ -294,7 +301,7 @@ EC.campoRuido = (function () {
     };
     if (ehInterno(campo.subtipo)) {
       grupo('pos', CHECKS_POSICIONAMENTO_INTERNO.length, 'posicionamento dos pontos');
-      grupo('mont', CHECKS_MONTAGEM_INTERNO.length, 'montagem do equipamento');
+      grupo('mont', checksMontagemInterno(campo.subtipo).length, 'montagem do equipamento');
     } else if (campo.subtipo === 'ferroviario' && g.finalidade === FERRO_PASSAGEM) {
       grupo('instal', CHECKS_INSTALACAO_FERRO.length, 'instalação');
     } else if (campo.subtipo === 'aeronautico') {
@@ -646,7 +653,7 @@ EC.campoRuido = (function () {
     div.innerHTML =
       '<div class="alerta alerta-info">📐 Pontos necessários: <strong>' + g.pontosCalculados + '</strong> (1 ponto a cada 30 m²)</div>' +
       '<p class="grupo-checks-titulo">Posicionamento dos pontos</p>' + htmlChecks(CHECKS_POSICIONAMENTO_INTERNO, 'pos') +
-      '<p class="grupo-checks-titulo">Montagem do equipamento</p>' + htmlChecks(CHECKS_MONTAGEM_INTERNO, 'mont') +
+      '<p class="grupo-checks-titulo">Montagem do equipamento</p>' + htmlChecks(checksMontagemInterno(campo().subtipo), 'mont') +
       '<p class="grupo-checks-titulo">Layout da sala</p>' +
       '<div id="cr-canvas-sala"></div>' +
       '<button type="button" class="botao botao-primario botao-largo" id="cr-ir-pontos">Ir para os pontos →</button>';
