@@ -51,9 +51,7 @@ EC.campoVibracao = (function () {
     'Uso de gesso / grampos / parafusos',
     'Furos protegidos com fita adesiva',
     'Fixação conferida após secagem',
-    'Equipamento sem folgas',
-    'Trigger configurado (0,5 mm/s)',
-    'Memória verificada'
+    'Equipamento sem folgas'
   ];
   const CHECKS_GEOFONE_ALT = [
     'Quando o solo permitir uma boa fixação, o sensor pode ser simplesmente cravado na superfície limpa do terreno'
@@ -75,7 +73,7 @@ EC.campoVibracao = (function () {
   const CHECKS_MONITORAMENTO = [
     'Conferida checagem automática do equipamento',
     'Equipamento orientado para a fonte',
-    'Afastado um passo atrás do equipamento',
+    'Técnico, favor se afastar um passo atrás do equipamento',
     'Evento captado',
     'Registro sísmico conferido após evento'
   ];
@@ -214,7 +212,7 @@ EC.campoVibracao = (function () {
       '<label>Fonte de vibração<input type="text" data-campo="fonteVibracao"></label>' +
       // 7. Auto verificação
       '<p class="grupo-checks-titulo">🔎 Auto verificação</p>' + htmlChecks(['Auto verificação realizada'], 'autoverif') +
-      '<p class="texto-apoio">⚠️ Se não conseguir marcar: verificar cabos; se persistir, contatar a ENGEAR.</p>' +
+      '<p class="texto-apoio">⚠️ Se não conseguir auto verificação, checar os cabos; se persistir, contatar a ENGEAR.</p>' +
       // 8. Foto do ponto
       '<div class="cv-foto-ponto"></div>' +
       // 9. Durante o monitoramento
