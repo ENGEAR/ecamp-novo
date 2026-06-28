@@ -23,8 +23,32 @@
 
   /* ============ Service worker (PWA) ============ */
   if ('serviceWorker' in navigator) {
+    // Só recarrega quando uma ATUALIZAÇÃO assume o controle (não na 1ª instalação).
+    const tinhaControlador = !!navigator.serviceWorker.controller;
+    let recarregando = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (!tinhaControlador || recarregando) return;
+      recarregando = true;
+      window.location.reload();
+    });
+
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('service-worker.js').catch(function (erro) {
+      navigator.serviceWorker.register('service-worker.js').then(function (registro) {
+        function avisar(worker) {
+          if (!worker) return;
+          mostrarAvisoAtualizacao(function () { worker.postMessage({ type: 'SKIP_WAITING' }); });
+        }
+        // Já havia uma versão nova em espera ao abrir
+        if (registro.waiting) avisar(registro.waiting);
+        // Uma versão nova terminou de baixar enquanto o app estava aberto
+        registro.addEventListener('updatefound', function () {
+          const novo = registro.installing;
+          if (!novo) return;
+          novo.addEventListener('statechange', function () {
+            if (novo.state === 'installed' && navigator.serviceWorker.controller) avisar(novo);
+          });
+        });
+      }).catch(function (erro) {
         console.error('Falha ao registrar o service worker:', erro);
       });
     });
@@ -47,6 +71,19 @@
     toast.classList.remove('oculto');
     clearTimeout(temporizadorToast);
     temporizadorToast = setTimeout(function () { toast.classList.add('oculto'); }, 2600);
+  }
+
+  /* ============ Aviso de nova versão ============ */
+  function mostrarAvisoAtualizacao(aoAtualizar) {
+    const aviso = $('aviso-atualizacao');
+    const botao = $('btn-atualizar');
+    if (!aviso || !botao) return;
+    aviso.classList.remove('oculto');
+    botao.onclick = function () {
+      botao.disabled = true;
+      botao.textContent = 'Atualizando…';
+      aoAtualizar();
+    };
   }
 
   /* ============ Sessão / Login ============ */

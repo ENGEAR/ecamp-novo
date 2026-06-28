@@ -8,7 +8,7 @@
  * Todos os caminhos são RELATIVOS, para funcionar no GitHub Pages
  * (https://usuario.github.io/repositorio/) sem ajuste.
  */
-const VERSAO_CACHE = 'ecamp-v0.7.3';
+const VERSAO_CACHE = 'ecamp-v0.7.4';
 
 const ARQUIVOS_APP = [
   './',
@@ -37,11 +37,18 @@ const ARQUIVOS_APP = [
 ];
 
 self.addEventListener('install', (evento) => {
+  // NÃO chama skipWaiting: a versão nova fica "em espera". O app mostra o aviso
+  // "nova versão disponível" e só assume quando o usuário toca em Atualizar
+  // (evita recarregar sozinho no meio de uma medição em campo).
   evento.waitUntil(
-    caches.open(VERSAO_CACHE)
-      .then((cache) => cache.addAll(ARQUIVOS_APP))
-      .then(() => self.skipWaiting())
+    caches.open(VERSAO_CACHE).then((cache) => cache.addAll(ARQUIVOS_APP))
   );
+});
+
+// Quando o usuário toca em Atualizar, a página manda SKIP_WAITING e o SW novo
+// assume o controle (clients.claim no activate dispara o reload da página).
+self.addEventListener('message', (evento) => {
+  if (evento.data && evento.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', (evento) => {
