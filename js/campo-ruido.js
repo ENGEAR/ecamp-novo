@@ -56,6 +56,7 @@ EC.campoRuido = (function () {
   const FINALIDADES_FERRO = ['Passagem de Composição Férrea', 'Pátios / Manobras / Cruzamentos'];
   const FINALIDADES_AERO = ['Monitoramento de Receptores Potencialmente Críticos', 'Monitoramento Operacional no Aeródromo'];
   const FERRO_PASSAGEM = FINALIDADES_FERRO[0];
+  const FERRO_PATIOS = FINALIDADES_FERRO[1];
   const AERO_RECEPTORES = FINALIDADES_AERO[0];
   const AERO_OPERACIONAL = FINALIDADES_AERO[1];
 
@@ -141,6 +142,41 @@ EC.campoRuido = (function () {
     '🚂 Som da passagem ferroviária: considerar todo o tempo da passagem; mínimo de 3 passagens monitoradas; pelo menos 1 passagem em cada sentido; se densidade ≤ 3 composições/dia, medir pelo menos uma passagem; ⚠️ NÃO realizar durante cruzamento em linha dupla; sirenes, sinos, buzinas e campainhas são sons intrusivos; registrar características das composições (ex.: trem de carga, passageiro)',
     '🌡️ Condições ambientais: não monitorar com chuva (exceto se aprovação prévia); não monitorar com vento > 5 m/s'
   ];
+
+  // Pátios / Manobras / Cruzamentos: requisitos de instalação próprios e os
+  // checks do ponto com "curto período"/"longa duração" em negrito e o check
+  // de condições ambientais separado em dois (chuva / vento).
+  const CHECKS_INSTALACAO_FERRO_PATIOS = [
+    'Altura ≥ 4 m do solo',
+    'Distância mínima de 2 m de superfícies refletoras',
+    'Uso obrigatório de protetor de vento',
+    'Microfone direcionado para o tráfego ferroviário'
+  ];
+
+  const CHECKS_PONTO_FERRO_PATIOS = [
+    '🚃 Som residual — <strong>curto período</strong>: ao menos 15 min de medição (contínua ou não); monitoramento antes ou após a passagem da composição',
+    '🚃 Som residual — <strong>longa duração</strong>: instalar equipamento para longa duração; diurno ≥ 60 min (contínua ou não); noturno ≥ 30 min (contínua ou não)',
+    CHECKS_PONTO_FERRO[2], // som da passagem ferroviária (igual ao da passagem)
+    '🌡️ Condições ambientais: não monitorar com chuva (exceto se aprovação prévia)',
+    '🌡️ Condições ambientais: não monitorar com vento > 5 m/s'
+  ];
+
+  // Checklist de operações em pátios (preparação, abaixo da qtde de pontos).
+  // Não bloqueia o salvamento — é orientação de campo. Sub-títulos em negrito.
+  const OPERACOES_FERRO_PATIOS = [
+    { sub: null, texto: 'Sugerido: monitoramento 24 horas' },
+    { sub: 'Manobras:', texto: 'Contemplar pelo menos uma manobra completa típica do local (diurno ou noturno)' },
+    { sub: null, texto: 'Sons de passagens durante manobras = sons intrusivos' },
+    { sub: 'Composição parada:', texto: 'Medir sem interferência de outras composições, cruzamentos, ultrapassagens ou manobras' },
+    { sub: 'Cruzamentos / Ultrapassagens:', texto: 'Uma composição parada e a outra em movimento efetivando o cruzamento/ultrapassagem' },
+    { sub: null, texto: 'Sons de manobra = sons intrusivos' },
+    { sub: null, texto: 'Pelo menos dois eventos de cruzamento ou ultrapassagem (diurno ou noturno)' },
+    { sub: null, texto: 'Mínimo de 30 eventos de operações de engates em período entre 60 min e 240 min — registrar LAFmax de cada evento' }
+  ];
+
+  function checksPontoFerro(finalidade) {
+    return finalidade === FERRO_PATIOS ? CHECKS_PONTO_FERRO_PATIOS : CHECKS_PONTO_FERRO;
+  }
 
   const CHECKS_INSTALACAO_AERO_RECEPTORES = [
     'Altura entre 1,2 m e 1,5 m do solo',
@@ -269,7 +305,7 @@ EC.campoRuido = (function () {
       if (ponto.eventualidade === 'Sim') reqVal('eventualidadeDesc', 'descrição da eventualidade');
       if (ultimo) reqVal('chkFimValor', 'checagem final');
     } else if (subtipo === 'ferroviario') {
-      grupoChecks('ferro', CHECKS_PONTO_FERRO.length, 'checks do ponto');
+      grupoChecks('ferro', checksPontoFerro(geral && geral.finalidade).length, 'checks do ponto');
       reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento');
       reqVal('chkFimValor', 'checagem final');
       if (!ponto.fotoTelaFim) falta.push('foto da tela (checagem final)');
@@ -304,6 +340,8 @@ EC.campoRuido = (function () {
       grupo('mont', checksMontagemInterno(campo.subtipo).length, 'montagem do equipamento');
     } else if (campo.subtipo === 'ferroviario' && g.finalidade === FERRO_PASSAGEM) {
       grupo('instal', CHECKS_INSTALACAO_FERRO.length, 'instalação');
+    } else if (campo.subtipo === 'ferroviario' && g.finalidade === FERRO_PATIOS) {
+      grupo('instal', CHECKS_INSTALACAO_FERRO_PATIOS.length, 'instalação');
     } else if (campo.subtipo === 'aeronautico') {
       if (g.finalidade === AERO_RECEPTORES) grupo('instal', CHECKS_INSTALACAO_AERO_RECEPTORES.length, 'instalação');
       else if (g.finalidade === AERO_OPERACIONAL) grupo('instal', CHECKS_INSTALACAO_AERO_OPERACIONAL.length, 'instalação');
@@ -341,6 +379,14 @@ EC.campoRuido = (function () {
   function htmlChecks(itens, prefixo) {
     return itens.map(function (texto, i) {
       return '<label class="linha-check check-campo"><input type="checkbox" data-check="' + prefixo + i + '"><span>' + texto + '</span></label>';
+    }).join('');
+  }
+
+  // Checklist de operações (pátios): cada item pode ter um sub-título em negrito.
+  function htmlOperacoesFerroPatios() {
+    return OPERACOES_FERRO_PATIOS.map(function (it, i) {
+      return (it.sub ? '<p class="subgrupo-titulo">' + it.sub + '</p>' : '') +
+        '<label class="linha-check check-campo"><input type="checkbox" data-check="oper' + i + '"><span>' + it.texto + '</span></label>';
     }).join('');
   }
 
@@ -595,16 +641,24 @@ EC.campoRuido = (function () {
         FINALIDADES_FERRO.map(function (o) { return '<option>' + o + '</option>'; }).join('') +
         '</select></label>' +
         '<div id="cr-instalacao"></div>' +
-        '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>';
+        '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>' +
+        '<div id="cr-ferro-operacoes"></div>';
       if (g.qtdePontos === undefined) g.qtdePontos = ctx.estado.dadosGerais.qtdePontos;
       if (!g.finalidade) { const f = finalidadePorMetodo(FINALIDADES_FERRO); if (f) { g.finalidade = f; if (ctx.salvar) ctx.salvar(); } }
       vincular(area, g);
 
       function instalacaoFerro() {
         const div = area.querySelector('#cr-instalacao');
+        const oper = area.querySelector('#cr-ferro-operacoes');
+        oper.innerHTML = '';
         if (g.finalidade === FERRO_PASSAGEM) {
           div.innerHTML = '<p class="grupo-checks-titulo">Requisitos de instalação — passagem de composição</p>' + htmlChecks(CHECKS_INSTALACAO_FERRO, 'instal');
           vincular(div, g);
+        } else if (g.finalidade === FERRO_PATIOS) {
+          div.innerHTML = '<p class="grupo-checks-titulo">Requisitos de instalação — pátios / manobras / cruzamentos</p>' + htmlChecks(CHECKS_INSTALACAO_FERRO_PATIOS, 'instal');
+          vincular(div, g);
+          oper.innerHTML = '<p class="grupo-checks-titulo">🚧 Operações em pátios / manobras / cruzamentos</p>' + htmlOperacoesFerroPatios();
+          vincular(oper, g);
         } else {
           div.innerHTML = '';
         }
@@ -785,7 +839,7 @@ EC.campoRuido = (function () {
         '<div class="cr-gps"></div>' +
         htmlChecagem('Checagem inicial', 'chkIni') +
         '<div class="cr-foto-tela-ini"></div>' +
-        htmlChecks(CHECKS_PONTO_FERRO, 'ferro') +
+        htmlChecks(checksPontoFerro(g.finalidade), 'ferro') +
         '<div class="cr-foto-ponto"></div>' +
         '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' + htmlClima(false) +
         htmlChecagem('Checagem final', 'chkFim') +
