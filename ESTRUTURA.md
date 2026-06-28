@@ -61,7 +61,7 @@ Login
 
 ## 4. Demais tipos
 
-- **Vibração (Sismografia) — PRONTA.** Romaneio próprio + tela por ponto: identificação (Tipo de equip. S100/S200/S220/Outro) · escolha do local (9 checks) · instalação do geofone solo (4) / solo rígido (6) · microfone (6) · fonte de vibração · auto verificação · foto · durante o monitoramento (5) · intercorrências · hora final. Equipamentos reais da F021 (matriz Sismografia, EM USO). Usual/Online usam o mesmo formulário por ora. Checks de instalação são situacionais (não bloqueiam o salvar).
+- **Vibração (Sismografia) — PRONTA.** Romaneio próprio + tela por ponto. **Geral:** Objetivo · Qtde de pontos · check "Configuração do aparelho em sismograma (trigger) e histograma" (obrigatório). **Por ponto:** identificação (Tipo de equip. S100/S200/S220/Outro) · escolha do local (9 checks, não bloqueia) · **instalação do geofone = escolher UMA de três:** Solo (4) / Superfície rígida (6) / Alternativa (1) — a escolhida é obrigatória · microfone (6, não bloqueia) · fonte de vibração · auto verificação · foto · durante o monitoramento (5) · intercorrências · hora final. Equipamentos reais da F021 (matriz Sismografia, EM USO). Usual/Online usam o mesmo formulário por ora.
 - **QAR Externo · QAR Interno · Opacidade** (Fase 4): ainda "em construção". O tipo já é pré-selecionado pelo escopo.
 
 Métodos no SGE: Vibração = Usual / Online · QAR (MQAR) e Emissões/Ar Interno = sem método.
