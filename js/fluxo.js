@@ -107,6 +107,19 @@ EC.fluxo = (function () {
 
   /* ---------- Estado do serviço ---------- */
 
+  // Município/UF derivado do endereço (parte após o último "—")
+  function municipioUF(endereco) {
+    if (!endereco) return '';
+    const partes = String(endereco).split('—');
+    return partes.length > 1 ? partes[partes.length - 1].trim() : '';
+  }
+  function codigoOs(numero) { return 'ENGTC_' + numero + '_R.0'; }
+  function contarCampanhas(os) {
+    const set = {};
+    (os.servicos || []).forEach(function (s) { set[s.campanha || '—'] = true; });
+    return Object.keys(set).length;
+  }
+
   function novoEstadoServico(os, indice) {
     const agora = new Date();
     const servico = os.servicos[indice];
@@ -114,7 +127,23 @@ EC.fluxo = (function () {
       osNumero: os.numero,
       servicoIndice: indice,
       servicoId: servicoId(os.numero, indice),
-      os: { numero: os.numero, cliente: os.cliente, endereco: os.endereco, resumo: os.resumo, observacao: os.observacao, linkMaps: os.linkMaps || '' },
+      os: {
+        numero: os.numero,
+        codigo: codigoOs(os.numero),
+        emitidoPor: os.emitidoPor || '',
+        dataEmissao: os.dataEmissao || '',
+        cliente: os.cliente,
+        cnpjCpf: os.cnpjCpf || '',
+        endereco: os.endereco,
+        municipioUF: municipioUF(os.endereco),
+        contato: os.contato || '',
+        resumo: os.resumo,
+        frequencia: os.frequencia || '',
+        rota: os.rota || '',
+        numCampanhas: contarCampanhas(os),
+        observacao: os.observacao,
+        linkMaps: os.linkMaps || ''
+      },
       servico: {
         campanha: servico.campanha, escopo: servico.escopo, metodo: servico.metodo,
         periodo: servico.periodo, observacao: servico.observacao, dias: servico.dias
@@ -345,8 +374,11 @@ EC.fluxo = (function () {
   function abrirServico(os, indice, rascunhoExistente) {
     telaExibida = null; // entrando em serviço novo: não coletar da tela anterior
     estado = rascunhoExistente || novoEstadoServico(os, indice);
-    // garante campos novos em rascunhos antigos
-    estado.os.linkMaps = os.linkMaps || estado.os.linkMaps || '';
+    // reidrata os dados de referência da OS/serviço (reflete a OS atual e
+    // preenche campos novos em rascunhos antigos)
+    const fresh = novoEstadoServico(os, indice);
+    estado.os = fresh.os;
+    estado.servico = fresh.servico;
     if (estado.dadosGerais.qtdePontosOS === undefined) estado.dadosGerais.qtdePontosOS = os.servicos[indice].qtdePontos;
     if (estado.dadosGerais.justificativaPontos === undefined) estado.dadosGerais.justificativaPontos = '';
     salvarEstado();
@@ -356,21 +388,42 @@ EC.fluxo = (function () {
   /* ---------- Dados gerais ---------- */
 
   function preencherDadosGerais() {
-    $('dg-data').value = formatarDataBR(estado.dadosGerais.dataInicio);
-    $('dg-hora').value = estado.dadosGerais.horaInicio;
-    $('dg-os').value = estado.os.numero;
-    $('dg-cliente').value = estado.os.cliente;
-    $('dg-endereco').value = estado.os.endereco;
-    $('dg-resumo').value = estado.os.resumo;
+    const o = estado.os;
+    const traco = function (v) { return (v === undefined || v === null || v === '') ? '—' : v; };
+    // Ordem de serviço
+    $('dg-os').value = o.numero;
+    $('dg-codigo').value = traco(o.codigo);
+    $('dg-emitido').value = traco(o.emitidoPor);
+    $('dg-dataEmissao').value = o.dataEmissao ? formatarDataBR(o.dataEmissao) : '—';
+    // Cliente
+    $('dg-cliente').value = traco(o.cliente);
+    $('dg-cnpj').value = traco(o.cnpjCpf);
+    $('dg-endereco').value = traco(o.endereco);
+    $('dg-municipio').value = traco(o.municipioUF);
+    $('dg-contato').value = traco(o.contato);
+    // Local do serviço (mesmo do contratante)
+    $('dg-localEndereco').value = traco(o.endereco);
+    $('dg-localMunicipio').value = traco(o.municipioUF);
+    $('dg-maps').value = traco(o.linkMaps);
+    // Serviço
+    $('dg-resumo').value = traco(o.resumo);
+    $('dg-frequencia').value = traco(o.frequencia);
+    $('dg-rota').value = traco(o.rota);
+    $('dg-numCampanhas').value = traco(o.numCampanhas);
+    // Escopo deste serviço
+    $('dg-campanha').value = traco(servicoDetalhe('campanha'));
     $('dg-escopo').value = servicoDetalhe('escopo');
     $('dg-pontos').value = estado.dadosGerais.qtdePontos;
     $('dg-pontos-os').textContent = '(previsto na OS: ' + estado.dadosGerais.qtdePontosOS + ')';
     $('dg-justificativa').value = estado.dadosGerais.justificativaPontos || '';
-    $('dg-dias').value = (estado.servico.dias !== undefined && estado.servico.dias !== null && estado.servico.dias !== '') ? estado.servico.dias : '—';
-    $('dg-periodo').value = servicoDetalhe('periodo');
-    $('dg-metodo').value = servicoDetalhe('metodo');
-    $('dg-observacao').value = servicoDetalhe('observacao');
-    $('dg-maps').value = estado.os.linkMaps || '';
+    $('dg-dias').value = traco(estado.servico.dias);
+    $('dg-periodo').value = traco(servicoDetalhe('periodo'));
+    $('dg-metodo').value = traco(servicoDetalhe('metodo'));
+    $('dg-observacao').value = traco(servicoDetalhe('observacao'));
+    // Observações da OS + Preenchimento
+    $('dg-obsOS').value = traco(o.observacao);
+    $('dg-data').value = formatarDataBR(estado.dadosGerais.dataInicio);
+    $('dg-hora').value = estado.dadosGerais.horaInicio;
     atualizarJustificativaPontos();
 
     $('dg-pontos').oninput = function () {
@@ -618,18 +671,27 @@ EC.fluxo = (function () {
 
     html += secaoRevisao('📄 Dados gerais',
       linhaResumo('Nº da OS', estado.os.numero) +
+      linhaResumo('Código', estado.os.codigo) +
       linhaResumo('Cliente', estado.os.cliente) +
+      linhaResumo('CNPJ / CPF', estado.os.cnpjCpf) +
       linhaResumo('Endereço', estado.os.endereco) +
+      linhaResumo('Município / UF', estado.os.municipioUF) +
+      linhaResumo('Contato', estado.os.contato) +
+      linhaResumo('Serviço', estado.os.resumo) +
+      linhaResumo('Frequência', estado.os.frequencia) +
+      linhaResumo('Rota', estado.os.rota) +
+      linhaResumo('Nº de campanhas', estado.os.numCampanhas) +
       linhaResumo('Campanha', servicoDetalhe('campanha')) +
       linhaResumo('Escopo', servicoDetalhe('escopo')) +
-      linhaResumo('Início', formatarDataBR(estado.dadosGerais.dataInicio) + ' às ' + estado.dadosGerais.horaInicio) +
       linhaResumo('Pontos', estado.dadosGerais.qtdePontos + (pontosAlterados() ? ' (OS previa ' + estado.dadosGerais.qtdePontosOS + ')' : '')) +
       (pontosAlterados() ? linhaResumo('Justificativa dos pontos', estado.dadosGerais.justificativaPontos) : '') +
       linhaResumo('Dias de medição', estado.servico.dias) +
       linhaResumo('Período', servicoDetalhe('periodo')) +
       linhaResumo('Método', servicoDetalhe('metodo')) +
-      linhaResumo('Observação', servicoDetalhe('observacao')) +
-      linhaResumo('Link do Google Maps', estado.os.linkMaps),
+      linhaResumo('Observação do escopo', servicoDetalhe('observacao')) +
+      linhaResumo('Observações da OS', estado.os.observacao) +
+      linhaResumo('Link do Google Maps', estado.os.linkMaps) +
+      linhaResumo('Início', formatarDataBR(estado.dadosGerais.dataInicio) + ' às ' + estado.dadosGerais.horaInicio),
       'tela-dados-gerais');
 
     html += secaoRevisao('🧭 Tipo de monitoramento', linhaResumo('Tipo', nomeTipo(estado.tipo)), 'tela-tipo');

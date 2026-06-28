@@ -317,6 +317,7 @@ textarea { resize: vertical; font-family: inherit; }
 /* ---------- Fluxo de serviços ---------- */
 .grade-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .rotulo-apoio { font-weight: 400; color: var(--cinza-texto); font-size: 0.82rem; }
+.dg-secao { font-size: 0.95rem; font-weight: 700; color: var(--azul-escuro); border-bottom: 1px solid var(--cinza-borda); padding-bottom: 4px; margin: 20px 0 10px; }
 
 .os-item {
   display: flex;
