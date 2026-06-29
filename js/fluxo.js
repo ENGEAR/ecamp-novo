@@ -895,6 +895,14 @@ EC.fluxo = (function () {
     };
   }
 
+  // Cópia do registro SEM o base64/dataUrl das fotos (que já vão para o servidor).
+  // Mantém só os nomes dos arquivos. Evita estourar a memória do navegador.
+  function semFotos(registro) {
+    return JSON.parse(JSON.stringify(registro, function (chave, valor) {
+      return (chave === 'base64' || chave === 'dataUrl') ? undefined : valor;
+    }));
+  }
+
   function salvarRegistro() {
     const bloqueios = bloqueiosSalvar();
     if (bloqueios.length) {
@@ -903,14 +911,20 @@ EC.fluxo = (function () {
       return;
     }
     const registro = montarRegistro();
-    if (!EC.storage.salvar('historico:' + registro.codificacao, registro)) {
-      EC.app.mostrarToast('⚠️ Não foi possível salvar (memória do navegador cheia?).');
-      return;
-    }
 
-    const historico = EC.storage.listar('historico:')
-      .sort(function (a, b) { return (a.valor.salvoEm || '').localeCompare(b.valor.salvoEm || ''); });
-    while (historico.length > 20) EC.storage.remover(historico.shift().chave);
+    // 1) Envia ao servidor PRIMEIRO (destino oficial: SGP → Supabase + SharePoint),
+    //    com as fotos. Se offline, tenta enfileirar.
+    if (EC.sync) EC.sync.sincronizarRegistro(registro);
+
+    // 2) Guarda uma cópia LEVE no histórico do aparelho (sem o base64 das fotos —
+    //    elas já foram para o servidor), para NÃO estourar a memória do navegador.
+    //    Best-effort: se nem isso couber, tudo bem, o dado já foi enviado.
+    try {
+      const antigos = EC.storage.listar('historico:')
+        .sort(function (a, b) { return (a.valor.salvoEm || '').localeCompare(b.valor.salvoEm || ''); });
+      while (antigos.length >= 20) EC.storage.remover(antigos.shift().chave);
+    } catch (e) { /* ignora */ }
+    EC.storage.salvar('historico:' + registro.codificacao, semFotos(registro));
 
     EC.storage.remover(chaveServico(estado.osNumero, estado.servicoIndice)); // rascunho do serviço concluído
 
@@ -926,9 +940,6 @@ EC.fluxo = (function () {
 
     // botão para voltar aos demais serviços da OS (só quando há vários)
     $('sucesso-servicos').classList.toggle('oculto', !multiServico);
-
-    // Envia para o servidor (SGP → Supabase + SharePoint). Se offline, enfileira.
-    if (EC.sync) EC.sync.sincronizarRegistro(registro);
 
     estado = null;
     if (EC.app.atualizarBarraPendencias) EC.app.atualizarBarraPendencias();
