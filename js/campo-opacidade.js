@@ -26,6 +26,11 @@ EC.campoOpacidade = (function () {
     'Dados registrados e conferidos'
   ];
 
+  const SUBTIPOS = [
+    { id: 'opacimetro', icone: '💨', nome: 'Opacímetro' },
+    { id: 'ringelmann', icone: '🌫️', nome: 'Escala de Ringelmann' }
+  ];
+
   let ctx = null;
   let raiz = null;
   let veiculoExibido = 1;
@@ -39,9 +44,12 @@ EC.campoOpacidade = (function () {
     temporizadorSalvar = setTimeout(salvar, 400);
   }
 
+  // Subtipo padrão pelo escopo da OS (pré-seleção dos cards).
+  function subtipoPorEscopo(escopo) {
+    return /ringelmann/i.test(escopo || '') ? 'ringelmann' : 'opacimetro';
+  }
   function subtipo() {
-    const e = ((ctx.estado.servico && ctx.estado.servico.escopo) || '').toLowerCase();
-    return /ringelmann/.test(e) ? 'ringelmann' : 'opacimetro';
+    return campo().subtipo || subtipoPorEscopo((ctx.estado.servico || {}).escopo);
   }
 
   function tipoCarimbo() { return subtipo() === 'ringelmann' ? 'OPACIDADERINGELMANN' : 'OPACIMETRO'; }
@@ -99,10 +107,10 @@ EC.campoOpacidade = (function () {
 
   function renderizarGeral() {
     const area = $('#co-geral');
+    $('#co-paginacao').innerHTML = '';
+    $('#co-veiculo').innerHTML = '';
     const g = campo().geral;
-    const nomeSub = subtipo() === 'ringelmann' ? 'Escala de Ringelmann' : 'Opacímetro';
     area.innerHTML =
-      '<p class="texto-apoio">Subtipo: <strong>' + nomeSub + '</strong></p>' +
       '<label>Quantidade de veículos (1–50)<input type="number" min="1" max="50" inputmode="numeric" data-campo="qtdeVeiculos"></label>';
     if (g.qtdeVeiculos === undefined) g.qtdeVeiculos = ctx.estado.dadosGerais.qtdePontos;
     vincular(area, g);
@@ -206,7 +214,7 @@ EC.campoOpacidade = (function () {
     const total = Math.min(50, Math.max(1, parseInt(c.geral.qtdeVeiculos, 10) || 0));
     const out = [];
     if (!total) { out.push('a quantidade de veículos não foi definida'); return out; }
-    const sub = subtipo();
+    const sub = c.subtipo || subtipoPorEscopo((estado.servico || {}).escopo);
     for (let i = 0; i < total; i++) {
       itensFaltandoDoVeiculo((c.veiculos || [])[i], sub).forEach(function (x) { out.push('V' + (i + 1) + ': ' + x); });
     }
@@ -215,17 +223,61 @@ EC.campoOpacidade = (function () {
 
   /* ===== Entrada ===== */
 
+  function renderizarSubtipos() {
+    const grade = $('#co-subtipos');
+    grade.innerHTML = SUBTIPOS.map(function (s) {
+      return '<button type="button" class="card-tipo' + (campo().subtipo === s.id ? ' card-tipo-ativo' : '') + '" data-subtipo="' + s.id + '">' +
+        '<span class="card-tipo-icone">' + s.icone + '</span><span>' + s.nome + '</span></button>';
+    }).join('');
+
+    const det = subtipoPorEscopo((ctx.estado.servico || {}).escopo);
+    const hint = $('#co-subtipo-hint');
+    if (hint) {
+      if (campo().subtipo === det) {
+        hint.className = 'alerta alerta-info';
+        hint.innerHTML = '✓ Subtipo pré-selecionado pelo escopo da OS. Você pode alterar se necessário.';
+      } else {
+        hint.className = '';
+        hint.innerHTML = '';
+      }
+    }
+
+    grade.querySelectorAll('[data-subtipo]').forEach(function (botao) {
+      botao.addEventListener('click', function () {
+        const novo = botao.dataset.subtipo;
+        if (campo().subtipo === novo) return;
+        const temDados = campo().veiculos.length || Object.keys(campo().geral).length;
+        if (temDados && !confirm('Trocar o subtipo apaga o que já foi preenchido no campo. Continuar?')) return;
+        campo().subtipo = novo;
+        campo().geral = {};
+        campo().veiculos = [];
+        veiculoExibido = 1;
+        salvar();
+        renderizarSubtipos();
+        renderizarGeral();
+      });
+    });
+  }
+
   function renderizar(container, contexto) {
     ctx = contexto;
     raiz = container;
-    if (!ctx.estado.campo) ctx.estado.campo = { geral: {}, veiculos: [] };
+    if (!ctx.estado.campo) ctx.estado.campo = { subtipo: null, geral: {}, veiculos: [] };
     if (!ctx.estado.campo.geral) ctx.estado.campo.geral = {};
     if (!ctx.estado.campo.veiculos) ctx.estado.campo.veiculos = [];
+    if (!ctx.estado.campo.subtipo) {
+      ctx.estado.campo.subtipo = subtipoPorEscopo((ctx.estado.servico || {}).escopo);
+      if (ctx.salvar) ctx.salvar();
+    }
     veiculoExibido = 1;
     container.innerHTML =
+      '<p class="grupo-checks-titulo">Subtipo do monitoramento</p>' +
+      '<div class="grade-tipos" id="co-subtipos"></div>' +
+      '<div id="co-subtipo-hint"></div>' +
       '<div id="co-geral"></div>' +
       '<div id="co-paginacao" class="cr-paginacao"></div>' +
       '<div id="co-veiculo"></div>';
+    renderizarSubtipos();
     renderizarGeral();
   }
 

@@ -746,7 +746,8 @@ EC.fluxo = (function () {
     if (estado.tipo === 'opacidade' && estado.campo && estado.campo.geral) {
       const campo = estado.campo;
       const total = Math.min(50, Math.max(0, parseInt(campo.geral.qtdeVeiculos, 10) || 0));
-      corpoCampo = linhaResumo('Veículos', total || '—');
+      corpoCampo = linhaResumo('Subtipo', campo.subtipo === 'ringelmann' ? '🌫️ Escala de Ringelmann' : (campo.subtipo === 'opacimetro' ? '💨 Opacímetro' : '—')) +
+        linhaResumo('Veículos', total || '—');
       for (let i = 0; i < total; i++) {
         const v = (campo.veiculos || [])[i] || {};
         corpoCampo += linhaResumo('V' + (i + 1) + (v.placa ? ' — ' + v.placa : ''),
@@ -826,9 +827,14 @@ EC.fluxo = (function () {
   function montarRegistro() {
     const sessao = EC.storage.ler('sessao:atual') || {};
     const agora = new Date();
-    const tipoTexto = estado.campo && estado.campo.subtipo
-      ? EC.campoRuido.TIPOS_CARIMBO[estado.campo.subtipo]
-      : (estado.tipo || 'SEMTIPO').toUpperCase();
+    let tipoTexto;
+    if (estado.tipo === 'ruido' && estado.campo && estado.campo.subtipo) {
+      tipoTexto = EC.campoRuido.TIPOS_CARIMBO[estado.campo.subtipo];
+    } else if (estado.tipo === 'opacidade') {
+      tipoTexto = (estado.campo && estado.campo.subtipo === 'ringelmann') ? 'OPACIDADERINGELMANN' : 'OPACIMETRO';
+    } else {
+      tipoTexto = (estado.tipo || 'SEMTIPO').toUpperCase();
+    }
     return {
       codificacao: 'OS_' + estado.os.numero + '_' + tipoTexto + '_' + carimboDataHora(agora),
       servicoId: estado.servicoId,
