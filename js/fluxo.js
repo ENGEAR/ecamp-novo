@@ -167,7 +167,10 @@ EC.fluxo = (function () {
   function salvarEstado() {
     if (!estado) return false;
     estado.atualizadoEm = new Date().toISOString();
-    return EC.storage.salvar(chaveServico(estado.osNumero, estado.servicoIndice), estado);
+    // Guarda o rascunho SEM o base64 das fotos (elas vão para o servidor ao
+    // finalizar) — senão estoura a memória do navegador. semFotos() está abaixo
+    // (declaração de função, içada). As fotos da sessão atual seguem em memória.
+    return EC.storage.salvar(chaveServico(estado.osNumero, estado.servicoIndice), semFotos(estado));
   }
 
   function servicoDetalhe(campo) {
