@@ -109,8 +109,9 @@ window.EC = window.EC || {};
     // estão Vencidos no F021; aqui sem data p/ não travar a seleção (gestão).
     qarint: [
       { categoria: 'Bomba de amostragem', codigo: 'BOMB.AERIS 001', descricao: 'CRIFFER | AERIS-2 | 26000047', ultimaCal: '', proximaCal: '' },
-      { categoria: 'Medidor de CO₂', codigo: 'SEM-TEMP.UMD-01', descricao: 'AZ | CO277 | 10575136', ultimaCal: '', proximaCal: '' },
-      { categoria: 'Medidor de CO₂', codigo: 'SEN-CO2-01', descricao: 'AZ | CO277 | 10575136', ultimaCal: '', proximaCal: '' },
+      { categoria: 'Medidor de CO2, Temperatura e Umidade', codigo: 'SEM-TEMP.UMD-01', descricao: 'AZ | CO277 | 10575136', ultimaCal: '', proximaCal: '' },
+      { categoria: 'Medidor de CO2, Temperatura e Umidade', codigo: 'SEN-CO2-01', descricao: 'AZ | CO277 | 10575136', ultimaCal: '', proximaCal: '' },
+      { categoria: 'Termoanemômetro', codigo: 'ANE-TEMP 001', descricao: 'TESTO | Testo 405-V1 | 41576334', ultimaCal: '', proximaCal: '' },
       { categoria: 'Tripé', codigo: 'TRI 005', descricao: 'Criffer', ultimaCal: '', proximaCal: '' },
       { categoria: 'Tripé', codigo: 'TRI 006', descricao: 'Criffer', ultimaCal: '', proximaCal: '' },
       { categoria: 'Tripé', codigo: 'TRI 007', descricao: 'Criffer', ultimaCal: '', proximaCal: '' },
