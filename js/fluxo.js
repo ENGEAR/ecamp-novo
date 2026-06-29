@@ -506,8 +506,17 @@ EC.fluxo = (function () {
     const lista = EC.equipamentosMock[chaveVariante()];
 
     if (!lista) {
-      area.innerHTML = '<p class="texto-apoio">A seleção de equipamentos deste tipo entra nas próximas fases ' +
-        '(lista da planilha F021 na Fase 6' + (estado.tipo === 'outro' ? '; para o tipo Outro, cadastro manual' : '') + ').</p>';
+      if (estado.tipo === 'outro') {
+        // Tipo Outro: cadastro manual dos equipamentos (campo de texto livre).
+        area.innerHTML =
+          '<p class="texto-apoio">Para o tipo <strong>Outro</strong>, liste manualmente os equipamentos utilizados (um por linha, com modelo / nº de série quando possível).</p>' +
+          '<label>Equipamentos utilizados<textarea id="equip-manual" rows="5" placeholder="Ex.: Decibelímetro Instrutherm DEC-490 nº 12345&#10;Tripé"></textarea></label>';
+        const ta = area.querySelector('#equip-manual');
+        if (estado.equipamentosManual) ta.value = estado.equipamentosManual;
+        ta.addEventListener('input', function () { estado.equipamentosManual = ta.value; salvarEstado(); });
+        return;
+      }
+      area.innerHTML = '<p class="texto-apoio">A seleção de equipamentos deste tipo entra nas próximas fases (lista da planilha F021 na Fase 6).</p>';
       return;
     }
 
@@ -679,6 +688,9 @@ EC.fluxo = (function () {
     if (estado.tipo === 'ruido' || estado.tipo === 'sismo' || estado.tipo === 'qar' || estado.tipo === 'opacidade' || estado.tipo === 'qarint' || estado.tipo === 'outro') {
       const faltandoEquip = categoriasEquipFaltando();
       if (faltandoEquip.length) avisos.push('Equipamentos: falta selecionar ' + faltandoEquip.join(', ') + '.');
+      if (estado.tipo === 'outro' && !(estado.equipamentosManual && estado.equipamentosManual.trim())) {
+        avisos.push('Equipamentos: liste os equipamentos utilizados.');
+      }
       const pendentesPre = EC.romaneios.pendentesObrigatorios(chaveVariante(), estado.preCampo, opcoesRomaneio());
       if (pendentesPre > 0) avisos.push('Pré-campo com ' + pendentesPre + ' item(ns) obrigatório(s) não conferido(s).');
 
@@ -742,7 +754,9 @@ EC.fluxo = (function () {
     html += secaoRevisao('🧭 Tipo de monitoramento', linhaResumo('Tipo', nomeTipo(estado.tipo)), 'tela-tipo');
 
     html += secaoRevisao('🔧 Equipamentos',
-      linhaResumo('Selecionados', estado.equipamentos.length ? estado.equipamentos.join(', ') : '—'),
+      linhaResumo('Selecionados', estado.tipo === 'outro'
+        ? (estado.equipamentosManual ? estado.equipamentosManual : '—')
+        : (estado.equipamentos.length ? estado.equipamentos.join(', ') : '—')),
       'tela-passo3a');
 
     let resumoPre = '—';
