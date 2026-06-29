@@ -276,8 +276,111 @@ EC.romaneios = (function () {
           ]
         }]
       }
+    ],
+    opacidade_ringelmann: [
+      {
+        titulo: '1. Antes de sair do laboratório',
+        grupos: [{
+          itens: [
+            'Ordem de Serviço (OS) avaliada',
+            'Pontos amostrais previamente identificados por coordenadas',
+            'Trajeto planejado, considerando chegada ao local com antecedência mínima de 1 hora',
+            'Acesso ao local confirmado com o cliente',
+            'EPIs disponíveis e em boas condições'
+          ]
+        }]
+      },
+      {
+        titulo: '2. Equipamentos e insumos',
+        grupos: [
+          { subtitulo: 'Instrumentos de avaliação', itens: ['Escala de Ringelmann reduzida íntegra e legível', 'Envelope protetor da escala', 'Placa de acrílico transparente com fundo branco'] },
+          { subtitulo: 'Instrumentos de apoio', itens: ['Cronômetro', 'Termohigroanemômetro', 'Trena métrica'] },
+          { subtitulo: 'Registro de dados', itens: ['Prancheta ou suporte para anotação', 'Formulários de campo impressos (quando aplicável)', 'Canetas ou lápis para registro'] },
+          { subtitulo: 'Comunicação e energia', itens: ['Celular carregado', 'Carregador do celular'] }
+        ]
+      },
+      {
+        titulo: '3. Verificações antes da avaliação',
+        grupos: [{
+          itens: [
+            'Escala de Ringelmann limpa, íntegra e sem desbotamento',
+            'Placa de acrílico limpa e sem riscos que prejudiquem a visualização',
+            'Cronômetro funcionando adequadamente',
+            'Termohigroanemômetro funcionando adequadamente',
+            'Condições de visibilidade adequadas para a avaliação',
+            'Materiais de anotação disponíveis'
+          ]
+        }]
+      },
+      {
+        titulo: '4. Verificação final',
+        grupos: [{
+          itens: [
+            'Equipamentos conferidos e acondicionados para transporte',
+            'Materiais de registro disponíveis',
+            'Equipe alinhada quanto ao escopo do serviço',
+            'Horário de saída confirmado',
+            'Condições de acesso ao ponto de observação verificadas'
+          ]
+        }]
+      }
+    ],
+    opacidade_opacimetro: [
+      {
+        titulo: '1. Antes de sair do laboratório',
+        grupos: [{
+          itens: [
+            'Ordem de Serviço (OS) avaliada',
+            'Pontos amostrais previamente identificados por coordenadas',
+            'Trajeto planejado, considerando chegada ao local com antecedência mínima de 1 hora',
+            'Acesso ao local confirmado com o cliente',
+            'Local de instalação confirmado e com disponibilidade de energia elétrica (tomada)',
+            'EPIs disponíveis e em boas condições'
+          ]
+        }]
+      },
+      {
+        titulo: '2. Equipamentos e insumos',
+        grupos: [
+          { subtitulo: 'Equipamento principal', itens: ['Opacímetro', 'Inspeção visual realizada (sem avarias aparentes)'] },
+          { subtitulo: 'Componentes do sistema', itens: ['Sonda de amostragem', 'Cabo de conexão da sonda', 'Empunhadura para manuseio da sonda', 'Tripé articulado', 'Barra extensora', 'Redutor de diâmetro da sonda (para escapamentos ≤ 50 mm)'] },
+          { subtitulo: 'Verificação e controle metrológico', itens: ['Filtros-padrão de densidade neutra (2 unidades)', 'Certificados de calibração disponíveis (quando aplicável)'] },
+          { subtitulo: 'Alimentação e energia', itens: ['Carregador de bateria do opacímetro', 'Celular carregado', 'Carregador do celular'] },
+          { subtitulo: 'Impressão e registro', itens: ['Papel para impressora térmica', 'Rolos sobressalentes disponíveis'] },
+          { subtitulo: 'Limpeza e manutenção', itens: ['Ferramentas de limpeza (chave, cotonetes)', 'Panos para limpeza', 'Cotonete', 'Álcool isopropílico para limpeza das lentes', 'Algodão', 'Detergente suave para limpeza das lentes'] },
+          { subtitulo: 'Segurança operacional', itens: ['Calços para travamento das rodas do veículo', 'Luvas térmicas'] }
+        ]
+      },
+      {
+        titulo: '3. Verificações antes da medição',
+        grupos: [{
+          itens: [
+            'Funcionamento do opacímetro verificado',
+            'Integridade da sonda e dos cabos verificada',
+            'Filtros-padrão disponíveis e em bom estado',
+            'Impressora funcionando e com papel instalado',
+            'Bateria carregada',
+            'Materiais de limpeza disponíveis',
+            'Calços e EPIs disponíveis para uso'
+          ]
+        }]
+      },
+      {
+        titulo: '4. Verificação final',
+        grupos: [{
+          itens: [
+            'Equipamentos conferidos e acondicionados adequadamente para transporte',
+            'Certificados e documentação disponíveis',
+            'Impressora abastecida com papel',
+            'Ferramentas e insumos completos',
+            'Equipe alinhada quanto ao escopo do serviço',
+            'Horário de saída confirmado',
+            'Condições de acesso e operação confirmadas com o cliente'
+          ]
+        }]
+      }
     ]
-    // opacidade / qarint: Fase 4
+    // qarint: Fase 4
   };
 
   // Um bloco é obrigatório se não é opcional OU se a OS é de longa duração e o

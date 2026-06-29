@@ -88,6 +88,23 @@ window.EC = window.EC || {};
       { categoria: 'Amostrador AGV', codigo: 'AGV PTS', descricao: 'Amostrador de Grande Volume — PTS', ultimaCal: '', proximaCal: '' },
       { categoria: 'Amostrador AGV', codigo: 'AGV MP10', descricao: 'Amostrador de Grande Volume — MP10', ultimaCal: '', proximaCal: '' },
       { categoria: 'Amostrador AGV', codigo: 'AGV MP2,5', descricao: 'Amostrador de Grande Volume — MP2,5', ultimaCal: '', proximaCal: '' }
+    ],
+
+    // Opacidade — Escala de Ringelmann (F021 matriz "Rilgeman", EM USO).
+    opacidade_ringelmann: [
+      { categoria: 'Chapa de fundo branco', codigo: 'CFB001', descricao: 'Chapa de Fundo Branco', ultimaCal: '', proximaCal: '' }
+    ],
+
+    // Opacidade — Opacímetro (F021 matriz "Opacidade veicular", EM USO). No F021
+    // a calibração está vencida; aqui sem data para não travar a seleção (a
+    // renovação da calibração é gestão, fora do app).
+    opacidade_opacimetro: [
+      { categoria: 'Opacímetro', codigo: 'OPC 001', descricao: 'SMOKE CHECK | 2000 | 54.176', ultimaCal: '', proximaCal: '' },
+      { categoria: 'Opacímetro', codigo: 'ENG SMOKE 1', descricao: 'ALTANOVA | CHECK 200 | 54.176', ultimaCal: '', proximaCal: '' },
+      { categoria: 'Cabo auxiliar', codigo: 'SMOKE-CABO', descricao: 'ALTANOVA | CHECK 200 | Cabo auxiliar', ultimaCal: '', proximaCal: '' },
+      { categoria: 'Carregador', codigo: 'SMOKE-CARREG', descricao: 'ALTANOVA | CHECK 200 | Carregador', ultimaCal: '', proximaCal: '' },
+      { categoria: 'Leitor óptico', codigo: 'SMOKE-LEITOR', descricao: 'ALTANOVA | CHECK 200 | Leitor óptico', ultimaCal: '', proximaCal: '' },
+      { categoria: 'Tripé', codigo: 'SMOKE-TRIPE', descricao: 'ALTANOVA | CHECK 200 | Tripé', ultimaCal: '', proximaCal: '' }
     ]
   };
 })();

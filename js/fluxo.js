@@ -503,7 +503,7 @@ EC.fluxo = (function () {
 
   function renderizarEquipamentos() {
     const area = $('equipamentos-conteudo');
-    const lista = EC.equipamentosMock[estado.tipo];
+    const lista = EC.equipamentosMock[chaveVariante()];
 
     if (!lista) {
       area.innerHTML = '<p class="texto-apoio">A seleção de equipamentos deste tipo entra nas próximas fases ' +
@@ -584,7 +584,7 @@ EC.fluxo = (function () {
   // Toda categoria exige ao menos um, EXCETO Estação Meteorológica, que só é
   // obrigatória em longa duração.
   function categoriasEquipFaltando() {
-    const lista = EC.equipamentosMock[estado.tipo];
+    const lista = EC.equipamentosMock[chaveVariante()];
     if (!lista) return []; // tipos sem lista (Fase 6) não validam aqui
     const categorias = [];
     lista.forEach(function (e) { if (categorias.indexOf(e.categoria) === -1) categorias.push(e.categoria); });
@@ -597,7 +597,7 @@ EC.fluxo = (function () {
   }
 
   function renderizarPreCampo() {
-    EC.romaneios.renderizar($('precampo-conteudo'), estado.tipo, estado.preCampo, function () {
+    EC.romaneios.renderizar($('precampo-conteudo'), chaveVariante(), estado.preCampo, function () {
       salvarEstado();
     }, opcoesRomaneio());
   }
@@ -606,7 +606,7 @@ EC.fluxo = (function () {
 
   function renderizarCheckpoint() {
     const equip = estado.equipamentos.length;
-    const pendentesPre = EC.romaneios.pendentesObrigatorios(estado.tipo, estado.preCampo);
+    const pendentesPre = EC.romaneios.pendentesObrigatorios(chaveVariante(), estado.preCampo, opcoesRomaneio());
     $('checkpoint-resumo').innerHTML =
       linhaResumo('Tipo', nomeTipo(estado.tipo)) +
       linhaResumo('Método', servicoDetalhe('metodo')) +
@@ -624,6 +624,19 @@ EC.fluxo = (function () {
     return /\bpts\b|pm ?10|pm ?2[.,]?5|mp ?10|mp ?2[.,]?5|particulad/.test(e);
   }
 
+  // Opacidade tem 2 subtipos (decididos pelo escopo): Opacímetro e Ringelmann.
+  function subtipoOpacidade() {
+    const e = (servicoDetalhe('escopo') || '').toLowerCase();
+    return /ringelmann/.test(e) ? 'ringelmann' : 'opacimetro';
+  }
+
+  // Chave de EQUIPAMENTOS e ROMANEIO: alguns tipos variam por subtipo do escopo
+  // (ex.: opacidade_opacimetro / opacidade_ringelmann). Para os demais, é o tipo.
+  function chaveVariante() {
+    if (estado.tipo === 'opacidade') return 'opacidade_' + subtipoOpacidade();
+    return estado.tipo;
+  }
+
   function renderizarCampo() {
     $('campo-bloqueio').innerHTML = '';
     const area = $('campo-conteudo');
@@ -633,6 +646,8 @@ EC.fluxo = (function () {
       EC.campoVibracao.renderizar(area, { estado: estado, salvar: salvarEstado });
     } else if (estado.tipo === 'qar' && qarParticulado()) {
       EC.campoQar.renderizar(area, { estado: estado, salvar: salvarEstado });
+    } else if (estado.tipo === 'opacidade') {
+      EC.campoOpacidade.renderizar(area, { estado: estado, salvar: salvarEstado });
     } else {
       area.innerHTML = '<p class="texto-grande">🚧 Em construção.</p>' +
         '<p>O formulário de campo de <strong>' + nomeTipo(estado.tipo) + '</strong> entra na Fase 4. O tipo Ruído já está completo — ele é o piloto.</p>';
@@ -657,10 +672,10 @@ EC.fluxo = (function () {
     if (pontosAlterados() && !estado.dadosGerais.justificativaPontos) avisos.push('Nº de pontos alterado sem justificativa.');
     if (!estado.tipo) avisos.push('Tipo de monitoramento não escolhido.');
 
-    if (estado.tipo === 'ruido' || estado.tipo === 'sismo' || estado.tipo === 'qar') {
+    if (estado.tipo === 'ruido' || estado.tipo === 'sismo' || estado.tipo === 'qar' || estado.tipo === 'opacidade') {
       const faltandoEquip = categoriasEquipFaltando();
       if (faltandoEquip.length) avisos.push('Equipamentos: falta selecionar ' + faltandoEquip.join(', ') + '.');
-      const pendentesPre = EC.romaneios.pendentesObrigatorios(estado.tipo, estado.preCampo, opcoesRomaneio());
+      const pendentesPre = EC.romaneios.pendentesObrigatorios(chaveVariante(), estado.preCampo, opcoesRomaneio());
       if (pendentesPre > 0) avisos.push('Pré-campo com ' + pendentesPre + ' item(ns) obrigatório(s) não conferido(s).');
 
     }
@@ -678,6 +693,9 @@ EC.fluxo = (function () {
     }
     if (estado.tipo === 'qar' && qarParticulado() && EC.campoQar.itensFaltando) {
       return EC.campoQar.itensFaltando(estado);
+    }
+    if (estado.tipo === 'opacidade' && EC.campoOpacidade.itensFaltando) {
+      return EC.campoOpacidade.itensFaltando(estado);
     }
     return [];
   }
@@ -718,14 +736,23 @@ EC.fluxo = (function () {
       'tela-passo3a');
 
     let resumoPre = '—';
-    if (EC.romaneios.dados[estado.tipo]) {
-      const pendentesPre = EC.romaneios.pendentesObrigatorios(estado.tipo, estado.preCampo, opcoesRomaneio());
+    if (EC.romaneios.dados[chaveVariante()]) {
+      const pendentesPre = EC.romaneios.pendentesObrigatorios(chaveVariante(), estado.preCampo, opcoesRomaneio());
       resumoPre = pendentesPre === 0 ? '✓ itens obrigatórios conferidos' : 'falta(m) ' + pendentesPre + ' item(ns) obrigatório(s)';
     }
     html += secaoRevisao('✅ Pré-campo', linhaResumo('Checklist', resumoPre), 'tela-passo3b');
 
     let corpoCampo = '<p class="texto-apoio">Monitoramento em campo não iniciado.</p>';
-    if ((estado.tipo === 'sismo' || estado.tipo === 'qar') && estado.campo && estado.campo.geral) {
+    if (estado.tipo === 'opacidade' && estado.campo && estado.campo.geral) {
+      const campo = estado.campo;
+      const total = Math.min(50, Math.max(0, parseInt(campo.geral.qtdeVeiculos, 10) || 0));
+      corpoCampo = linhaResumo('Veículos', total || '—');
+      for (let i = 0; i < total; i++) {
+        const v = (campo.veiculos || [])[i] || {};
+        corpoCampo += linhaResumo('V' + (i + 1) + (v.placa ? ' — ' + v.placa : ''),
+          (v.gps ? '📍GPS ✓' : '📍GPS —') + ' · ' + (v.foto ? '📷 ✓' : '📷 —'));
+      }
+    } else if ((estado.tipo === 'sismo' || estado.tipo === 'qar') && estado.campo && estado.campo.geral) {
       const campo = estado.campo;
       corpoCampo = (campo.geral.objetivo ? linhaResumo('Objetivo', campo.geral.objetivo) : '');
       const total = Math.min(20, Math.max(0, parseInt(campo.geral.qtdePontos, 10) || 0));
@@ -907,7 +934,7 @@ EC.fluxo = (function () {
     });
     montarNavegacao('tela-passo3b', {
       aoProximo: function () {
-        const pendentes = EC.romaneios.pendentesObrigatorios(estado.tipo, estado.preCampo, opcoesRomaneio());
+        const pendentes = EC.romaneios.pendentesObrigatorios(chaveVariante(), estado.preCampo, opcoesRomaneio());
         if (pendentes > 0) {
           EC.app.mostrarToast('Conclua o pré-campo: falta(m) ' + pendentes + ' item(ns) obrigatório(s).');
           return;
