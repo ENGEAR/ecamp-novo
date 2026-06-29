@@ -187,24 +187,20 @@ EC.campoQarInterno = (function () {
 
   /* ===== Pontos dentro do ambiente (2º nível de paginação) ===== */
 
+  // O 1º ponto é sempre o EXTERNO (P1-Ext, referência); os internos são P2, P3…
+  function rotuloPonto(i) { return i === 1 ? 'P1-Ext' : 'P' + i; }
+
   function renderPontos(amb) {
     const div = $('#qi-pontos');
-    const total = amb.pontosCalculados + 1; // +1 ponto externo de referência
+    const total = amb.pontosCalculados + 1; // 1 externo (P1-Ext) + os internos
     while (amb.pontos.length < total) amb.pontos.push({});
     pontoExibido = Math.min(pontoExibido, total);
     div.innerHTML =
-      '<div class="alerta alerta-info">📐 ' + amb.pontosCalculados + ' ponto(s) de amostragem + 1 ponto externo (referência) = <strong>' + total + '</strong> pontos.</div>' +
+      '<div class="alerta alerta-info">📐 1 ponto externo (P1-Ext, referência) + ' + amb.pontosCalculados + ' ponto(s) de amostragem = <strong>' + total + '</strong> pontos. Comece por onde preferir.</div>' +
       '<div id="qi-pt-paginacao" class="cr-paginacao"></div><div id="qi-ponto"></div>';
+    // Sem trava de saída: o técnico navega livremente (pode começar por qualquer ponto).
     EC.paginacao.criar($('#qi-pt-paginacao'), {
-      total: total, rotulo: 'P',
-      aoSair: function (numero) {
-        const p = amb.pontos[numero - 1] || {};
-        if (!p.fotoPonto || !p.fotoTela || !p.fotoAmbiente) {
-          EC.app.mostrarToast('Tire as 3 fotos do ponto P' + numero + ' antes de sair.');
-          return false;
-        }
-        return true;
-      },
+      total: total, rotuloFn: rotuloPonto,
       aoMudar: function (p) { pontoExibido = p; renderizarPonto(amb, p); }
     });
     renderizarPonto(amb, pontoExibido);
@@ -214,14 +210,12 @@ EC.campoQarInterno = (function () {
     const area = $('#qi-ponto');
     const ponto = amb.pontos[p - 1];
     if (!ponto) { area.innerHTML = ''; return; }
-    const total = amb.pontosCalculados + 1;
-    const ehExterno = (p === total);
+    const ehExterno = (p === 1);
 
     const html =
-      '<div class="cartao-ponto"><h2>Ponto P' + p + (ehExterno ? ' — Externo (referência)' : '') + '</h2>' +
+      '<div class="cartao-ponto"><h2>Ponto ' + rotuloPonto(p) + (ehExterno ? ' — Externo (referência)' : '') + '</h2>' +
       '<label>Nome do ponto<input type="text" data-campo="nome"></label>' +
       '<div class="qi-gps"></div>' +
-      '<label>Endereço completo (rua, número, cidade, estado)<input type="text" data-campo="endereco"></label>' +
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       '<label>Quantidade aproximada de pessoas<input type="number" min="0" inputmode="numeric" data-campo="pessoas"></label>' +
       '<label>Janela<select data-campo="janela"><option value="">Selecione…</option><option>Aberta</option><option>Fechada</option></select></label>' +
@@ -262,7 +256,6 @@ EC.campoQarInterno = (function () {
     };
     reqVal('nome', 'nome do ponto');
     if (!ponto.gps) falta.push('GPS');
-    reqVal('endereco', 'endereço completo');
     reqVal('horaInicial', 'hora inicial');
     reqVal('pessoas', 'quantidade de pessoas');
     reqVal('janela', 'janela (aberta/fechada)');
@@ -291,7 +284,7 @@ EC.campoQarInterno = (function () {
       if (!amb.pontosCalculados) { out.push(rotAmb + ': calcular os pontos (informe a área e toque em Calcular)'); continue; }
       const totalPt = amb.pontosCalculados + 1;
       for (let p = 0; p < totalPt; p++) {
-        itensFaltandoDoPonto((amb.pontos || [])[p]).forEach(function (x) { out.push(rotAmb + ' P' + (p + 1) + ': ' + x); });
+        itensFaltandoDoPonto((amb.pontos || [])[p]).forEach(function (x) { out.push(rotAmb + ' ' + rotuloPonto(p + 1) + ': ' + x); });
       }
     }
     return out;

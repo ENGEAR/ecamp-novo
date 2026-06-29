@@ -10,6 +10,8 @@
  *     container       : HTMLElement onde o componente é desenhado
  *     opcoes.total    : quantidade de pontos (ex.: 5 → P1…P5)
  *     opcoes.rotulo   : prefixo dos pontos (opcional, padrão 'P')
+ *     opcoes.rotuloFn : (opcional) função (i)→texto do chip i (1-based); tem
+ *                       prioridade sobre `rotulo` (ex.: P1-Ext, P2, P3…)
  *     opcoes.aoMudar  : callback (numero) chamado ao trocar de ponto — numero é
  *                       1-based (P1 = 1). Também é chamado uma vez na criação.
  *     opcoes.aoSair   : (opcional) callback (numeroAtual) → boolean, chamado
@@ -37,8 +39,9 @@ EC.paginacao = (function () {
     function desenhar() {
       let chips = '';
       for (let i = 1; i <= total; i++) {
+        const texto = typeof opcoes.rotuloFn === 'function' ? opcoes.rotuloFn(i) : (rotulo + i);
         chips += '<button type="button" class="pag-chip' + (i === atual ? ' pag-chip-ativo' : '') +
-          '" data-ponto="' + i + '">' + rotulo + i + '</button>';
+          '" data-ponto="' + i + '">' + texto + '</button>';
       }
       container.innerHTML =
         '<div class="comp-paginacao">' +
