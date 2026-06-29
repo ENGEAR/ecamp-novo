@@ -439,6 +439,45 @@ EC.romaneios = (function () {
           ]
         }]
       }
+    ],
+    outro: [
+      {
+        titulo: '1. Antes de sair do laboratório',
+        grupos: [{
+          itens: [
+            'Ordem de Serviço (OS) avaliada',
+            'Pontos amostrais previamente identificados por coordenadas',
+            'Trajeto planejado, considerando chegada ao local com antecedência mínima de 1 hora',
+            'Acesso ao local confirmado com o cliente',
+            'EPIs disponíveis e em boas condições'
+          ]
+        }]
+      },
+      {
+        titulo: '2. Equipamentos e insumos',
+        grupos: [
+          { subtitulo: 'Equipamentos de medição', itens: ['Equipamentos de medição definidos para este serviço'] },
+          { subtitulo: 'Alimentação e energia', itens: ['Carregador dos equipamentos', 'Baterias reservas', 'Power Bank carregado', 'Celular carregado', 'Carregador do celular'] }
+        ]
+      },
+      {
+        titulo: '3. Itens adicionais para monitoramento online',
+        opcional: true,
+        grupos: [{ itens: ['Roteador 4G', 'Verificação de sinal e funcionamento da internet móvel'] }]
+      },
+      {
+        titulo: '4. Verificação final',
+        grupos: [{
+          itens: [
+            'Todos os equipamentos conferidos',
+            'Certificados de calibração disponíveis',
+            'Baterias carregadas',
+            'Materiais acondicionados adequadamente para transporte',
+            'Equipe alinhada quanto ao escopo do serviço',
+            'Horário de saída confirmado'
+          ]
+        }]
+      }
     ]
   };
 

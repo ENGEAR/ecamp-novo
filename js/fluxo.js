@@ -650,6 +650,8 @@ EC.fluxo = (function () {
       EC.campoOpacidade.renderizar(area, { estado: estado, salvar: salvarEstado });
     } else if (estado.tipo === 'qarint') {
       EC.campoQarInterno.renderizar(area, { estado: estado, salvar: salvarEstado });
+    } else if (estado.tipo === 'outro') {
+      EC.campoOutro.renderizar(area, { estado: estado, salvar: salvarEstado });
     } else {
       area.innerHTML = '<p class="texto-grande">🚧 Em construção.</p>' +
         '<p>O formulário de campo de <strong>' + nomeTipo(estado.tipo) + '</strong> entra na Fase 4. O tipo Ruído já está completo — ele é o piloto.</p>';
@@ -674,7 +676,7 @@ EC.fluxo = (function () {
     if (pontosAlterados() && !estado.dadosGerais.justificativaPontos) avisos.push('Nº de pontos alterado sem justificativa.');
     if (!estado.tipo) avisos.push('Tipo de monitoramento não escolhido.');
 
-    if (estado.tipo === 'ruido' || estado.tipo === 'sismo' || estado.tipo === 'qar' || estado.tipo === 'opacidade' || estado.tipo === 'qarint') {
+    if (estado.tipo === 'ruido' || estado.tipo === 'sismo' || estado.tipo === 'qar' || estado.tipo === 'opacidade' || estado.tipo === 'qarint' || estado.tipo === 'outro') {
       const faltandoEquip = categoriasEquipFaltando();
       if (faltandoEquip.length) avisos.push('Equipamentos: falta selecionar ' + faltandoEquip.join(', ') + '.');
       const pendentesPre = EC.romaneios.pendentesObrigatorios(chaveVariante(), estado.preCampo, opcoesRomaneio());
@@ -701,6 +703,9 @@ EC.fluxo = (function () {
     }
     if (estado.tipo === 'qarint' && EC.campoQarInterno.itensFaltando) {
       return EC.campoQarInterno.itensFaltando(estado);
+    }
+    if (estado.tipo === 'outro' && EC.campoOutro.itensFaltando) {
+      return EC.campoOutro.itensFaltando(estado);
     }
     return [];
   }
@@ -768,6 +773,17 @@ EC.fluxo = (function () {
         corpoCampo += linhaResumo('V' + (i + 1) + (v.placa ? ' — ' + v.placa : ''),
           (v.gps ? '📍GPS ✓' : '📍GPS —') + ' · ' + (EC.foto.tem(v.foto) ? '📷 ✓' : '📷 —'));
       }
+    } else if (estado.tipo === 'outro' && estado.campo && estado.campo.geral) {
+      const campo = estado.campo;
+      corpoCampo = (campo.geral.tipoMonitoramento ? linhaResumo('Tipo de monitoramento', campo.geral.tipoMonitoramento) : '') +
+        (campo.geral.objetivo ? linhaResumo('Objetivo', campo.geral.objetivo) : '');
+      const total = Math.min(20, Math.max(0, parseInt(campo.geral.qtdePontos, 10) || 0));
+      for (let i = 0; i < total; i++) {
+        const p = campo.pontos[i] || {};
+        corpoCampo += linhaResumo('P' + (i + 1) + (p.nome ? ' — ' + p.nome : ''),
+          (p.gps ? '📍GPS ✓' : '📍GPS —') + ' · ' + (EC.foto.tem(p.fotoPonto) ? '📷 ✓' : '📷 —'));
+      }
+      if (!corpoCampo) corpoCampo = '<p class="texto-apoio">Monitoramento em campo não iniciado.</p>';
     } else if ((estado.tipo === 'sismo' || estado.tipo === 'qar') && estado.campo && estado.campo.geral) {
       const campo = estado.campo;
       corpoCampo = (campo.geral.objetivo ? linhaResumo('Objetivo', campo.geral.objetivo) : '');
