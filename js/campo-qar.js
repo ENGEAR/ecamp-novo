@@ -197,9 +197,11 @@ EC.campoQar = (function () {
       // Identificação
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
-      '<label>Tipo de equipamento<select data-campo="tipoEquip"><option value="">Selecione…</option>' +
-      equipSelecionados.map(function (c) { return '<option>' + c + '</option>'; }).join('') +
-      '</select></label>' +
+      (equipSelecionados.length
+        ? '<label>Tipo de equipamento<select data-campo="tipoEquip"><option value="">Selecione…</option>' +
+          equipSelecionados.map(function (c) { return '<option>' + c + '</option>'; }).join('') +
+          '</select></label>'
+        : '<p class="texto-apoio">⚠️ Nenhum equipamento selecionado no pré-campo. Volte à seleção de equipamentos e marque os amostradores que vão para o campo.</p>') +
       '<div class="cq-gps"></div>' +
       '<div class="cq-foto-ponto"></div>' +
       // Calibração
