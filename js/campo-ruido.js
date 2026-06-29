@@ -246,7 +246,7 @@ EC.campoRuido = (function () {
   // Rótulos das fotos obrigatórias ainda não tiradas de um ponto.
   function fotosFaltando(ponto, subtipo) {
     const reqs = FOTOS_POR_SUBTIPO[subtipo] || [['fotoPonto', 'foto do ponto']];
-    return reqs.filter(function (f) { return !ponto || !ponto[f[0]]; }).map(function (f) { return f[1]; });
+    return reqs.filter(function (f) { return !EC.foto.tem(ponto && ponto[f[0]]); }).map(function (f) { return f[1]; });
   }
 
   // Fotos que faltam no ponto exibido no momento (usado pelo "Próximo →" do fluxo).
@@ -281,8 +281,8 @@ EC.campoRuido = (function () {
     reqVal('horaInicial', 'hora inicial');
     if (!ponto.gps) falta.push('GPS');
     reqVal('chkIniValor', 'checagem inicial');
-    if (!ponto.fotoTelaIni) falta.push('foto da tela (checagem inicial)');
-    if (!ponto.fotoPonto) falta.push('foto do ponto');
+    if (!EC.foto.tem(ponto.fotoTelaIni)) falta.push('foto da tela (checagem inicial)');
+    if (!EC.foto.tem(ponto.fotoPonto)) falta.push('foto do ponto');
 
     if (subtipo === 'externo') {
       grupoChecks('pos', POSICIONAMENTO_EXTERNO_PADRAO.length, 'posicionamento do microfone');
@@ -295,7 +295,7 @@ EC.campoRuido = (function () {
       grupoChecks('ruido', 2, 'ruído residual/total');
       reqVal('fontesEmpresa', 'fontes da empresa'); reqVal('fontesAmbiente', 'fontes do ambiente');
       reqVal('chkFimValor', 'checagem final');
-      if (!ponto.fotoTelaFim) falta.push('foto da tela (checagem final)');
+      if (!EC.foto.tem(ponto.fotoTelaFim)) falta.push('foto da tela (checagem final)');
       reqVal('observacoes', 'observações');
     } else if (ehInterno(subtipo)) {
       reqVal('altura', 'altura do sonômetro');
@@ -311,7 +311,7 @@ EC.campoRuido = (function () {
       grupoChecks('ferro', CHECKS_PONTO_FERRO.length, 'checks do ponto');
       reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento');
       reqVal('chkFimValor', 'checagem final');
-      if (!ponto.fotoTelaFim) falta.push('foto da tela (checagem final)');
+      if (!EC.foto.tem(ponto.fotoTelaFim)) falta.push('foto da tela (checagem final)');
       reqVal('observacoes', 'observações');
     } else if (subtipo === 'aeronautico') {
       if (operacional) {
@@ -321,7 +321,7 @@ EC.campoRuido = (function () {
         reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento');
       }
       reqVal('chkFimValor', 'checagem final');
-      if (!ponto.fotoTelaFim) falta.push('foto da tela (checagem final)');
+      if (!EC.foto.tem(ponto.fotoTelaFim)) falta.push('foto da tela (checagem final)');
       reqVal('observacoes', 'observações');
     }
     return falta;

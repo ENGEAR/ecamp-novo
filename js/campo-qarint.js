@@ -263,9 +263,9 @@ EC.campoQarInterno = (function () {
     reqVal('valorVazao', 'valor da vazão');
     MEDICOES.forEach(function (m) { reqVal(m[0], m[1]); });
     grupoChecks('conf', CHECKS_CONFORMIDADE.length, 'conformidade');
-    if (!ponto.fotoPonto) falta.push('foto do ponto');
-    if (!ponto.fotoTela) falta.push('foto da tela dos equipamentos');
-    if (!ponto.fotoAmbiente) falta.push('foto do ambiente geral');
+    if (!EC.foto.tem(ponto.fotoPonto)) falta.push('foto do ponto');
+    if (!EC.foto.tem(ponto.fotoTela)) falta.push('foto da tela dos equipamentos');
+    if (!EC.foto.tem(ponto.fotoAmbiente)) falta.push('foto do ambiente geral');
     // fungos / filtro / transporte e a hora final NÃO travam (orientação).
     return falta;
   }

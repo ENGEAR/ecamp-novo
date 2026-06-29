@@ -142,7 +142,7 @@ EC.campoQar = (function () {
     EC.paginacao.criar($('#cq-paginacao'), {
       total: total,
       aoSair: function (numero) {
-        if (!campo().pontos[numero - 1].fotoPonto) {
+        if (!EC.foto.tem(campo().pontos[numero - 1].fotoPonto)) {
           EC.app.mostrarToast('Tire a foto do ponto P' + numero + ' antes de sair.');
           return false;
         }
@@ -258,7 +258,7 @@ EC.campoQar = (function () {
     reqVal('horaInicial', 'hora inicial');
     reqVal('tipoEquip', 'tipo de equipamento');
     if (!ponto.gps) falta.push('GPS');
-    if (!ponto.fotoPonto) falta.push('foto do ponto');
+    if (!EC.foto.tem(ponto.fotoPonto)) falta.push('foto do ponto');
     grupoChecks('aquec', 1, 'aquecimento do motor');
     grupoChecks('zerar', 2, 'zerar manômetro');
     grupoChecks('vaz', 2, 'teste de vazamento');

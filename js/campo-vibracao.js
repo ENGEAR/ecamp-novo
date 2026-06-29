@@ -174,7 +174,7 @@ EC.campoVibracao = (function () {
     EC.paginacao.criar($('#cv-paginacao'), {
       total: total,
       aoSair: function (numero) {
-        if (!campo().pontos[numero - 1].fotoPonto) {
+        if (!EC.foto.tem(campo().pontos[numero - 1].fotoPonto)) {
           EC.app.mostrarToast('Tire a foto do ponto P' + numero + ' antes de sair.');
           return false;
         }
@@ -285,7 +285,7 @@ EC.campoVibracao = (function () {
     const cfgGeo = INSTAL_GEOFONE[ponto.instalGeofone];
     if (cfgGeo) grupoChecks(cfgGeo.prefixo, cfgGeo.checks.length, 'instalação do geofone (' + ponto.instalGeofone.toLowerCase() + ')');
     grupoChecks('autoverif', 1, 'auto verificação');
-    if (!ponto.fotoPonto) falta.push('foto do ponto');
+    if (!EC.foto.tem(ponto.fotoPonto)) falta.push('foto do ponto');
     grupoChecks('monit', CHECKS_MONITORAMENTO.length, 'durante o monitoramento');
     reqVal('intercorrencia', 'intercorrências');
     if (ponto.intercorrencia === 'Sim') reqVal('intercorrenciaDesc', 'descrição da intercorrência');

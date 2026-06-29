@@ -766,7 +766,7 @@ EC.fluxo = (function () {
       for (let i = 0; i < total; i++) {
         const v = (campo.veiculos || [])[i] || {};
         corpoCampo += linhaResumo('V' + (i + 1) + (v.placa ? ' — ' + v.placa : ''),
-          (v.gps ? '📍GPS ✓' : '📍GPS —') + ' · ' + (v.foto ? '📷 ✓' : '📷 —'));
+          (v.gps ? '📍GPS ✓' : '📍GPS —') + ' · ' + (EC.foto.tem(v.foto) ? '📷 ✓' : '📷 —'));
       }
     } else if ((estado.tipo === 'sismo' || estado.tipo === 'qar') && estado.campo && estado.campo.geral) {
       const campo = estado.campo;
@@ -775,8 +775,8 @@ EC.fluxo = (function () {
       for (let i = 0; i < total; i++) {
         const p = campo.pontos[i] || {};
         const extra = estado.tipo === 'qar'
-          ? ('📷 ' + (p.fotoPonto ? '✓' : '—') + ' · 🧪 ' + (p.qtdeColetas ? p.qtdeColetas + ' coleta(s)' : '—'))
-          : (p.fotoPonto ? '📷 ✓' : '📷 —');
+          ? ('📷 ' + (EC.foto.tem(p.fotoPonto) ? '✓' : '—') + ' · 🧪 ' + (p.qtdeColetas ? p.qtdeColetas + ' coleta(s)' : '—'))
+          : (EC.foto.tem(p.fotoPonto) ? '📷 ✓' : '📷 —');
         corpoCampo += linhaResumo('P' + (i + 1) + (p.nome ? ' — ' + p.nome : ''),
           (p.gps ? '📍GPS ✓' : '📍GPS —') + ' · ' + extra);
       }
@@ -790,7 +790,7 @@ EC.fluxo = (function () {
       const total = Math.min(20, Math.max(0, parseInt(campo.geral.qtdePontos, 10) || 0));
       for (let i = 0; i < total; i++) {
         const p = campo.pontos[i] || {};
-        const fotos = ['fotoTelaIni', 'fotoPonto', 'fotoTelaFim'].filter(function (chave) { return p[chave]; }).length;
+        const fotos = ['fotoTelaIni', 'fotoPonto', 'fotoTelaFim'].filter(function (chave) { return EC.foto.tem(p[chave]); }).length;
         corpoCampo += linhaResumo('P' + (i + 1) + (p.nome ? ' — ' + p.nome : ''),
           (p.gps ? '📍GPS ✓' : '📍GPS —') + ' · ' +
           (p.chkIniValor ? 'chk.ini ✓' : 'chk.ini —') + ' · ' +

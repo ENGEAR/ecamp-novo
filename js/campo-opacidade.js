@@ -130,7 +130,7 @@ EC.campoOpacidade = (function () {
       total: total,
       rotulo: 'V',
       aoSair: function (numero) {
-        if (!campo().veiculos[numero - 1].foto) {
+        if (!EC.foto.tem(campo().veiculos[numero - 1].foto)) {
           EC.app.mostrarToast('Tire a foto do veículo V' + numero + ' antes de sair.');
           return false;
         }
@@ -203,7 +203,7 @@ EC.campoOpacidade = (function () {
       for (let i = 0; i < CHECKS_OPACIMETRO.length; i++) if (!checks['op' + i]) n++;
       if (n) falta.push(n + ' confirmação(ões) do ensaio');
     }
-    if (!veic.foto) falta.push('foto / evidência do veículo');
+    if (!EC.foto.tem(veic.foto)) falta.push('foto / evidência do veículo');
     // Hora final e observações são opcionais.
     return falta;
   }

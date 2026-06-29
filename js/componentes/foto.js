@@ -1,39 +1,33 @@
 /**
- * foto.js — Componente de foto: captura + carimbo UTM + nomenclatura + base64
+ * foto.js — Componente de foto: captura MÚLTIPLA + carimbo UTM + base64
  *
- * O que faz: abre a câmera do celular (input file com capture), desenha a
- * imagem num canvas e CARIMBA no canto inferior direito: coordenada UTM,
- * nº da OS, tipo de escopo e nº do ponto. Nomeia o arquivo com a codificação
- * OS_[NºOS]_[TIPO]_[PONTO]_[AAAAMMDD_HHMMSS].jpg e converte para base64.
+ * Permite até 10 fotos por campo. Cada foto: abre a câmera (input file com
+ * capture), desenha num canvas e CARIMBA no canto inferior direito (UTM, nº da
+ * OS, tipo de escopo e nº do ponto), nomeia o arquivo e converte para base64.
+ * Mostra uma galeria de miniaturas com botão de remover em cada uma.
  *
  * Interface (namespace global EC.foto):
  *   EC.foto.criar(container, opcoes) → instância
- *     container         : HTMLElement onde o componente é desenhado
- *     opcoes.os         : nº da OS            (ex.: '2026-0158')
- *     opcoes.tipo       : tipo de escopo      (ex.: 'RUIDOEXTERNO')
- *     opcoes.ponto      : nº do ponto         (ex.: 'P03')
- *     opcoes.obterUtm   : função () → texto UTM para o carimbo
- *                         (normalmente instânciaGps.textoCarimbo())
- *     opcoes.rotulo     : texto do botão (opcional, padrão '📷 Tirar foto')
- *     opcoes.aoCapturar : callback opcional, recebe a foto pronta
- *   instância.obterFoto() → null ou {
- *     nomeArquivo  : 'OS_2026-0158_RUIDOEXTERNO_P03_20260612_104530.jpg'
- *     base64       : conteúdo JPEG em base64 (sem o prefixo data:)
- *     dataUrl      : 'data:image/jpeg;base64,...' (para <img> e PDF)
- *     capturadaEm  : ISO 8601
- *   }
- *   instância.definirFoto(foto) → restaura uma foto salva (precisa ter ao
- *     menos nomeArquivo e dataUrl) — usado ao reabrir rascunhos/pontos
+ *     opcoes.os/tipo/ponto : compõem o carimbo e o nome do arquivo
+ *     opcoes.obterUtm      : função () → texto UTM para o carimbo
+ *     opcoes.rotulo        : texto base do botão (padrão '📷 Tirar foto')
+ *     opcoes.fotoInicial   : ARRAY de fotos salvas (ou uma foto única, p/ rascunho
+ *                            antigo) para restaurar
+ *     opcoes.aoCapturar    : callback (fotos) — recebe SEMPRE o ARRAY atualizado
+ *                            de fotos (a cada captura ou remoção)
+ *   instância.obterFotos() → array de fotos { nomeArquivo, base64, dataUrl, capturadaEm }
+ *   instância.obterFoto()  → 1ª foto (compatibilidade) ou null
  *
- * Na Fase 0 os valores de OS/tipo/ponto chegam mockados; nas próximas fases
- * os formulários passam os valores reais.
+ *   EC.foto.tem(valor) → boolean: há ao menos uma foto? (aceita array, foto
+ *     única de rascunho antigo, ou vazio) — usar nas validações.
  */
 window.EC = window.EC || {};
 
 EC.foto = (function () {
   'use strict';
 
-  const LADO_MAXIMO = 1600; // limita a resolução p/ manter o base64 leve
+  const LADO_MAXIMO = 1600;  // limita a resolução p/ manter o base64 leve
+  const MAX_FOTOS = 10;
 
   function doisDigitos(n) { return n < 10 ? '0' + n : '' + n; }
 
@@ -50,9 +44,7 @@ EC.foto = (function () {
     const margemBorda = Math.round(tamanhoFonte * 0.8);
 
     let larguraTexto = 0;
-    linhas.forEach(function (linha) {
-      larguraTexto = Math.max(larguraTexto, ctx.measureText(linha).width);
-    });
+    linhas.forEach(function (linha) { larguraTexto = Math.max(larguraTexto, ctx.measureText(linha).width); });
 
     const caixaLargura = larguraTexto + margemInterna * 2;
     const caixaAltura = alturaLinha * linhas.length + margemInterna;
@@ -69,26 +61,55 @@ EC.foto = (function () {
     });
   }
 
+  // Há pelo menos uma foto? Aceita array, foto única (rascunho antigo) ou vazio.
+  function tem(valor) {
+    if (!valor) return false;
+    if (Array.isArray(valor)) return valor.length > 0;
+    return true;
+  }
+
   function criar(container, opcoes) {
     opcoes = opcoes || {};
-    let foto = null;
+    const rotuloBase = opcoes.rotulo || '📷 Tirar foto';
+    let fotos = [];
+    if (opcoes.fotoInicial) {
+      fotos = Array.isArray(opcoes.fotoInicial) ? opcoes.fotoInicial.slice() : [opcoes.fotoInicial];
+    }
 
     container.innerHTML =
       '<div class="comp-foto">' +
-      '  <button type="button" class="botao botao-secundario foto-botao">' + (opcoes.rotulo || '📷 Tirar foto') + '</button>' +
+      '  <div class="foto-galeria"></div>' +
+      '  <button type="button" class="botao botao-secundario foto-botao"></button>' +
       '  <input type="file" accept="image/*" capture="environment" class="foto-entrada" hidden>' +
       '  <div class="foto-status"></div>' +
-      '  <img class="foto-previa oculto" alt="Prévia da foto carimbada">' +
-      '  <div class="foto-nome"></div>' +
       '</div>';
 
     const botao = container.querySelector('.foto-botao');
     const entrada = container.querySelector('.foto-entrada');
     const status = container.querySelector('.foto-status');
-    const previa = container.querySelector('.foto-previa');
-    const nome = container.querySelector('.foto-nome');
+    const galeria = container.querySelector('.foto-galeria');
 
-    botao.addEventListener('click', function () { entrada.click(); });
+    function notificar() { if (typeof opcoes.aoCapturar === 'function') opcoes.aoCapturar(fotos.slice()); }
+
+    function atualizarBotao() {
+      botao.textContent = rotuloBase + ' (' + fotos.length + '/' + MAX_FOTOS + ')';
+      botao.disabled = fotos.length >= MAX_FOTOS;
+    }
+
+    function renderGaleria() {
+      galeria.innerHTML = fotos.map(function (f, i) {
+        return '<div class="foto-item"><img src="' + f.dataUrl + '" alt="Foto ' + (i + 1) + '">' +
+          '<button type="button" class="foto-remover" data-i="' + i + '" title="Remover foto">✕</button></div>';
+      }).join('');
+      galeria.querySelectorAll('.foto-remover').forEach(function (b) {
+        b.addEventListener('click', function () {
+          fotos.splice(parseInt(b.dataset.i, 10), 1);
+          renderGaleria(); atualizarBotao(); notificar();
+        });
+      });
+    }
+
+    botao.addEventListener('click', function () { if (fotos.length < MAX_FOTOS) entrada.click(); });
 
     entrada.addEventListener('change', function () {
       const arquivo = entrada.files && entrada.files[0];
@@ -99,7 +120,6 @@ EC.foto = (function () {
       leitor.onload = function () {
         const imagem = new Image();
         imagem.onload = function () {
-          // redimensiona mantendo a proporção
           const escala = Math.min(1, LADO_MAXIMO / Math.max(imagem.width, imagem.height));
           const largura = Math.round(imagem.width * escala);
           const altura = Math.round(imagem.height * escala);
@@ -120,49 +140,35 @@ EC.foto = (function () {
 
           const agora = new Date();
           const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-          foto = {
+          fotos.push({
             nomeArquivo: 'OS_' + (opcoes.os || 'SEM-OS') + '_' + (opcoes.tipo || 'SEM-TIPO') + '_'
-              + (opcoes.ponto || 'P0') + '_' + carimboDataHora(agora) + '.jpg',
+              + (opcoes.ponto || 'P0') + '_' + carimboDataHora(agora) + '_F' + doisDigitos(fotos.length + 1) + '.jpg',
             base64: dataUrl.split(',')[1],
             dataUrl: dataUrl,
             capturadaEm: agora.toISOString()
-          };
+          });
 
-          previa.src = dataUrl;
-          previa.classList.remove('oculto');
-          nome.textContent = '📎 ' + foto.nomeArquivo;
-          status.textContent = '✅ Foto carimbada e convertida para base64.';
+          renderGaleria();
+          atualizarBotao();
+          status.textContent = '✅ Foto carimbada e adicionada (' + fotos.length + '/' + MAX_FOTOS + ').';
           entrada.value = '';
-
-          if (typeof opcoes.aoCapturar === 'function') opcoes.aoCapturar(foto);
+          notificar();
         };
-        imagem.onerror = function () {
-          status.innerHTML = '<span class="texto-erro">⚠️ Não foi possível ler a imagem.</span>';
-        };
+        imagem.onerror = function () { status.innerHTML = '<span class="texto-erro">⚠️ Não foi possível ler a imagem.</span>'; };
         imagem.src = leitor.result;
       };
-      leitor.onerror = function () {
-        status.innerHTML = '<span class="texto-erro">⚠️ Falha ao abrir o arquivo da foto.</span>';
-      };
+      leitor.onerror = function () { status.innerHTML = '<span class="texto-erro">⚠️ Falha ao abrir o arquivo da foto.</span>'; };
       leitor.readAsDataURL(arquivo);
     });
 
-    function definirFoto(nova) {
-      if (!nova || !nova.dataUrl) return;
-      foto = nova;
-      previa.src = nova.dataUrl;
-      previa.classList.remove('oculto');
-      nome.textContent = '📎 ' + (nova.nomeArquivo || '');
-      status.textContent = '✅ Foto salva.';
-    }
-
-    if (opcoes.fotoInicial) definirFoto(opcoes.fotoInicial);
+    renderGaleria();
+    atualizarBotao();
 
     return {
-      obterFoto: function () { return foto; },
-      definirFoto: definirFoto
+      obterFotos: function () { return fotos.slice(); },
+      obterFoto: function () { return fotos[0] || null; } // compatibilidade
     };
   }
 
-  return { criar: criar };
+  return { criar: criar, tem: tem };
 })();
