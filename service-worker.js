@@ -8,7 +8,7 @@
  * Todos os caminhos são RELATIVOS, para funcionar no GitHub Pages
  * (https://usuario.github.io/repositorio/) sem ajuste.
  */
-const VERSAO_CACHE = 'ecamp-v0.14.3';
+const VERSAO_CACHE = 'ecamp-v0.15.0';
 
 const ARQUIVOS_APP = [
   './',
@@ -16,6 +16,7 @@ const ARQUIVOS_APP = [
   './manifest.json',
   './css/estilos.css',
   './js/storage.js',
+  './js/db.js',
   './js/sync.js',
   './js/esquemas.js',
   './js/dados-os-mock.js',

@@ -167,10 +167,13 @@ EC.fluxo = (function () {
   function salvarEstado() {
     if (!estado) return false;
     estado.atualizadoEm = new Date().toISOString();
-    // Guarda o rascunho SEM o base64 das fotos (elas vão para o servidor ao
-    // finalizar) — senão estoura a memória do navegador. semFotos() está abaixo
-    // (declaração de função, içada). As fotos da sessão atual seguem em memória.
-    return EC.storage.salvar(chaveServico(estado.osNumero, estado.servicoIndice), semFotos(estado));
+    var chave = chaveServico(estado.osNumero, estado.servicoIndice);
+    // Rascunho COMPLETO (com fotos) no IndexedDB — aguenta o tamanho e permite
+    // continuar offline depois sem perder as fotos.
+    if (EC.db) EC.db.set('rascunhos', chave, estado).catch(function () { /* ok */ });
+    // Versão LEVE no localStorage (status na lista de serviços + restauração
+    // básica), SEM fotos, para não estourar a memória. semFotos() está abaixo.
+    return EC.storage.salvar(chave, semFotos(estado));
   }
 
   function servicoDetalhe(campo) {
@@ -342,13 +345,21 @@ EC.fluxo = (function () {
         '  <button type="button" class="botao botao-primario" id="sv-continuar">✏️ Continuar preenchimento</button>' +
         '  <button type="button" class="botao botao-secundario" id="sv-reiniciar">🔄 Reiniciar este serviço</button>' +
         '</div>');
-      $('sv-continuar').addEventListener('click', function () {
+      $('sv-continuar').addEventListener('click', async function () {
         EC.app.fecharOverlay();
-        abrirServico(os, indice, rascunho);
+        var completo = rascunho;
+        if (EC.db) {
+          try {
+            var full = await EC.db.get('rascunhos', chaveServico(os.numero, indice));
+            if (full) completo = full; // versão com as fotos
+          } catch (e) { /* usa o rascunho leve */ }
+        }
+        abrirServico(os, indice, completo);
       });
       $('sv-reiniciar').addEventListener('click', function () {
         EC.app.fecharOverlay();
         EC.storage.remover(chaveServico(os.numero, indice));
+        if (EC.db) EC.db.remove('rascunhos', chaveServico(os.numero, indice)).catch(function () {});
         abrirServico(os, indice, null);
       });
       return;
@@ -930,6 +941,7 @@ EC.fluxo = (function () {
     EC.storage.salvar('historico:' + registro.codificacao, semFotos(registro));
 
     EC.storage.remover(chaveServico(estado.osNumero, estado.servicoIndice)); // rascunho do serviço concluído
+    if (EC.db) EC.db.remove('rascunhos', chaveServico(estado.osNumero, estado.servicoIndice)).catch(function () {});
 
     $('finalizar-area').classList.add('oculto');
     const area = $('sucesso-area');

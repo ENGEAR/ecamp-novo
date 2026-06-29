@@ -222,13 +222,14 @@
   });
 
   /* ============ Barra de pendências offline ============ */
-  function atualizarBarraPendencias() {
+  async function atualizarBarraPendencias() {
     const barra = $('barra-pendencias');
     if (!sessaoAtual()) {
       barra.classList.add('oculto');
       return;
     }
-    const pendentes = EC.storage.listar('pending:').length;
+    let pendentes = 0;
+    try { pendentes = (await EC.db.keys('pending')).length; } catch (e) { /* ok */ }
     const semConexao = !navigator.onLine;
 
     if (semConexao || pendentes > 0) {
@@ -251,11 +252,12 @@
     mostrarToast('📡 Sem conexão — o app continua funcionando offline.');
   });
 
-  $('pendencias-ver').addEventListener('click', function () {
-    const itens = EC.storage.listar('pending:');
-    abrirOverlay('⏳ Pendentes de sincronização', itens.length === 0
-      ? '<p class="overlay-vazio">Nenhum registro pendente.<br>A fila e a sincronização real entram nas Fases 5 e 7.</p>'
-      : itens.map(function (item) { return '<div class="overlay-item">' + item.chave + '</div>'; }).join(''));
+  $('pendencias-ver').addEventListener('click', async function () {
+    let chaves = [];
+    try { chaves = await EC.db.keys('pending'); } catch (e) { /* ok */ }
+    abrirOverlay('⏳ Pendentes de sincronização', chaves.length === 0
+      ? '<p class="overlay-vazio">Nenhum registro pendente.</p>'
+      : chaves.map(function (c) { return '<div class="overlay-item">' + c + '</div>'; }).join(''));
   });
 
   $('pendencias-sincronizar').addEventListener('click', function () {

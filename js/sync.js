@@ -39,13 +39,14 @@ EC.sync = (function () {
   async function sincronizarRegistro(registro) {
     try {
       await enviar(registro);
-      EC.storage.remover('pending:' + registro.codificacao);
+      try { await EC.db.remove('pending', registro.codificacao); } catch (e) { /* ok */ }
       toast('✅ Enviado ao servidor.');
     } catch (e) {
       if (e.naoSuportado) {
         toast('ℹ️ Este tipo ainda não sincroniza com o servidor. Salvo no aparelho.');
       } else {
-        EC.storage.salvar('pending:' + registro.codificacao, registro);
+        // Offline/erro: guarda na fila (IndexedDB aguenta as fotos) p/ enviar depois.
+        try { await EC.db.set('pending', registro.codificacao, registro); } catch (e2) { /* ok */ }
         toast('📴 Sem conexão. Guardado para sincronizar depois.');
       }
     }
@@ -54,16 +55,18 @@ EC.sync = (function () {
 
   // Reenvia toda a fila pendente. silencioso=true não avisa quando não há nada.
   async function sincronizarPendentes(silencioso) {
-    var itens = EC.storage.listar('pending:');
-    if (!itens.length) { if (!silencioso) toast('Nada pendente para sincronizar.'); return; }
+    var registros = [];
+    try { registros = await EC.db.getAll('pending'); } catch (e) { /* ok */ }
+    if (!registros.length) { if (!silencioso) toast('Nada pendente para sincronizar.'); return; }
     var ok = 0, pendente = 0;
-    for (var i = 0; i < itens.length; i++) {
+    for (var i = 0; i < registros.length; i++) {
+      var r = registros[i];
       try {
-        await enviar(itens[i].valor);
-        EC.storage.remover(itens[i].chave);
+        await enviar(r);
+        try { await EC.db.remove('pending', r.codificacao); } catch (e) { /* ok */ }
         ok++;
       } catch (e) {
-        if (e.naoSuportado) { EC.storage.remover(itens[i].chave); }
+        if (e.naoSuportado) { try { await EC.db.remove('pending', r.codificacao); } catch (e2) { /* ok */ } }
         else { pendente++; }
       }
     }
