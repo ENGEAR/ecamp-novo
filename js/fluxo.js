@@ -927,6 +927,9 @@ EC.fluxo = (function () {
     // botão para voltar aos demais serviços da OS (só quando há vários)
     $('sucesso-servicos').classList.toggle('oculto', !multiServico);
 
+    // Envia para o servidor (SGP → Supabase + SharePoint). Se offline, enfileira.
+    if (EC.sync) EC.sync.sincronizarRegistro(registro);
+
     estado = null;
     if (EC.app.atualizarBarraPendencias) EC.app.atualizarBarraPendencias();
   }

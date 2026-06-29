@@ -259,7 +259,7 @@
   });
 
   $('pendencias-sincronizar').addEventListener('click', function () {
-    mostrarToast('A sincronização real com o SharePoint entra na Fase 7.');
+    if (EC.sync) EC.sync.sincronizarPendentes();
   });
 
   /* ============ Bancada de teste dos componentes (Fase 0) ============ */
