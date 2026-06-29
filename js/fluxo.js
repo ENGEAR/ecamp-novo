@@ -732,7 +732,7 @@ EC.fluxo = (function () {
       for (let i = 0; i < total; i++) {
         const p = campo.pontos[i] || {};
         const extra = estado.tipo === 'qar'
-          ? (p.qtdeColetas ? '🧪 ' + p.qtdeColetas + ' coleta(s)' : '🧪 —')
+          ? ('📷 ' + (p.fotoPonto ? '✓' : '—') + ' · 🧪 ' + (p.qtdeColetas ? p.qtdeColetas + ' coleta(s)' : '—'))
           : (p.fotoPonto ? '📷 ✓' : '📷 —');
         corpoCampo += linhaResumo('P' + (i + 1) + (p.nome ? ' — ' + p.nome : ''),
           (p.gps ? '📍GPS ✓' : '📍GPS —') + ' · ' + extra);

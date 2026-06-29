@@ -77,6 +77,23 @@ EC.campoQar = (function () {
     });
   }
 
+  function montarFoto(elemento, seletor, alvo, chave, rotulo, instanciaGps, numeroPonto) {
+    const div = elemento.querySelector(seletor);
+    if (!div) return;
+    EC.foto.criar(div, {
+      os: ctx.estado.os.numero,
+      tipo: TIPO_CARIMBO,
+      ponto: 'P' + String(numeroPonto).padStart(2, '0'),
+      rotulo: rotulo,
+      fotoInicial: alvo[chave] || null,
+      obterUtm: function () {
+        if (instanciaGps && instanciaGps.textoCarimbo()) return instanciaGps.textoCarimbo();
+        return (alvo.gps && alvo.gps.textoUtm) || '';
+      },
+      aoCapturar: function (foto) { alvo[chave] = foto; salvar(); }
+    });
+  }
+
   // Cronômetro de auxílio (não é salvo) — para cronometrar o teste de vazamento.
   function montarCronometro(div) {
     div.innerHTML =
@@ -124,7 +141,13 @@ EC.campoQar = (function () {
     pontoExibido = Math.min(pontoExibido, total);
     EC.paginacao.criar($('#cq-paginacao'), {
       total: total,
-      aoSair: function () { return true; },
+      aoSair: function (numero) {
+        if (!campo().pontos[numero - 1].fotoPonto) {
+          EC.app.mostrarToast('Tire a foto do ponto P' + numero + ' antes de sair.');
+          return false;
+        }
+        return true;
+      },
       aoMudar: function (n) { pontoExibido = n; renderizarPonto(n); }
     });
     renderizarPonto(pontoExibido);
@@ -178,6 +201,7 @@ EC.campoQar = (function () {
       equipSelecionados.map(function (c) { return '<option>' + c + '</option>'; }).join('') +
       '</select></label>' +
       '<div class="cq-gps"></div>' +
+      '<div class="cq-foto-ponto"></div>' +
       // Calibração
       '<p class="grupo-checks-titulo">🔧 Calibração</p>' +
       '<p class="cq-passo">1º passo — Aquecimento do motor</p>' + htmlChecks(['Motor aquecido'], 'aquec') +
@@ -205,7 +229,8 @@ EC.campoQar = (function () {
     area.innerHTML = html;
 
     vincular(area, ponto);
-    montarGps(area, ponto);
+    const gpsInstancia = montarGps(area, ponto);
+    montarFoto(area, '.cq-foto-ponto', ponto, 'fotoPonto', '📷 Foto do ponto (obrigatória)', gpsInstancia, n);
     area.querySelectorAll('.cq-crono').forEach(montarCronometro);
     renderColetas(area, ponto);
     area.querySelector('[data-campo="qtdeColetas"]').addEventListener('input', function () { renderColetas(area, ponto); });
@@ -231,6 +256,7 @@ EC.campoQar = (function () {
     reqVal('horaInicial', 'hora inicial');
     reqVal('tipoEquip', 'tipo de equipamento');
     if (!ponto.gps) falta.push('GPS');
+    if (!ponto.fotoPonto) falta.push('foto do ponto');
     grupoChecks('aquec', 1, 'aquecimento do motor');
     grupoChecks('zerar', 2, 'zerar manômetro');
     grupoChecks('vaz', 2, 'teste de vazamento');
