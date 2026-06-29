@@ -101,9 +101,6 @@ window.EC = window.EC || {};
     opacidade_opacimetro: [
       { categoria: 'Opacímetro', codigo: 'OPC 001', descricao: 'SMOKE CHECK | 2000 | 54.176', ultimaCal: '', proximaCal: '' },
       { categoria: 'Opacímetro', codigo: 'ENG SMOKE 1', descricao: 'ALTANOVA | CHECK 200 | 54.176', ultimaCal: '', proximaCal: '' },
-      { categoria: 'Cabo auxiliar', codigo: 'SMOKE-CABO', descricao: 'ALTANOVA | CHECK 200 | Cabo auxiliar', ultimaCal: '', proximaCal: '' },
-      { categoria: 'Carregador', codigo: 'SMOKE-CARREG', descricao: 'ALTANOVA | CHECK 200 | Carregador', ultimaCal: '', proximaCal: '' },
-      { categoria: 'Leitor óptico', codigo: 'SMOKE-LEITOR', descricao: 'ALTANOVA | CHECK 200 | Leitor óptico', ultimaCal: '', proximaCal: '' },
       { categoria: 'Tripé', codigo: 'SMOKE-TRIPE', descricao: 'ALTANOVA | CHECK 200 | Tripé', ultimaCal: '', proximaCal: '' }
     ]
   };
