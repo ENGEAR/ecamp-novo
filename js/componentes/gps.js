@@ -84,17 +84,35 @@ EC.gps = (function () {
   }
 
   /**
-   * Geocodificação reversa (lat/lon → endereço).
-   * *** MOCK da Fase 0: devolve um endereço de exemplo após pequena espera. ***
-   * Na Fase 7, trocar o corpo desta função pela chamada à rota /geocode do
-   * Cloudflare Worker — a assinatura (Promise<string>) permanece a mesma.
+   * Geocodificação reversa (lat/lon → endereço real) via OpenStreetMap/Nominatim.
+   * Monta "Rua, número — bairro — Cidade/UF — CEP". Precisa de internet; se
+   * falhar (offline/erro), devolve '' e o usuário digita à mão. Assinatura:
+   * Promise<string>.
    */
   function geocodificarReverso(lat, lon) {
-    return new Promise(function (resolver) {
-      setTimeout(function () {
-        resolver('Rua Exemplo, 123 — Bairro Modelo, Belo Horizonte/MG, 30000-000 (endereço de teste — Fase 7 liga o /geocode real)');
-      }, 400);
-    });
+    var url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18' +
+      '&addressdetails=1&accept-language=pt-BR&lat=' + encodeURIComponent(lat) +
+      '&lon=' + encodeURIComponent(lon);
+    return fetch(url, { headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!j) return '';
+        var a = j.address || {};
+        var rua = a.road || a.pedestrian || a.footway || a.path || a.cycleway || '';
+        var numero = a.house_number || '';
+        var bairro = a.suburb || a.neighbourhood || a.quarter || a.city_district || '';
+        var cidade = a.city || a.town || a.municipality || a.village || a.hamlet || '';
+        var uf = a['ISO3166-2-lvl4'] ? a['ISO3166-2-lvl4'].split('-').pop() : (a.state || '');
+        var cep = a.postcode || '';
+        var partes = [];
+        if (rua) partes.push(numero ? rua + ', ' + numero : rua);
+        if (bairro) partes.push(bairro);
+        if (cidade || uf) partes.push((cidade || '') + (uf ? '/' + uf : ''));
+        if (cep) partes.push(cep);
+        var texto = partes.filter(Boolean).join(' — ');
+        return texto || j.display_name || '';
+      })
+      .catch(function () { return ''; });
   }
 
   function criar(container, opcoes) {
