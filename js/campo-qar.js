@@ -166,7 +166,7 @@ EC.campoQar = (function () {
       '<label>Hora<input type="time" data-campo="hora_' + sufixo + '"></label>' +
       lblNum('Horímetro', 'horimetro_' + sufixo) +
       '<div class="grade-2">' + lblNum('Temperatura (°C)', 'temp_' + sufixo) + lblNum('Umidade (%)', 'umid_' + sufixo) + '</div>' +
-      lblNum('Pressão (kPa)', 'pressao_' + sufixo) +
+      lblNum('Pressão (mmHg)', 'pressao_' + sufixo) +
       '<p class="cq-sub">Coluna 800 mm (cmH₂O)</p><div class="grade-2">' +
       lblNum('↑ Para cima', 'col800sobe_' + sufixo) + lblNum('↓ Para baixo', 'col800desce_' + sufixo) + '</div>';
   }
@@ -215,7 +215,7 @@ EC.campoQar = (function () {
       '<div class="cq-crono" data-crono="400"></div>' +
       '<p class="cq-passo">4º passo — Porta filtro e porta motor</p>' + htmlChecks(['Nenhuma fuga de ar detectada'], 'porta') +
       '<p class="cq-passo">5º passo — Condições ambientais</p>' +
-      lblNum('Temperatura (°C)', 'temperatura') + lblNum('Pressão', 'pressao') + lblNum('Umidade (%)', 'umidade') +
+      lblNum('Temperatura (°C)', 'temperatura') + lblNum('Pressão (mmHg)', 'pressao') + lblNum('Umidade (%)', 'umidade') +
       '<p class="cq-passo">6º passo — Calibração (cartas)</p>' +
       CARTAS.map(function (c) { return '<p class="grupo-checks-titulo">Carta ' + c + '</p>' + htmlCarta('carta' + c); }).join('') +
       '<p class="grupo-checks-titulo">Leitura com filtro no lugar</p>' +

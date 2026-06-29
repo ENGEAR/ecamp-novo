@@ -159,7 +159,7 @@ EC.campoOpacidade = (function () {
     let html = '<div class="cartao-ponto"><h2>Veículo V' + n + '</h2>' +
       '<label>Placa / identificação do veículo<input type="text" data-campo="placa"></label>';
 
-    if (sub === 'ringelmann') html += '<label>Ano do veículo<input type="text" inputmode="numeric" data-campo="ano"></label>';
+    html += '<label>Ano do veículo<input type="text" inputmode="numeric" data-campo="ano"></label>';
 
     html += '<div class="co-gps"></div>' +
       '<label>Endereço completo (rua, número, cidade, estado)<input type="text" data-campo="endereco"></label>';

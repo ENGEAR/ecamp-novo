@@ -620,7 +620,8 @@ EC.campoRuido = (function () {
       area.innerHTML =
         '<div class="grade-2">' +
         '  <label>Condição das esquadrias<select data-campo="esquadrias"><option value="">Selecione…</option><option>Aberta</option><option>Fechada</option></select></label>' +
-        '  <label>Condição do ambiente<select data-campo="condicao"><option value="">Selecione…</option><option>Sala vazia</option><option>Com pessoas</option></select></label>' +
+        '  <label>Ocupação do ambiente<select data-campo="condicao"><option value="">Selecione…</option><option>Sala vazia</option><option>Com pessoas</option></select></label>' +
+        '  <label>Condição do ambiente<select data-campo="mobilia"><option value="">Selecione…</option><option>Vazio</option><option>Mobiliado</option></select></label>' +
         '</div>' +
         '<p class="texto-apoio">' + notaPessoas + '</p>' +
         '<label>Área do ambiente (m²)<input type="number" min="1" step="0.1" inputmode="decimal" data-campo="area"></label>' +
