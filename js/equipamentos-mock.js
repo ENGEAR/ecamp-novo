@@ -102,6 +102,23 @@ window.EC = window.EC || {};
       { categoria: 'Opacímetro', codigo: 'OPC 001', descricao: 'SMOKE CHECK | 2000 | 54.176', ultimaCal: '', proximaCal: '' },
       { categoria: 'Opacímetro', codigo: 'ENG SMOKE 1', descricao: 'ALTANOVA | CHECK 200 | 54.176', ultimaCal: '', proximaCal: '' },
       { categoria: 'Tripé', codigo: 'SMOKE-TRIPE', descricao: 'ALTANOVA | CHECK 200 | Tripé', ultimaCal: '', proximaCal: '' }
+    ],
+
+    // QAR Interno (MQAI) — só os principais (F021 matriz "Qualidade do ar
+    // interno", EM USO): bomba, medidor de CO₂ e tripés. A bomba e o medidor
+    // estão Vencidos no F021; aqui sem data p/ não travar a seleção (gestão).
+    qarint: [
+      { categoria: 'Bomba de amostragem', codigo: 'BOMB.AERIS 001', descricao: 'CRIFFER | AERIS-2 | 26000047', ultimaCal: '', proximaCal: '' },
+      { categoria: 'Medidor de CO₂', codigo: 'SEM-TEMP.UMD-01', descricao: 'AZ | CO277 | 10575136', ultimaCal: '', proximaCal: '' },
+      { categoria: 'Medidor de CO₂', codigo: 'SEN-CO2-01', descricao: 'AZ | CO277 | 10575136', ultimaCal: '', proximaCal: '' },
+      { categoria: 'Tripé', codigo: 'TRI 005', descricao: 'Criffer', ultimaCal: '', proximaCal: '' },
+      { categoria: 'Tripé', codigo: 'TRI 006', descricao: 'Criffer', ultimaCal: '', proximaCal: '' },
+      { categoria: 'Tripé', codigo: 'TRI 007', descricao: 'Criffer', ultimaCal: '', proximaCal: '' },
+      { categoria: 'Tripé', codigo: 'TRI 008', descricao: 'Criffer', ultimaCal: '', proximaCal: '' },
+      { categoria: 'Tripé', codigo: 'TRI 009', descricao: 'Criffer', ultimaCal: '', proximaCal: '' },
+      { categoria: 'Tripé', codigo: 'TRI 010', descricao: 'Criffer', ultimaCal: '', proximaCal: '' },
+      { categoria: 'Tripé', codigo: 'TRI 011', descricao: 'Criffer', ultimaCal: '', proximaCal: '' },
+      { categoria: 'Tripé', codigo: 'TRI 012', descricao: 'Criffer', ultimaCal: '', proximaCal: '' }
     ]
   };
 })();

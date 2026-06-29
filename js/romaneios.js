@@ -379,8 +379,67 @@ EC.romaneios = (function () {
           ]
         }]
       }
+    ],
+    qarint: [
+      {
+        titulo: '1. Antes de sair do laboratório',
+        grupos: [{
+          itens: [
+            'Ordem de Serviço (OS) avaliada',
+            'Quantidade de ambientes a serem avaliados confirmada (mínimo de 1 ponto externo)',
+            'Metragem aproximada (m²) de cada ambiente confirmada',
+            'Trajeto planejado, considerando chegada ao local com antecedência mínima de 1 hora',
+            'Acesso ao local confirmado com o cliente',
+            'EPIs disponíveis e em boas condições',
+            'Logística de transporte alinhada com o prazo de recebimento das amostras no laboratório'
+          ]
+        }]
+      },
+      {
+        titulo: '2. Equipamentos e insumos',
+        grupos: [
+          { subtitulo: 'Amostragem microbiológica', itens: ['Bomba de amostragem digital programável', 'Impactador com aceleração linear', 'Tripé(s)'] },
+          { subtitulo: 'Amostragem de particulados', itens: ['Separador inercial', 'Porta-filtros (excluindo os identificados como testemunhos)', 'Rotâmetro / medidor de vazão'] },
+          { subtitulo: 'Medições de conforto e qualidade do ar', itens: ['Medidor de CO₂', 'Medidor de particulados', 'Termohigroanemômetro', 'Cronômetro'] },
+          { subtitulo: 'Comunicação e energia', itens: ['Power Bank carregado', 'Celular carregado', 'Carregador do celular'] }
+        ]
+      },
+      {
+        titulo: '3. Materiais para coleta',
+        grupos: [
+          { subtitulo: 'Particulados', itens: ['Filtros para PM10', 'Filtros para PM2,5', 'Caixa de transporte para filtros identificada com risco biológico'] },
+          { subtitulo: 'Microbiologia', itens: ['Placas de Petri com meio de cultivo (1 unidade por ponto amostral)', '2 placas para branco de viagem (controle de qualidade)', '1 placa adicional para duplicata de campo (quando aplicável)'] },
+          { subtitulo: 'Transporte e conservação', itens: ['Caixa isotérmica higienizada', 'Gelo reciclável disponível', 'Verificado que o gelo não ficará em contato direto com as placas', 'Etiqueta de risco biológico afixada na caixa de transporte'] }
+        ]
+      },
+      {
+        titulo: '4. Verificações antes da saída',
+        grupos: [{
+          itens: [
+            'Equipamentos funcionando adequadamente',
+            'Baterias carregadas',
+            'Certificados de calibração disponíveis',
+            'Quantidade de placas compatível com o número de pontos amostrais',
+            'Quantidade de filtros compatível com o plano de amostragem',
+            'Caixa isotérmica limpa e preparada para transporte',
+            'Materiais de controle de qualidade disponíveis (branco de viagem e duplicata)'
+          ]
+        }]
+      },
+      {
+        titulo: '5. Verificação final',
+        grupos: [{
+          itens: [
+            'Equipamentos conferidos e acondicionados adequadamente para transporte',
+            'Amostras e materiais organizados conforme plano de amostragem',
+            'Documentação de campo disponível',
+            'Equipe alinhada quanto ao escopo do serviço',
+            'Horário de saída confirmado',
+            'Logística de retorno e entrega das amostras ao laboratório confirmada'
+          ]
+        }]
+      }
     ]
-    // qarint: Fase 4
   };
 
   // Um bloco é obrigatório se não é opcional OU se a OS é de longa duração e o
