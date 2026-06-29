@@ -224,7 +224,9 @@ EC.campoQarInterno = (function () {
       '<p class="grupo-checks-titulo">🌬️ Coleta de fungos (orientação)</p>' + htmlChecksSub(FUNGOS, 'fung') +
       '<p class="grupo-checks-titulo">📊 Medições</p>' + MEDICOES.map(function (m) { return lblNum(m[1], m[0]); }).join('') +
       htmlChecks(CHECKS_CONFORMIDADE, 'conf') +
-      '<p class="grupo-checks-titulo">🧫 Coleta de filtro (orientação)</p>' + htmlChecksSub(FILTRO, 'filt') +
+      '<p class="grupo-checks-titulo">🧫 Coleta de filtro (orientação)</p>' +
+      '<label>Nº do filtro<input type="text" data-campo="numFiltro"></label>' +
+      htmlChecksSub(FILTRO, 'filt') +
       '<p class="grupo-checks-titulo">🚚 Transporte das amostras (orientação)</p>' + htmlChecks(TRANSPORTE, 'transp') +
       '<p class="grupo-checks-titulo">📷 Fotos (obrigatórias)</p>' +
       '<div class="qi-foto-ponto"></div><div class="qi-foto-tela"></div><div class="qi-foto-amb"></div>' +
