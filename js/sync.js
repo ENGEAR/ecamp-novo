@@ -55,28 +55,45 @@ EC.sync = (function () {
 
   // Reenvia toda a fila pendente. silencioso=true não avisa quando não há nada.
   async function sincronizarPendentes(silencioso) {
-    var registros = [];
-    try { registros = await EC.db.getAll('pending'); } catch (e) { /* ok */ }
-    if (!registros.length) { if (!silencioso) toast('Nada pendente para sincronizar.'); return; }
-    var ok = 0, pendente = 0;
-    for (var i = 0; i < registros.length; i++) {
-      var r = registros[i];
+    // Itera pelas CHAVES (mesma fonte do contador da barra) e lê uma a uma —
+    // assim entradas ilegíveis/presas são detectadas e limpas (auto-cura).
+    var chaves = [];
+    try { chaves = await EC.db.keys('pending'); } catch (e) { /* ok */ }
+    if (!chaves.length) { if (!silencioso) toast('Nada pendente para sincronizar.'); return; }
+    var ok = 0, pendente = 0, limpos = 0;
+    for (var i = 0; i < chaves.length; i++) {
+      var chave = chaves[i];
+      var reg = null;
+      try { reg = await EC.db.get('pending', chave); } catch (e) { reg = null; }
+      if (!reg || !reg.codificacao || !reg.campo) {
+        // entrada inválida/ilegível → remove (fantasma travado)
+        try { await EC.db.remove('pending', chave); limpos++; } catch (e) { /* ok */ }
+        continue;
+      }
       try {
-        await enviar(r);
-        try { await EC.db.remove('pending', r.codificacao); } catch (e) { /* ok */ }
+        await enviar(reg); // servidor é idempotente: reenvio devolve "ok"
+        try { await EC.db.remove('pending', chave); } catch (e) { /* ok */ }
         ok++;
       } catch (e) {
-        if (e.naoSuportado) { try { await EC.db.remove('pending', r.codificacao); } catch (e2) { /* ok */ } }
+        if (e.naoSuportado) { try { await EC.db.remove('pending', chave); } catch (e2) { /* ok */ } }
         else { pendente++; }
       }
     }
-    if (!silencioso || ok) {
-      toast('Sincronização: ' + ok + ' enviado(s)' + (pendente ? ', ' + pendente + ' ainda pendente(s)' : '') + '.');
+    if (!silencioso || ok || limpos) {
+      toast('Sincronização: ' + ok + ' enviado(s)' +
+        (pendente ? ', ' + pendente + ' pendente(s)' : '') +
+        (limpos ? ', ' + limpos + ' limpo(s)' : '') + '.');
     }
     atualizarBarra();
   }
 
-  // Quando a conexão volta, tenta reenviar a fila em silêncio.
+  // Limpeza única: remove restos antigos da fila no localStorage (versões < 0.15
+  // guardavam 'pending:' lá; agora a fila vive no IndexedDB).
+  try {
+    EC.storage.listar('pending:').forEach(function (it) { EC.storage.remover(it.chave); });
+  } catch (e) { /* ok */ }
+
+  // Quando a conexão volta, tenta reenviar a fila em silêncio (e auto-limpa fantasmas).
   window.addEventListener('online', function () { sincronizarPendentes(true); });
 
   return {
