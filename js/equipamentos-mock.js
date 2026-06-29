@@ -79,6 +79,15 @@ window.EC = window.EC || {};
       // Microfones
       { categoria: 'Microfone', codigo: 'AQMI 005', descricao: 'ZTEX | S100 | 0123', ultimaCal: ULT, proximaCal: VENCENDO },
       { categoria: 'Microfone', codigo: 'AQMI 012', descricao: 'ZTEX | S100 | 0013', ultimaCal: isoEmDias(-405), proximaCal: VENCIDA }
+    ],
+
+    // QAR Externo — particulados. Os amostradores AGV não estão no F021 (lá há
+    // só os equipamentos de apoio); cadastrados à mão. A calibração relevante é
+    // a do passo de campo, então não têm data de calibração própria.
+    qar: [
+      { categoria: 'Amostrador AGV', codigo: 'AGV PTS', descricao: 'Amostrador de Grande Volume — PTS', ultimaCal: '', proximaCal: '' },
+      { categoria: 'Amostrador AGV', codigo: 'AGV MP10', descricao: 'Amostrador de Grande Volume — MP10', ultimaCal: '', proximaCal: '' },
+      { categoria: 'Amostrador AGV', codigo: 'AGV MP2,5', descricao: 'Amostrador de Grande Volume — MP2,5', ultimaCal: '', proximaCal: '' }
     ]
   };
 })();

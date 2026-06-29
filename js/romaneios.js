@@ -201,8 +201,82 @@ EC.romaneios = (function () {
           ]
         }]
       }
+    ],
+    qar: [
+      {
+        titulo: '1. Antes de sair do laboratório',
+        grupos: [{
+          itens: [
+            'Ordem de Serviço (OS) avaliada',
+            'Pontos amostrais previamente identificados por coordenadas',
+            'Trajeto planejado, considerando chegada ao local com antecedência mínima de 1 hora',
+            'Acesso ao local confirmado com o cliente',
+            'Local de instalação confirmado e com disponibilidade de energia elétrica (tomada)',
+            'EPIs disponíveis e em boas condições'
+          ]
+        }]
+      },
+      {
+        titulo: '2. Equipamentos e insumos',
+        grupos: [
+          {
+            subtitulo: 'Amostradores',
+            itens: ['Amostrador AGV PTS (limpo)', 'Amostrador AGV MP10 (limpo)', 'Amostrador AGV MP2,5 (limpo)']
+          },
+          {
+            subtitulo: 'Equipamentos de calibração',
+            itens: ['Maleta de calibração (PTV, manômetro de 400 mm, placas 18 / 13 / 10 / 9 / 8)']
+          },
+          {
+            subtitulo: 'Ferramentas e manutenção',
+            itens: [
+              'Maleta de ferramentas (multímetro, alicate, chave de fenda, fita isolante)',
+              'Motor reserva',
+              'Escova para limpeza do MP2,5',
+              'Pano de limpeza',
+              'Seringa',
+              'Líquido para completar manômetro'
+            ]
+          },
+          {
+            subtitulo: 'Instrumentos meteorológicos',
+            itens: ['Termohigrômetro', 'Barômetro de campo']
+          },
+          {
+            subtitulo: 'Materiais de amostragem',
+            itens: ['Filtros tarados com número de identificação', 'Filtros verificados (rasgos, descoloração, contaminação)']
+          },
+          {
+            subtitulo: 'Estrutura de instalação',
+            itens: ['Cavalete', 'Trena', 'Tomada reserva', 'Transformador', 'Cabo de extensão / fonte de alimentação (medidas verificadas)', 'Silicone']
+          },
+          {
+            subtitulo: 'Materiais de apoio',
+            itens: ['Luvas', 'Sacos plásticos', 'Pilhas']
+          },
+          {
+            subtitulo: 'Informática e comunicação',
+            itens: ['Notebook carregado', 'Carregador do notebook', 'Celular carregado', 'Carregador do celular', 'Power Bank carregado']
+          }
+        ]
+      },
+      {
+        titulo: '3. Verificação final',
+        grupos: [{
+          itens: [
+            'Equipamentos limpos e conferidos',
+            'Certificados de calibração disponíveis',
+            'Filtros conferidos e identificados',
+            'Ferramentas e insumos completos',
+            'Baterias e equipamentos eletrônicos carregados',
+            'Materiais acondicionados adequadamente para transporte',
+            'Equipe alinhada quanto ao escopo do serviço',
+            'Horário de saída confirmado'
+          ]
+        }]
+      }
     ]
-    // qar / opacidade / qarint: Fase 4
+    // opacidade / qarint: Fase 4
   };
 
   // Um bloco é obrigatório se não é opcional OU se a OS é de longa duração e o

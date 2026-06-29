@@ -269,6 +269,13 @@ textarea { resize: vertical; font-family: inherit; }
 .check-campo small { color: var(--cinza-texto); }
 .grupo-checks-titulo { font-weight: 700; color: var(--azul-escuro); font-size: 0.92rem; margin: 16px 0 6px; }
 .subgrupo-titulo { font-weight: 700; color: var(--texto); font-size: 0.9rem; margin: 10px 0 2px; }
+/* QAR — passos de calibração, sub-rótulos, cronômetro e cartão de coleta */
+.cq-passo { font-weight: 700; color: var(--azul-escuro); font-size: 0.9rem; margin: 14px 0 4px; }
+.cq-sub { color: var(--cinza-texto); font-size: 0.82rem; margin: 8px 0 2px; }
+.cq-cronometro { display: flex; align-items: center; gap: 8px; margin: 4px 0 8px; }
+.cq-disp { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 1.1rem; color: var(--azul-escuro); }
+.cartao-coleta { border: 1px solid var(--cinza-borda); border-radius: 12px; padding: 12px; margin: 10px 0; background: var(--cinza-fundo); }
+.cartao-coleta h3 { margin: 0 0 6px; font-size: 1rem; color: var(--azul-escuro); }
 .unidade { display: block; } /* unidade (°C / % / m/s) na linha de baixo do rótulo */
 
 /* Lembretes de calibração na seleção de equipamentos */
