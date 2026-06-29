@@ -221,6 +221,7 @@ EC.romaneios = (function () {
         grupos: [
           {
             subtitulo: 'Amostradores',
+            aoMenosUm: true,
             itens: ['Amostrador AGV PTS (limpo)', 'Amostrador AGV MP10 (limpo)', 'Amostrador AGV MP2,5 (limpo)']
           },
           {
@@ -285,25 +286,33 @@ EC.romaneios = (function () {
     return !bloco.opcional || ((opcoes || {}).longaDuracao && bloco.exigeLongaDuracao);
   }
 
-  // Chaves dos itens OBRIGATÓRIOS (considera o contexto de longa duração).
-  function chavesObrigatorias(tipo, opcoes) {
+  // Obrigações do romaneio (considera o contexto de longa duração). Um grupo
+  // normal gera UMA obrigação por item (todos precisam ser marcados); um grupo
+  // com `aoMenosUm: true` gera UMA obrigação satisfeita por qualquer item dele.
+  function obrigacoes(tipo, opcoes) {
     const blocos = dados[tipo];
-    const chaves = [];
-    if (!blocos) return chaves;
+    const lista = [];
+    if (!blocos) return lista;
     blocos.forEach(function (bloco, b) {
       if (!blocoObrigatorio(bloco, opcoes)) return;
       bloco.grupos.forEach(function (grupo, g) {
-        grupo.itens.forEach(function (item, i) {
-          chaves.push('b' + b + 'g' + g + 'i' + i);
-        });
+        const chaves = grupo.itens.map(function (item, i) { return 'b' + b + 'g' + g + 'i' + i; });
+        if (grupo.aoMenosUm) lista.push({ chaves: chaves });
+        else chaves.forEach(function (k) { lista.push({ chaves: [k] }); });
       });
     });
-    return chaves;
+    return lista;
+  }
+
+  // Uma obrigação está satisfeita se QUALQUER uma de suas chaves está marcada
+  // (para item único, equivale a "aquele item marcado").
+  function satisfeita(obrig, marcados) {
+    return obrig.chaves.some(function (k) { return marcados[k]; });
   }
 
   function pendentesObrigatorios(tipo, marcados, opcoes) {
     marcados = marcados || {};
-    return chavesObrigatorias(tipo, opcoes).filter(function (chave) { return !marcados[chave]; }).length;
+    return obrigacoes(tipo, opcoes).filter(function (o) { return !satisfeita(o, marcados); }).length;
   }
 
   function renderizar(container, tipo, marcados, aoMudar, opcoes) {
@@ -321,7 +330,7 @@ EC.romaneios = (function () {
       const selo = blocoObrigatorio(bloco, opcoes) ? '' : ' <span class="romaneio-opcional">(opcional)</span>';
       html += '<h2 class="romaneio-titulo">' + bloco.titulo + selo + '</h2>';
       bloco.grupos.forEach(function (grupo, g) {
-        if (grupo.subtitulo) html += '<p class="romaneio-subtitulo">' + grupo.subtitulo + '</p>';
+        if (grupo.subtitulo) html += '<p class="romaneio-subtitulo">' + grupo.subtitulo + (grupo.aoMenosUm ? ' <span class="romaneio-opcional">(marque ao menos um)</span>' : '') + '</p>';
         grupo.itens.forEach(function (item, i) {
           const chave = 'b' + b + 'g' + g + 'i' + i;
           total++;
@@ -334,16 +343,16 @@ EC.romaneios = (function () {
     container.innerHTML = html;
 
     const caixaResumo = container.querySelector('.romaneio-resumo');
-    const obrigatorias = chavesObrigatorias(tipo, opcoes);
+    const obrigs = obrigacoes(tipo, opcoes);
 
     function resumo() {
       let obrigMarcados = 0;
-      obrigatorias.forEach(function (chave) { if (marcados[chave]) obrigMarcados++; });
+      obrigs.forEach(function (o) { if (satisfeita(o, marcados)) obrigMarcados++; });
       return {
         total: total,
-        obrigatoriosTotal: obrigatorias.length,
+        obrigatoriosTotal: obrigs.length,
         obrigatoriosMarcados: obrigMarcados,
-        obrigatoriosPendentes: obrigatorias.length - obrigMarcados
+        obrigatoriosPendentes: obrigs.length - obrigMarcados
       };
     }
 
