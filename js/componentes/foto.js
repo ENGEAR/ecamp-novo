@@ -61,6 +61,16 @@ EC.foto = (function () {
     });
   }
 
+  // Abre a foto em tela cheia (para conferir). Toque/clique em qualquer lugar fecha.
+  function abrirLightbox(dataUrl) {
+    const ov = document.createElement('div');
+    ov.className = 'foto-lightbox';
+    ov.innerHTML = '<img src="' + dataUrl + '" alt="Foto ampliada">' +
+      '<button type="button" class="foto-lightbox-fechar" aria-label="Fechar">✕</button>';
+    ov.addEventListener('click', function () { ov.remove(); });
+    document.body.appendChild(ov);
+  }
+
   // Há pelo menos uma foto? Aceita array, foto única (rascunho antigo) ou vazio.
   function tem(valor) {
     if (!valor) return false;
@@ -106,6 +116,9 @@ EC.foto = (function () {
           fotos.splice(parseInt(b.dataset.i, 10), 1);
           renderGaleria(); atualizarBotao(); notificar();
         });
+      });
+      galeria.querySelectorAll('.foto-item img').forEach(function (img, i) {
+        img.addEventListener('click', function () { abrirLightbox(fotos[i].dataUrl); });
       });
     }
 
