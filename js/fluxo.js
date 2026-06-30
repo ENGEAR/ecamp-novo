@@ -120,6 +120,13 @@ EC.fluxo = (function () {
     return Object.keys(set).length;
   }
 
+  // Id estável do rascunho deste serviço (o servidor usa para unir salvar/finalizar
+  // e para permitir continuar em outro aparelho).
+  function gerarRascunhoId() {
+    if (window.crypto && crypto.randomUUID) return 'rasc-' + crypto.randomUUID();
+    return 'rasc-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+  }
+
   function novoEstadoServico(os, indice) {
     const agora = new Date();
     const servico = os.servicos[indice];
@@ -127,6 +134,7 @@ EC.fluxo = (function () {
       osNumero: os.numero,
       servicoIndice: indice,
       servicoId: servicoId(os.numero, indice),
+      rascunhoId: gerarRascunhoId(),
       os: {
         numero: os.numero,
         codigo: codigoOs(os.numero),
@@ -896,6 +904,7 @@ EC.fluxo = (function () {
     }
     return {
       codificacao: 'OS_' + estado.os.numero + '_' + tipoTexto + '_' + carimboDataHora(agora),
+      rascunhoId: estado.rascunhoId,
       servicoId: estado.servicoId,
       os: estado.os,
       servico: estado.servico,
@@ -964,7 +973,15 @@ EC.fluxo = (function () {
 
   function aoSalvarRascunho() {
     if (estado && telaExibida === 'tela-dados-gerais') coletarDadosGerais();
-    return salvarEstado();
+    const ok = salvarEstado(); // salva localmente (continuar no mesmo aparelho)
+    // Também envia ao servidor como INCOMPLETO (aparece na planilha; continuar
+    // em outro aparelho). Best-effort — se faltar dado ou internet, fica só local.
+    if (estado && EC.sync && EC.sync.sincronizarRascunho) {
+      const registro = montarRegistro();
+      registro.finalizar = false;
+      EC.sync.sincronizarRascunho(registro);
+    }
+    return ok;
   }
 
   function montarNavegacao(idTela, opcoesExtras) {

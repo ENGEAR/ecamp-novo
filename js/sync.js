@@ -106,6 +106,22 @@ EC.sync = (function () {
     atualizarBarra();
   }
 
+  // Salva o rascunho no servidor (status Incompleto). Reusa o envio em 2 etapas
+  // (dados + fotos). Best-effort: se faltar dado/internet, fica só no aparelho.
+  async function sincronizarRascunho(registro) {
+    try {
+      await enviar(registro); // registro vem com finalizar:false + rascunhoId
+      toast('✅ Rascunho salvo no servidor (Incompleto).');
+    } catch (e) {
+      if (e.naoSuportado) {
+        toast('💾 Rascunho salvo no aparelho (ainda faltam dados para o servidor).');
+      } else {
+        toast('💾 Rascunho salvo no aparelho (sem internet para o servidor agora).');
+      }
+    }
+    atualizarBarra();
+  }
+
   // Reenvia toda a fila pendente. silencioso=true não avisa quando não há nada.
   async function sincronizarPendentes(silencioso) {
     // Itera pelas CHAVES (mesma fonte do contador da barra) e lê uma a uma —
@@ -152,6 +168,7 @@ EC.sync = (function () {
   return {
     enviar: enviar,
     sincronizarRegistro: sincronizarRegistro,
+    sincronizarRascunho: sincronizarRascunho,
     sincronizarPendentes: sincronizarPendentes
   };
 })();
