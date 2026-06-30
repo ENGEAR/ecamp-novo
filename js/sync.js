@@ -63,20 +63,27 @@ EC.sync = (function () {
   //   2) cada FOTO separada → /foto (uma de cada vez).
   // Idempotente: reenviar devolve o mapeamento dos pontos e as fotos repetidas
   // são ignoradas no servidor. Lança erro em falha (err.naoSuportado=true se 422).
+  var FOTOS_EM_PARALELO = 4; // quantas fotos sobem ao mesmo tempo
+
   async function enviar(registro) {
     var resp = await postJson(ROTA_REGISTRO, semFotos(registro));
     var pontos = resp.pontos || [];
     var pontosCampo = (registro.campo && registro.campo.pontos) || [];
+
+    // monta a lista de todas as fotos a enviar (com o ponto de destino)
+    var tarefas = [];
     for (var i = 0; i < pontos.length; i++) {
+      var pid = pontos[i].ponto_id;
       var fotos = fotosDoPonto(pontosCampo[i]);
       for (var j = 0; j < fotos.length; j++) {
-        await postJson(ROTA_FOTO, {
-          ponto_id: pontos[i].ponto_id,
-          tipo: fotos[j].tipo,
-          nomeArquivo: fotos[j].nomeArquivo,
-          base64: fotos[j].base64
-        });
+        tarefas.push({ ponto_id: pid, tipo: fotos[j].tipo, nomeArquivo: fotos[j].nomeArquivo, base64: fotos[j].base64 });
       }
+    }
+
+    // envia em lotes paralelos (mais rápido em monitoramentos grandes)
+    for (var k = 0; k < tarefas.length; k += FOTOS_EM_PARALELO) {
+      var lote = tarefas.slice(k, k + FOTOS_EM_PARALELO);
+      await Promise.all(lote.map(function (t) { return postJson(ROTA_FOTO, t); }));
     }
     return resp;
   }
