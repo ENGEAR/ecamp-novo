@@ -362,6 +362,15 @@ EC.campoRuido = (function () {
     const longaDuracao = /longa\s*dura/i.test((s.metodo || '') + ' ' + (s.periodo || ''));
     const lista = [];
     geralChecksFaltando(campo).forEach(function (x) { lista.push(x); });
+    // Variação no nº de pontos vs. previsto na OS → exige justificativa.
+    if (campo.subtipo === 'externo') {
+      const previsto = (estado.dadosGerais || {}).qtdePontos;
+      if (previsto != null && previsto !== '' &&
+          String(campo.geral.qtdePontos) !== String(previsto) &&
+          !String(campo.geral.justificativaPontos || '').trim()) {
+        lista.push('justificativa da variação no número de pontos');
+      }
+    }
     for (let i = 0; i < total; i++) {
       itensFaltandoDoPonto(campo.pontos[i], campo.subtipo, i, total, campo.geral, longaDuracao).forEach(function (x) {
         lista.push('P' + (i + 1) + ': ' + x);
@@ -602,14 +611,42 @@ EC.campoRuido = (function () {
     if (!campo().subtipo) { area.innerHTML = ''; return; }
 
     if (campo().subtipo === 'externo') {
+      const previstoPontos = ctx.estado.dadosGerais.qtdePontos;
       area.innerHTML =
         '<label>Finalidade do monitoramento<select data-campo="finalidade">' +
         '<option value="">Selecione…</option><option>Laudo PBH</option><option>Obra</option><option>Background</option><option>Operações</option><option>Outros</option>' +
         '</select></label>' +
-        '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>';
-      if (g.qtdePontos === undefined) g.qtdePontos = ctx.estado.dadosGerais.qtdePontos;
+        '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>' +
+        (previstoPontos != null && previstoPontos !== '' ? '<p class="texto-apoio">Previsto na OS: ' + previstoPontos + ' ponto(s).</p>' : '') +
+        '<div id="cr-just-pontos"></div>';
+      if (g.qtdePontos === undefined) g.qtdePontos = previstoPontos;
       vincular(area, g);
-      area.querySelector('[data-campo="qtdePontos"]').addEventListener('input', renderizarPontos);
+
+      // Justificativa obrigatória quando a qtd de pontos difere da prevista na OS.
+      function atualizarJustPontos() {
+        const div = area.querySelector('#cr-just-pontos');
+        if (!div) return;
+        const difere = previstoPontos != null && previstoPontos !== '' &&
+          String(g.qtdePontos) !== String(previstoPontos);
+        if (difere) {
+          if (!div.dataset.montado) {
+            div.innerHTML = '<label>Justificativa da variação de pontos (obrigatória)' +
+              '<textarea rows="2" data-campo="justificativaPontos" placeholder="Por que o número de pontos mudou em relação ao previsto na OS?"></textarea></label>';
+            vincular(div, g);
+            div.dataset.montado = '1';
+          }
+        } else {
+          div.innerHTML = '';
+          div.dataset.montado = '';
+          delete g.justificativaPontos;
+        }
+      }
+      atualizarJustPontos();
+
+      area.querySelector('[data-campo="qtdePontos"]').addEventListener('input', function () {
+        renderizarPontos();
+        atualizarJustPontos();
+      });
       renderizarPontos();
 
     } else if (ehInterno(campo().subtipo)) {
