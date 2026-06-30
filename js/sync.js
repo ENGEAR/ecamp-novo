@@ -12,18 +12,20 @@ window.EC = window.EC || {};
 EC.sync = (function () {
   'use strict';
 
-  var ROTA = 'https://engear-sgp.vercel.app/api/monitoramento/registro';
+  var BASE = 'https://engear-sgp.vercel.app/api/monitoramento';
+  var ROTA_REGISTRO = BASE + '/registro';
+  var ROTA_FOTO = BASE + '/foto';
   var TOKEN = 'f8b17592b0130d95047d37865a14b31570c6381509ccc066';
 
   function toast(msg) { if (EC.app && EC.app.mostrarToast) EC.app.mostrarToast(msg); }
   function atualizarBarra() { if (EC.app && EC.app.atualizarBarraPendencias) EC.app.atualizarBarraPendencias(); }
 
-  // Envia um registro ao servidor. Lança erro em falha (err.naoSuportado=true se 422).
-  async function enviar(registro) {
-    var resposta = await fetch(ROTA, {
+  // POST JSON com o token. Lança erro em falha (err.naoSuportado=true se 422).
+  async function postJson(url, dados) {
+    var resposta = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-ecamp-token': TOKEN },
-      body: JSON.stringify(registro)
+      body: JSON.stringify(dados)
     });
     var corpo = {};
     try { corpo = await resposta.json(); } catch (e) { /* corpo vazio */ }
@@ -33,6 +35,50 @@ EC.sync = (function () {
       throw err;
     }
     return corpo;
+  }
+
+  // Cópia do registro SEM o base64/dataUrl das fotos (envio leve dos dados).
+  function semFotos(obj) {
+    return JSON.parse(JSON.stringify(obj, function (k, v) {
+      return (k === 'base64' || k === 'dataUrl') ? undefined : v;
+    }));
+  }
+
+  // Coleta as fotos de um ponto: qualquer campo que seja array (ou objeto) com base64.
+  function fotosDoPonto(ponto) {
+    var out = [];
+    if (!ponto) return out;
+    Object.keys(ponto).forEach(function (k) {
+      var v = ponto[k];
+      var lista = Array.isArray(v) ? v : (v && v.base64 ? [v] : []);
+      lista.forEach(function (f) {
+        if (f && f.base64 && f.nomeArquivo) out.push({ tipo: k, nomeArquivo: f.nomeArquivo, base64: f.base64 });
+      });
+    });
+    return out;
+  }
+
+  // Envia o registro em duas etapas (evita o limite de tamanho da Vercel):
+  //   1) os DADOS (leves, sem fotos) → /registro; o servidor devolve os pontos;
+  //   2) cada FOTO separada → /foto (uma de cada vez).
+  // Idempotente: reenviar devolve o mapeamento dos pontos e as fotos repetidas
+  // são ignoradas no servidor. Lança erro em falha (err.naoSuportado=true se 422).
+  async function enviar(registro) {
+    var resp = await postJson(ROTA_REGISTRO, semFotos(registro));
+    var pontos = resp.pontos || [];
+    var pontosCampo = (registro.campo && registro.campo.pontos) || [];
+    for (var i = 0; i < pontos.length; i++) {
+      var fotos = fotosDoPonto(pontosCampo[i]);
+      for (var j = 0; j < fotos.length; j++) {
+        await postJson(ROTA_FOTO, {
+          ponto_id: pontos[i].ponto_id,
+          tipo: fotos[j].tipo,
+          nomeArquivo: fotos[j].nomeArquivo,
+          base64: fotos[j].base64
+        });
+      }
+    }
+    return resp;
   }
 
   // Sincroniza UM registro (chamado logo após salvar). Em falha de rede, enfileira.
