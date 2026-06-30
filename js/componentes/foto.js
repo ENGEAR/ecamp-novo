@@ -36,6 +36,12 @@ EC.foto = (function () {
       + '_' + doisDigitos(data.getHours()) + doisDigitos(data.getMinutes()) + doisDigitos(data.getSeconds());
   }
 
+  // Data/hora legível para o carimbo: DD/MM/AAAA HH:MM:SS.
+  function dataHoraBR(data) {
+    return doisDigitos(data.getDate()) + '/' + doisDigitos(data.getMonth() + 1) + '/' + data.getFullYear()
+      + ' ' + doisDigitos(data.getHours()) + ':' + doisDigitos(data.getMinutes()) + ':' + doisDigitos(data.getSeconds());
+  }
+
   function desenharCarimbo(ctx, largura, altura, linhas) {
     const tamanhoFonte = Math.max(14, Math.round(largura * 0.024));
     ctx.font = 'bold ' + tamanhoFonte + 'px Arial, sans-serif';
@@ -144,14 +150,15 @@ EC.foto = (function () {
           ctx.drawImage(imagem, 0, 0, largura, altura);
 
           const textoUtm = (typeof opcoes.obterUtm === 'function' && opcoes.obterUtm()) || 'UTM não capturado';
+          const agora = new Date();
           desenharCarimbo(ctx, largura, altura, [
             'UTM ' + textoUtm,
             'OS ' + (opcoes.os || '—'),
             (opcoes.tipo || '—'),
-            'Ponto ' + (opcoes.ponto || '—')
+            'Ponto ' + (opcoes.ponto || '—'),
+            dataHoraBR(agora)
           ]);
 
-          const agora = new Date();
           const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
           fotos.push({
             nomeArquivo: 'OS_' + (opcoes.os || 'SEM-OS') + '_' + (opcoes.tipo || 'SEM-TIPO') + '_'
