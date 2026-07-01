@@ -59,6 +59,11 @@ EC.os = (function () {
     EC.storage.salvar(CH_RECENTES, atual.slice(0, MAX_RECENTES));
   }
 
+  // Tira uma OS dos "recentes" (ex.: ao descartar um serviço aberto por engano).
+  function esquecerRecente(numero) {
+    EC.storage.salvar(CH_RECENTES, recentes().filter(function (n) { return n !== numero; }));
+  }
+
   // Normaliza para busca: minúsculas, sem acento.
   function normalizar(t) {
     return (t || '').toString().toLowerCase()
@@ -107,6 +112,7 @@ EC.os = (function () {
     andamento: andamento,
     recentes: recentes,
     marcarRecente: marcarRecente,
+    esquecerRecente: esquecerRecente,
     buscar: buscar,
     osPorNumero: osPorNumero
   };

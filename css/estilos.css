@@ -191,6 +191,7 @@ textarea { resize: vertical; font-family: inherit; }
 
 .botao-primario { background: var(--azul-escuro); color: #fff; }
 .botao-secundario { background: var(--azul-claro); color: var(--azul-escuro); border: 1px solid var(--cinza-borda); }
+.botao-perigo { background: var(--vermelho-claro); color: #8f1f1f; border: 1px solid var(--vermelho); }
 .botao-largo { width: 100%; margin-top: 6px; }
 .botao-mini { padding: 5px 10px; font-size: 0.82rem; background: var(--azul-escuro); color: #fff; }
 

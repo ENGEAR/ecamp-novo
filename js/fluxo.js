@@ -168,12 +168,17 @@ EC.fluxo = (function () {
       preCampo: {},
       campo: null,
       passoAtual: 'tela-dados-gerais',
+      iniciado: false, // vira true ao avançar da 1ª tela ou salvar rascunho
       atualizadoEm: agora.toISOString()
     };
   }
 
   function salvarEstado() {
     if (!estado) return false;
+    // Só marca a OS como "em andamento" (grava rascunho) DEPOIS que o técnico
+    // realmente começa: avançar da 1ª tela ou tocar em "Salvar rascunho" liga
+    // `estado.iniciado`. Assim, abrir uma OS por engano e voltar NÃO deixa rastro.
+    if (!estado.iniciado) return false;
     estado.atualizadoEm = new Date().toISOString();
     var chave = chaveServico(estado.osNumero, estado.servicoIndice);
     // Rascunho COMPLETO (com fotos) no IndexedDB — aguenta o tamanho e permite
@@ -192,7 +197,12 @@ EC.fluxo = (function () {
 
   function irPara(idTela) {
     if (estado && telaExibida === 'tela-dados-gerais') coletarDadosGerais();
-    if (estado) { estado.passoAtual = idTela; salvarEstado(); }
+    if (estado) {
+      estado.passoAtual = idTela;
+      // Sair da 1ª tela para qualquer outra = o técnico começou de fato.
+      if (idTela !== 'tela-dados-gerais') estado.iniciado = true;
+      salvarEstado();
+    }
 
     if (idTela === 'tela-dados-gerais') preencherDadosGerais();
     if (idTela === 'tela-tipo') renderizarTipos();
@@ -424,6 +434,7 @@ EC.fluxo = (function () {
         '<div class="pilha-botoes">' +
         '  <button type="button" class="botao botao-primario" id="sv-continuar">✏️ Continuar preenchimento</button>' +
         '  <button type="button" class="botao botao-secundario" id="sv-reiniciar">🔄 Reiniciar este serviço</button>' +
+        '  <button type="button" class="botao botao-perigo" id="sv-descartar">🗑️ Descartar (não vou fazer)</button>' +
         '</div>');
       $('sv-continuar').addEventListener('click', async function () {
         EC.app.fecharOverlay();
@@ -441,6 +452,11 @@ EC.fluxo = (function () {
         EC.storage.remover(chaveServico(os.numero, indice));
         if (EC.db) EC.db.remove('rascunhos', chaveServico(os.numero, indice)).catch(function () {});
         abrirServico(os, indice, null);
+      });
+      $('sv-descartar').addEventListener('click', function () {
+        if (!confirm('Descartar este serviço? Isso apaga o que foi preenchido nele e ele sai de "em andamento". Não dá para desfazer.')) return;
+        EC.app.fecharOverlay();
+        descartarServico(os, indice, rascunho);
       });
       return;
     }
@@ -465,9 +481,43 @@ EC.fluxo = (function () {
     abrirServico(os, indice, null);
   }
 
+  // Descarta um serviço aberto por engano: apaga o rascunho local, tira dos
+  // "recentes" e, se já tinha ido pro servidor como Incompleto, apaga lá também.
+  // Depois volta e atualiza a lista para a OS sair de "em andamento".
+  function descartarServico(os, indice, rascunho) {
+    const chave = chaveServico(os.numero, indice);
+    EC.storage.remover(chave);
+    if (EC.db) EC.db.remove('rascunhos', chave).catch(function () { /* ok */ });
+    if (EC.os && EC.os.esquecerRecente) EC.os.esquecerRecente(os.numero);
+
+    const rid = rascunho && rascunho.rascunhoId;
+    if (rid && EC.sync && EC.sync.descartarRascunho) {
+      EC.sync.descartarRascunho(rid).then(function () {
+        // servidor atualizado → recarrega a lista compartilhada de "em andamento"
+        if (EC.os && EC.os.carregar) EC.os.carregar(function () {
+          const input = $('os-busca');
+          if (input && !input.value.trim() && !$('tela-os').classList.contains('oculto')) pintarOs('');
+        });
+      });
+    }
+
+    EC.app.mostrarToast('🗑️ Serviço descartado.');
+    estado = null;
+    telaExibida = null;
+    if (os.servicos.length > 1) {
+      renderizarServicos(os);
+      EC.app.mostrarTela('tela-servicos-os');
+    } else {
+      renderizarListaOs();
+      EC.app.mostrarTela('tela-os');
+    }
+  }
+
   function abrirServico(os, indice, rascunhoExistente) {
     telaExibida = null; // entrando em serviço novo: não coletar da tela anterior
     estado = rascunhoExistente || novoEstadoServico(os, indice);
+    // Rascunho que já existia = já foi iniciado antes (mantém salvando ao navegar).
+    if (rascunhoExistente) estado.iniciado = true;
     // reidrata os dados de referência da OS/serviço (reflete a OS atual e
     // preenche campos novos em rascunhos antigos)
     const fresh = novoEstadoServico(os, indice);
@@ -1045,6 +1095,7 @@ EC.fluxo = (function () {
 
   function aoSalvarRascunho() {
     if (estado && telaExibida === 'tela-dados-gerais') coletarDadosGerais();
+    if (estado) estado.iniciado = true; // salvar rascunho conta como iniciar
     const ok = salvarEstado(); // salva localmente (continuar no mesmo aparelho)
     // Também envia ao servidor como INCOMPLETO (aparece na planilha; continuar
     // em outro aparelho). Best-effort — se faltar dado ou internet, fica só local.

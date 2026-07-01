@@ -15,6 +15,7 @@ EC.sync = (function () {
   var BASE = 'https://engear-sgp.vercel.app/api/monitoramento';
   var ROTA_REGISTRO = BASE + '/registro';
   var ROTA_FOTO = BASE + '/foto';
+  var ROTA_DESCARTAR = BASE + '/descartar';
   var TOKEN = 'f8b17592b0130d95047d37865a14b31570c6381509ccc066';
 
   function toast(msg) { if (EC.app && EC.app.mostrarToast) EC.app.mostrarToast(msg); }
@@ -122,6 +123,19 @@ EC.sync = (function () {
     atualizarBarra();
   }
 
+  // Descarta o rascunho no servidor (quando a OS foi aberta por engano). Apaga o
+  // monitoramento Incompleto pelo rascunhoId — some da lista compartilhada e da
+  // planilha. Best-effort: se não houver internet, o descarte local já basta e
+  // o registro do servidor (se existir) cai depois, quando alguém reabrir.
+  async function descartarRascunho(rascunhoId) {
+    if (!rascunhoId) return;
+    try {
+      await postJson(ROTA_DESCARTAR, { rascunhoId: rascunhoId });
+    } catch (e) {
+      // sem internet/erro: o descarte local já aconteceu; não trava o técnico
+    }
+  }
+
   // Reenvia toda a fila pendente. silencioso=true não avisa quando não há nada.
   async function sincronizarPendentes(silencioso) {
     // Itera pelas CHAVES (mesma fonte do contador da barra) e lê uma a uma —
@@ -169,6 +183,7 @@ EC.sync = (function () {
     enviar: enviar,
     sincronizarRegistro: sincronizarRegistro,
     sincronizarRascunho: sincronizarRascunho,
+    descartarRascunho: descartarRascunho,
     sincronizarPendentes: sincronizarPendentes
   };
 })();
