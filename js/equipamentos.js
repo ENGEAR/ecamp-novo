@@ -6,13 +6,13 @@
  * por variante (ruido, sismo, qarint, opacidade_ringelmann, opacidade_opacimetro),
  * com última/próxima calibração para o app bloquear os vencidos.
  *
- * QAR Externo (particulados): os amostradores AGV NÃO estão no SGP — ficam fixos
- * no app (EC.equipamentosMock.qar). Por isso `porVariante('qar')` sempre usa o mock.
+ * QAR Externo (particulados): agora TAMBÉM vem do SGP (Amostrador de Grande Volume
+ * + Separador Inercial). O mock EC.equipamentosMock.qar fica só como reserva offline.
  *
  * Interface (EC.equip):
  *   carregar(aoAtualizar) → devolve o cache já; busca o fresco e chama aoAtualizar.
- *   porVariante(chave)    → array de equipamentos daquela variante (SGP ou, offline
- *                           / qar, o mock EC.equipamentosMock).
+ *   porVariante(chave)    → array de equipamentos daquela variante (SGP; ou o mock
+ *                           EC.equipamentosMock como reserva no 1º uso sem internet).
  */
 window.EC = window.EC || {};
 
@@ -29,8 +29,6 @@ EC.equip = (function () {
   }
 
   function porVariante(chave) {
-    // QAR Externo fica sempre no app (amostradores AGV não estão no SGP).
-    if (chave === 'qar') return mock('qar');
     var cache = EC.storage.ler(CH_LISTA);
     if (cache && cache[chave] && cache[chave].length) return cache[chave];
     return mock(chave); // 1º uso sem internet: cai nos exemplos
