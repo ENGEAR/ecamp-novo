@@ -76,9 +76,20 @@
     <!-- ======= Fluxo de serviços — Escolha da OS ======= -->
     <section id="tela-os" class="tela oculto">
       <div class="cartao">
-        <h1>📋 Escolha da OS</h1>
-        <p class="texto-apoio">Lista de exemplo (mockada) — a lista real virá do SGE.</p>
-        <div id="lista-os"></div>
+        <h1>📋 Escolha a OS</h1>
+        <input type="text" id="os-busca" placeholder="🔎 Buscar por número ou cliente" autocomplete="off">
+        <div id="os-andamento-bloco" class="os-bloco oculto">
+          <p class="os-secao-titulo">▶️ Em andamento</p>
+          <div id="os-andamento"></div>
+        </div>
+        <div id="os-recentes-bloco" class="os-bloco oculto">
+          <p class="os-secao-titulo">🕘 Recentes</p>
+          <div id="os-recentes"></div>
+        </div>
+        <div class="os-bloco">
+          <p class="os-secao-titulo" id="os-todas-titulo">Todas as OS</p>
+          <div id="lista-os"></div>
+        </div>
         <button type="button" class="botao botao-secundario" id="os-voltar">← Voltar</button>
       </div>
     </section>
@@ -342,6 +353,7 @@
   <script src="js/sync.js"></script>
   <script src="js/esquemas.js"></script>
   <script src="js/dados-os-mock.js"></script>
+  <script src="js/os.js"></script>
   <script src="js/mapa-escopo.js"></script>
   <script src="js/componentes/gps.js"></script>
   <script src="js/componentes/foto.js"></script>

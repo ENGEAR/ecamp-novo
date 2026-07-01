@@ -237,34 +237,106 @@ EC.fluxo = (function () {
     return { total: os.servicos.length, concluidos: concluidos, andamento: andamento };
   }
 
-  function renderizarListaOs() {
-    const lista = $('lista-os');
-    lista.innerHTML = EC.osMock.map(function (os, i) {
-      const r = resumoServicosOs(os);
-      let badge = '';
-      if (r.concluidos === r.total) badge = ' <span class="os-andamento status-concluido">✅ concluída</span>';
-      else if (r.andamento > 0 || r.concluidos > 0) badge = ' <span class="os-andamento">⏸️ em andamento</span>';
-      const linhaServicos = r.total > 1
-        ? '<span class="os-resumo">' + r.total + ' serviços' + (r.concluidos ? ' · ' + r.concluidos + ' concluído(s)' : '') + '</span>'
-        : '';
-      return (
-        '<button type="button" class="os-item" data-indice="' + i + '">' +
-        '  <span class="os-numero">OS ' + os.numero + badge + '</span>' +
-        '  <span class="os-cliente">' + os.cliente + '</span>' +
-        '  <span class="os-resumo">' + os.resumo + '</span>' +
-        linhaServicos +
-        '</button>'
-      );
-    }).join('');
+  // HTML de um cartão de OS (usado nas três seções). Carrega o número da OS no
+  // dataset para localizar o objeto no clique (sem depender de índice de array).
+  function cartaoOs(os) {
+    const r = resumoServicosOs(os);
+    let badge = '';
+    if (r.total && r.concluidos === r.total) badge = ' <span class="os-andamento status-concluido">✅ concluída</span>';
+    else if (r.andamento > 0 || r.concluidos > 0) badge = ' <span class="os-andamento">⏸️ em andamento</span>';
+    const linhaServicos = r.total > 1
+      ? '<span class="os-resumo">' + r.total + ' serviços' + (r.concluidos ? ' · ' + r.concluidos + ' concluído(s)' : '') + '</span>'
+      : '';
+    return (
+      '<button type="button" class="os-item" data-numero="' + os.numero + '">' +
+      '  <span class="os-numero">OS ' + os.numero + badge + '</span>' +
+      '  <span class="os-cliente">' + os.cliente + '</span>' +
+      (os.resumo ? '  <span class="os-resumo">' + os.resumo + '</span>' : '') +
+      linhaServicos +
+      '</button>'
+    );
+  }
 
-    lista.querySelectorAll('.os-item').forEach(function (item) {
+  function ligarCliquesOs(container) {
+    container.querySelectorAll('.os-item[data-numero]').forEach(function (item) {
       item.addEventListener('click', function () {
-        selecionarOs(EC.osMock[parseInt(item.dataset.indice, 10)]);
+        const os = EC.os.osPorNumero(item.dataset.numero);
+        if (os) selecionarOs(os);
       });
     });
   }
 
+  // Pinta a tela de OS: com termo de busca, mostra só os resultados; sem termo,
+  // mostra "Em andamento" (do servidor, compartilhada) + "Recentes" (deste
+  // aparelho) + "Todas as OS".
+  function pintarOs(termo) {
+    termo = termo || '';
+    const blocoAnd = $('os-andamento-bloco');
+    const blocoRec = $('os-recentes-bloco');
+    const tituloTodas = $('os-todas-titulo');
+    const listaTodas = $('lista-os');
+
+    if (termo.trim()) {
+      if (blocoAnd) blocoAnd.classList.add('oculto');
+      if (blocoRec) blocoRec.classList.add('oculto');
+      const resultados = EC.os.buscar(termo);
+      if (tituloTodas) tituloTodas.textContent = resultados.length + ' resultado(s)';
+      listaTodas.innerHTML = resultados.length
+        ? resultados.map(cartaoOs).join('')
+        : '<p class="texto-apoio">Nenhuma OS encontrada.</p>';
+      ligarCliquesOs(listaTodas);
+      return;
+    }
+
+    const todas = EC.os.lista();
+    const numsAndamento = EC.os.andamento();
+    const numsRecentes = EC.os.recentes();
+
+    // Em andamento (as que começaram o serviço no servidor)
+    const emAndamento = todas.filter(function (os) { return numsAndamento.indexOf(os.numero) !== -1; });
+    if (blocoAnd) {
+      if (emAndamento.length) {
+        $('os-andamento').innerHTML = emAndamento.map(cartaoOs).join('');
+        ligarCliquesOs($('os-andamento'));
+        blocoAnd.classList.remove('oculto');
+      } else { blocoAnd.classList.add('oculto'); }
+    }
+
+    // Recentes (deste aparelho), na ordem de recência, sem repetir as em andamento
+    const recentes = [];
+    numsRecentes.forEach(function (n) {
+      const os = EC.os.osPorNumero(n);
+      if (os && numsAndamento.indexOf(n) === -1) recentes.push(os);
+    });
+    if (blocoRec) {
+      if (recentes.length) {
+        $('os-recentes').innerHTML = recentes.map(cartaoOs).join('');
+        ligarCliquesOs($('os-recentes'));
+        blocoRec.classList.remove('oculto');
+      } else { blocoRec.classList.add('oculto'); }
+    }
+
+    // Todas
+    if (tituloTodas) tituloTodas.textContent = 'Todas as OS (' + todas.length + ')';
+    listaTodas.innerHTML = todas.length
+      ? todas.map(cartaoOs).join('')
+      : '<p class="texto-apoio">Nenhuma OS disponível. Conecte à internet para baixar as OS.</p>';
+    ligarCliquesOs(listaTodas);
+  }
+
+  let buscaLigada = false;
+  function renderizarListaOs() {
+    const input = $('os-busca');
+    if (input && !buscaLigada) {
+      buscaLigada = true;
+      input.addEventListener('input', function () { pintarOs(input.value); });
+    }
+    if (input) input.value = '';
+    pintarOs('');
+  }
+
   function selecionarOs(os) {
+    if (EC.os && EC.os.marcarRecente) EC.os.marcarRecente(os.numero);
     osAtual = os;
     multiServico = os.servicos.length > 1;
     if (multiServico) {
@@ -1086,6 +1158,14 @@ EC.fluxo = (function () {
     if (!telasIniciadas) { telasIniciadas = true; inicializarTelas(); }
     renderizarListaOs();
     EC.app.mostrarTela('tela-os');
+    // Atualiza a lista com o servidor em segundo plano; repinta se ainda estiver
+    // na tela de OS e sem busca ativa (não atrapalha quem já está digitando).
+    if (EC.os && EC.os.carregar) {
+      EC.os.carregar(function () {
+        const input = $('os-busca');
+        if (input && !input.value.trim() && !$('tela-os').classList.contains('oculto')) pintarOs('');
+      });
+    }
   }
 
   return { iniciar: iniciar };

@@ -336,6 +336,16 @@ textarea { resize: vertical; font-family: inherit; }
 .rotulo-apoio { font-weight: 400; color: var(--cinza-texto); font-size: 0.82rem; }
 .dg-secao { font-size: 0.95rem; font-weight: 700; color: var(--azul-escuro); border-bottom: 1px solid var(--cinza-borda); padding-bottom: 4px; margin: 20px 0 10px; }
 
+#os-busca { margin-bottom: 14px; }
+.os-bloco { margin-bottom: 6px; }
+.os-secao-titulo {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--cinza-texto);
+  margin: 4px 0 8px;
+}
 .os-item {
   display: flex;
   flex-direction: column;
