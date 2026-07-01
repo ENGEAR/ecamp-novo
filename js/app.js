@@ -18,8 +18,27 @@
   const SENHA_APP = 'campo26*';
   const CHAVE_SESSAO = 'sessao:atual';
   const CHAVE_SENHA_SALVA = 'sessao:senhaSalva';
+  // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
+  const VERSAO_APP = '0.19.1';
 
   function $(id) { return document.getElementById(id); }
+
+  /* ============ Versão no rodapé ============ */
+  // Mostra a versão REAL: lê o nome do cache ativo do service worker (ecamp-vX.Y.Z).
+  // Assim dá para conferir no celular se está na última versão. Se o app estiver
+  // preso numa versão antiga, aparece a versão antiga aqui — o que já denuncia.
+  function mostrarVersao() {
+    const rodape = $('rodape');
+    if (!rodape) return;
+    const base = 'eCamp — Software desenvolvido pela ENGEAR Laboratório Ltda · versão ';
+    rodape.textContent = base + VERSAO_APP;
+    if ('caches' in window) {
+      caches.keys().then(function (nomes) {
+        const cache = nomes.filter(function (n) { return n.indexOf('ecamp-v') === 0; })[0];
+        if (cache) rodape.textContent = base + cache.replace('ecamp-v', '');
+      }).catch(function () { /* mantém o fallback */ });
+    }
+  }
 
   /* ============ Service worker (PWA) ============ */
   if ('serviceWorker' in navigator) {
@@ -323,6 +342,7 @@
   };
 
   /* ============ Inicialização ============ */
+  mostrarVersao();
   if (sessaoAtual()) {
     entrarNoApp();
   } else {
