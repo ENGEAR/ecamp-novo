@@ -138,6 +138,7 @@ EC.fluxo = (function () {
       os: {
         numero: os.numero,
         codigo: codigoOs(os.numero),
+        projeto: os.projeto || '',
         emitidoPor: os.emitidoPor || '',
         dataEmissao: os.dataEmissao || '',
         cliente: os.cliente,
@@ -537,6 +538,7 @@ EC.fluxo = (function () {
     // Ordem de serviço
     $('dg-os').value = o.numero;
     $('dg-codigo').value = traco(o.codigo);
+    $('dg-projeto').value = traco(o.projeto);
     $('dg-emitido').value = traco(o.emitidoPor);
     $('dg-dataEmissao').value = o.dataEmissao ? formatarDataBR(o.dataEmissao) : '—';
     // Cliente
