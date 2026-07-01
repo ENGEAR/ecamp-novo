@@ -647,7 +647,7 @@ EC.fluxo = (function () {
 
   function renderizarEquipamentos() {
     const area = $('equipamentos-conteudo');
-    const lista = EC.equipamentosMock[chaveVariante()];
+    const lista = EC.equip.porVariante(chaveVariante());
 
     if (!lista) {
       if (estado.tipo === 'outro') {
@@ -737,7 +737,7 @@ EC.fluxo = (function () {
   // Toda categoria exige ao menos um, EXCETO Estação Meteorológica, que só é
   // obrigatória em longa duração.
   function categoriasEquipFaltando() {
-    const lista = EC.equipamentosMock[chaveVariante()];
+    const lista = EC.equip.porVariante(chaveVariante());
     if (!lista) return []; // tipos sem lista (Fase 6) não validam aqui
     const categorias = [];
     lista.forEach(function (e) { if (categorias.indexOf(e.categoria) === -1) categorias.push(e.categoria); });
@@ -1217,6 +1217,8 @@ EC.fluxo = (function () {
         if (input && !input.value.trim() && !$('tela-os').classList.contains('oculto')) pintarOs('');
       });
     }
+    // Já vai buscando os equipamentos do SGP (usados na tela de equipamentos).
+    if (EC.equip && EC.equip.carregar) EC.equip.carregar();
   }
 
   return { iniciar: iniciar };
