@@ -78,20 +78,22 @@ EC.foto = (function () {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
     ctx.fillRect(x, y, caixaLargura, caixaAltura);
 
-    let yTexto = y + margemInterna * 0.6;
-    if (logoH) {
-      // fundo branco atrás da logo: partes escuras (ex.: "ENGEAR") sumiriam no preto.
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-      ctx.fillRect(x + margemInterna * 0.4, y + margemInterna * 0.4, logoW + margemInterna * 1.2, logoH + margemInterna * 0.5);
-      try { ctx.drawImage(logoCarimbo, x + margemInterna, y + margemInterna * 0.6, logoW, logoH); } catch (e) { /* ok */ }
-      yTexto += logoH + margemInterna * 0.6;
-    }
-
+    // Texto no topo do carimbo.
     ctx.fillStyle = '#ffffff';
     ctx.textBaseline = 'top';
     linhas.forEach(function (linha, i) {
-      ctx.fillText(linha, x + margemInterna, yTexto + i * alturaLinha);
+      ctx.fillText(linha, x + margemInterna, y + margemInterna * 0.6 + i * alturaLinha);
     });
+
+    // Logo no CANTO INFERIOR DIREITO do carimbo (abaixo do texto, alinhada à
+    // direita), com fundo branco para as partes escuras da logo aparecerem.
+    if (logoH) {
+      const logoY = y + margemInterna * 0.6 + alturaLinha * linhas.length + margemInterna * 0.3;
+      const logoX = x + caixaLargura - logoW - margemInterna;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.fillRect(logoX - margemInterna * 0.35, logoY - margemInterna * 0.2, logoW + margemInterna * 0.7, logoH + margemInterna * 0.4);
+      try { ctx.drawImage(logoCarimbo, logoX, logoY, logoW, logoH); } catch (e) { /* ok */ }
+    }
   }
 
   // Abre a foto em tela cheia (para conferir). Toque/clique em qualquer lugar fecha.
