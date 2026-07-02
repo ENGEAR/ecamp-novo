@@ -80,6 +80,9 @@ EC.foto = (function () {
 
     let yTexto = y + margemInterna * 0.6;
     if (logoH) {
+      // fundo branco atrás da logo: partes escuras (ex.: "ENGEAR") sumiriam no preto.
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.fillRect(x + margemInterna * 0.4, y + margemInterna * 0.4, logoW + margemInterna * 1.2, logoH + margemInterna * 0.5);
       try { ctx.drawImage(logoCarimbo, x + margemInterna, y + margemInterna * 0.6, logoW, logoH); } catch (e) { /* ok */ }
       yTexto += logoH + margemInterna * 0.6;
     }

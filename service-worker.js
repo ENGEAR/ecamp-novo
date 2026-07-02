@@ -8,7 +8,7 @@
  * Todos os caminhos são RELATIVOS, para funcionar no GitHub Pages
  * (https://usuario.github.io/repositorio/) sem ajuste.
  */
-const VERSAO_CACHE = 'ecamp-v0.26.0';
+const VERSAO_CACHE = 'ecamp-v0.26.1';
 
 const ARQUIVOS_APP = [
   './',
@@ -44,6 +44,7 @@ const ARQUIVOS_APP = [
   './js/componentes/checagens.js',
   './js/componentes/canvas-sala.js',
   './public/logo-recortada.png',
+  './public/engear-logo.png',
   './public/icone-192.png',
   './public/icone-512.png'
 ];
