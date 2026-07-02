@@ -68,18 +68,21 @@ EC.sync = (function () {
 
   async function enviar(registro) {
     var resp = await postJson(ROTA_REGISTRO, semFotos(registro));
-    var pontos = resp.pontos || [];
+    var pontos = resp.pontos || []; // [{ordem, janela, ponto_id}, ...]
     var pontosCampo = (registro.campo && registro.campo.pontos) || [];
 
-    // monta a lista de todas as fotos a enviar (com o ponto de destino)
+    // Monta a lista de fotos a enviar. O servidor devolve uma entrada por
+    // (ponto × janela); para cada uma, pego as fotos da janela correspondente
+    // (estrutura nova: pc.total/pc.residual; antiga: o próprio ponto, flat).
     var tarefas = [];
-    for (var i = 0; i < pontos.length; i++) {
-      var pid = pontos[i].ponto_id;
-      var fotos = fotosDoPonto(pontosCampo[i]);
-      for (var j = 0; j < fotos.length; j++) {
-        tarefas.push({ ponto_id: pid, tipo: fotos[j].tipo, nomeArquivo: fotos[j].nomeArquivo, base64: fotos[j].base64 });
-      }
-    }
+    pontos.forEach(function (pr) {
+      var pc = pontosCampo[(pr.ordem || 1) - 1];
+      if (!pc) return;
+      var alvo = (pr.janela && pc[pr.janela] && typeof pc[pr.janela] === 'object') ? pc[pr.janela] : pc;
+      fotosDoPonto(alvo).forEach(function (f) {
+        tarefas.push({ ponto_id: pr.ponto_id, tipo: f.tipo, nomeArquivo: f.nomeArquivo, base64: f.base64 });
+      });
+    });
 
     // envia em lotes paralelos (mais rápido em monitoramentos grandes)
     for (var k = 0; k < tarefas.length; k += FOTOS_EM_PARALELO) {

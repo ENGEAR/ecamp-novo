@@ -200,30 +200,45 @@ EC.pdfRuido = (function () {
       kv('Equipamentos (serviço)', (reg.equipamentos && reg.equipamentos.length) ? reg.equipamentos.join(', ') : '—');
 
       /* ---------- Pontos ---------- */
+      // Campos de UMA janela (Total/Residual) do ponto.
+      function janelaComDados(j) {
+        return !!(j && (j.nome || j.horaInicial || j.gps || j.chkIniValor || j.chkFimValor ||
+          j.temperatura || j.observacoes || (j.fotoTelaIni && j.fotoTelaIni.length)));
+      }
+      function medicao(j) {
+        kv('Nome / identificação', j.nome);
+        kv('Hora inicial', j.horaInicial);
+        kv('Hora de término', j.horaTermino);
+        kv('UTM', gpsTexto(j));
+        kv('Endereço (GPS)', (j.gps && j.gps.endereco) || '—');
+        kv('Checagem inicial', checagemTexto(j.chkIniSinal, j.chkIniValor));
+        kv('Checagem final', checagemTexto(j.chkFimSinal, j.chkFimValor));
+        var dif = diferencaChecagens(j); if (dif) kv('Diferença entre checagens', dif);
+        kv('Temperatura', j.temperatura != null && j.temperatura !== '' ? j.temperatura + ' °C' : '—');
+        kv('Umidade', j.umidade != null && j.umidade !== '' ? j.umidade + ' %' : '—');
+        kv('Vento', j.vento != null && j.vento !== '' ? j.vento + ' m/s' : '—');
+        kv('Fontes percebidas da EMPRESA', j.fontesEmpresa);
+        kv('Fontes percebidas do AMBIENTE', j.fontesAmbiente);
+        kv('Observações', j.observacoes);
+        subtitulo('Fotos');
+        fotosDe(j.fotoTelaIni, 'Tela — checagem inicial');
+        fotosDe(j.fotoPonto, 'Ponto');
+        fotosDe(j.fotoTelaFim, 'Tela — checagem final');
+      }
+
       var pontos = (reg.campo && reg.campo.pontos) || [];
       var total = Math.min(pontos.length, Math.max(1, parseInt(geral.qtdePontos, 10) || pontos.length));
       for (var i = 0; i < total; i++) {
         var p = pontos[i] || {};
-        tituloSecao('Ponto P' + String(i + 1).padStart(2, '0') + (p.nome ? ' — ' + p.nome : ''));
-        kv('Nome / identificação', p.nome);
+        tituloSecao('Ponto P' + String(i + 1).padStart(2, '0'));
         kv('Equipamentos do ponto', (p.equipamentos && p.equipamentos.length) ? p.equipamentos.join(', ') : '—');
-        kv('Hora inicial', p.horaInicial);
-        kv('Hora de término', p.horaTermino);
-        kv('UTM', gpsTexto(p));
-        kv('Endereço (GPS)', (p.gps && p.gps.endereco) || '—');
-        kv('Checagem inicial', checagemTexto(p.chkIniSinal, p.chkIniValor));
-        kv('Checagem final', checagemTexto(p.chkFimSinal, p.chkFimValor));
-        var dif = diferencaChecagens(p); if (dif) kv('Diferença entre checagens', dif);
-        kv('Temperatura', p.temperatura != null && p.temperatura !== '' ? p.temperatura + ' °C' : '—');
-        kv('Umidade', p.umidade != null && p.umidade !== '' ? p.umidade + ' %' : '—');
-        kv('Vento', p.vento != null && p.vento !== '' ? p.vento + ' m/s' : '—');
-        kv('Fontes percebidas da EMPRESA', p.fontesEmpresa);
-        kv('Fontes percebidas do AMBIENTE', p.fontesAmbiente);
-        kv('Observações', p.observacoes);
-        subtitulo('Fotos');
-        fotosDe(p.fotoTelaIni, 'Tela — checagem inicial');
-        fotosDe(p.fotoPonto, 'Ponto');
-        fotosDe(p.fotoTelaFim, 'Tela — checagem final');
+        var temJanelas = p.total && typeof p.total === 'object';
+        if (!temJanelas) { medicao(p); continue; } // rascunho antigo (flat)
+        subtitulo('🔊 Total (com a fonte)');
+        medicao(p.total || {});
+        subtitulo('🔇 Residual (sem a fonte)');
+        if (janelaComDados(p.residual)) medicao(p.residual);
+        else kv('Residual não medido', p.justificativaResidual || '—');
       }
 
       /* ---------- Rodapé em todas as páginas ---------- */
