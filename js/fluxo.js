@@ -49,6 +49,7 @@ EC.fluxo = (function () {
   let osAtual = null;      // objeto da OS em trabalho
   let multiServico = false;
   let telaExibida = null;
+  let ultimoRegistroPdf = null; // registro recém-finalizado (COM fotos) p/ gerar o PDF
 
   function $(id) { return document.getElementById(id); }
   function doisDigitos(n) { return n < 10 ? '0' + n : '' + n; }
@@ -1091,6 +1092,11 @@ EC.fluxo = (function () {
     // botão para voltar aos demais serviços da OS (só quando há vários)
     $('sucesso-servicos').classList.toggle('oculto', !multiServico);
 
+    // guarda o registro COMPLETO (com fotos) para gerar o PDF; o botão só aparece
+    // nos escopos que já sabemos gerar (Ruído Externo, o modelo).
+    ultimoRegistroPdf = registro;
+    $('sucesso-pdf').classList.toggle('oculto', !(EC.pdfRuido && EC.pdfRuido.suporta(registro)));
+
     estado = null;
     if (EC.app.atualizarBarraPendencias) EC.app.atualizarBarraPendencias();
   }
@@ -1203,7 +1209,16 @@ EC.fluxo = (function () {
       EC.app.mostrarTela('tela-servicos-os');
     });
     $('sucesso-pdf').addEventListener('click', function () {
-      EC.app.mostrarToast('A geração de PDF entra na Fase 3.');
+      if (!ultimoRegistroPdf || !EC.pdfRuido || !EC.pdfRuido.suporta(ultimoRegistroPdf)) {
+        EC.app.mostrarToast('PDF disponível para Ruído Externo (os demais escopos entram depois).');
+        return;
+      }
+      const btn = $('sucesso-pdf');
+      const rotulo = btn.textContent;
+      btn.disabled = true; btn.textContent = '⏳ Gerando PDF…';
+      Promise.resolve(EC.pdfRuido.gerar(ultimoRegistroPdf))
+        .catch(function () { EC.app.mostrarToast('Não consegui gerar o PDF.'); })
+        .then(function () { btn.disabled = false; btn.textContent = rotulo; });
     });
   }
 
