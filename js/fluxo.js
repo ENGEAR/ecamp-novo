@@ -876,6 +876,7 @@ EC.fluxo = (function () {
     html += secaoRevisao('📄 Dados gerais',
       linhaResumo('Nº da OS', estado.os.numero) +
       linhaResumo('Código', estado.os.codigo) +
+      linhaResumo('Nome do projeto', estado.os.projeto) +
       linhaResumo('Cliente', estado.os.cliente) +
       linhaResumo('CNPJ / CPF', estado.os.cnpjCpf) +
       linhaResumo('Endereço', estado.os.endereco) +
