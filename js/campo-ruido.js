@@ -547,6 +547,7 @@ EC.campoRuido = (function () {
     if (!div) return;
     EC.foto.criar(div, {
       os: ctx.estado.os.numero,
+      projeto: ctx.estado.os.projeto,
       tipo: TIPOS_CARIMBO[campo().subtipo],
       ponto: 'P' + String(numeroPonto).padStart(2, '0') + (sufixoJanela ? ' ' + sufixoJanela : ''),
       rotulo: rotulo,

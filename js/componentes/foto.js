@@ -42,6 +42,16 @@ EC.foto = (function () {
       + ' ' + doisDigitos(data.getHours()) + ':' + doisDigitos(data.getMinutes()) + ':' + doisDigitos(data.getSeconds());
   }
 
+  // Logo da ENGEAR desenhada no carimbo. Usa public/engear-logo.png; se não
+  // existir, cai no logo-recortada.png (que já vem no app). Pré-carregada uma vez.
+  const logoCarimbo = new Image();
+  let logoCarimboOk = false;
+  logoCarimbo.onload = function () { logoCarimboOk = true; };
+  logoCarimbo.onerror = function () {
+    if (logoCarimbo.src.indexOf('engear-logo') !== -1) logoCarimbo.src = 'public/logo-recortada.png';
+  };
+  logoCarimbo.src = 'public/engear-logo.png';
+
   function desenharCarimbo(ctx, largura, altura, linhas) {
     const tamanhoFonte = Math.max(14, Math.round(largura * 0.024));
     ctx.font = 'bold ' + tamanhoFonte + 'px Arial, sans-serif';
@@ -52,18 +62,32 @@ EC.foto = (function () {
     let larguraTexto = 0;
     linhas.forEach(function (linha) { larguraTexto = Math.max(larguraTexto, ctx.measureText(linha).width); });
 
-    const caixaLargura = larguraTexto + margemInterna * 2;
-    const caixaAltura = alturaLinha * linhas.length + margemInterna;
+    // Dimensões da logo (se estiver pronta), no topo do carimbo.
+    let logoH = 0, logoW = 0;
+    if (logoCarimboOk && logoCarimbo.naturalWidth) {
+      logoH = Math.round(tamanhoFonte * 2.4);
+      logoW = Math.round(logoCarimbo.naturalWidth * (logoH / logoCarimbo.naturalHeight));
+    }
+
+    const conteudoLargura = Math.max(larguraTexto, logoW);
+    const caixaLargura = conteudoLargura + margemInterna * 2;
+    const caixaAltura = alturaLinha * linhas.length + margemInterna + (logoH ? logoH + margemInterna * 0.6 : 0);
     const x = largura - caixaLargura - margemBorda;
     const y = altura - caixaAltura - margemBorda;
 
     ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
     ctx.fillRect(x, y, caixaLargura, caixaAltura);
 
+    let yTexto = y + margemInterna * 0.6;
+    if (logoH) {
+      try { ctx.drawImage(logoCarimbo, x + margemInterna, y + margemInterna * 0.6, logoW, logoH); } catch (e) { /* ok */ }
+      yTexto += logoH + margemInterna * 0.6;
+    }
+
     ctx.fillStyle = '#ffffff';
     ctx.textBaseline = 'top';
     linhas.forEach(function (linha, i) {
-      ctx.fillText(linha, x + margemInterna, y + margemInterna * 0.6 + i * alturaLinha);
+      ctx.fillText(linha, x + margemInterna, yTexto + i * alturaLinha);
     });
   }
 
@@ -151,13 +175,14 @@ EC.foto = (function () {
 
           const textoUtm = (typeof opcoes.obterUtm === 'function' && opcoes.obterUtm()) || 'UTM não capturado';
           const agora = new Date();
-          desenharCarimbo(ctx, largura, altura, [
-            'UTM ' + textoUtm,
-            'OS ' + (opcoes.os || '—'),
-            (opcoes.tipo || '—'),
-            'Ponto ' + (opcoes.ponto || '—'),
-            dataHoraBR(agora)
-          ]);
+          const linhasCarimbo = [];
+          linhasCarimbo.push('OS ' + (opcoes.os || '—'));
+          if (opcoes.projeto) linhasCarimbo.push('Projeto: ' + opcoes.projeto);
+          linhasCarimbo.push('UTM ' + textoUtm);
+          linhasCarimbo.push(opcoes.tipo || '—');
+          linhasCarimbo.push('Ponto ' + (opcoes.ponto || '—'));
+          linhasCarimbo.push(dataHoraBR(agora));
+          desenharCarimbo(ctx, largura, altura, linhasCarimbo);
 
           const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
           fotos.push({

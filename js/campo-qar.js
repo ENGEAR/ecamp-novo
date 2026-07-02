@@ -82,6 +82,7 @@ EC.campoQar = (function () {
     if (!div) return;
     EC.foto.criar(div, {
       os: ctx.estado.os.numero,
+      projeto: ctx.estado.os.projeto,
       tipo: TIPO_CARIMBO,
       ponto: 'P' + String(numeroPonto).padStart(2, '0'),
       rotulo: rotulo,

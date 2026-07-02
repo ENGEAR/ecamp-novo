@@ -40,7 +40,7 @@ EC.campoOutro = (function () {
     const div = elemento.querySelector(seletor);
     if (!div) return;
     EC.foto.criar(div, {
-      os: ctx.estado.os.numero, tipo: TIPO_CARIMBO + etiqueta, ponto: 'P' + String(numeroPonto).padStart(2, '0'),
+      os: ctx.estado.os.numero, projeto: ctx.estado.os.projeto, tipo: TIPO_CARIMBO + etiqueta, ponto: 'P' + String(numeroPonto).padStart(2, '0'),
       rotulo: rotulo, fotoInicial: alvo[chave] || null,
       obterUtm: function () { if (gps && gps.textoCarimbo()) return gps.textoCarimbo(); return (alvo.gps && alvo.gps.textoUtm) || ''; },
       aoCapturar: function (f) { alvo[chave] = f; salvar(); }

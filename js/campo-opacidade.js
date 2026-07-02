@@ -94,6 +94,7 @@ EC.campoOpacidade = (function () {
     if (!div) return;
     EC.foto.criar(div, {
       os: ctx.estado.os.numero,
+      projeto: ctx.estado.os.projeto,
       tipo: tipoCarimbo(),
       ponto: 'V' + String(numeroVeiculo).padStart(2, '0'),
       rotulo: '📷 Foto / evidência do veículo (obrigatória)',
