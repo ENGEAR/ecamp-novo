@@ -262,6 +262,7 @@ EC.fluxo = (function () {
       '<button type="button" class="os-item" data-numero="' + os.numero + '">' +
       '  <span class="os-numero">OS ' + os.numero + badge + '</span>' +
       '  <span class="os-cliente">' + os.cliente + '</span>' +
+      (os.projeto ? '  <span class="os-projeto">📁 ' + os.projeto + '</span>' : '') +
       (os.resumo ? '  <span class="os-resumo">' + os.resumo + '</span>' : '') +
       linhaServicos +
       '</button>'
