@@ -19,7 +19,7 @@
   const CHAVE_SESSAO = 'sessao:atual';
   const CHAVE_SENHA_SALVA = 'sessao:senhaSalva';
   // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
-  const VERSAO_APP = '0.21.0';
+  const VERSAO_APP = '0.22.0';
 
   function $(id) { return document.getElementById(id); }
 
@@ -179,8 +179,7 @@
     EC.fluxo.iniciar();
   });
   $('btn-reembolso').addEventListener('click', function () {
-    $('fase2-titulo').textContent = '💰 Solicitação de reembolso';
-    mostrarTela('tela-fase2');
+    EC.reembolso.abrir();
   });
   $('btn-agenda-acao').addEventListener('click', function () {
     $('fase2-titulo').textContent = '📅 Agenda';

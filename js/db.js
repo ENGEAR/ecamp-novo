@@ -3,8 +3,9 @@
  *
  * O localStorage é pequeno (~5 MB) e estoura com fotos em base64. O IndexedDB
  * guarda centenas de MB e funciona 100% offline. Usado para:
- *   • 'pending'   — fila de registros (com fotos) esperando enviar ao servidor;
- *   • 'rascunhos' — rascunhos completos (com fotos) para continuar depois.
+ *   • 'pending'          — fila de registros (com fotos) esperando enviar ao servidor;
+ *   • 'rascunhos'        — rascunhos completos (com fotos) para continuar depois;
+ *   • 'pendingReembolso' — fila de pedidos de reembolso (com fotos) esperando enviar.
  *
  * API (todas devolvem Promise):
  *   EC.db.set(loja, chave, valor) · EC.db.get(loja, chave)
@@ -17,8 +18,8 @@ EC.db = (function () {
   'use strict';
 
   var NOME = 'ecamp';
-  var VERSAO = 1;
-  var LOJAS = ['pending', 'rascunhos'];
+  var VERSAO = 2; // v2: + loja 'pendingReembolso'
+  var LOJAS = ['pending', 'rascunhos', 'pendingReembolso'];
   var bancoP = null;
 
   function abrir() {

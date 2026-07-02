@@ -66,7 +66,7 @@
         <h1>O que você vai fazer?</h1>
         <div class="pilha-botoes">
           <button type="button" class="botao botao-acao" id="btn-servicos">🛠️ Serviços</button>
-          <button type="button" class="botao botao-acao botao-acao-fase2" id="btn-reembolso">💰 Solicitação de reembolso<span class="selo-fase">Fase 2</span></button>
+          <button type="button" class="botao botao-acao" id="btn-reembolso">💰 Solicitação de reembolso</button>
           <button type="button" class="botao botao-acao botao-acao-fase2" id="btn-agenda-acao">📅 Agenda<span class="selo-fase">Fase 2</span></button>
         </div>
         <button type="button" class="link-discreto" id="btn-bancada">🧪 Testar componentes (Fase 0)</button>
@@ -270,7 +270,52 @@
       </div>
     </section>
 
-    <!-- ======= Placeholder Fase 2 (Reembolso / Agenda) ======= -->
+    <!-- ======= Reembolso — meus pedidos ======= -->
+    <section id="tela-reembolso" class="tela oculto">
+      <div class="cartao">
+        <h1>💰 Solicitação de reembolso</h1>
+        <div class="pilha-botoes">
+          <button type="button" class="botao botao-primario" id="rb-novo">➕ Novo pedido</button>
+        </div>
+        <p class="os-secao-titulo">Meus pedidos</p>
+        <div id="rb-lista"></div>
+        <button type="button" class="botao botao-secundario" id="rb-voltar">← Voltar</button>
+      </div>
+    </section>
+
+    <!-- ======= Reembolso — novo pedido ======= -->
+    <section id="tela-reembolso-novo" class="tela oculto">
+      <div class="cartao">
+        <h1>💰 Novo pedido de reembolso</h1>
+        <p class="texto-apoio">Preencha os dados da despesa e tire a foto do comprovante. O pedido vai para a aprovação do Financeiro.</p>
+
+        <p class="dg-secao">OS do serviço</p>
+        <div id="rb-os-escolhida" class="oculto"></div>
+        <div id="rb-os-picker">
+          <input type="text" id="rb-os-busca" placeholder="🔎 Buscar OS por número ou cliente" autocomplete="off">
+          <div id="rb-os-resultados"></div>
+        </div>
+
+        <p class="dg-secao">Despesa</p>
+        <div class="grade-2">
+          <label>Data da despesa<input type="date" id="rb-data"></label>
+          <label>Valor (R$)<input type="number" id="rb-valor" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+        </div>
+        <label>Categoria<select id="rb-categoria"></select></label>
+        <label>Descrição (opcional)<textarea id="rb-descricao" rows="2" placeholder="Ex.: abastecimento na ida ao campo"></textarea></label>
+
+        <p class="dg-secao">Comprovante</p>
+        <div id="rb-foto"></div>
+
+        <div id="rb-erro" class="alerta alerta-vermelho oculto"></div>
+        <div class="pilha-botoes">
+          <button type="button" class="botao botao-primario" id="rb-enviar">Enviar pedido ✓</button>
+          <button type="button" class="botao botao-secundario" id="rb-cancelar">← Voltar</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======= Placeholder Fase 2 (Agenda) ======= -->
     <section id="tela-fase2" class="tela oculto">
       <div class="cartao">
         <h1 id="fase2-titulo">Disponível na Fase 2</h1>
@@ -375,6 +420,7 @@
   <script src="js/campo-qarint.js"></script>
   <script src="js/campo-outro.js"></script>
   <script src="js/fluxo.js"></script>
+  <script src="js/reembolso.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

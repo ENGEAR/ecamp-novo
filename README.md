@@ -51,7 +51,7 @@ e abra http://localhost:8080 no navegador.
 
 1. Instalar no celular, ativar **modo avião** → o app abre normalmente.
 2. Login com a senha do app entra; senha errada mostra erro; "Salvar senha" persiste ao recarregar.
-3. **Serviços** abre o placeholder do fluxo; **Reembolso** e **Agenda** mostram "Disponível na Fase 2".
+3. **Serviços** abre o placeholder do fluxo; **Reembolso** abre o pedido de reembolso (OS + despesa + foto do comprovante); **Agenda** mostra "Disponível na Fase 2".
 4. Header presente em todas as telas; 🕐 📝 📅 📚 abrem overlays-placeholder; o chip do usuário faz logout.
 5. Na bancada "🧪 Testar componentes": **Capturar GPS** devolve UTM + precisão; a foto sai **carimbada** com UTM/OS/tipo/ponto e nome `OS_..._AAAAMMDD_HHMMSS.jpg`.
 6. Recarregar a página mantém a sessão.

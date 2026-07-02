@@ -9,7 +9,7 @@
 
 ```
 Login
- → Escolha da ação (Serviços / Reembolso* / Agenda*)   (* Fase 2 do produto)
+ → Escolha da ação (Serviços / Reembolso / Agenda*)   (* Fase 2 do produto)
  → Escolha da OS
  → [Serviços desta OS]   (só aparece se a OS tiver mais de um serviço)
  → Dados gerais do serviço
