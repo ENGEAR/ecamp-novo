@@ -221,7 +221,16 @@ EC.campoRuido = (function () {
   let ctx = null;          // { estado, salvar }
   let raiz = null;         // container
   let pontoExibido = 1;
+  let janelaExibida = 'total'; // janela do ponto em edição (externo): 'total' | 'residual'
   let temporizadorSalvar = null;
+
+  // Cada ponto do ruído tem DUAS janelas de medição: Total (obrigatória) e
+  // Residual (opcional, desde que justificada). Cada janela guarda os mesmos
+  // campos; equipamentos é do ponto (compartilhado). Por ora só o EXTERNO usa.
+  const JANELAS = [
+    { id: 'total', icone: '🔊', nome: 'Total', ajuda: 'com a fonte em operação' },
+    { id: 'residual', icone: '🔇', nome: 'Residual', ajuda: 'sem a fonte (background)' }
+  ];
 
   function $(seletor) { return raiz.querySelector(seletor); }
 
@@ -244,7 +253,10 @@ EC.campoRuido = (function () {
   }
 
   // Rótulos das fotos obrigatórias ainda não tiradas de um ponto.
+  // Externo: são 2 janelas (Total/Residual) — as fotos são validadas na
+  // finalização (faltasPontoExterno), então não bloqueia a troca de ponto aqui.
   function fotosFaltando(ponto, subtipo) {
+    if (subtipo === 'externo') return [];
     const reqs = FOTOS_POR_SUBTIPO[subtipo] || [['fotoPonto', 'foto do ponto']];
     return reqs.filter(function (f) { return !EC.foto.tem(ponto && ponto[f[0]]); }).map(function (f) { return f[1]; });
   }
@@ -255,10 +267,56 @@ EC.campoRuido = (function () {
     return fotosFaltando(campo().pontos[pontoExibido - 1], campo().subtipo);
   }
 
+  // Itens em branco de UMA janela do externo (Total ou Residual).
+  function faltasJanelaExterno(j, longa) {
+    j = j || {};
+    const falta = [];
+    const reqVal = function (chave, rotulo) {
+      const v = j[chave];
+      if (v === undefined || v === null || String(v).trim() === '') falta.push(rotulo);
+    };
+    const checks = j.checks || {};
+    const grupoChecks = function (prefixo, qtde, rotulo) {
+      let n = 0; for (let i = 0; i < qtde; i++) if (!checks[prefixo + i]) n++;
+      if (n) falta.push(n + ' confirmação(ões) de ' + rotulo);
+    };
+    reqVal('nome', 'nome do ponto');
+    reqVal('horaInicial', 'hora inicial');
+    if (!j.gps) falta.push('GPS');
+    reqVal('chkIniValor', 'checagem inicial');
+    if (!EC.foto.tem(j.fotoTelaIni)) falta.push('foto da tela (checagem inicial)');
+    if (!EC.foto.tem(j.fotoPonto)) falta.push('foto do ponto');
+    grupoChecks('pos', POSICIONAMENTO_EXTERNO_PADRAO.length, 'posicionamento do microfone');
+    grupoChecks('mont', checksMontagemExterno(longa).length, 'montagem do equipamento');
+    if (longa) grupoChecks('climacont', 1, 'monitoramento contínuo de temperatura/umidade/vento');
+    else { reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento'); }
+    reqVal('fontesEmpresa', 'fontes da empresa'); reqVal('fontesAmbiente', 'fontes do ambiente');
+    reqVal('chkFimValor', 'checagem final');
+    if (!EC.foto.tem(j.fotoTelaFim)) falta.push('foto da tela (checagem final)');
+    reqVal('observacoes', 'observações');
+    return falta;
+  }
+
+  // Ponto do externo: Total obrigatório; Residual opcional se houver justificativa.
+  function faltasPontoExterno(ponto, longa) {
+    const falta = [];
+    faltasJanelaExterno(ponto.total, longa).forEach(function (x) { falta.push('Total: ' + x); });
+    const justif = ponto.justificativaResidual && String(ponto.justificativaResidual).trim();
+    if (!justif) {
+      if (!janelaTemDados(ponto.residual)) {
+        falta.push('Residual: medir OU escrever a justificativa');
+      } else {
+        faltasJanelaExterno(ponto.residual, longa).forEach(function (x) { falta.push('Residual: ' + x); });
+      }
+    }
+    return falta;
+  }
+
   // Itens em branco de um ponto (campos + GPS + checagens + fotos). NÃO inclui
   // a hora de término (sempre opcional) nem os checks de confirmação.
   function itensFaltandoDoPonto(ponto, subtipo, indice, total, geral, longaDuracao) {
     ponto = ponto || {};
+    if (subtipo === 'externo') return faltasPontoExterno(ponto, longaDuracao);
     const falta = [];
     const reqVal = function (chave, rotulo) {
       const v = ponto[chave];
@@ -284,20 +342,7 @@ EC.campoRuido = (function () {
     if (!EC.foto.tem(ponto.fotoTelaIni)) falta.push('foto da tela (checagem inicial)');
     if (!EC.foto.tem(ponto.fotoPonto)) falta.push('foto do ponto');
 
-    if (subtipo === 'externo') {
-      grupoChecks('pos', POSICIONAMENTO_EXTERNO_PADRAO.length, 'posicionamento do microfone');
-      grupoChecks('mont', checksMontagemExterno(longaDuracao).length, 'montagem do equipamento');
-      if (longaDuracao) {
-        grupoChecks('climacont', 1, 'monitoramento contínuo de temperatura/umidade/vento');
-      } else {
-        reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento');
-      }
-      grupoChecks('ruido', 2, 'ruído residual/total');
-      reqVal('fontesEmpresa', 'fontes da empresa'); reqVal('fontesAmbiente', 'fontes do ambiente');
-      reqVal('chkFimValor', 'checagem final');
-      if (!EC.foto.tem(ponto.fotoTelaFim)) falta.push('foto da tela (checagem final)');
-      reqVal('observacoes', 'observações');
-    } else if (ehInterno(subtipo)) {
+    if (ehInterno(subtipo)) {
       reqVal('altura', 'altura do sonômetro');
       grupoChecks('altura', 1, 'altura do sonômetro');
       if (primeiro && subtipo === 'interno10151') reqVal('condAmbiente', 'condições do ambiente (vazio/mobiliado)');
@@ -497,13 +542,13 @@ EC.campoRuido = (function () {
     });
   }
 
-  function montarFoto(elemento, seletor, alvo, chave, rotulo, instanciaGps, numeroPonto) {
+  function montarFoto(elemento, seletor, alvo, chave, rotulo, instanciaGps, numeroPonto, sufixoJanela) {
     const div = elemento.querySelector(seletor);
     if (!div) return;
     EC.foto.criar(div, {
       os: ctx.estado.os.numero,
       tipo: TIPOS_CARIMBO[campo().subtipo],
-      ponto: 'P' + String(numeroPonto).padStart(2, '0'),
+      ponto: 'P' + String(numeroPonto).padStart(2, '0') + (sufixoJanela ? ' ' + sufixoJanela : ''),
       rotulo: rotulo,
       fotoInicial: alvo[chave] || null,
       obterUtm: function () {
@@ -797,10 +842,112 @@ EC.campoRuido = (function () {
       },
       aoMudar: function (n) {
         pontoExibido = n;
+        janelaExibida = 'total'; // cada ponto abre na janela Total
         renderizarPonto(n);
       }
     });
     renderizarPonto(pontoExibido);
+  }
+
+  // Campos de UMA janela (Total ou Residual) do externo — SEM equipamentos, que
+  // é do ponto (compartilhado). É a cópia completa dos campos de medição.
+  function htmlCamposJanelaExterno() {
+    return (
+      '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
+      '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
+      '<div class="cr-gps"></div>' +
+      '<p class="grupo-checks-titulo">📍 Posicionamento do microfone</p>' +
+      htmlChecks(ehLongaDuracao() ? POSICIONAMENTO_EXTERNO_LONGA : POSICIONAMENTO_EXTERNO_PADRAO, 'pos') +
+      htmlChecks(['Se monitoramento em fachada: distância mínima de 1 m da fachada (opcional)'], 'posfachada') +
+      '<p class="grupo-checks-titulo">⚙️ Montagem do equipamento</p>' + htmlChecks(checksMontagemExterno(ehLongaDuracao()), 'mont') +
+      htmlChecagem('Checagem inicial', 'chkIni') +
+      '<div class="cr-foto-tela-ini"></div>' +
+      '<div class="cr-foto-ponto"></div>' +
+      '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' +
+      (ehLongaDuracao()
+        ? htmlChecks(['Monitorar e registrar temperatura, umidade e vento de forma contínua'], 'climacont')
+        : htmlClima(false)) +
+      '<label>Fontes percebidas da EMPRESA<input type="text" data-campo="fontesEmpresa"></label>' +
+      '<label>Fontes percebidas do AMBIENTE<input type="text" data-campo="fontesAmbiente"></label>' +
+      htmlChecagem('Checagem final', 'chkFim') +
+      '<div class="cr-resultado-checagem"></div>' +
+      '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
+      '<div class="cr-foto-tela-fim"></div>' +
+      '<label>Observações do ponto<textarea rows="2" data-campo="observacoes"></textarea></label>' +
+      '<label>Hora de término<input type="time" data-campo="horaTermino"></label>'
+    );
+  }
+
+  // true se a janela tem algum dado relevante preenchido (para o status da aba
+  // e para decidir se o Residual foi "medido" ou apenas pulado com justificativa).
+  function janelaTemDados(j) {
+    if (!j) return false;
+    if (j.nome || j.horaInicial || j.gps || j.chkIniValor || j.chkFimValor ||
+        j.temperatura || j.umidade || j.vento || j.fontesEmpresa || j.fontesAmbiente ||
+        j.observacoes || EC.foto.tem(j.fotoTelaIni) || EC.foto.tem(j.fotoPonto) || EC.foto.tem(j.fotoTelaFim)) return true;
+    return !!(j.checks && Object.keys(j.checks).some(function (k) { return j.checks[k]; }));
+  }
+
+  // Ponto do EXTERNO: equipamentos (compartilhado) + seletor [Total | Residual]
+  // + a janela ativa. Cada janela guarda seus próprios campos em ponto[janela].
+  function renderizarPontoExterno(n, ponto) {
+    const area = $('#cr-ponto');
+    ponto.total = ponto.total || {};
+    ponto.residual = ponto.residual || {};
+
+    const abas = JANELAS.map(function (j) {
+      const cheia = janelaTemDados(ponto[j.id]);
+      const marca = cheia ? ' ✓' : (j.id === 'residual' ? ' (opcional)' : '');
+      return '<button type="button" class="card-tipo cr-janela-aba' + (janelaExibida === j.id ? ' card-tipo-ativo' : '') +
+        '" data-janela="' + j.id + '"><span class="card-tipo-icone">' + j.icone + '</span><span>' + j.nome + marca + '</span></button>';
+    }).join('');
+
+    area.innerHTML =
+      '<div class="cartao-ponto"><h2>Ponto P' + n + '</h2>' +
+      '<p class="grupo-checks-titulo">Equipamentos utilizados</p><div id="cr-equip-ponto"></div>' +
+      '<p class="texto-apoio">Duas medições por ponto: <strong>Total</strong> (com a fonte) e <strong>Residual</strong> (sem a fonte). Comece pela que quiser; o Residual é opcional se você justificar.</p>' +
+      '<div class="grade-tipos cr-janelas">' + abas + '</div>' +
+      '<div id="cr-janela-form"></div></div>';
+
+    $('#cr-equip-ponto').innerHTML = htmlEquipamentosPonto(ponto);
+    vincularEquipamentos($('#cr-equip-ponto'), ponto);
+
+    area.querySelectorAll('.cr-janela-aba').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (janelaExibida === b.dataset.janela) return;
+        janelaExibida = b.dataset.janela;
+        renderizarPontoExterno(n, ponto);
+      });
+    });
+
+    renderizarJanelaExterno(n, ponto, janelaExibida);
+  }
+
+  function renderizarJanelaExterno(n, ponto, janela) {
+    const wrap = $('#cr-janela-form');
+    const alvo = ponto[janela];
+    let html = '';
+    if (janela === 'residual') {
+      html += '<div class="alerta alerta-info">🔇 <strong>Residual</strong> — opcional. Se NÃO for medir, escreva a justificativa abaixo e deixe o resto em branco.</div>' +
+        '<label>Justificativa (se não medir o residual)<textarea rows="2" data-justif="1" placeholder="Ex.: não foi possível desligar a fonte."></textarea></label>';
+    }
+    html += htmlCamposJanelaExterno();
+    wrap.innerHTML = html;
+
+    const taj = wrap.querySelector('[data-justif]');
+    if (taj) {
+      if (ponto.justificativaResidual) taj.value = ponto.justificativaResidual;
+      taj.addEventListener('input', function () { ponto.justificativaResidual = taj.value; salvarDevagar(); });
+    }
+
+    vincular(wrap, alvo);
+    ativarAlertaVento(wrap, alvo);
+    ativarAlertaChecagens(wrap, alvo);
+    const gps = montarGps(wrap, alvo);
+    const suf = janela === 'total' ? 'Total' : 'Residual';
+    montarFoto(wrap, '.cr-foto-tela-ini', alvo, 'fotoTelaIni', '📷 Foto da tela após checagem inicial (obrigatória)', gps, n, suf);
+    montarFoto(wrap, '.cr-foto-ponto', alvo, 'fotoPonto', '📷 Foto do ponto (obrigatória)', gps, n, suf);
+    montarFoto(wrap, '.cr-foto-tela-fim', alvo, 'fotoTelaFim', '📷 Foto da tela após checagem final (obrigatória)', gps, n, suf);
   }
 
   function renderizarPonto(n) {
@@ -808,6 +955,7 @@ EC.campoRuido = (function () {
     const ponto = campo().pontos[n - 1];
     if (!ponto) { area.innerHTML = ''; return; }
     const sub = campo().subtipo;
+    if (sub === 'externo') { renderizarPontoExterno(n, ponto); return; }
     const g = campo().geral;
     const total = Math.min(20, Math.max(1, parseInt(g.qtdePontos, 10) || 1));
     const primeiro = n === 1;
@@ -815,34 +963,7 @@ EC.campoRuido = (function () {
 
     let html = '<div class="cartao-ponto"><h2>Ponto P' + n + '</h2>';
 
-    if (sub === 'externo') {
-      html +=
-        '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
-        '<p class="grupo-checks-titulo">Equipamentos utilizados</p>' + htmlEquipamentosPonto(ponto) +
-        '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
-        '<div class="cr-gps"></div>' +
-        '<p class="grupo-checks-titulo">📍 Posicionamento do microfone</p>' +
-        htmlChecks(ehLongaDuracao() ? POSICIONAMENTO_EXTERNO_LONGA : POSICIONAMENTO_EXTERNO_PADRAO, 'pos') +
-        htmlChecks(['Se monitoramento em fachada: distância mínima de 1 m da fachada (opcional)'], 'posfachada') +
-        '<p class="grupo-checks-titulo">⚙️ Montagem do equipamento</p>' + htmlChecks(checksMontagemExterno(ehLongaDuracao()), 'mont') +
-        htmlChecagem('Checagem inicial', 'chkIni') +
-        '<div class="cr-foto-tela-ini"></div>' +
-        '<div class="cr-foto-ponto"></div>' +
-        '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' +
-        (ehLongaDuracao()
-          ? htmlChecks(['Monitorar e registrar temperatura, umidade e vento de forma contínua'], 'climacont')
-          : htmlClima(false)) +
-        htmlChecks(['Ruído residual monitorado', 'Ruído total monitorado'], 'ruido') +
-        '<label>Fontes percebidas da EMPRESA<input type="text" data-campo="fontesEmpresa"></label>' +
-        '<label>Fontes percebidas do AMBIENTE<input type="text" data-campo="fontesAmbiente"></label>' +
-        htmlChecagem('Checagem final', 'chkFim') +
-        '<div class="cr-resultado-checagem"></div>' +
-        '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
-        '<div class="cr-foto-tela-fim"></div>' +
-        '<label>Observações do ponto<textarea rows="2" data-campo="observacoes"></textarea></label>' +
-        '<label>Hora de término<input type="time" data-campo="horaTermino"></label>';
-
-    } else if (ehInterno(sub)) {
+    if (ehInterno(sub)) {
       html +=
         '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
         '<label>Nome do ponto<input type="text" data-campo="nome"></label>' +
