@@ -1117,6 +1117,24 @@ EC.fluxo = (function () {
     return ok;
   }
 
+  // Salva a PREPARAÇÃO (parte do laboratório) como rascunho — no aparelho E no
+  // servidor (Incompleto), para não se perder e poder ser entregue ao campo.
+  // No ruído, inicializa o subtipo do campo aqui, assim o servidor já aceita o
+  // rascunho na preparação (antes de ir a campo).
+  function salvarPreparacaoRascunho() {
+    if (!estado) return;
+    if (estado.tipo === 'ruido' && (!estado.campo || !estado.campo.subtipo)) {
+      const sub = (EC.mapaEscopo && EC.mapaEscopo.subtipoPorEscopo)
+        ? EC.mapaEscopo.subtipoPorEscopo(servicoDetalhe('escopo'), servicoDetalhe('metodo'))
+        : null;
+      estado.campo = estado.campo || { geral: {}, pontos: [] };
+      estado.campo.subtipo = sub || 'externo';
+      estado.campo.geral = estado.campo.geral || {};
+      estado.campo.pontos = estado.campo.pontos || [];
+    }
+    aoSalvarRascunho();
+  }
+
   function montarNavegacao(idTela, opcoesExtras) {
     const container = $(idTela.replace('tela-', '') + '-nav');
     EC.navegacao.criar(container, Object.assign({
@@ -1178,7 +1196,11 @@ EC.fluxo = (function () {
         if (!cb.checked) { cb.checked = true; cb.dispatchEvent(new Event('change')); }
       });
     });
-    $('checkpoint-ir').addEventListener('click', function () { irPara('tela-passo4'); });
+    $('checkpoint-ir').addEventListener('click', function () {
+      salvarPreparacaoRascunho(); // preparação segura (aparelho + servidor) antes do campo
+      irPara('tela-passo4');
+    });
+    $('checkpoint-salvar').addEventListener('click', salvarPreparacaoRascunho);
     $('checkpoint-voltar').addEventListener('click', function () { irPara('tela-passo3b'); });
     montarNavegacao('tela-passo4', {
       aoVoltar: function () { irPara('tela-passo3b'); },
