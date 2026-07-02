@@ -234,9 +234,9 @@ EC.pdfRuido = (function () {
         kv('Equipamentos do ponto', (p.equipamentos && p.equipamentos.length) ? p.equipamentos.join(', ') : '—');
         var temJanelas = p.total && typeof p.total === 'object';
         if (!temJanelas) { medicao(p); continue; } // rascunho antigo (flat)
-        subtitulo('🔊 Total (com a fonte)');
+        subtitulo('Ruído Total (com a fonte)');
         medicao(p.total || {});
-        subtitulo('🔇 Residual (sem a fonte)');
+        subtitulo('Ruído Residual (sem a fonte)');
         if (janelaComDados(p.residual)) medicao(p.residual);
         else kv('Residual não medido', p.justificativaResidual || '—');
       }
