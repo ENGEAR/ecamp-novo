@@ -62,38 +62,43 @@ EC.foto = (function () {
     let larguraTexto = 0;
     linhas.forEach(function (linha) { larguraTexto = Math.max(larguraTexto, ctx.measureText(linha).width); });
 
-    // Dimensões da logo (se estiver pronta), no topo do carimbo.
-    let logoH = 0, logoW = 0;
-    if (logoCarimboOk && logoCarimbo.naturalWidth) {
-      logoH = Math.round(tamanhoFonte * 2.4);
-      logoW = Math.round(logoCarimbo.naturalWidth * (logoH / logoCarimbo.naturalHeight));
-    }
-
-    const conteudoLargura = Math.max(larguraTexto, logoW);
-    const caixaLargura = conteudoLargura + margemInterna * 2;
-    const caixaAltura = alturaLinha * linhas.length + margemInterna + (logoH ? logoH + margemInterna * 0.6 : 0);
+    const caixaLargura = larguraTexto + margemInterna * 2;
+    const caixaAltura = alturaLinha * linhas.length + margemInterna;
     const x = largura - caixaLargura - margemBorda;
     const y = altura - caixaAltura - margemBorda;
 
     ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
     ctx.fillRect(x, y, caixaLargura, caixaAltura);
 
-    // Texto no topo do carimbo.
     ctx.fillStyle = '#ffffff';
     ctx.textBaseline = 'top';
     linhas.forEach(function (linha, i) {
       ctx.fillText(linha, x + margemInterna, y + margemInterna * 0.6 + i * alturaLinha);
     });
+  }
 
-    // Logo no CANTO INFERIOR DIREITO do carimbo (abaixo do texto, alinhada à
-    // direita), com fundo branco para as partes escuras da logo aparecerem.
-    if (logoH) {
-      const logoY = y + margemInterna * 0.6 + alturaLinha * linhas.length + margemInterna * 0.3;
-      const logoX = x + caixaLargura - logoW - margemInterna;
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-      ctx.fillRect(logoX - margemInterna * 0.35, logoY - margemInterna * 0.2, logoW + margemInterna * 0.7, logoH + margemInterna * 0.4);
-      try { ctx.drawImage(logoCarimbo, logoX, logoY, logoW, logoH); } catch (e) { /* ok */ }
-    }
+  // Marca d'água: a logo da ENGEAR recolorida para BRANCO, discreta e
+  // semitransparente, no canto inferior esquerdo — sem caixa, quase sem ocupar
+  // espaço. (recolore a logo colorida via composição source-in.)
+  function desenharMarcaDagua(ctx, largura, altura) {
+    if (!(logoCarimboOk && logoCarimbo.naturalWidth)) return;
+    const w = Math.round(largura * 0.13);
+    const h = Math.round(logoCarimbo.naturalHeight * (w / logoCarimbo.naturalWidth));
+    let branca;
+    try {
+      branca = document.createElement('canvas');
+      branca.width = w; branca.height = h;
+      const bctx = branca.getContext('2d');
+      bctx.drawImage(logoCarimbo, 0, 0, w, h);
+      bctx.globalCompositeOperation = 'source-in';
+      bctx.fillStyle = '#ffffff';
+      bctx.fillRect(0, 0, w, h);
+    } catch (e) { return; }
+    const margem = Math.round(largura * 0.02);
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.drawImage(branca, margem, altura - h - margem, w, h);
+    ctx.restore();
   }
 
   // Abre a foto em tela cheia (para conferir). Toque/clique em qualquer lugar fecha.
@@ -188,6 +193,7 @@ EC.foto = (function () {
           linhasCarimbo.push('Ponto ' + (opcoes.ponto || '—'));
           linhasCarimbo.push(dataHoraBR(agora));
           desenharCarimbo(ctx, largura, altura, linhasCarimbo);
+          desenharMarcaDagua(ctx, largura, altura);
 
           const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
           fotos.push({
