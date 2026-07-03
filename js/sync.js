@@ -45,6 +45,26 @@ EC.sync = (function () {
     }));
   }
 
+  // Lista de pontos do registro na MESMA ordem global que o mapeador do servidor
+  // usa (para casar com o `ordem` devolvido por /registro). No ruído interno os
+  // pontos vivem em campo.ambientes[].pontos (achata ambiente a ambiente, cada um
+  // limitado ao seu pontosCalculados); nos demais, é campo.pontos direto.
+  function pontosDoRegistro(registro) {
+    var campo = registro.campo || {};
+    var sub = campo.subtipo || '';
+    if (sub === 'interno10151' || sub === 'interno10152') {
+      var flat = [];
+      (campo.ambientes || []).forEach(function (amb) {
+        var pts = (amb && amb.pontos) || [];
+        var calc = parseInt(amb && amb.pontosCalculados, 10);
+        var limite = isNaN(calc) ? pts.length : Math.max(0, calc);
+        pts.slice(0, limite).forEach(function (p) { flat.push(p); });
+      });
+      return flat;
+    }
+    return campo.pontos || [];
+  }
+
   // Coleta as fotos de um ponto: qualquer campo que seja array (ou objeto) com base64.
   function fotosDoPonto(ponto) {
     var out = [];
@@ -69,7 +89,7 @@ EC.sync = (function () {
   async function enviar(registro) {
     var resp = await postJson(ROTA_REGISTRO, semFotos(registro));
     var pontos = resp.pontos || []; // [{ordem, janela, ponto_id}, ...]
-    var pontosCampo = (registro.campo && registro.campo.pontos) || [];
+    var pontosCampo = pontosDoRegistro(registro);
 
     // Monta a lista de fotos a enviar. O servidor devolve uma entrada por
     // (ponto × janela); para cada uma, pego as fotos da janela correspondente
