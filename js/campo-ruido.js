@@ -266,7 +266,7 @@ EC.campoRuido = (function () {
   }
 
   // Itens em branco de UMA janela (Total ou Residual), conforme o subtipo.
-  function faltasJanela(subtipo, j, longa, geral) {
+  function faltasJanela(subtipo, j, longa, geral, janela) {
     j = j || {};
     const falta = [];
     const reqVal = function (chave, rotulo) {
@@ -276,6 +276,11 @@ EC.campoRuido = (function () {
     const checks = j.checks || {};
     const grupoChecks = function (prefixo, qtde, rotulo) {
       let n = 0; for (let i = 0; i < qtde; i++) if (!checks[prefixo + i]) n++;
+      if (n) falta.push(n + ' confirmação(ões) de ' + rotulo);
+    };
+    // Só alguns índices de um grupo (ex.: ferroviário passagem/total usa [3,4]).
+    const grupoChecksIdx = function (prefixo, indices, rotulo) {
+      let n = 0; indices.forEach(function (i) { if (!checks[prefixo + i]) n++; });
       if (n) falta.push(n + ' confirmação(ões) de ' + rotulo);
     };
     // comuns a todas as janelas
@@ -296,7 +301,12 @@ EC.campoRuido = (function () {
       if (j.eventualidade === 'Sim') reqVal('eventualidadeDesc', 'descrição da eventualidade');
       reqVal('chkFimValor', 'checagem final');
     } else if (subtipo === 'ferroviario') {
-      grupoChecks('ferro', CHECKS_PONTO_FERRO.length, 'checks do ponto');
+      // Passagem + janela Total: só os checks de condições ambientais (3,4).
+      if ((geral || {}).finalidade === FERRO_PASSAGEM && janela === 'total') {
+        grupoChecksIdx('ferro', [3, 4], 'condições ambientais');
+      } else {
+        grupoChecks('ferro', CHECKS_PONTO_FERRO.length, 'checks do ponto');
+      }
       reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento');
       reqVal('chkFimValor', 'checagem final');
       if (!EC.foto.tem(j.fotoTelaFim)) falta.push('foto da tela (checagem final)');
@@ -330,13 +340,13 @@ EC.campoRuido = (function () {
   function itensFaltandoDoPonto(ponto, subtipo, indice, total, geral, longaDuracao) {
     ponto = ponto || {};
     const falta = [];
-    faltasJanela(subtipo, ponto.total, longaDuracao, geral).forEach(function (x) { falta.push('Total: ' + x); });
+    faltasJanela(subtipo, ponto.total, longaDuracao, geral, 'total').forEach(function (x) { falta.push('Total: ' + x); });
     const justif = ponto.justificativaResidual && String(ponto.justificativaResidual).trim();
     if (!justif) {
       if (!janelaTemDados(ponto.residual)) {
         falta.push('Residual: medir OU escrever a justificativa');
       } else {
-        faltasJanela(subtipo, ponto.residual, longaDuracao, geral).forEach(function (x) { falta.push('Residual: ' + x); });
+        faltasJanela(subtipo, ponto.residual, longaDuracao, geral, 'residual').forEach(function (x) { falta.push('Residual: ' + x); });
       }
     }
     return falta;
@@ -406,6 +416,14 @@ EC.campoRuido = (function () {
   function htmlChecks(itens, prefixo) {
     return itens.map(function (texto, i) {
       return '<label class="linha-check check-campo"><input type="checkbox" data-check="' + prefixo + i + '"><span>' + texto + '</span></label>';
+    }).join('');
+  }
+
+  // Renderiza só alguns índices de um grupo, mantendo o índice ORIGINAL no
+  // data-check (ex.: [3,4] → ferro3, ferro4) — preserva o vínculo com os dados.
+  function htmlChecksIndices(itens, prefixo, indices) {
+    return indices.map(function (i) {
+      return '<label class="linha-check check-campo"><input type="checkbox" data-check="' + prefixo + i + '"><span>' + itens[i] + '</span></label>';
     }).join('');
   }
 
@@ -875,14 +893,25 @@ EC.campoRuido = (function () {
     );
   }
 
-  function htmlCamposJanelaFerro() {
+  function htmlCamposJanelaFerro(janela) {
+    // Passagem de composição + janela Total: mede o som da PASSAGEM. Saem as
+    // orientações de "som residual" (curto/longa) e de "som da passagem"; entra
+    // o campo da característica da composição avaliada. Ficam só as condições
+    // ambientais (índices 3 e 4 de CHECKS_PONTO_FERRO).
+    const passagemTotal = campo().geral.finalidade === FERRO_PASSAGEM && janela === 'total';
+    const checksPonto = passagemTotal
+      ? htmlChecksIndices(CHECKS_PONTO_FERRO, 'ferro', [3, 4])
+      : htmlChecks(CHECKS_PONTO_FERRO, 'ferro');
     return (
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       '<div class="cr-gps"></div>' +
       htmlChecagem('Checagem inicial', 'chkIni') +
       '<div class="cr-foto-tela-ini"></div>' +
-      htmlChecks(CHECKS_PONTO_FERRO, 'ferro') +
+      checksPonto +
+      (passagemTotal
+        ? '<label>Característica da composição ferroviária avaliada<input type="text" data-campo="caracteristicaComposicao" placeholder="ex.: trem de carga, passageiro, nº de vagões…"></label>'
+        : '') +
       '<div class="cr-foto-ponto"></div>' +
       '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' + htmlClima(false) +
       htmlChecagem('Checagem final', 'chkFim') +
@@ -917,9 +946,9 @@ EC.campoRuido = (function () {
   }
 
   // Campos da janela conforme o subtipo do ruído.
-  function htmlCamposJanela(subtipo) {
+  function htmlCamposJanela(subtipo, janela) {
     if (ehInterno(subtipo)) return htmlCamposJanelaInterno(subtipo);
-    if (subtipo === 'ferroviario') return htmlCamposJanelaFerro();
+    if (subtipo === 'ferroviario') return htmlCamposJanelaFerro(janela);
     if (subtipo === 'aeronautico') return htmlCamposJanelaAero();
     return htmlCamposJanelaExterno();
   }
@@ -979,7 +1008,7 @@ EC.campoRuido = (function () {
       html += '<div class="alerta alerta-info">🔇 <strong>Residual</strong> — opcional. Se NÃO for medir, escreva a justificativa abaixo e deixe o resto em branco.</div>' +
         '<label>Justificativa (se não medir o residual)<textarea rows="2" data-justif="1" placeholder="Ex.: não foi possível desligar/afastar a fonte."></textarea></label>';
     }
-    html += htmlCamposJanela(sub);
+    html += htmlCamposJanela(sub, janela);
     wrap.innerHTML = html;
 
     const taj = wrap.querySelector('[data-justif]');

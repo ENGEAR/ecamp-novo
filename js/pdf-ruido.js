@@ -303,6 +303,7 @@ EC.pdf = (function () {
         kvSe('Vento', j.vento != null && j.vento !== '' ? j.vento + ' m/s' : '');
         kvSe('Fontes percebidas da EMPRESA', j.fontesEmpresa);
         kvSe('Fontes percebidas do AMBIENTE', j.fontesAmbiente);
+        kvSe('Característica da composição', j.caracteristicaComposicao);
         kvSe('Eventualidade', j.eventualidade);
         kvSe('Descrição da eventualidade', j.eventualidadeDesc);
         kvSe('Observações', j.observacoes);
