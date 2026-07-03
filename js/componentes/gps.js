@@ -123,16 +123,10 @@ EC.gps = (function () {
       '<div class="comp-gps">' +
       '  <button type="button" class="botao botao-secundario gps-botao">📍 Capturar GPS automaticamente</button>' +
       '  <div class="gps-status"></div>' +
-      '  <p class="texto-apoio gps-rotulo">Coordenadas UTM (WGS84)</p>' +
       '  <div class="grade-3">' +
       '    <label>Zona<input type="text" class="gps-zona" readonly placeholder="—"></label>' +
       '    <label>Leste (E)<input type="text" class="gps-leste" readonly placeholder="—"></label>' +
       '    <label>Norte (N)<input type="text" class="gps-norte" readonly placeholder="—"></label>' +
-      '  </div>' +
-      '  <p class="texto-apoio gps-rotulo">Coordenadas geográficas (graus)</p>' +
-      '  <div class="grade-2">' +
-      '    <label>Latitude<input type="text" class="gps-lat" readonly placeholder="—"></label>' +
-      '    <label>Longitude<input type="text" class="gps-lon" readonly placeholder="—"></label>' +
       '  </div>' +
       '  <label>Endereço completo<input type="text" class="gps-endereco" placeholder="Rua, número, bairro, cidade/UF"></label>' +
       '</div>';
@@ -142,14 +136,7 @@ EC.gps = (function () {
     const campoZona = container.querySelector('.gps-zona');
     const campoLeste = container.querySelector('.gps-leste');
     const campoNorte = container.querySelector('.gps-norte');
-    const campoLat = container.querySelector('.gps-lat');
-    const campoLon = container.querySelector('.gps-lon');
     const campoEndereco = container.querySelector('.gps-endereco');
-
-    // Grau em pt-BR: 6 casas (~0,1 m), vírgula decimal. Ex.: "-19,923456°".
-    function grau(v) {
-      return (typeof v === 'number' && isFinite(v)) ? v.toFixed(6).replace('.', ',') + '°' : '—';
-    }
 
     campoEndereco.addEventListener('input', function () {
       if (dados) dados.endereco = campoEndereco.value;
@@ -182,8 +169,6 @@ EC.gps = (function () {
           campoZona.value = utm.zona + utm.hemisferio;
           campoLeste.value = utm.leste + ' m';
           campoNorte.value = utm.norte + ' m';
-          campoLat.value = grau(lat);
-          campoLon.value = grau(lon);
           status.innerHTML = '✅ GPS capturado — precisão de <strong>' + precisao + ' m</strong>';
           botao.disabled = false;
 
@@ -216,8 +201,6 @@ EC.gps = (function () {
       campoZona.value = novos.utm.zona + novos.utm.hemisferio;
       campoLeste.value = novos.utm.leste + ' m';
       campoNorte.value = novos.utm.norte + ' m';
-      campoLat.value = grau(novos.lat);
-      campoLon.value = grau(novos.lon);
       campoEndereco.value = novos.endereco || '';
       status.innerHTML = '✅ GPS capturado — precisão de <strong>' + novos.precisao + ' m</strong>';
     }
