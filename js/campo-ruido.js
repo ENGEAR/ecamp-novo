@@ -452,8 +452,9 @@ EC.campoRuido = (function () {
     if (!total) return ['a quantidade de pontos do campo não foi definida'];
     const lista = [];
     geralChecksFaltando(campo).forEach(function (x) { lista.push(x); });
-    // Variação no nº de pontos vs. previsto na OS → exige justificativa.
-    if (campo.subtipo === 'externo') {
+    // Variação no nº de pontos vs. previsto na OS → exige justificativa
+    // (externo, ferroviário e aeronáutico têm o campo de qtd de pontos + OS).
+    if (campo.subtipo === 'externo' || campo.subtipo === 'ferroviario' || campo.subtipo === 'aeronautico') {
       const previsto = (estado.dadosGerais || {}).qtdePontos;
       if (previsto != null && previsto !== '' &&
           String(campo.geral.qtdePontos) !== String(previsto) &&
@@ -703,6 +704,29 @@ EC.campoRuido = (function () {
 
   /* ===== Campos gerais por subtipo ===== */
 
+  // Justificativa obrigatória quando a qtd de pontos difere da prevista na OS.
+  // Insere/remove o textarea no <div id=divId> e devolve a função atualizadora.
+  function ligarJustPontos(area, g, divId) {
+    const previsto = ctx.estado.dadosGerais.qtdePontos;
+    return function atualizar() {
+      const div = area.querySelector('#' + divId);
+      if (!div) return;
+      const difere = previsto != null && previsto !== '' && String(g.qtdePontos) !== String(previsto);
+      if (difere) {
+        if (!div.dataset.montado) {
+          div.innerHTML = '<label>Justificativa da variação de pontos (obrigatória)' +
+            '<textarea rows="2" data-campo="justificativaPontos" placeholder="Por que o número de pontos mudou em relação ao previsto na OS?"></textarea></label>';
+          vincular(div, g);
+          div.dataset.montado = '1';
+        }
+      } else {
+        div.innerHTML = '';
+        div.dataset.montado = '';
+        delete g.justificativaPontos;
+      }
+    };
+  }
+
   function renderizarGeral() {
     const area = $('#cr-geral');
     $('#cr-paginacao').innerHTML = '';
@@ -762,16 +786,21 @@ EC.campoRuido = (function () {
       renderizarAmbientes();
 
     } else if (campo().subtipo === 'ferroviario') {
+      const previstoPontos = ctx.estado.dadosGerais.qtdePontos;
       area.innerHTML =
         '<label>Finalidade<select data-campo="finalidade"><option value="">Selecione…</option>' +
         FINALIDADES_FERRO.map(function (o) { return '<option>' + o + '</option>'; }).join('') +
         '</select></label>' +
         '<div id="cr-instalacao"></div>' +
         '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>' +
+        (previstoPontos != null && previstoPontos !== '' ? '<p class="texto-apoio">Previsto na OS: ' + previstoPontos + ' ponto(s).</p>' : '') +
+        '<div id="cr-just-pontos"></div>' +
         '<div id="cr-ferro-operacoes"></div>';
-      if (g.qtdePontos === undefined) g.qtdePontos = ctx.estado.dadosGerais.qtdePontos;
+      if (g.qtdePontos === undefined) g.qtdePontos = previstoPontos;
       if (!g.finalidade) { const f = finalidadePorMetodo(FINALIDADES_FERRO); if (f) { g.finalidade = f; if (ctx.salvar) ctx.salvar(); } }
       vincular(area, g);
+      const atualizarJustPontos = ligarJustPontos(area, g, 'cr-just-pontos');
+      atualizarJustPontos();
 
       function instalacaoFerro() {
         const div = area.querySelector('#cr-instalacao');
@@ -793,19 +822,27 @@ EC.campoRuido = (function () {
         renderizarPonto(pontoExibido); // o formulário do ponto muda com a finalidade (Passagem/Total)
       });
       instalacaoFerro();
-      area.querySelector('[data-campo="qtdePontos"]').addEventListener('input', renderizarPontos);
+      area.querySelector('[data-campo="qtdePontos"]').addEventListener('input', function () {
+        renderizarPontos();
+        atualizarJustPontos();
+      });
       renderizarPontos();
 
     } else if (campo().subtipo === 'aeronautico') {
+      const previstoPontos = ctx.estado.dadosGerais.qtdePontos;
       area.innerHTML =
         '<label>Finalidade<select data-campo="finalidade"><option value="">Selecione…</option>' +
         FINALIDADES_AERO.map(function (o) { return '<option>' + o + '</option>'; }).join('') +
         '</select></label>' +
         '<div id="cr-instalacao"></div>' +
-        '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>';
-      if (g.qtdePontos === undefined) g.qtdePontos = ctx.estado.dadosGerais.qtdePontos;
+        '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>' +
+        (previstoPontos != null && previstoPontos !== '' ? '<p class="texto-apoio">Previsto na OS: ' + previstoPontos + ' ponto(s).</p>' : '') +
+        '<div id="cr-just-pontos"></div>';
+      if (g.qtdePontos === undefined) g.qtdePontos = previstoPontos;
       if (!g.finalidade) { const f = finalidadePorMetodo(FINALIDADES_AERO); if (f) { g.finalidade = f; if (ctx.salvar) ctx.salvar(); } }
       vincular(area, g);
+      const atualizarJustPontos = ligarJustPontos(area, g, 'cr-just-pontos');
+      atualizarJustPontos();
 
       function instalacaoAero() {
         const div = area.querySelector('#cr-instalacao');
@@ -824,7 +861,10 @@ EC.campoRuido = (function () {
         renderizarPonto(pontoExibido); // o formulário do ponto muda com a finalidade
       });
       instalacaoAero();
-      area.querySelector('[data-campo="qtdePontos"]').addEventListener('input', renderizarPontos);
+      area.querySelector('[data-campo="qtdePontos"]').addEventListener('input', function () {
+        renderizarPontos();
+        atualizarJustPontos();
+      });
       renderizarPontos();
     }
   }
