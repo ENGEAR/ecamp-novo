@@ -1252,6 +1252,7 @@ EC.fluxo = (function () {
       const rotulo = btn.textContent;
       btn.disabled = true; btn.textContent = '⏳ Gerando PDF…';
       Promise.resolve(EC.pdf.gerar(ultimoRegistroPdf))
+        .then(function () { EC.app.mostrarToast('PDF gerado e salvo no app (📄 no topo).'); })
         .catch(function () { EC.app.mostrarToast('Não consegui gerar o PDF.'); })
         .then(function () { btn.disabled = false; btn.textContent = rotulo; });
     });

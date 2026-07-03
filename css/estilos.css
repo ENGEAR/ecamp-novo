@@ -553,6 +553,9 @@ textarea { resize: vertical; font-family: inherit; }
   font-size: 0.88rem;
   word-break: break-all;
 }
+.overlay-item-acoes { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.overlay-item-acoes .botao { flex: 1; min-width: 130px; margin: 0; }
+.overlay-item-acoes .botao-perigo { flex: 0 0 auto; min-width: 0; }
 
 /* ---------- Toast ---------- */
 #toast {

@@ -62,6 +62,55 @@ EC.pdf = (function () {
   // Sempre sabe gerar (o botão aparece em todos os serviços).
   function suporta(reg) { return !!reg; }
 
+  /* ===== Guardar / compartilhar PDFs no aparelho (IndexedDB, loja 'pdfs') ===== */
+
+  // Baixa um Blob como arquivo (fallback quando não há compartilhamento nativo).
+  function baixarBlob(blob, nome) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = nome;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+
+  // Abre a folha de compartilhar (WhatsApp etc.) com o PDF; se não der, baixa.
+  function compartilharBlob(blob, nome, titulo) {
+    var arquivo;
+    try { arquivo = new File([blob], nome, { type: 'application/pdf' }); } catch (e) { arquivo = null; }
+    if (arquivo && navigator.canShare && navigator.canShare({ files: [arquivo] }) && navigator.share) {
+      return navigator.share({ files: [arquivo], title: titulo }).catch(function () { baixarBlob(blob, nome); });
+    }
+    baixarBlob(blob, nome);
+    return Promise.resolve();
+  }
+
+  // Guarda o PDF (Blob + metadados) no aparelho. Chave = codificação do registro
+  // (regerar o mesmo registro substitui, não duplica). Best-effort.
+  function salvarPdf(reg, blob, nome) {
+    if (!EC.db || !EC.db.disponivel()) return Promise.resolve();
+    var os = reg.os || {};
+    var id = reg.codificacao || ('OS_' + (os.numero || 'SEM-OS') + '_' + (reg.salvoEm || ''));
+    var rec = {
+      id: id, os: os.numero || '', cliente: os.cliente || '', projeto: os.projeto || '',
+      tipo: reg.tipo || '', subtipo: (reg.campo && reg.campo.subtipo) || '',
+      escopo: (reg.servico && reg.servico.escopo) || '', tecnico: reg.tecnico || '',
+      nome: nome, salvoEm: reg.salvoEm || new Date().toISOString(), blob: blob
+    };
+    return EC.db.set('pdfs', id, rec).catch(function () { });
+  }
+
+  // Lista os PDFs salvos (mais recentes primeiro).
+  function listarSalvos() {
+    if (!EC.db || !EC.db.disponivel()) return Promise.resolve([]);
+    return EC.db.getAll('pdfs').then(function (arr) {
+      return (arr || []).sort(function (a, b) {
+        return String(b.salvoEm || '').localeCompare(String(a.salvoEm || ''));
+      });
+    }).catch(function () { return []; });
+  }
+  function abrirSalvo(rec) { return compartilharBlob(rec.blob, rec.nome, 'Monitoramento OS ' + (rec.os || '')); }
+  function excluirSalvo(id) { return (EC.db && EC.db.disponivel()) ? EC.db.remove('pdfs', id) : Promise.resolve(); }
+
   /* ===== Dicionário de rótulos (renderizador genérico) ===== */
   var LABELS = {
     nome: 'Nome / identificação', horaInicial: 'Hora inicial', horaFinal: 'Hora final',
@@ -470,22 +519,18 @@ EC.pdf = (function () {
         doc.text('Página ' + pg + '/' + totalPag, A4_W - MARGEM, A4_H - 6, { align: 'right' });
       }
 
-      /* ---------- Compartilhar / baixar ---------- */
+      /* ---------- Salvar no app + compartilhar / baixar ---------- */
       var nome = nomeArquivo(reg);
       var blob = doc.output('blob');
-      var arquivo;
-      try { arquivo = new File([blob], nome, { type: 'application/pdf' }); } catch (e) { arquivo = null; }
-
-      if (arquivo && navigator.canShare && navigator.canShare({ files: [arquivo] }) && navigator.share) {
-        return navigator.share({ files: [arquivo], title: 'Monitoramento OS ' + (reg.os.numero || '') })
-          .catch(function () { doc.save(nome); }); // cancelou/erro → baixa
-      }
-      doc.save(nome);
-      return Promise.resolve();
+      salvarPdf(reg, blob, nome); // guarda no aparelho (best-effort, não bloqueia)
+      return compartilharBlob(blob, nome, 'Monitoramento OS ' + (reg.os.numero || ''));
     });
   }
 
-  return { suporta: suporta, gerar: gerar };
+  return {
+    suporta: suporta, gerar: gerar,
+    listarSalvos: listarSalvos, abrirSalvo: abrirSalvo, excluirSalvo: excluirSalvo
+  };
 })();
 
 // Alias de compatibilidade (fluxo.js antigo referenciava EC.pdfRuido).

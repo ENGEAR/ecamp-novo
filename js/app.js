@@ -19,7 +19,7 @@
   const CHAVE_SESSAO = 'sessao:atual';
   const CHAVE_SENHA_SALVA = 'sessao:senhaSalva';
   // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
-  const VERSAO_APP = '0.30.1';
+  const VERSAO_APP = '0.31.0';
 
   function $(id) { return document.getElementById(id); }
 
@@ -216,6 +216,37 @@
             '</div>';
         }).join('') +
         '<p class="texto-apoio">"Ver detalhes" (com PDF) entra nas Fases 3 e 5.</p>');
+  });
+
+  $('btn-pdfs').addEventListener('click', async function () {
+    let itens = [];
+    try { itens = await EC.pdf.listarSalvos(); } catch (e) { itens = []; }
+    const html = itens.length === 0
+      ? '<p class="overlay-vazio">Nenhum PDF salvo ainda.<br>Gere um PDF na tela de conclusão do serviço — ele fica guardado aqui.</p>'
+      : itens.map(function (r) {
+          const data = r.salvoEm ? new Date(r.salvoEm).toLocaleString('pt-BR') : '';
+          return '<div class="overlay-item">' +
+            '<strong>OS ' + (r.os || '?') + '</strong>' + (r.cliente ? ' — ' + r.cliente : '') +
+            (r.projeto ? '<br><small>' + r.projeto + '</small>' : '') +
+            '<br><small>' + (r.escopo || r.tipo || '') + (data ? ' · ' + data : '') + '</small>' +
+            '<div class="overlay-item-acoes">' +
+            '<button type="button" class="botao botao-secundario pdf-abrir" data-id="' + r.id + '">📤 Abrir / compartilhar</button>' +
+            '<button type="button" class="botao botao-perigo pdf-excluir" data-id="' + r.id + '" title="Excluir">🗑️</button>' +
+            '</div></div>';
+        }).join('');
+    abrirOverlay('📄 Relatórios salvos', html);
+
+    const cont = $('overlay-conteudo');
+    const mapa = {}; itens.forEach(function (r) { mapa[r.id] = r; });
+    cont.querySelectorAll('.pdf-abrir').forEach(function (b) {
+      b.addEventListener('click', function () { const r = mapa[b.dataset.id]; if (r) EC.pdf.abrirSalvo(r); });
+    });
+    cont.querySelectorAll('.pdf-excluir').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (!confirm('Excluir este PDF salvo do aparelho?')) return;
+        EC.pdf.excluirSalvo(b.dataset.id).then(function () { $('btn-pdfs').click(); });
+      });
+    });
   });
 
   $('btn-rascunhos').addEventListener('click', function () {
