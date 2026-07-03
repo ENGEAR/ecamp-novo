@@ -312,22 +312,43 @@ EC.pdf = (function () {
         fotosDe(j.fotoPonto, 'Ponto');
         fotosDe(j.fotoTelaFim, 'Tela — checagem final');
       }
+      function pontoRuido(p, n) {
+        tituloSecao('Ponto P' + String(n).padStart(2, '0'));
+        kv('Equipamentos do ponto', (p.equipamentos && p.equipamentos.length) ? p.equipamentos.join(', ') : '—');
+        var temJanelas = p.total && typeof p.total === 'object';
+        if (!temJanelas) { medicaoRuido(p); return; } // rascunho antigo (flat)
+        subtitulo('Ruído Total (com a fonte)');
+        medicaoRuido(p.total || {});
+        subtitulo('Ruído Residual (sem a fonte)');
+        if (janelaComDados(p.residual)) medicaoRuido(p.residual);
+        else kv('Residual não medido', p.justificativaResidual || '—');
+      }
       function corpoRuido() {
-        var geral = (reg.campo && reg.campo.geral) || {};
-        var pontos = (reg.campo && reg.campo.pontos) || [];
-        var total = Math.min(pontos.length, Math.max(1, parseInt(geral.qtdePontos, 10) || pontos.length));
-        for (var i = 0; i < total; i++) {
-          var p = pontos[i] || {};
-          tituloSecao('Ponto P' + String(i + 1).padStart(2, '0'));
-          kv('Equipamentos do ponto', (p.equipamentos && p.equipamentos.length) ? p.equipamentos.join(', ') : '—');
-          var temJanelas = p.total && typeof p.total === 'object';
-          if (!temJanelas) { medicaoRuido(p); continue; } // rascunho antigo (flat)
-          subtitulo('Ruído Total (com a fonte)');
-          medicaoRuido(p.total || {});
-          subtitulo('Ruído Residual (sem a fonte)');
-          if (janelaComDados(p.residual)) medicaoRuido(p.residual);
-          else kv('Residual não medido', p.justificativaResidual || '—');
+        var campo = reg.campo || {};
+        var interno = campo.subtipo === 'interno10151' || campo.subtipo === 'interno10152';
+        if (interno) {
+          // Um bloco por AMBIENTE (condições da sala) + seus pontos.
+          var ambientes = campo.ambientes || [];
+          var totalAmb = Math.min(20, Math.max(0, parseInt((campo.geral || {}).qtdeAmbientes, 10) || ambientes.length));
+          var gN = 0;
+          for (var a = 0; a < totalAmb; a++) {
+            var amb = ambientes[a] || {};
+            tituloSecao('Ambiente ' + (a + 1) + (amb.nome ? ' - ' + amb.nome : ''));
+            kv('Condição das esquadrias', amb.esquadrias);
+            kv('Ocupação do ambiente', amb.condicao);
+            kv('Condição do ambiente', amb.mobilia);
+            kvSe('Área', (amb.area != null && amb.area !== '') ? amb.area + ' m²' : '');
+            kvSe('Pontos calculados', amb.pontosCalculados);
+            var pts = amb.pontos || [];
+            var tp = Math.min(pts.length, Math.max(0, parseInt(amb.pontosCalculados, 10) || pts.length));
+            for (var i = 0; i < tp; i++) { gN++; pontoRuido(pts[i] || {}, gN); }
+          }
+          return;
         }
+        var geral = campo.geral || {};
+        var pontos = campo.pontos || [];
+        var total = Math.min(pontos.length, Math.max(1, parseInt(geral.qtdePontos, 10) || pontos.length));
+        for (var k = 0; k < total; k++) pontoRuido(pontos[k] || {}, k + 1);
       }
 
       /* ---------- Corpo GENÉRICO (demais serviços) ---------- */

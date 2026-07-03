@@ -221,6 +221,7 @@ EC.campoRuido = (function () {
   let ctx = null;          // { estado, salvar }
   let raiz = null;         // container
   let pontoExibido = 1;
+  let ambienteExibido = 1;     // interno: qual ambiente está aberto (1-based)
   let janelaExibida = 'total'; // janela do ponto em edição (externo): 'total' | 'residual'
   let temporizadorSalvar = null;
 
@@ -235,6 +236,28 @@ EC.campoRuido = (function () {
   function $(seletor) { return raiz.querySelector(seletor); }
 
   function campo() { return ctx.estado.campo; }
+
+  // Interno usa campo.ambientes[] (cada ambiente com seus próprios pontos); os
+  // demais subtipos usam campo.pontos direto. Estes helpers dão o "contexto
+  // ativo" de pontos (do ambiente aberto, no interno) para paginador/render.
+  function ehInternoAtivo() { return ehInterno(campo().subtipo); }
+  function ambienteAtivo() {
+    if (!ehInternoAtivo()) return null;
+    return (campo().ambientes || [])[ambienteExibido - 1] || null;
+  }
+  function listaPontos() {
+    const a = ambienteAtivo();
+    if (a) { if (!a.pontos) a.pontos = []; return a.pontos; }
+    return campo().pontos;
+  }
+  function totalPontosCtx() {
+    if (ehInternoAtivo()) {
+      const a = ambienteAtivo();
+      return Math.min(20, Math.max(1, parseInt(a && a.pontosCalculados, 10) || 0));
+    }
+    return Math.min(20, Math.max(1, parseInt(campo().geral.qtdePontos, 10) || 0));
+  }
+
   function ehLongaDuracao() {
     const s = ctx.estado.servico || {};
     return /longa\s*dura/i.test((s.metodo || '') + ' ' + (s.periodo || ''));
@@ -262,7 +285,7 @@ EC.campoRuido = (function () {
   // Fotos que faltam no ponto exibido no momento (usado pelo "Próximo →" do fluxo).
   function pontoAtualIncompleto() {
     if (!ctx || !campo()) return [];
-    return fotosFaltando(campo().pontos[pontoExibido - 1], campo().subtipo);
+    return fotosFaltando(listaPontos()[pontoExibido - 1], campo().subtipo);
   }
 
   // Itens em branco de UMA janela (Total ou Residual), conforme o subtipo.
@@ -294,7 +317,6 @@ EC.campoRuido = (function () {
     if (ehInterno(subtipo)) {
       reqVal('altura', 'altura do sonômetro');
       grupoChecks('altura', 1, 'altura do sonômetro');
-      if (subtipo === 'interno10151') reqVal('condAmbiente', 'condições do ambiente (vazio/mobiliado)');
       reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento');
       grupoChecks('chuva', 1, 'condições ambientais');
       reqVal('eventualidade', 'eventualidade');
@@ -363,10 +385,8 @@ EC.campoRuido = (function () {
       for (let i = 0; i < qtde; i++) if (!checks[prefixo + i]) n++;
       if (n) out.push('Preparação: ' + n + ' confirmação(ões) de ' + rotulo);
     };
-    if (ehInterno(campo.subtipo)) {
-      grupo('pos', CHECKS_POSICIONAMENTO_INTERNO.length, 'posicionamento dos pontos');
-      grupo('mont', checksMontagemInterno(campo.subtipo).length, 'montagem do equipamento');
-    } else if (campo.subtipo === 'ferroviario' && g.finalidade === FERRO_PASSAGEM) {
+    // Interno: posicionamento/montagem são por AMBIENTE (validados em itensFaltandoInterno).
+    if (campo.subtipo === 'ferroviario' && g.finalidade === FERRO_PASSAGEM) {
       grupo('instal', CHECKS_INSTALACAO_FERRO.length, 'instalação');
     } else if (campo.subtipo === 'ferroviario' && g.finalidade === FERRO_PATIOS) {
       grupo('instal', CHECKS_INSTALACAO_FERRO_PATIOS.length, 'instalação');
@@ -377,14 +397,49 @@ EC.campoRuido = (function () {
     return out;
   }
 
+  // Interno: valida por AMBIENTE (nome + condições + área + posicionamento/montagem
+  // + os pontos daquele ambiente).
+  function itensFaltandoInterno(campo, longaDuracao) {
+    const g = campo.geral || {};
+    const totalAmb = Math.min(20, Math.max(1, parseInt(g.qtdeAmbientes, 10) || 0));
+    if (!totalAmb) return ['a quantidade de ambientes não foi definida'];
+    const ambientes = campo.ambientes || [];
+    const lista = [];
+    const montItens = checksMontagemInterno(campo.subtipo);
+    for (let a = 0; a < totalAmb; a++) {
+      const amb = ambientes[a] || {};
+      const rot = 'Ambiente ' + (a + 1) + (amb.nome ? ' (' + amb.nome + ')' : '') + ': ';
+      if (!String(amb.nome || '').trim()) lista.push(rot + 'nome do ambiente');
+      if (!amb.esquadrias) lista.push(rot + 'condição das esquadrias');
+      if (!amb.condicao) lista.push(rot + 'ocupação do ambiente');
+      if (!amb.mobilia) lista.push(rot + 'condição do ambiente');
+      if (amb.area === undefined || amb.area === null || String(amb.area).trim() === '') lista.push(rot + 'área do ambiente');
+      if (!amb.pontosCalculados) { lista.push(rot + 'calcular os pontos'); continue; }
+      const checks = amb.checks || {};
+      let np = 0; for (let i = 0; i < CHECKS_POSICIONAMENTO_INTERNO.length; i++) if (!checks['pos' + i]) np++;
+      if (np) lista.push(rot + np + ' confirmação(ões) de posicionamento dos pontos');
+      let nm = 0; for (let i = 0; i < montItens.length; i++) if (!checks['mont' + i]) nm++;
+      if (nm) lista.push(rot + nm + ' confirmação(ões) de montagem do equipamento');
+      const totalPts = Math.min(20, Math.max(1, parseInt(amb.pontosCalculados, 10) || 0));
+      const pontos = amb.pontos || [];
+      for (let p = 0; p < totalPts; p++) {
+        itensFaltandoDoPonto(pontos[p], campo.subtipo, p, totalPts, g, longaDuracao).forEach(function (x) {
+          lista.push(rot + 'P' + (p + 1) + ': ' + x);
+        });
+      }
+    }
+    return lista;
+  }
+
   // Lista "P{n}: falta ..." de TODOS os pontos (usada para travar o salvamento).
   function itensFaltando(estado) {
     const campo = estado && estado.campo;
     if (!campo || !campo.subtipo) return ['o monitoramento em campo não foi iniciado'];
-    const total = Math.min(20, Math.max(1, parseInt(campo.geral.qtdePontos, 10) || 0));
-    if (!total) return ['a quantidade de pontos do campo não foi definida'];
     const s = estado.servico || {};
     const longaDuracao = /longa\s*dura/i.test((s.metodo || '') + ' ' + (s.periodo || ''));
+    if (ehInterno(campo.subtipo)) return itensFaltandoInterno(campo, longaDuracao);
+    const total = Math.min(20, Math.max(1, parseInt(campo.geral.qtdePontos, 10) || 0));
+    if (!total) return ['a quantidade de pontos do campo não foi definida'];
     const lista = [];
     geralChecksFaltando(campo).forEach(function (x) { lista.push(x); });
     // Variação no nº de pontos vs. previsto na OS → exige justificativa.
@@ -626,7 +681,9 @@ EC.campoRuido = (function () {
         campo().subtipo = novo;
         campo().geral = {};
         campo().pontos = [];
+        campo().ambientes = [];
         pontoExibido = 1;
+        ambienteExibido = 1;
         salvar();
         renderizarSubtipos();
         renderizarGeral();
@@ -684,29 +741,15 @@ EC.campoRuido = (function () {
       renderizarPontos();
 
     } else if (ehInterno(campo().subtipo)) {
-      // NBR 10151 e 10152 interno: monitorar preferencialmente sem pessoas.
-      const notaPessoas = '💡 Monitorar, preferencialmente, sem pessoas.';
+      // Interno: vários AMBIENTES; cada um com suas condições + pontos próprios.
       area.innerHTML =
-        '<div class="grade-2">' +
-        '  <label>Condição das esquadrias<select data-campo="esquadrias"><option value="">Selecione…</option><option>Aberta</option><option>Fechada</option></select></label>' +
-        '  <label>Ocupação do ambiente<select data-campo="condicao"><option value="">Selecione…</option><option>Sala vazia</option><option>Com pessoas</option></select></label>' +
-        '  <label>Condição do ambiente<select data-campo="mobilia"><option value="">Selecione…</option><option>Vazio</option><option>Mobiliado</option></select></label>' +
-        '</div>' +
-        '<p class="texto-apoio">' + notaPessoas + '</p>' +
-        '<label>Área do ambiente (m²)<input type="number" min="1" step="0.1" inputmode="decimal" data-campo="area"></label>' +
-        '<button type="button" class="botao botao-secundario" id="cr-calcular">Calcular pontos necessários</button>' +
-        '<div id="cr-interno-resultado"></div>';
+        '<label>Quantos ambientes serão selecionados? (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdeAmbientes"></label>' +
+        '<div id="cr-amb-pager" class="cr-paginacao"></div>' +
+        '<div id="cr-ambiente"></div>';
+      if (g.qtdeAmbientes === undefined) g.qtdeAmbientes = 1;
       vincular(area, g);
-
-      area.querySelector('#cr-calcular').addEventListener('click', function () {
-        const m2 = parseFloat(String(g.area || '').replace(',', '.'));
-        if (!m2 || m2 <= 0) { EC.app.mostrarToast('Informe a área do ambiente primeiro.'); return; }
-        g.pontosCalculados = 3 + Math.floor(m2 / 30); // mínimo 3 pontos; +1 a cada 30 m²
-        salvar();
-        renderizarInternoAposCalculo();
-      });
-
-      if (g.pontosCalculados) renderizarInternoAposCalculo();
+      area.querySelector('[data-campo="qtdeAmbientes"]').addEventListener('input', renderizarAmbientes);
+      renderizarAmbientes();
 
     } else if (campo().subtipo === 'ferroviario') {
       area.innerHTML =
@@ -774,45 +817,100 @@ EC.campoRuido = (function () {
     }
   }
 
-  function renderizarInternoAposCalculo() {
+  // Interno: paginador de AMBIENTES. Garante o array e mostra um ambiente por vez.
+  function renderizarAmbientes() {
     const g = campo().geral;
+    if (!campo().ambientes) campo().ambientes = [];
+    const total = Math.min(20, Math.max(1, parseInt(g.qtdeAmbientes, 10) || 0));
+    const pager = $('#cr-amb-pager');
+    if (!total) {
+      pager.innerHTML = ''; $('#cr-ambiente').innerHTML = '';
+      $('#cr-paginacao').innerHTML = ''; $('#cr-ponto').innerHTML = '';
+      return;
+    }
+    while (campo().ambientes.length < total) campo().ambientes.push({ pontos: [] });
+    ambienteExibido = Math.min(ambienteExibido, total);
+    EC.paginacao.criar(pager, {
+      total: total,
+      rotulo: 'Ambiente ',
+      aoMudar: function (n) {
+        ambienteExibido = n;
+        pontoExibido = 1;
+        janelaExibida = 'total';
+        renderizarAmbiente(n);
+      }
+    });
+  }
+
+  // Formulário de UM ambiente: nome + esquadrias/ocupação/condição/área + cálculo.
+  function renderizarAmbiente(n) {
+    const amb = campo().ambientes[n - 1];
+    const area = $('#cr-ambiente');
+    if (!amb) { area.innerHTML = ''; return; }
+    area.innerHTML =
+      '<div class="cartao-ponto">' +
+      '  <label>Nome do ambiente<input type="text" data-campo="nome" placeholder="ex.: Sala 101, Recepção…"></label>' +
+      '  <div class="grade-2">' +
+      '    <label>Condição das esquadrias<select data-campo="esquadrias"><option value="">Selecione…</option><option>Aberta</option><option>Fechada</option></select></label>' +
+      '    <label>Ocupação do ambiente<select data-campo="condicao"><option value="">Selecione…</option><option>Sala vazia</option><option>Com pessoas</option></select></label>' +
+      '    <label>Condição do ambiente<select data-campo="mobilia"><option value="">Selecione…</option><option>Vazio</option><option>Mobiliado</option></select></label>' +
+      '  </div>' +
+      '  <p class="texto-apoio">💡 Monitorar, preferencialmente, sem pessoas.</p>' +
+      '  <label>Área do ambiente (m²)<input type="number" min="1" step="0.1" inputmode="decimal" data-campo="area"></label>' +
+      '  <button type="button" class="botao botao-secundario" id="cr-calcular">Calcular pontos necessários</button>' +
+      '  <div id="cr-interno-resultado"></div>' +
+      '</div>';
+    vincular(area, amb);
+
+    area.querySelector('#cr-calcular').addEventListener('click', function () {
+      const m2 = parseFloat(String(amb.area || '').replace(',', '.'));
+      if (!m2 || m2 <= 0) { EC.app.mostrarToast('Informe a área do ambiente primeiro.'); return; }
+      amb.pontosCalculados = 3 + Math.floor(m2 / 30); // mínimo 3 pontos; +1 a cada 30 m²
+      salvar();
+      renderizarAmbienteAposCalculo(n);
+    });
+
+    if (amb.pontosCalculados) renderizarAmbienteAposCalculo(n);
+    else { $('#cr-paginacao').innerHTML = ''; $('#cr-ponto').innerHTML = ''; }
+  }
+
+  // Pós-cálculo do ambiente: pontos necessários + posicionamento/montagem +
+  // layout da sala + os pontos daquele ambiente.
+  function renderizarAmbienteAposCalculo(n) {
+    const amb = campo().ambientes[n - 1];
     const div = $('#cr-interno-resultado');
     div.innerHTML =
-      '<div class="alerta alerta-info">📐 Pontos necessários: <strong>' + g.pontosCalculados + '</strong> (mínimo 3; +1 ponto a cada 30 m²)</div>' +
+      '<div class="alerta alerta-info">📐 Pontos necessários: <strong>' + amb.pontosCalculados + '</strong> (mínimo 3; +1 ponto a cada 30 m²)</div>' +
       '<p class="grupo-checks-titulo">Posicionamento dos pontos</p>' + htmlChecks(CHECKS_POSICIONAMENTO_INTERNO, 'pos') +
       '<p class="grupo-checks-titulo">Montagem do equipamento</p>' + htmlChecks(checksMontagemInterno(campo().subtipo), 'mont') +
       '<p class="grupo-checks-titulo">Layout da sala</p>' +
       '<div id="cr-canvas-sala"></div>' +
       '<button type="button" class="botao botao-primario botao-largo" id="cr-ir-pontos">Ir para os pontos →</button>';
-    vincular(div, g);
+    vincular(div, amb);
 
     const canvas = EC.canvasSala.criar(div.querySelector('#cr-canvas-sala'), {
-      dadosIniciais: g.sala || null,
-      aoMudar: function (objetos) {
-        g.sala = { objetos: objetos };
-        salvarDevagar();
-      }
+      dadosIniciais: amb.sala || null,
+      aoMudar: function (objetos) { amb.sala = { objetos: objetos }; salvarDevagar(); }
     });
 
     div.querySelector('#cr-ir-pontos').addEventListener('click', function () {
-      g.qtdePontos = g.pontosCalculados;
-      g.sala = { objetos: canvas.exportar().objetos };
+      amb.sala = { objetos: canvas.exportar().objetos };
       salvar();
       renderizarPontos();
       $('#cr-ponto').scrollIntoView({ behavior: 'smooth' });
     });
 
-    if (g.qtdePontos) renderizarPontos();
+    renderizarPontos();
   }
 
   /* ===== Pontos paginados ===== */
 
   function renderizarPontos() {
-    const g = campo().geral;
-    const total = Math.min(20, Math.max(1, parseInt(g.qtdePontos, 10) || 0));
-    if (!g.qtdePontos || total < 1) { $('#cr-paginacao').innerHTML = ''; $('#cr-ponto').innerHTML = ''; return; }
+    const total = totalPontosCtx();
+    const lista = listaPontos();
+    if (total < 1) { $('#cr-paginacao').innerHTML = ''; $('#cr-ponto').innerHTML = ''; return; }
 
-    while (campo().pontos.length < total) campo().pontos.push({});
+    while (lista.length < total) lista.push({});
     // pontos além do total ficam guardados (não exibidos) — nada é apagado
 
     pontoExibido = Math.min(pontoExibido, total);
@@ -820,7 +918,7 @@ EC.campoRuido = (function () {
       total: total,
       // Não deixa sair de um ponto sem as fotos obrigatórias dele
       aoSair: function (numero) {
-        const faltando = fotosFaltando(campo().pontos[numero - 1], campo().subtipo);
+        const faltando = fotosFaltando(lista[numero - 1], campo().subtipo);
         if (faltando.length) {
           EC.app.mostrarToast('Tire a(s) foto(s) do ponto P' + numero + ' antes de sair: ' + faltando.join(', ') + '.');
           return false;
@@ -874,12 +972,6 @@ EC.campoRuido = (function () {
       '<div class="cr-gps"></div>' +
       '<label>Altura do sonômetro (m)<input type="number" step="0.01" inputmode="decimal" data-campo="altura"></label>' +
       htmlChecks(['Altura variando entre 1,2 e 1,5 m'], 'altura') +
-      (subtipo === 'interno10151'
-        ? '<p class="grupo-checks-titulo">Condições do ambiente</p>' +
-          ['Ambiente vazio', 'Ambiente mobiliado'].map(function (op) {
-            return '<label class="linha-check"><input type="radio" name="cr-cond-ambiente" value="' + op + '"><span>' + op + '</span></label>';
-          }).join('')
-        : '') +
       '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' + htmlClima(true) +
       htmlChecagem('Checagem inicial', 'chkIni') +
       '<div class="cr-foto-tela-ini"></div>' +
@@ -1026,11 +1118,7 @@ EC.campoRuido = (function () {
     montarFoto(wrap, '.cr-foto-ponto', alvo, 'fotoPonto', '📷 Foto do ponto (obrigatória)', gps, n, suf);
     montarFoto(wrap, '.cr-foto-tela-fim', alvo, 'fotoTelaFim', '📷 Foto da tela após checagem final (obrigatória)', gps, n, suf);
 
-    // Interno: condições do ambiente (radios) e eventualidade — ligados à janela.
-    wrap.querySelectorAll('input[name="cr-cond-ambiente"]').forEach(function (r) {
-      r.checked = (alvo.condAmbiente === r.value);
-      r.addEventListener('change', function () { if (r.checked) { alvo.condAmbiente = r.value; salvarDevagar(); } });
-    });
+    // Interno: eventualidade — ligada à janela.
     const seletorEvent = wrap.querySelector('[data-campo="eventualidade"]');
     if (seletorEvent) {
       const divDesc = wrap.querySelector('#cr-eventualidade-desc');
@@ -1046,7 +1134,7 @@ EC.campoRuido = (function () {
   }
 
   function renderizarPonto(n) {
-    const ponto = campo().pontos[n - 1];
+    const ponto = listaPontos()[n - 1];
     if (!ponto) { $('#cr-ponto').innerHTML = ''; return; }
     renderizarPontoJanelas(n, ponto);
   }
@@ -1058,6 +1146,7 @@ EC.campoRuido = (function () {
     raiz = container;
     if (!ctx.estado.campo) ctx.estado.campo = { subtipo: null, geral: {}, pontos: [] };
     pontoExibido = 1;
+    ambienteExibido = 1;
 
     // Pré-seleciona o subtipo pelo escopo da OS (o técnico pode trocar)
     if (!campo().subtipo && EC.mapaEscopo && EC.mapaEscopo.subtipoPorEscopo) {

@@ -963,17 +963,30 @@ EC.fluxo = (function () {
     } else if (estado.campo && estado.campo.subtipo) {
       const campo = estado.campo;
       const sub = EC.campoRuido.SUBTIPOS.filter(function (s) { return s.id === campo.subtipo; })[0];
-      corpoCampo = linhaResumo('Subtipo', sub ? sub.icone + ' ' + sub.nome : campo.subtipo) +
-        (campo.geral.finalidade ? linhaResumo('Finalidade', campo.geral.finalidade) : '') +
-        (campo.geral.area ? linhaResumo('Área do ambiente (m²)', campo.geral.area) : '');
-      const total = Math.min(20, Math.max(0, parseInt(campo.geral.qtdePontos, 10) || 0));
-      for (let i = 0; i < total; i++) {
-        const p = campo.pontos[i] || {};
-        const fotos = ['fotoTelaIni', 'fotoPonto', 'fotoTelaFim'].filter(function (chave) { return EC.foto.tem(p[chave]); }).length;
-        corpoCampo += linhaResumo('P' + (i + 1) + (p.nome ? ' — ' + p.nome : ''),
-          (p.gps ? '📍GPS ✓' : '📍GPS —') + ' · ' +
-          (p.chkIniValor ? 'chk.ini ✓' : 'chk.ini —') + ' · ' +
-          (p.chkFimValor ? 'chk.fim ✓' : 'chk.fim —') + ' · 📷 ' + fotos);
+      corpoCampo = linhaResumo('Subtipo', sub ? sub.icone + ' ' + sub.nome : campo.subtipo);
+      const interno = campo.subtipo === 'interno10151' || campo.subtipo === 'interno10152';
+      if (interno) {
+        // Interno: um bloco por AMBIENTE (cada um com seus pontos).
+        const ambientes = campo.ambientes || [];
+        const totalAmb = Math.min(20, Math.max(0, parseInt(campo.geral.qtdeAmbientes, 10) || 0));
+        corpoCampo += linhaResumo('Ambientes', String(totalAmb));
+        for (let a = 0; a < totalAmb; a++) {
+          const amb = ambientes[a] || {};
+          corpoCampo += linhaResumo('Ambiente ' + (a + 1) + (amb.nome ? ' — ' + amb.nome : ''),
+            (amb.area ? amb.area + ' m² · ' : '') +
+            (amb.pontosCalculados ? amb.pontosCalculados + ' ponto(s)' : 'pontos não calculados'));
+        }
+      } else {
+        corpoCampo += (campo.geral.finalidade ? linhaResumo('Finalidade', campo.geral.finalidade) : '');
+        const total = Math.min(20, Math.max(0, parseInt(campo.geral.qtdePontos, 10) || 0));
+        for (let i = 0; i < total; i++) {
+          const p = campo.pontos[i] || {};
+          const fotos = ['fotoTelaIni', 'fotoPonto', 'fotoTelaFim'].filter(function (chave) { return EC.foto.tem(p[chave]); }).length;
+          corpoCampo += linhaResumo('P' + (i + 1) + (p.nome ? ' — ' + p.nome : ''),
+            (p.gps ? '📍GPS ✓' : '📍GPS —') + ' · ' +
+            (p.chkIniValor ? 'chk.ini ✓' : 'chk.ini —') + ' · ' +
+            (p.chkFimValor ? 'chk.fim ✓' : 'chk.fim —') + ' · 📷 ' + fotos);
+        }
       }
     }
     html += secaoRevisao('📡 Em campo', corpoCampo, 'tela-passo4');
