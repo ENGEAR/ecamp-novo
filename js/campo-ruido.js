@@ -683,7 +683,7 @@ EC.campoRuido = (function () {
       area.querySelector('#cr-calcular').addEventListener('click', function () {
         const m2 = parseFloat(String(g.area || '').replace(',', '.'));
         if (!m2 || m2 <= 0) { EC.app.mostrarToast('Informe a área do ambiente primeiro.'); return; }
-        g.pontosCalculados = Math.max(1, Math.ceil(m2 / 30)); // 1 ponto a cada 30 m²
+        g.pontosCalculados = 3 + Math.floor(m2 / 30); // mínimo 3 pontos; +1 a cada 30 m²
         salvar();
         renderizarInternoAposCalculo();
       });
@@ -760,7 +760,7 @@ EC.campoRuido = (function () {
     const g = campo().geral;
     const div = $('#cr-interno-resultado');
     div.innerHTML =
-      '<div class="alerta alerta-info">📐 Pontos necessários: <strong>' + g.pontosCalculados + '</strong> (1 ponto a cada 30 m²)</div>' +
+      '<div class="alerta alerta-info">📐 Pontos necessários: <strong>' + g.pontosCalculados + '</strong> (mínimo 3; +1 ponto a cada 30 m²)</div>' +
       '<p class="grupo-checks-titulo">Posicionamento dos pontos</p>' + htmlChecks(CHECKS_POSICIONAMENTO_INTERNO, 'pos') +
       '<p class="grupo-checks-titulo">Montagem do equipamento</p>' + htmlChecks(checksMontagemInterno(campo().subtipo), 'mont') +
       '<p class="grupo-checks-titulo">Layout da sala</p>' +
