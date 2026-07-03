@@ -181,6 +181,13 @@ EC.campoRuido = (function () {
     { sub: null, texto: 'Mínimo de 30 eventos de operações de engates em período entre 60 min e 240 min — registrar LAFmax de cada evento' }
   ];
 
+  // Pátios — monitoramento do SOM RESIDUAL (janela Residual do ponto).
+  const MONITORAMENTO_RESIDUAL_PATIOS = [
+    { sub: 'Monitoramento 24 horas (sugerido):', texto: 'Diurno: pelo menos 60 min de medição (contínua ou não)' },
+    { sub: null, texto: 'Noturno: pelo menos 30 min de medição (contínua ou não)' },
+    { sub: 'Monitoramento pontual:', texto: 'Pelo menos 15 min de medição (contínua ou não)' }
+  ];
+
   const CHECKS_INSTALACAO_AERO_RECEPTORES = [
     'Altura entre 1,2 m e 1,5 m do solo',
     'Para longa duração: microfone preferencialmente ≥ 4 m do solo',
@@ -321,10 +328,14 @@ EC.campoRuido = (function () {
       if (j.eventualidade === 'Sim') reqVal('eventualidadeDesc', 'descrição da eventualidade');
       reqVal('chkFimValor', 'checagem final');
     } else if (subtipo === 'ferroviario') {
+      const fin = (geral || {}).finalidade;
       // Passagem: Total exige [2,3,4] (som da passagem + clima); Residual exige
-      // [0,1,3,4] (som residual + clima). Pátios: todos os checks.
-      if ((geral || {}).finalidade === FERRO_PASSAGEM) {
+      // [0,1,3,4] (som residual + clima). Pátios: só o clima [3,4] — os blocos
+      // de operações/som residual são orientação e não travam o salvamento.
+      if (fin === FERRO_PASSAGEM) {
         grupoChecksIdx('ferro', janela === 'total' ? [2, 3, 4] : [0, 1, 3, 4], 'checks do ponto');
+      } else if (fin === FERRO_PATIOS) {
+        grupoChecksIdx('ferro', [3, 4], 'condições ambientais');
       } else {
         grupoChecks('ferro', CHECKS_PONTO_FERRO.length, 'checks do ponto');
       }
@@ -481,11 +492,11 @@ EC.campoRuido = (function () {
     }).join('');
   }
 
-  // Checklist de operações (pátios): cada item pode ter um sub-título em negrito.
-  function htmlOperacoesFerroPatios() {
-    return OPERACOES_FERRO_PATIOS.map(function (it, i) {
+  // Checklist com sub-títulos em negrito (pátios: operações e som residual).
+  function htmlChecksComSub(itens, prefixo) {
+    return itens.map(function (it, i) {
       return (it.sub ? '<p class="subgrupo-titulo">' + it.sub + '</p>' : '') +
-        '<label class="linha-check check-campo"><input type="checkbox" data-check="oper' + i + '"><span>' + it.texto + '</span></label>';
+        '<label class="linha-check check-campo"><input type="checkbox" data-check="' + prefixo + i + '"><span>' + it.texto + '</span></label>';
     }).join('');
   }
 
@@ -772,8 +783,7 @@ EC.campoRuido = (function () {
         } else if (g.finalidade === FERRO_PATIOS) {
           div.innerHTML = '<p class="grupo-checks-titulo">Requisitos de instalação — pátios / manobras / cruzamentos</p>' + htmlChecks(CHECKS_INSTALACAO_FERRO_PATIOS, 'instal');
           vincular(div, g);
-          oper.innerHTML = '<p class="grupo-checks-titulo">🚧 Operações em pátios / manobras / cruzamentos</p>' + htmlOperacoesFerroPatios();
-          vincular(oper, g);
+          // As "Operações em pátios" saíram daqui — agora ficam no ponto (janela Total).
         } else {
           div.innerHTML = '';
         }
@@ -1007,16 +1017,26 @@ EC.campoRuido = (function () {
   }
 
   function htmlCamposJanelaFerro(janela) {
-    // Passagem de composição: no TOTAL mede o som da PASSAGEM (check "Som da
-    // passagem" [2] + condições ambientais [3,4] + campo da característica);
-    // no RESIDUAL mede o som residual (checks "Som residual" curto/longa [0,1]
-    // + condições ambientais [3,4]), SEM o "Som da passagem". Pátios: todos os
-    // checks. Índices de CHECKS_PONTO_FERRO: 0/1 residual, 2 passagem, 3/4 clima.
+    // Checks do ponto por finalidade/janela. CHECKS_PONTO_FERRO: 0/1 som
+    // residual, 2 som da passagem, 3/4 condições ambientais (clima).
+    //  • PASSAGEM: Total = som da passagem [2] + clima [3,4] + campo caract.;
+    //    Residual = som residual [0,1] + clima [3,4].
+    //  • PÁTIOS: Total = bloco "Operações em pátios" + clima [3,4];
+    //    Residual = bloco "Monitoramento de som residual" + clima [3,4].
     const passagem = campo().geral.finalidade === FERRO_PASSAGEM;
+    const patios = campo().geral.finalidade === FERRO_PATIOS;
     const total = janela === 'total';
-    const checksPonto = passagem
-      ? htmlChecksIndices(CHECKS_PONTO_FERRO, 'ferro', total ? [2, 3, 4] : [0, 1, 3, 4])
-      : htmlChecks(CHECKS_PONTO_FERRO, 'ferro');
+    let checksPonto;
+    if (passagem) {
+      checksPonto = htmlChecksIndices(CHECKS_PONTO_FERRO, 'ferro', total ? [2, 3, 4] : [0, 1, 3, 4]);
+    } else if (patios) {
+      const bloco = total
+        ? '<p class="grupo-checks-titulo">🚧 Operações em pátios / manobras / cruzamentos</p>' + htmlChecksComSub(OPERACOES_FERRO_PATIOS, 'oper')
+        : '<p class="grupo-checks-titulo">🚆 Monitoramento de som residual</p>' + htmlChecksComSub(MONITORAMENTO_RESIDUAL_PATIOS, 'mres');
+      checksPonto = bloco + htmlChecksIndices(CHECKS_PONTO_FERRO, 'ferro', [3, 4]);
+    } else {
+      checksPonto = htmlChecks(CHECKS_PONTO_FERRO, 'ferro');
+    }
     return (
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
