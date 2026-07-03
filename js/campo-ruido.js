@@ -666,10 +666,8 @@ EC.campoRuido = (function () {
       renderizarPontos();
 
     } else if (ehInterno(campo().subtipo)) {
-      // NBR 10151 interno: monitorar com pessoas; NBR 10152: sem pessoas.
-      const notaPessoas = campo().subtipo === 'interno10151'
-        ? '💡 Monitorar, preferencialmente, com pessoas.'
-        : '💡 Monitorar, preferencialmente, sem pessoas.';
+      // NBR 10151 e 10152 interno: monitorar preferencialmente sem pessoas.
+      const notaPessoas = '💡 Monitorar, preferencialmente, sem pessoas.';
       area.innerHTML =
         '<div class="grade-2">' +
         '  <label>Condição das esquadrias<select data-campo="esquadrias"><option value="">Selecione…</option><option>Aberta</option><option>Fechada</option></select></label>' +
