@@ -59,6 +59,19 @@ EC.pdf = (function () {
     return s ? (SUBTIPO_LABELS[s] || s) : '';
   }
 
+  // Método pela NORMA do subtipo de ruído (quando houver); senão o método da OS.
+  var METODO_SUBTIPO = {
+    externo: 'ABNT NBR 10151',
+    interno10151: 'ABNT NBR 10151',
+    interno10152: 'ABNT NBR 10152',
+    ferroviario: 'ABNT NBR 16425-3',
+    aeronautico: 'ABNT NBR 16425-2'
+  };
+  function metodoServico(reg) {
+    var s = reg.campo && reg.campo.subtipo;
+    return (s && METODO_SUBTIPO[s]) || (reg.servico && reg.servico.metodo) || '';
+  }
+
   // Sempre sabe gerar (o botão aparece em todos os serviços).
   function suporta(reg) { return !!reg; }
 
@@ -486,7 +499,7 @@ EC.pdf = (function () {
           : (geral.qtdeAmbientes != null && geral.qtdeAmbientes !== '' ? geral.qtdeAmbientes : dg.qtdePontos));
       tituloSecao('Dados do serviço');
       kv('Escopo', serv.escopo);
-      kv('Método', serv.metodo);
+      kv('Método', metodoServico(reg));
       kv('Subtipo', subtipoLabel(reg));
       kv('Período', serv.periodo);
       kv('Frequência', os.frequencia);

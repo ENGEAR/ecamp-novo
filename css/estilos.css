@@ -553,6 +553,8 @@ textarea { resize: vertical; font-family: inherit; }
   font-size: 0.88rem;
   word-break: break-all;
 }
+.overlay-busca { display: block; margin-bottom: 10px; }
+.overlay-busca input { width: 100%; padding: 9px 12px; border: 1px solid var(--cinza-borda); border-radius: 10px; font-size: 0.9rem; box-sizing: border-box; }
 .overlay-item-acoes { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .overlay-item-acoes .botao { flex: 1; min-width: 130px; margin: 0; }
 .overlay-item-acoes .botao-perigo { flex: 0 0 auto; min-width: 0; }
