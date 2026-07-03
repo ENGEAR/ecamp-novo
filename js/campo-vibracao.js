@@ -149,16 +149,41 @@ EC.campoVibracao = (function () {
   function renderizarGeral() {
     const area = $('#cv-geral');
     const g = campo().geral;
+    const previstoPontos = ctx.estado.dadosGerais.qtdePontos;
     area.innerHTML =
       '<label>Objetivo<select data-campo="objetivo">' +
       '<option value="">Selecione…</option><option>Vibrações da Empresa</option><option>Vibrações do Ambiente</option>' +
       '</select></label>' +
       '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>' +
+      (previstoPontos != null && previstoPontos !== '' ? '<p class="texto-apoio">Previsto na OS: ' + previstoPontos + ' ponto(s).</p>' : '') +
+      '<div id="cv-just-pontos"></div>' +
       '<p class="grupo-checks-titulo">⚙️ Configuração do aparelho</p>' +
       htmlChecks(['Configuração do aparelho em sismograma (trigger) e histograma'], 'cfg');
-    if (g.qtdePontos === undefined) g.qtdePontos = ctx.estado.dadosGerais.qtdePontos;
+    if (g.qtdePontos === undefined) g.qtdePontos = previstoPontos;
     vincular(area, g);
-    area.querySelector('[data-campo="qtdePontos"]').addEventListener('input', renderizarPontos);
+
+    // Justificativa obrigatória quando a qtd de pontos difere da prevista na OS.
+    function atualizarJustPontos() {
+      const div = area.querySelector('#cv-just-pontos');
+      if (!div) return;
+      const difere = previstoPontos != null && previstoPontos !== '' && String(g.qtdePontos) !== String(previstoPontos);
+      if (difere) {
+        if (!div.dataset.montado) {
+          div.innerHTML = '<label>Justificativa da variação de pontos (obrigatória)' +
+            '<textarea rows="2" data-campo="justificativaPontos" placeholder="Por que o número de pontos mudou em relação ao previsto na OS?"></textarea></label>';
+          vincular(div, g);
+          div.dataset.montado = '1';
+        }
+      } else {
+        div.innerHTML = ''; div.dataset.montado = ''; delete g.justificativaPontos;
+      }
+    }
+    atualizarJustPontos();
+
+    area.querySelector('[data-campo="qtdePontos"]').addEventListener('input', function () {
+      renderizarPontos();
+      atualizarJustPontos();
+    });
     renderizarPontos();
   }
 
@@ -302,6 +327,12 @@ EC.campoVibracao = (function () {
     const out = [];
     if (!c.geral.objetivo) out.push('objetivo do monitoramento');
     if (!(c.geral.checks && c.geral.checks.cfg0)) out.push('configuração do aparelho (sismograma/histograma)');
+    // Variação no nº de pontos vs. previsto na OS → exige justificativa.
+    const previsto = (estado.dadosGerais || {}).qtdePontos;
+    if (previsto != null && previsto !== '' && String(c.geral.qtdePontos) !== String(previsto) &&
+        !String(c.geral.justificativaPontos || '').trim()) {
+      out.push('justificativa da variação no número de pontos');
+    }
     if (!total) { out.push('a quantidade de pontos do campo não foi definida'); return out; }
     for (let i = 0; i < total; i++) {
       itensFaltandoDoPonto(c.pontos[i], i).forEach(function (x) { out.push('P' + (i + 1) + ': ' + x); });
