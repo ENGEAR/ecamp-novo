@@ -104,6 +104,25 @@ EC.sync = (function () {
       });
     });
 
+    // Interno: sobe o LAYOUT de cada ambiente, ligado ao 1º ponto (Total) do
+    // ambiente — a numeração de pontos é global, então a base acumula.
+    var sub = (registro.campo && registro.campo.subtipo) || '';
+    if (sub === 'interno10151' || sub === 'interno10152') {
+      var mapaPid = {};
+      pontos.forEach(function (pr) { mapaPid[(pr.ordem || 1) + '|' + (pr.janela || 'total')] = pr.ponto_id; });
+      var ordemBase = 0;
+      ((registro.campo && registro.campo.ambientes) || []).forEach(function (amb) {
+        var calc = parseInt(amb && amb.pontosCalculados, 10);
+        var n = isNaN(calc) ? ((amb && amb.pontos) || []).length : Math.max(0, calc);
+        var pid = mapaPid[(ordemBase + 1) + '|total'];
+        var lf = amb && amb.layoutFoto;
+        if (pid && lf && lf.base64 && lf.nomeArquivo) {
+          tarefas.push({ ponto_id: pid, tipo: 'layout_ambiente', nomeArquivo: lf.nomeArquivo, base64: lf.base64 });
+        }
+        ordemBase += n;
+      });
+    }
+
     // envia em lotes paralelos (mais rápido em monitoramentos grandes)
     for (var k = 0; k < tarefas.length; k += FOTOS_EM_PARALELO) {
       var lote = tarefas.slice(k, k + FOTOS_EM_PARALELO);

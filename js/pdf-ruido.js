@@ -416,6 +416,7 @@ EC.pdf = (function () {
             kv('Condição do ambiente', amb.mobilia);
             kvSe('Área', (amb.area != null && amb.area !== '') ? amb.area + ' m²' : '');
             kvSe('Pontos calculados', amb.pontosCalculados);
+            if (amb.layoutFoto && amb.layoutFoto.dataUrl) foto(amb.layoutFoto.dataUrl, 'Layout do ambiente');
             var pts = amb.pontos || [];
             var tp = Math.min(pts.length, Math.max(0, parseInt(amb.pontosCalculados, 10) || pts.length));
             for (var i = 0; i < tp; i++) { gN++; pontoRuido(pts[i] || {}, gN); }

@@ -888,11 +888,30 @@ EC.campoRuido = (function () {
 
     const canvas = EC.canvasSala.criar(div.querySelector('#cr-canvas-sala'), {
       dadosIniciais: amb.sala || null,
-      aoMudar: function (objetos) { amb.sala = { objetos: objetos }; salvarDevagar(); }
+      aoMudar: function () { capturarLayout(); salvarDevagar(); }
     });
 
+    // Guarda o desenho do layout como IMAGEM (p/ subir como foto e ir ao PDF).
+    // Sem desenho (0 objetos) → não gera imagem.
+    function capturarLayout() {
+      const exp = canvas.exportar(); // { objetos, dataUrl (PNG) }
+      amb.sala = { objetos: exp.objetos };
+      if (exp.objetos && exp.objetos.length) {
+        const nomeAmb = amb.nome || ('Ambiente ' + n);
+        const os = (ctx.estado.os && ctx.estado.os.numero) || 'SEM-OS';
+        amb.layoutFoto = {
+          dataUrl: exp.dataUrl,
+          base64: exp.dataUrl.split(',')[1],
+          nomeArquivo: ('Layout do ambiente ' + n + ' - ' + nomeAmb + ' - OS ' + os).replace(/[\\/:*?"<>|]+/g, '-') + '.png'
+        };
+      } else {
+        delete amb.layoutFoto;
+      }
+    }
+    capturarLayout(); // captura o que já estava desenhado (rascunho restaurado)
+
     div.querySelector('#cr-ir-pontos').addEventListener('click', function () {
-      amb.sala = { objetos: canvas.exportar().objetos };
+      capturarLayout();
       salvar();
       renderizarPontos();
       $('#cr-ponto').scrollIntoView({ behavior: 'smooth' });
