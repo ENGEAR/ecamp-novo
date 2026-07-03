@@ -321,9 +321,10 @@ EC.campoRuido = (function () {
       if (j.eventualidade === 'Sim') reqVal('eventualidadeDesc', 'descrição da eventualidade');
       reqVal('chkFimValor', 'checagem final');
     } else if (subtipo === 'ferroviario') {
-      // Passagem + janela Total: só os checks de condições ambientais (3,4).
-      if ((geral || {}).finalidade === FERRO_PASSAGEM && janela === 'total') {
-        grupoChecksIdx('ferro', [3, 4], 'condições ambientais');
+      // Passagem: Total exige [2,3,4] (som da passagem + clima); Residual exige
+      // [0,1,3,4] (som residual + clima). Pátios: todos os checks.
+      if ((geral || {}).finalidade === FERRO_PASSAGEM) {
+        grupoChecksIdx('ferro', janela === 'total' ? [2, 3, 4] : [0, 1, 3, 4], 'checks do ponto');
       } else {
         grupoChecks('ferro', CHECKS_PONTO_FERRO.length, 'checks do ponto');
       }
@@ -1006,13 +1007,15 @@ EC.campoRuido = (function () {
   }
 
   function htmlCamposJanelaFerro(janela) {
-    // Passagem de composição + janela Total: mede o som da PASSAGEM. Saem as
-    // orientações de "som residual" (curto/longa) e de "som da passagem"; entra
-    // o campo da característica da composição avaliada. Ficam só as condições
-    // ambientais (índices 3 e 4 de CHECKS_PONTO_FERRO).
-    const passagemTotal = campo().geral.finalidade === FERRO_PASSAGEM && janela === 'total';
-    const checksPonto = passagemTotal
-      ? htmlChecksIndices(CHECKS_PONTO_FERRO, 'ferro', [3, 4])
+    // Passagem de composição: no TOTAL mede o som da PASSAGEM (check "Som da
+    // passagem" [2] + condições ambientais [3,4] + campo da característica);
+    // no RESIDUAL mede o som residual (checks "Som residual" curto/longa [0,1]
+    // + condições ambientais [3,4]), SEM o "Som da passagem". Pátios: todos os
+    // checks. Índices de CHECKS_PONTO_FERRO: 0/1 residual, 2 passagem, 3/4 clima.
+    const passagem = campo().geral.finalidade === FERRO_PASSAGEM;
+    const total = janela === 'total';
+    const checksPonto = passagem
+      ? htmlChecksIndices(CHECKS_PONTO_FERRO, 'ferro', total ? [2, 3, 4] : [0, 1, 3, 4])
       : htmlChecks(CHECKS_PONTO_FERRO, 'ferro');
     return (
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
@@ -1021,7 +1024,7 @@ EC.campoRuido = (function () {
       htmlChecagem('Checagem inicial', 'chkIni') +
       '<div class="cr-foto-tela-ini"></div>' +
       checksPonto +
-      (passagemTotal
+      (passagem && total
         ? '<label>Característica da composição ferroviária avaliada<input type="text" data-campo="caracteristicaComposicao" placeholder="ex.: trem de carga, passageiro, nº de vagões…"></label>'
         : '') +
       '<div class="cr-foto-ponto"></div>' +
