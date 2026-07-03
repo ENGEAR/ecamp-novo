@@ -777,7 +777,10 @@ EC.campoRuido = (function () {
           div.innerHTML = '';
         }
       }
-      area.querySelector('[data-campo="finalidade"]').addEventListener('change', instalacaoFerro);
+      area.querySelector('[data-campo="finalidade"]').addEventListener('change', function () {
+        instalacaoFerro();
+        renderizarPonto(pontoExibido); // o formulário do ponto muda com a finalidade (Passagem/Total)
+      });
       instalacaoFerro();
       area.querySelector('[data-campo="qtdePontos"]').addEventListener('input', renderizarPontos);
       renderizarPontos();
