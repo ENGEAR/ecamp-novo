@@ -1092,10 +1092,10 @@ EC.fluxo = (function () {
     // botão para voltar aos demais serviços da OS (só quando há vários)
     $('sucesso-servicos').classList.toggle('oculto', !multiServico);
 
-    // guarda o registro COMPLETO (com fotos) para gerar o PDF; o botão só aparece
-    // nos escopos que já sabemos gerar (Ruído Externo, o modelo).
+    // guarda o registro COMPLETO (com fotos) para gerar o PDF; o botão aparece
+    // em todos os serviços (EC.pdf sabe gerar para qualquer tipo).
     ultimoRegistroPdf = registro;
-    $('sucesso-pdf').classList.toggle('oculto', !(EC.pdfRuido && EC.pdfRuido.suporta(registro)));
+    $('sucesso-pdf').classList.toggle('oculto', !(EC.pdf && EC.pdf.suporta(registro)));
 
     estado = null;
     if (EC.app.atualizarBarraPendencias) EC.app.atualizarBarraPendencias();
@@ -1231,14 +1231,14 @@ EC.fluxo = (function () {
       EC.app.mostrarTela('tela-servicos-os');
     });
     $('sucesso-pdf').addEventListener('click', function () {
-      if (!ultimoRegistroPdf || !EC.pdfRuido || !EC.pdfRuido.suporta(ultimoRegistroPdf)) {
-        EC.app.mostrarToast('PDF disponível para Ruído Externo (os demais escopos entram depois).');
+      if (!ultimoRegistroPdf || !EC.pdf || !EC.pdf.suporta(ultimoRegistroPdf)) {
+        EC.app.mostrarToast('Não há registro para gerar o PDF.');
         return;
       }
       const btn = $('sucesso-pdf');
       const rotulo = btn.textContent;
       btn.disabled = true; btn.textContent = '⏳ Gerando PDF…';
-      Promise.resolve(EC.pdfRuido.gerar(ultimoRegistroPdf))
+      Promise.resolve(EC.pdf.gerar(ultimoRegistroPdf))
         .catch(function () { EC.app.mostrarToast('Não consegui gerar o PDF.'); })
         .then(function () { btn.disabled = false; btn.textContent = rotulo; });
     });

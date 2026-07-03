@@ -1,27 +1,111 @@
 /**
- * pdf-ruido.js — Gera o PDF do monitoramento de RUÍDO EXTERNO (modelo piloto).
+ * pdf-ruido.js — Gera o PDF de qualquer monitoramento (na tela de finalizar).
  *
  * Monta no próprio celular (offline), com TUDO preenchido + as fotos + a logo da
  * ENGEAR, e abre a folha de compartilhar (WhatsApp) — ou baixa o arquivo. É
- * chamado na tela de conclusão, quando o registro ainda tem as fotos em memória.
+ * chamado na conclusão, quando o registro ainda tem as fotos em memória.
+ *
+ * Topo (OS/cliente/serviço) e rodapé são iguais para todos os serviços. O CORPO
+ * muda por tipo: o RUÍDO tem layout detalhado próprio (2 janelas Total/Residual);
+ * os demais (vibração, particulados, opacímetro/Ringelmann, QAR interno, outro)
+ * usam um renderizador GENÉRICO que percorre os campos preenchidos de cada item
+ * (ponto/veículo/ambiente/coleta) com rótulos amigáveis + as fotos.
  *
  * Usa jsPDF (js/vendor/jspdf.umd.min.js → window.jspdf.jsPDF).
+ * ATENÇÃO jsPDF: a fonte padrão só tem Latin-1 (WinAnsi). Evitar "−" (U+2212),
+ * emoji, setas (↑↓) e subscritos (₂) — quebram a renderização. Use ASCII/Latin-1.
  *
- * Interface (EC.pdfRuido):
- *   EC.pdfRuido.suporta(registro) → true se sabe gerar (ruído externo)
- *   EC.pdfRuido.gerar(registro)   → Promise; monta e compartilha/baixa o PDF
+ * Interface (EC.pdf; alias EC.pdfRuido para compatibilidade):
+ *   EC.pdf.suporta(registro) → true (sabe gerar para qualquer serviço)
+ *   EC.pdf.gerar(registro)   → Promise; monta e compartilha/baixa o PDF
  */
 window.EC = window.EC || {};
 
-EC.pdfRuido = (function () {
+EC.pdf = (function () {
   'use strict';
 
   var A4_W = 210, A4_H = 297, MARGEM = 14;
   var LARG = A4_W - 2 * MARGEM;
   var AZUL = [23, 54, 93], CINZA = [90, 90, 90], PRETO = [30, 30, 30];
 
-  function suporta(reg) {
-    return !!reg && reg.tipo === 'ruido' && reg.campo && reg.campo.subtipo === 'externo';
+  // Título do relatório por tipo de serviço.
+  var TITULOS = {
+    ruido: 'Ruído Ambiental',
+    sismo: 'Vibração',
+    qar: 'Qualidade do Ar — Particulados',
+    qarint: 'Qualidade do Ar Interno',
+    outro: 'Monitoramento'
+  };
+  function tituloTipo(reg) {
+    if (reg.tipo === 'opacidade') {
+      return (reg.campo && reg.campo.subtipo === 'ringelmann')
+        ? 'Fuligem — Escala de Ringelmann' : 'Fuligem — Opacímetro';
+    }
+    return TITULOS[reg.tipo] || (reg.servico && reg.servico.escopo) || 'Monitoramento';
+  }
+
+  // Sempre sabe gerar (o botão aparece em todos os serviços).
+  function suporta(reg) { return !!reg; }
+
+  /* ===== Dicionário de rótulos (renderizador genérico) ===== */
+  var LABELS = {
+    nome: 'Nome / identificação', horaInicial: 'Hora inicial', horaFinal: 'Hora final',
+    horaTermino: 'Hora de término', observacoes: 'Observações', temperatura: 'Temperatura',
+    umidade: 'Umidade', vento: 'Vento', objetivo: 'Objetivo', finalidade: 'Finalidade',
+    qtdePontos: 'Qtd. de pontos', qtdeVeiculos: 'Qtd. de veículos', qtdeAmbientes: 'Qtd. de ambientes',
+    qtdeColetas: 'Qtd. de coletas', justificativaPontos: 'Justificativa dos pontos',
+    tipoEquip: 'Tipo de equipamento', numeroEquip: 'Nº do equipamento', instalGeofone: 'Instalação do geofone',
+    fonteVibracao: 'Fonte de vibração', intercorrencia: 'Intercorrência', intercorrenciaDesc: 'Descrição da intercorrência',
+    placa: 'Placa', ano: 'Ano', endereco: 'Endereço', validadeCalib: 'Validade da calibração',
+    pressao: 'Pressão', horimetro: 'Horímetro', validade: 'Validade',
+    area: 'Área', pontosCalculados: 'Pontos calculados', pessoas: 'Nº de pessoas', janela: 'Janela',
+    valorVazao: 'Vazão', co2: 'CO2', temp: 'Temperatura', ur: 'Umidade relativa', velar: 'Velocidade do ar',
+    pm25: 'PM2,5', pm10: 'PM10', particulas: 'Partículas', numFiltro: 'Nº do filtro',
+    tipoMonitoramento: 'Tipo de monitoramento', medicaoPrincipal: 'Medição principal', unidade: 'Unidade',
+    esquadrias: 'Condição das esquadrias', condicao: 'Ocupação do ambiente', mobilia: 'Condição do ambiente',
+    altura: 'Altura do sonômetro', condAmbiente: 'Condições do ambiente', eventualidade: 'Eventualidade',
+    eventualidadeDesc: 'Descrição da eventualidade', fontesEmpresa: 'Fontes percebidas da EMPRESA',
+    fontesAmbiente: 'Fontes percebidas do AMBIENTE'
+  };
+  var BASE_INI_FIM = {
+    data: 'Data', hora: 'Hora', horimetro: 'Horímetro', temp: 'Temperatura', umid: 'Umidade',
+    pressao: 'Pressão', col800sobe: 'Coluna 800 sobe', col800desce: 'Coluna 800 desce'
+  };
+  var UNID = {
+    temperatura: '°C', temp: '°C', temp_ini: '°C', temp_fim: '°C', umidade: '%', umid: '%',
+    umid_ini: '%', umid_fim: '%', ur: '%', vento: 'm/s', velar: 'm/s', pressao: 'mmHg',
+    pressao_ini: 'mmHg', pressao_fim: 'mmHg', area: 'm²', altura: 'm', co2: 'ppm',
+    pm25: 'µg/m³', pm10: 'µg/m³'
+  };
+  var FOTO_LABELS = {
+    fotoPonto: 'Ponto', fotoTela: 'Tela', fotoTelaIni: 'Tela — checagem inicial',
+    fotoTelaFim: 'Tela — checagem final', fotoAmbiente: 'Ambiente', foto: 'Evidência'
+  };
+  // Campos do serviço (geral) já mostrados na seção "Dados do serviço".
+  var SKIP = { checks: 1, sala: 1, subtipo: 1, equipamentosManual: 1, qtdePontos: 1 };
+  var SKIP_GERAL = { finalidade: 1, justificativaPontos: 1 };
+  var PRIO = ['nome', 'placa', 'ano', 'endereco', 'horaInicial', 'hora_ini', 'data_ini',
+    'tipoEquip', 'numeroEquip', 'objetivo', 'tipoMonitoramento'];
+
+  function prettify(k) {
+    var s = k.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/_/g, ' ');
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+  function rotulo(k) {
+    if (LABELS[k]) return LABELS[k];
+    var m;
+    if ((m = k.match(/^leitura(\d+)$/))) return 'Leitura ' + (parseInt(m[1], 10) + 1);
+    if ((m = k.match(/^carta(\d+)_(\d+)(sobe|desce)$/))) return 'Carta ' + m[1] + ' — coluna ' + m[2] + ' ' + m[3];
+    if ((m = k.match(/^filtro_(\d+)(sobe|desce)$/))) return 'Filtro — coluna ' + m[1] + ' ' + m[2];
+    if ((m = k.match(/^(.*)_(ini|fim)$/))) {
+      var base = BASE_INI_FIM[m[1]] || prettify(m[1]);
+      return base + (m[2] === 'ini' ? ' (início)' : ' (fim)');
+    }
+    return prettify(k);
+  }
+  function rotuloFoto(k) { return FOTO_LABELS[k] || 'Foto'; }
+  function subRotulo(chave) {
+    return { coletas: 'Coleta', pontos: 'Ponto', ambientes: 'Ambiente', veiculos: 'Veículo' }[chave] || 'Item';
   }
 
   function fmtDataBR(iso) {
@@ -33,6 +117,19 @@ EC.pdfRuido = (function () {
     try { return new Date(iso).toLocaleString('pt-BR'); } catch (e) { return fmtDataBR(iso); }
   }
   function v(x) { return (x === undefined || x === null || String(x).trim() === '') ? '—' : String(x); }
+  function fmtValor(k, val) {
+    if (val === undefined || val === null || String(val).trim() === '') return '—';
+    var u = UNID[k];
+    return u ? (val + ' ' + u) : String(val);
+  }
+
+  function ehFoto(val) {
+    var f = Array.isArray(val) ? val[0] : val;
+    return !!(f && typeof f === 'object' && (f.dataUrl || f.base64 || f.nomeArquivo));
+  }
+  function ehListaItens(val) {
+    return Array.isArray(val) && val.length > 0 && val[0] && typeof val[0] === 'object' && !ehFoto(val);
+  }
 
   // Logo como dataURL (uma vez).
   var logoCache;
@@ -54,7 +151,6 @@ EC.pdfRuido = (function () {
 
   function checagemTexto(sinal, valor) {
     if (valor === undefined || valor === null || String(valor).trim() === '') return '—';
-    // ASCII "-"/"+" (o sinal "−" U+2212 não existe na fonte padrão do PDF).
     return (sinal === '-' ? '-' : '+') + ' ' + String(valor) + ' dB';
   }
   function diferencaChecagens(p) {
@@ -62,13 +158,17 @@ EC.pdfRuido = (function () {
     var fim = parseFloat(String(p.chkFimValor || '').replace(',', '.')) * (p.chkFimSinal === '-' ? -1 : 1);
     if (isNaN(ini) || isNaN(fim)) return '';
     var d = Math.abs(fim - ini);
-    // Sem emoji: não existe na fonte padrão do PDF e quebra a renderização da linha.
     return d.toFixed(2).replace('.', ',') + ' dB' + (d >= 0.5 ? '  (ACIMA de 0,5 dB - fora do limite)' : '  (dentro do limite)');
   }
   function gpsTexto(p) {
     var g = p.gps || {}, u = g.utm || {};
     var utm = [u.zona, u.leste && (u.leste + ' E'), u.norte && (u.norte + ' N')].filter(Boolean).join(' · ');
-    return utm || '—';
+    return utm || (g.textoUtm) || '—';
+  }
+  function utmDe(gps) {
+    var u = (gps && gps.utm) || {};
+    var t = [u.zona, u.leste && (u.leste + ' E'), u.norte && (u.norte + ' N')].filter(Boolean).join(' · ');
+    return t || (gps && gps.textoUtm) || '—';
   }
 
   function nomeArquivo(reg) {
@@ -84,7 +184,6 @@ EC.pdfRuido = (function () {
       var doc = new Ctor({ unit: 'mm', format: 'a4', compress: true });
       var y = MARGEM;
 
-      function rodape() { /* preenchido no fim, em todas as páginas */ }
       function novaPagina() { doc.addPage(); y = MARGEM; }
       function garantir(h) { if (y + h > A4_H - MARGEM - 8) novaPagina(); }
 
@@ -99,9 +198,9 @@ EC.pdfRuido = (function () {
       }
 
       // Linha rótulo: valor (valor pode quebrar em várias linhas)
-      function kv(rotulo, valor) {
+      function kv(rotuloTxt, valor) {
         doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(PRETO[0], PRETO[1], PRETO[2]);
-        var rot = rotulo + ': ';
+        var rot = rotuloTxt + ': ';
         var larguraRot = doc.getTextWidth(rot);
         doc.setFont('helvetica', 'normal');
         var linhas = doc.splitTextToSize(v(valor), LARG - larguraRot - 2);
@@ -109,10 +208,15 @@ EC.pdfRuido = (function () {
         doc.setFont('helvetica', 'bold'); doc.text(rot, MARGEM, y);
         doc.setFont('helvetica', 'normal');
         for (var i = 0; i < linhas.length; i++) {
-          doc.text(linhas[i], MARGEM + (i === 0 ? larguraRot : larguraRot), y);
+          doc.text(linhas[i], MARGEM + larguraRot, y);
           if (i < linhas.length - 1) y += 4.6;
         }
         y += 5.4;
+      }
+      // kv que só sai se tiver valor (evita "—" em campos que não existem no subtipo).
+      function kvSe(rotuloTxt, valor) {
+        if (valor === undefined || valor === null || String(valor).trim() === '' || String(valor) === '—') return;
+        kv(rotuloTxt, valor);
       }
 
       function subtitulo(txt) {
@@ -122,7 +226,7 @@ EC.pdfRuido = (function () {
         doc.setTextColor(PRETO[0], PRETO[1], PRETO[2]);
       }
 
-      function foto(dataUrl, rotulo) {
+      function foto(dataUrl, rotuloTxt) {
         if (!dataUrl) return;
         var props;
         try { props = doc.getImageProperties(dataUrl); } catch (e) { return; }
@@ -133,15 +237,122 @@ EC.pdfRuido = (function () {
         if (h > maxH) { h = maxH; w = props.width * (h / props.height); }
         garantir(5 + h + 3);
         doc.setFont('helvetica', 'italic'); doc.setFontSize(8); doc.setTextColor(CINZA[0], CINZA[1], CINZA[2]);
-        doc.text(rotulo, MARGEM, y); y += 3.5;
+        doc.text(rotuloTxt, MARGEM, y); y += 3.5;
         try { doc.addImage(dataUrl, 'JPEG', MARGEM, y, w, h); } catch (e) { }
         y += h + 4;
         doc.setTextColor(PRETO[0], PRETO[1], PRETO[2]);
       }
-      function fotosDe(lista, rotulo) {
+      function fotosDe(lista, rotuloTxt) {
         (Array.isArray(lista) ? lista : (lista ? [lista] : [])).forEach(function (f, i) {
-          if (f && f.dataUrl) foto(f.dataUrl, rotulo + (i > 0 ? ' (' + (i + 1) + ')' : ''));
+          if (f && f.dataUrl) foto(f.dataUrl, rotuloTxt + (i > 0 ? ' (' + (i + 1) + ')' : ''));
         });
+      }
+
+      /* ---------- Renderizador genérico de um objeto (ponto/veículo/ambiente/coleta) ---------- */
+      function renderCampos(obj, skipExtra) {
+        skipExtra = skipExtra || {};
+        var escal = [], gps = null, fotos = [], listas = [];
+        Object.keys(obj).forEach(function (k) {
+          if (SKIP[k] || skipExtra[k]) return;
+          var val = obj[k];
+          if (k === 'gps') { gps = val; return; }
+          if (k === 'equipamentos') { if (val && val.length) escal.push([k, Array.isArray(val) ? val.join(', ') : val]); return; }
+          if (ehFoto(val)) { fotos.push([k, val]); return; }
+          if (ehListaItens(val)) { listas.push([k, val]); return; }
+          if (val && typeof val === 'object') return; // objeto desconhecido: ignora
+          escal.push([k, val]);
+        });
+        // identificação primeiro; resto na ordem de inserção (sort estável)
+        escal.sort(function (a, b) {
+          var ra = PRIO.indexOf(a[0]); var rb = PRIO.indexOf(b[0]);
+          return (ra < 0 ? 999 : ra) - (rb < 0 ? 999 : rb);
+        });
+        escal.forEach(function (par) {
+          if (par[0] === 'equipamentos') kv('Equipamentos', par[1]);
+          else kv(rotulo(par[0]), fmtValor(par[0], par[1]));
+        });
+        if (gps) { kv('UTM', utmDe(gps)); kvSe('Endereço (GPS)', gps.endereco); }
+        listas.forEach(function (par) {
+          var sub = subRotulo(par[0]);
+          par[1].forEach(function (it, j) { subtitulo(sub + ' ' + (j + 1)); renderCampos(it); });
+        });
+        if (fotos.length) {
+          subtitulo('Fotos');
+          fotos.forEach(function (par) { fotosDe(par[1], rotuloFoto(par[0])); });
+        }
+      }
+
+      /* ---------- Corpo do RUÍDO (layout detalhado, 2 janelas) ---------- */
+      function janelaComDados(j) {
+        return !!(j && (j.nome || j.horaInicial || j.gps || j.chkIniValor || j.chkFimValor ||
+          j.temperatura || j.observacoes || (j.fotoTelaIni && j.fotoTelaIni.length)));
+      }
+      function medicaoRuido(j) {
+        kv('Nome / identificação', j.nome);
+        kv('Hora inicial', j.horaInicial);
+        kvSe('Hora de término', j.horaTermino);
+        kvSe('Altura do sonômetro', j.altura != null && j.altura !== '' ? j.altura + ' m' : '');
+        kvSe('Condições do ambiente', j.condAmbiente);
+        kv('UTM', gpsTexto(j));
+        kv('Endereço (GPS)', (j.gps && j.gps.endereco) || '—');
+        kv('Checagem inicial', checagemTexto(j.chkIniSinal, j.chkIniValor));
+        kv('Checagem final', checagemTexto(j.chkFimSinal, j.chkFimValor));
+        var dif = diferencaChecagens(j); if (dif) kv('Diferença entre checagens', dif);
+        kvSe('Temperatura', j.temperatura != null && j.temperatura !== '' ? j.temperatura + ' °C' : '');
+        kvSe('Umidade', j.umidade != null && j.umidade !== '' ? j.umidade + ' %' : '');
+        kvSe('Vento', j.vento != null && j.vento !== '' ? j.vento + ' m/s' : '');
+        kvSe('Fontes percebidas da EMPRESA', j.fontesEmpresa);
+        kvSe('Fontes percebidas do AMBIENTE', j.fontesAmbiente);
+        kvSe('Eventualidade', j.eventualidade);
+        kvSe('Descrição da eventualidade', j.eventualidadeDesc);
+        kvSe('Observações', j.observacoes);
+        subtitulo('Fotos');
+        fotosDe(j.fotoTelaIni, 'Tela — checagem inicial');
+        fotosDe(j.fotoPonto, 'Ponto');
+        fotosDe(j.fotoTelaFim, 'Tela — checagem final');
+      }
+      function corpoRuido() {
+        var geral = (reg.campo && reg.campo.geral) || {};
+        var pontos = (reg.campo && reg.campo.pontos) || [];
+        var total = Math.min(pontos.length, Math.max(1, parseInt(geral.qtdePontos, 10) || pontos.length));
+        for (var i = 0; i < total; i++) {
+          var p = pontos[i] || {};
+          tituloSecao('Ponto P' + String(i + 1).padStart(2, '0'));
+          kv('Equipamentos do ponto', (p.equipamentos && p.equipamentos.length) ? p.equipamentos.join(', ') : '—');
+          var temJanelas = p.total && typeof p.total === 'object';
+          if (!temJanelas) { medicaoRuido(p); continue; } // rascunho antigo (flat)
+          subtitulo('Ruído Total (com a fonte)');
+          medicaoRuido(p.total || {});
+          subtitulo('Ruído Residual (sem a fonte)');
+          if (janelaComDados(p.residual)) medicaoRuido(p.residual);
+          else kv('Residual não medido', p.justificativaResidual || '—');
+        }
+      }
+
+      /* ---------- Corpo GENÉRICO (demais serviços) ---------- */
+      function achaItens(campo) {
+        var mapa = [['pontos', 'Ponto'], ['veiculos', 'Veículo'], ['ambientes', 'Ambiente']];
+        for (var i = 0; i < mapa.length; i++) {
+          var a = campo[mapa[i][0]];
+          if (Array.isArray(a) && a.length) return { arr: a, rotulo: mapa[i][1] };
+        }
+        return null;
+      }
+      function corpoGenerico() {
+        var campo = reg.campo || {};
+        var geral = campo.geral || {};
+        var temGeral = Object.keys(geral).some(function (k) {
+          return !SKIP[k] && !SKIP_GERAL[k] && geral[k] != null && geral[k] !== '' && typeof geral[k] !== 'object';
+        });
+        if (temGeral) { tituloSecao('Dados do monitoramento'); renderCampos(geral, SKIP_GERAL); }
+        var itens = achaItens(campo);
+        if (!itens) { tituloSecao('Monitoramento'); kv('Registro', 'sem itens preenchidos'); return; }
+        var count = parseInt(geral.qtdePontos || geral.qtdeVeiculos || geral.qtdeAmbientes, 10) || itens.arr.length;
+        var qtd = Math.min(itens.arr.length, count);
+        for (var i = 0; i < qtd; i++) {
+          tituloSecao(itens.rotulo + ' ' + (i + 1));
+          renderCampos(itens.arr[i] || {});
+        }
       }
 
       /* ---------- Cabeçalho ---------- */
@@ -156,7 +367,7 @@ EC.pdfRuido = (function () {
       doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
       doc.text('Relatório de Monitoramento', A4_W - MARGEM, y + 6, { align: 'right' });
       doc.setFontSize(11);
-      doc.text('Ruído Ambiental', A4_W - MARGEM, y + 12, { align: 'right' });
+      doc.text(tituloTipo(reg), A4_W - MARGEM, y + 12, { align: 'right' });
       doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(CINZA[0], CINZA[1], CINZA[2]);
       doc.text(v(reg.servico && reg.servico.escopo), A4_W - MARGEM, y + 17, { align: 'right' });
       y += 24;
@@ -183,63 +394,31 @@ EC.pdfRuido = (function () {
       kv('Contato', os.contato);
 
       /* ---------- Serviço ---------- */
+      var nounItem = reg.tipo === 'opacidade' ? 'Veículos' : reg.tipo === 'qarint' ? 'Ambientes' : 'Pontos';
+      var contagem = geral.qtdePontos != null && geral.qtdePontos !== '' ? geral.qtdePontos
+        : (geral.qtdeVeiculos != null && geral.qtdeVeiculos !== '' ? geral.qtdeVeiculos
+          : (geral.qtdeAmbientes != null && geral.qtdeAmbientes !== '' ? geral.qtdeAmbientes : dg.qtdePontos));
       tituloSecao('Dados do serviço');
       kv('Escopo', serv.escopo);
       kv('Método', serv.metodo);
       kv('Período', serv.periodo);
       kv('Frequência', os.frequencia);
       kv('Campanha', serv.campanha);
-      kv('Finalidade', geral.finalidade);
+      kvSe('Finalidade', geral.finalidade);
+      kvSe('Objetivo', geral.objetivo);
       kv('Dias de medição', serv.dias);
-      var realizados = geral.qtdePontos != null && geral.qtdePontos !== '' ? geral.qtdePontos : dg.qtdePontos;
-      kv('Pontos', v(realizados) + (dg.qtdePontosOS != null && String(dg.qtdePontosOS) !== String(realizados) ? '  (previsto na OS: ' + dg.qtdePontosOS + ')' : ''));
+      kv(nounItem, v(contagem) + (dg.qtdePontosOS != null && String(dg.qtdePontosOS) !== String(contagem) ? '  (previsto na OS: ' + dg.qtdePontosOS + ')' : ''));
       if (geral.justificativaPontos || dg.justificativaPontos) kv('Justificativa dos pontos', geral.justificativaPontos || dg.justificativaPontos);
       kv('Observação do escopo', serv.observacao);
       kv('Observações da OS', os.observacao);
       kv('Início', fmtDataBR(dg.dataInicio) + (dg.horaInicio ? ' às ' + dg.horaInicio : ''));
-      kv('Equipamentos (serviço)', (reg.equipamentos && reg.equipamentos.length) ? reg.equipamentos.join(', ') : '—');
+      var equips = (reg.equipamentos && reg.equipamentos.length) ? reg.equipamentos.join(', ')
+        : (reg.equipamentosManual || '—');
+      kv('Equipamentos (serviço)', equips);
 
-      /* ---------- Pontos ---------- */
-      // Campos de UMA janela (Total/Residual) do ponto.
-      function janelaComDados(j) {
-        return !!(j && (j.nome || j.horaInicial || j.gps || j.chkIniValor || j.chkFimValor ||
-          j.temperatura || j.observacoes || (j.fotoTelaIni && j.fotoTelaIni.length)));
-      }
-      function medicao(j) {
-        kv('Nome / identificação', j.nome);
-        kv('Hora inicial', j.horaInicial);
-        kv('Hora de término', j.horaTermino);
-        kv('UTM', gpsTexto(j));
-        kv('Endereço (GPS)', (j.gps && j.gps.endereco) || '—');
-        kv('Checagem inicial', checagemTexto(j.chkIniSinal, j.chkIniValor));
-        kv('Checagem final', checagemTexto(j.chkFimSinal, j.chkFimValor));
-        var dif = diferencaChecagens(j); if (dif) kv('Diferença entre checagens', dif);
-        kv('Temperatura', j.temperatura != null && j.temperatura !== '' ? j.temperatura + ' °C' : '—');
-        kv('Umidade', j.umidade != null && j.umidade !== '' ? j.umidade + ' %' : '—');
-        kv('Vento', j.vento != null && j.vento !== '' ? j.vento + ' m/s' : '—');
-        kv('Fontes percebidas da EMPRESA', j.fontesEmpresa);
-        kv('Fontes percebidas do AMBIENTE', j.fontesAmbiente);
-        kv('Observações', j.observacoes);
-        subtitulo('Fotos');
-        fotosDe(j.fotoTelaIni, 'Tela — checagem inicial');
-        fotosDe(j.fotoPonto, 'Ponto');
-        fotosDe(j.fotoTelaFim, 'Tela — checagem final');
-      }
-
-      var pontos = (reg.campo && reg.campo.pontos) || [];
-      var total = Math.min(pontos.length, Math.max(1, parseInt(geral.qtdePontos, 10) || pontos.length));
-      for (var i = 0; i < total; i++) {
-        var p = pontos[i] || {};
-        tituloSecao('Ponto P' + String(i + 1).padStart(2, '0'));
-        kv('Equipamentos do ponto', (p.equipamentos && p.equipamentos.length) ? p.equipamentos.join(', ') : '—');
-        var temJanelas = p.total && typeof p.total === 'object';
-        if (!temJanelas) { medicao(p); continue; } // rascunho antigo (flat)
-        subtitulo('Ruído Total (com a fonte)');
-        medicao(p.total || {});
-        subtitulo('Ruído Residual (sem a fonte)');
-        if (janelaComDados(p.residual)) medicao(p.residual);
-        else kv('Residual não medido', p.justificativaResidual || '—');
-      }
+      /* ---------- Corpo por tipo ---------- */
+      if (reg.tipo === 'ruido') corpoRuido();
+      else corpoGenerico();
 
       /* ---------- Rodapé em todas as páginas ---------- */
       var totalPag = doc.getNumberOfPages();
@@ -270,3 +449,6 @@ EC.pdfRuido = (function () {
 
   return { suporta: suporta, gerar: gerar };
 })();
+
+// Alias de compatibilidade (fluxo.js antigo referenciava EC.pdfRuido).
+EC.pdfRuido = EC.pdf;
