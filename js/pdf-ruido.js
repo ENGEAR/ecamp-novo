@@ -44,6 +44,21 @@ EC.pdf = (function () {
     return TITULOS[reg.tipo] || (reg.servico && reg.servico.escopo) || 'Monitoramento';
   }
 
+  // Rótulo amigável do subtipo (ruído e opacidade têm subtipo; os demais não).
+  var SUBTIPO_LABELS = {
+    externo: 'Ambiente externo',
+    interno10151: 'Ambiente interno (NBR 10151)',
+    interno10152: 'Ambiente interno (NBR 10152)',
+    ferroviario: 'Ferroviário',
+    aeronautico: 'Aeronáutico',
+    opacimetro: 'Opacímetro',
+    ringelmann: 'Escala de Ringelmann'
+  };
+  function subtipoLabel(reg) {
+    var s = reg.campo && reg.campo.subtipo;
+    return s ? (SUBTIPO_LABELS[s] || s) : '';
+  }
+
   // Sempre sabe gerar (o botão aparece em todos os serviços).
   function suporta(reg) { return !!reg; }
 
@@ -423,6 +438,7 @@ EC.pdf = (function () {
       tituloSecao('Dados do serviço');
       kv('Escopo', serv.escopo);
       kv('Método', serv.metodo);
+      kv('Subtipo', subtipoLabel(reg));
       kv('Período', serv.periodo);
       kv('Frequência', os.frequencia);
       kv('Campanha', serv.campanha);

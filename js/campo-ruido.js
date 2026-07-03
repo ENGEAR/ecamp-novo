@@ -213,9 +213,7 @@ EC.campoRuido = (function () {
 
   const CHECKS_PONTO_AERO_RECEPTORES = [
     'Não monitorar com chuva (exceto se aprovação prévia)',
-    'Não monitorar com vento > 5 m/s',
-    'Ruído residual monitorado',
-    'Ruído total monitorado'
+    'Não monitorar com vento > 5 m/s'
   ];
 
   let ctx = null;          // { estado, salvar }
