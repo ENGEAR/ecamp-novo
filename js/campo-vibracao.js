@@ -221,10 +221,6 @@ EC.campoVibracao = (function () {
       // 1. Identificação
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       '<label>Nome do ponto<input type="text" data-campo="nome"></label>' +
-      '<label>Tipo de equipamento<select data-campo="tipoEquip"><option value="">Selecione…</option>' +
-      TIPOS_EQUIP.map(function (o) { return '<option>' + o + '</option>'; }).join('') +
-      '</select></label>' +
-      '<label>Nº do equipamento<input type="text" data-campo="numeroEquip"></label>' +
       '<div class="cv-gps"></div>' +
       // 2. Escolha do local
       '<p class="grupo-checks-titulo">📍 Escolha do local</p>' + htmlChecks(CHECKS_LOCAL, 'local') +
@@ -303,8 +299,6 @@ EC.campoVibracao = (function () {
 
     reqVal('horaInicial', 'hora inicial');
     reqVal('nome', 'nome do ponto');
-    reqVal('tipoEquip', 'tipo de equipamento');
-    reqVal('numeroEquip', 'nº do equipamento');
     if (!ponto.gps) falta.push('GPS');
     reqVal('fonteVibracao', 'fonte de vibração');
     reqVal('instalGeofone', 'instalação do geofone');
