@@ -248,9 +248,36 @@ EC.pdf = (function () {
     return t || (gps && gps.textoUtm) || '—';
   }
 
+  // Nº da campanha da OS (extrai o número; serviço SEM campanha → 1).
+  function numeroCampanha(reg) {
+    var c = (reg.servico && reg.servico.campanha) || '';
+    var m = String(c).match(/\d+/);
+    return m ? m[0] : '1';
+  }
+  // Quantidade de pontos MONITORADOS (interno = soma dos pontos dos ambientes).
+  function contarPontos(reg) {
+    var campo = reg.campo || {}, geral = campo.geral || {}, sub = campo.subtipo;
+    if (sub === 'interno10151' || sub === 'interno10152') {
+      return (campo.ambientes || []).reduce(function (s, a) {
+        var n = parseInt((a || {}).pontosCalculados, 10); return s + (isNaN(n) ? 0 : n);
+      }, 0);
+    }
+    var n = parseInt(geral.qtdePontos || geral.qtdeVeiculos || geral.qtdeAmbientes, 10);
+    if (n) return n;
+    n = parseInt((reg.dadosGerais || {}).qtdePontos, 10);
+    if (n) return n;
+    return (campo.pontos || []).length;
+  }
+  // Código do registro: Campo_[NºOS]_CAMPANHA n_[ESCOPO]_[N pontos].
+  // Underscore separa as partes; espaços dentro das partes são mantidos.
+  function codigoPdf(reg) {
+    var os = (reg.os && reg.os.numero) || '';
+    var escopo = (reg.servico && reg.servico.escopo) || '';
+    var partes = ['Campo', os, 'CAMPANHA ' + numeroCampanha(reg), escopo, contarPontos(reg) + ' pontos'];
+    return partes.map(function (s) { return String(s).replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim(); }).join('_');
+  }
   function nomeArquivo(reg) {
-    var proj = (reg.os.projeto || '').replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim();
-    return ('Monitoramento_' + (reg.os.numero || '') + (proj ? '_' + proj : '') + '.pdf').replace(/\s+/g, '_');
+    return codigoPdf(reg) + '.pdf';
   }
 
   function gerar(reg) {
@@ -473,6 +500,14 @@ EC.pdf = (function () {
       y += 24;
       doc.setDrawColor(AZUL[0], AZUL[1], AZUL[2]); doc.setLineWidth(0.4);
       doc.line(MARGEM, y, A4_W - MARGEM, y); y += 6;
+      doc.setTextColor(PRETO[0], PRETO[1], PRETO[2]);
+
+      // Código do registro de campo — logo abaixo do cabeçalho.
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(AZUL[0], AZUL[1], AZUL[2]);
+      doc.splitTextToSize('Registro de campo — Código: ' + codigoPdf(reg), LARG).forEach(function (linha) {
+        doc.text(linha, MARGEM, y); y += 4.8;
+      });
+      y += 3;
       doc.setTextColor(PRETO[0], PRETO[1], PRETO[2]);
 
       var os = reg.os || {}, serv = reg.servico || {}, dg = reg.dadosGerais || {}, geral = (reg.campo && reg.campo.geral) || {};
