@@ -765,6 +765,8 @@ EC.fluxo = (function () {
     const equip = estado.equipamentos.length;
     const pendentesPre = EC.romaneios.pendentesObrigatorios(chaveVariante(), estado.preCampo, opcoesRomaneio());
     $('checkpoint-resumo').innerHTML =
+      linhaResumo('Nº da OS', (estado.os && estado.os.numero) || '—') +
+      linhaResumo('Nome do projeto', (estado.os && estado.os.projeto) || '—') +
       linhaResumo('Tipo', nomeTipo(estado.tipo)) +
       linhaResumo('Método', servicoDetalhe('metodo')) +
       linhaResumo('Período', servicoDetalhe('periodo')) +

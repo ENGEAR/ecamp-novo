@@ -211,6 +211,17 @@ EC.campoVibracao = (function () {
     renderizarPonto(pontoExibido);
   }
 
+  // Escolha do equipamento usado no ponto, entre os PRÉ-SELECIONADOS no pré-campo.
+  function htmlEquipamentoPonto() {
+    const eqs = ctx.estado.equipamentos || [];
+    if (!eqs.length) {
+      return '<p class="texto-apoio">Nenhum equipamento pré-selecionado — volte ao pré-campo para escolher.</p>';
+    }
+    return '<label>Equipamento utilizado<select data-campo="equipamento"><option value="">Selecione…</option>' +
+      eqs.map(function (c) { return '<option>' + c + '</option>'; }).join('') +
+      '</select></label>';
+  }
+
   function renderizarPonto(n) {
     const area = $('#cv-ponto');
     const ponto = campo().pontos[n - 1];
@@ -221,6 +232,7 @@ EC.campoVibracao = (function () {
       // 1. Identificação
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       '<label>Nome do ponto<input type="text" data-campo="nome"></label>' +
+      htmlEquipamentoPonto() +
       '<div class="cv-gps"></div>' +
       // 2. Escolha do local
       '<p class="grupo-checks-titulo">📍 Escolha do local</p>' + htmlChecks(CHECKS_LOCAL, 'local') +
@@ -299,6 +311,7 @@ EC.campoVibracao = (function () {
 
     reqVal('horaInicial', 'hora inicial');
     reqVal('nome', 'nome do ponto');
+    if ((ctx.estado.equipamentos || []).length) reqVal('equipamento', 'equipamento utilizado');
     if (!ponto.gps) falta.push('GPS');
     reqVal('fonteVibracao', 'fonte de vibração');
     reqVal('instalGeofone', 'instalação do geofone');
