@@ -15,6 +15,7 @@ EC.sync = (function () {
   var BASE = 'https://engear-sgp.vercel.app/api/monitoramento';
   var ROTA_REGISTRO = BASE + '/registro';
   var ROTA_FOTO = BASE + '/foto';
+  var ROTA_PDF = BASE + '/pdf';
   var ROTA_DESCARTAR = BASE + '/descartar';
   var TOKEN = 'f8b17592b0130d95047d37865a14b31570c6381509ccc066';
 
@@ -131,6 +132,25 @@ EC.sync = (function () {
     return resp;
   }
 
+  // Sobe o PDF gerado para o SharePoint (pasta "PDFs Campo"), como corpo BINÁRIO
+  // (não base64 → cabe mais no limite da Vercel). Best-effort: o PDF já está
+  // salvo no aparelho, então falha aqui não perde nada. Devolve true/false.
+  async function enviarPdf(nome, blob) {
+    if (!blob) return false;
+    try {
+      var resposta = await fetch(ROTA_PDF + '?nome=' + encodeURIComponent(nome || 'Relatorio.pdf'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/pdf', 'x-ecamp-token': TOKEN },
+        body: blob
+      });
+      var corpo = {};
+      try { corpo = await resposta.json(); } catch (e) { /* vazio */ }
+      return !!(resposta.ok && corpo.ok);
+    } catch (e) {
+      return false;
+    }
+  }
+
   // Sincroniza UM registro (chamado logo após salvar). Em falha de rede, enfileira.
   async function sincronizarRegistro(registro) {
     try {
@@ -223,6 +243,7 @@ EC.sync = (function () {
 
   return {
     enviar: enviar,
+    enviarPdf: enviarPdf,
     sincronizarRegistro: sincronizarRegistro,
     sincronizarRascunho: sincronizarRascunho,
     descartarRascunho: descartarRascunho,

@@ -537,6 +537,8 @@ EC.pdf = (function () {
       var nome = nomeArquivo(reg);
       var blob = doc.output('blob');
       salvarPdf(reg, blob, nome); // guarda no aparelho (best-effort, não bloqueia)
+      // Sobe para o SharePoint (pasta "PDFs Campo") — em paralelo, best-effort.
+      try { if (EC.sync && EC.sync.enviarPdf) EC.sync.enviarPdf(nome, blob); } catch (e) { /* best-effort */ }
       return compartilharBlob(blob, nome, 'Monitoramento OS ' + (reg.os.numero || ''));
     });
   }
