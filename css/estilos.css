@@ -440,6 +440,8 @@ textarea { resize: vertical; font-family: inherit; }
   cursor: pointer;
 }
 .card-tipo-icone { font-size: 1.8rem; }
+/* Imagens têm fundo branco; multiply faz o branco "sumir" sobre o cartão ativo (verde-claro) */
+.card-tipo-img { width: 64px; height: 64px; object-fit: contain; mix-blend-mode: multiply; }
 .card-tipo-ativo { border-color: var(--verde); background: var(--verde-claro); }
 
 .resumo-linha {

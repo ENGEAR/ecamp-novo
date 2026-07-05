@@ -37,12 +37,12 @@ EC.fluxo = (function () {
   ];
 
   const TIPOS = [
-    { id: 'ruido', icone: '🔊', nome: 'Ruído' },
-    { id: 'sismo', icone: '🌍', nome: 'Vibração' },
-    { id: 'qar', icone: '💨', nome: 'QAR Externo' },
-    { id: 'opacidade', icone: '👁', nome: 'Opacidade' },
-    { id: 'qarint', icone: '🏠', nome: 'QAR Interno' },
-    { id: 'outro', icone: '📋', nome: 'Outro' }
+    { id: 'ruido', icone: '🔊', img: 'Ruído.jpeg', nome: 'Ruído' },
+    { id: 'sismo', icone: '🌍', img: 'Vibração.jpeg', nome: 'Vibração' },
+    { id: 'qar', icone: '💨', img: 'QAR Externo.jpeg', nome: 'QAR Externo' },
+    { id: 'opacidade', icone: '👁', img: 'opacidade.jpeg', nome: 'Opacidade' },
+    { id: 'qarint', icone: '🏠', img: 'QAR Interno.jpeg', nome: 'QAR Interno' },
+    { id: 'outro', icone: '📋', img: 'Outro.png', nome: 'Outro' }
   ];
 
   let estado = null;       // estado do serviço aberto no momento
@@ -620,7 +620,7 @@ EC.fluxo = (function () {
       const ativo = estado.tipo === tipo.id;
       return (
         '<button type="button" class="card-tipo' + (ativo ? ' card-tipo-ativo' : '') + '" data-tipo="' + tipo.id + '">' +
-        '  <span class="card-tipo-icone">' + tipo.icone + '</span>' +
+        '  <img class="card-tipo-img" src="' + encodeURI('public/' + tipo.img) + '" alt="">' +
         '  <span>' + tipo.nome + '</span>' +
         '</button>'
       );

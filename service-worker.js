@@ -8,7 +8,7 @@
  * Todos os caminhos são RELATIVOS, para funcionar no GitHub Pages
  * (https://usuario.github.io/repositorio/) sem ajuste.
  */
-const VERSAO_CACHE = 'ecamp-v0.34.2';
+const VERSAO_CACHE = 'ecamp-v0.34.3';
 
 const ARQUIVOS_APP = [
   './',
@@ -46,7 +46,16 @@ const ARQUIVOS_APP = [
   './public/logo-recortada.png',
   './public/engear-logo.png',
   './public/icone-192.png',
-  './public/icone-512.png'
+  './public/icone-512.png',
+  './public/Ru%C3%ADdo.jpeg',
+  './public/Vibra%C3%A7%C3%A3o.jpeg',
+  './public/QAR%20Externo.jpeg',
+  './public/opacidade.jpeg',
+  './public/QAR%20Interno.jpeg',
+  './public/Outro.png',
+  './public/Ambiente%20Externo.png',
+  './public/Ambiente%20Interno%20(NBR%2010151).png',
+  './public/Ambiente%20Interno%20(NBR%2010152).png'
 ];
 
 self.addEventListener('install', (evento) => {

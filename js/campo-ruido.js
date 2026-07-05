@@ -31,9 +31,9 @@ EC.campoRuido = (function () {
   'use strict';
 
   const SUBTIPOS = [
-    { id: 'externo', icone: '🌳', nome: 'Ambiente Externo' },
-    { id: 'interno10151', icone: '🏠', nome: 'Ambiente Interno (NBR 10151)' },
-    { id: 'interno10152', icone: '🏠', nome: 'Ambiente Interno (NBR 10152)' },
+    { id: 'externo', icone: '🌳', img: 'Ambiente Externo.png', nome: 'Ambiente Externo' },
+    { id: 'interno10151', icone: '🏠', img: 'Ambiente Interno (NBR 10151).png', nome: 'Ambiente Interno (NBR 10151)' },
+    { id: 'interno10152', icone: '🏠', img: 'Ambiente Interno (NBR 10152).png', nome: 'Ambiente Interno (NBR 10152)' },
     { id: 'ferroviario', icone: '🚆', nome: 'Ferroviário' },
     { id: 'aeronautico', icone: '✈️', nome: 'Aeronáutico' }
   ];
@@ -666,7 +666,10 @@ EC.campoRuido = (function () {
     const grade = $('#cr-subtipos');
     grade.innerHTML = SUBTIPOS.map(function (s) {
       return '<button type="button" class="card-tipo' + (campo().subtipo === s.id ? ' card-tipo-ativo' : '') + '" data-subtipo="' + s.id + '">' +
-        '<span class="card-tipo-icone">' + s.icone + '</span><span>' + s.nome + '</span></button>';
+        (s.img
+          ? '<img class="card-tipo-img" src="' + encodeURI('public/' + s.img) + '" alt="">'
+          : '<span class="card-tipo-icone">' + s.icone + '</span>') +
+        '<span>' + s.nome + '</span></button>';
     }).join('');
 
     const serv = ctx.estado.servico || {};
