@@ -1045,7 +1045,9 @@ EC.campoRuido = (function () {
       '<label>Nome do ponto<input type="text" data-campo="nome"></label>' +
       '<div class="cr-gps"></div>' +
       '<label>Altura do sonômetro (m)<input type="number" step="0.01" inputmode="decimal" data-campo="altura"></label>' +
-      htmlChecks(['Altura variando entre 1,2 e 1,5 m'], 'altura') +
+      htmlChecks([subtipo === 'interno10152'
+        ? 'Monitorar, quando possível, variando a altura do tripé entre 1,2 e 1,5 m'
+        : 'Altura variando entre 1,2 e 1,5 m'], 'altura') +
       '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' + htmlClima(true) +
       htmlChecagem('Checagem inicial', 'chkIni') +
       '<div class="cr-foto-tela-ini"></div>' +
