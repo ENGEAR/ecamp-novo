@@ -280,7 +280,10 @@ EC.pdf = (function () {
     return codigoPdf(reg) + '.pdf';
   }
 
-  function gerar(reg) {
+  // Gera o PDF e o GUARDA (aparelho + SharePoint), sem abrir o compartilhar.
+  // Devolve { blob, nome } — o compartilhar precisa de um toque do usuário
+  // (restrição do navegador), então fica para o botão da tela.
+  function gerarSalvar(reg) {
     var Ctor = window.jspdf && window.jspdf.jsPDF;
     if (!Ctor) { if (EC.app) EC.app.mostrarToast('Biblioteca de PDF não carregou.'); return Promise.reject(); }
 
@@ -568,18 +571,33 @@ EC.pdf = (function () {
         doc.text('Página ' + pg + '/' + totalPag, A4_W - MARGEM, A4_H - 6, { align: 'right' });
       }
 
-      /* ---------- Salvar no app + compartilhar / baixar ---------- */
+      /* ---------- Salvar no app (o compartilhar fica com o chamador) ---------- */
       var nome = nomeArquivo(reg);
       var blob = doc.output('blob');
       salvarPdf(reg, blob, nome); // guarda no aparelho (best-effort, não bloqueia)
       // Sobe para o SharePoint (pasta "PDFs Campo") — em paralelo, best-effort.
       try { if (EC.sync && EC.sync.enviarPdf) EC.sync.enviarPdf(nome, blob); } catch (e) { /* best-effort */ }
-      return compartilharBlob(blob, nome, 'Monitoramento OS ' + (reg.os.numero || ''));
+      return { blob: blob, nome: nome };
+    });
+  }
+
+  // Compartilha um PDF já gerado ({ blob, nome }) — WhatsApp etc.; sem folha
+  // nativa, baixa o arquivo.
+  function compartilharPdf(res, osNumero) {
+    return compartilharBlob(res.blob, res.nome, 'Monitoramento OS ' + (osNumero || ''));
+  }
+
+  // Gera + guarda + compartilha (usado pelo 🕐 Histórico recente, onde o toque
+  // no botão já é o gesto do usuário). Na finalização o app usa gerarSalvar()
+  // automaticamente e compartilharPdf() no botão.
+  function gerar(reg) {
+    return gerarSalvar(reg).then(function (res) {
+      return compartilharPdf(res, reg.os && reg.os.numero);
     });
   }
 
   return {
-    suporta: suporta, gerar: gerar,
+    suporta: suporta, gerar: gerar, gerarSalvar: gerarSalvar, compartilharPdf: compartilharPdf,
     listarSalvos: listarSalvos, abrirSalvo: abrirSalvo, excluirSalvo: excluirSalvo
   };
 })();

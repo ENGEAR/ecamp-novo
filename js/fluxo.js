@@ -1129,13 +1129,41 @@ EC.fluxo = (function () {
     // botão para voltar aos demais serviços da OS (só quando há vários)
     $('sucesso-servicos').classList.toggle('oculto', !multiServico);
 
-    // guarda o registro COMPLETO (com fotos) para gerar o PDF; o botão aparece
-    // em todos os serviços (EC.pdf sabe gerar para qualquer tipo).
+    // guarda o registro COMPLETO (com fotos) e já dispara a geração AUTOMÁTICA
+    // do PDF; quando pronto, o botão vira "Encaminhar" (WhatsApp).
     ultimoRegistroPdf = registro;
-    $('sucesso-pdf').classList.toggle('oculto', !(EC.pdf && EC.pdf.suporta(registro)));
+    iniciarPdfAutomatico(registro);
 
     estado = null;
     if (EC.app.atualizarBarraPendencias) EC.app.atualizarBarraPendencias();
+  }
+
+  // PDF automático da finalização: gera e guarda (aparelho + SharePoint) assim
+  // que o registro é salvo. O compartilhar (WhatsApp) exige um toque do usuário
+  // (regra do navegador), então o botão fica pronto esperando o toque.
+  let pdfPronto = null; // { blob, nome } do PDF gerado na finalização
+
+  function iniciarPdfAutomatico(registro) {
+    const btn = $('sucesso-pdf');
+    pdfPronto = null;
+    if (!(EC.pdf && EC.pdf.suporta(registro) && EC.pdf.gerarSalvar)) {
+      btn.classList.add('oculto');
+      return;
+    }
+    btn.classList.remove('oculto');
+    btn.disabled = true;
+    btn.textContent = '⏳ Gerando PDF…';
+    Promise.resolve(EC.pdf.gerarSalvar(registro))
+      .then(function (res) {
+        pdfPronto = res;
+        btn.textContent = '📤 Encaminhar PDF (WhatsApp)';
+        EC.app.mostrarToast('PDF pronto! Toque em "Encaminhar" para enviar.');
+      })
+      .catch(function () {
+        btn.textContent = '📄 Gerar PDF novamente';
+        EC.app.mostrarToast('Não consegui gerar o PDF — toque no botão para tentar de novo.');
+      })
+      .then(function () { btn.disabled = false; });
   }
 
   /* ---------- Amarração dos botões ---------- */
@@ -1268,17 +1296,18 @@ EC.fluxo = (function () {
       EC.app.mostrarTela('tela-servicos-os');
     });
     $('sucesso-pdf').addEventListener('click', function () {
+      // PDF já foi gerado automaticamente na finalização → só encaminhar.
+      if (pdfPronto && EC.pdf && EC.pdf.compartilharPdf) {
+        EC.pdf.compartilharPdf(pdfPronto, ultimoRegistroPdf && ultimoRegistroPdf.os && ultimoRegistroPdf.os.numero);
+        return;
+      }
+      // A geração automática falhou → tenta de novo; ao terminar, o botão
+      // vira "Encaminhar" e o técnico toca para enviar.
       if (!ultimoRegistroPdf || !EC.pdf || !EC.pdf.suporta(ultimoRegistroPdf)) {
         EC.app.mostrarToast('Não há registro para gerar o PDF.');
         return;
       }
-      const btn = $('sucesso-pdf');
-      const rotulo = btn.textContent;
-      btn.disabled = true; btn.textContent = '⏳ Gerando PDF…';
-      Promise.resolve(EC.pdf.gerar(ultimoRegistroPdf))
-        .then(function () { EC.app.mostrarToast('PDF gerado e salvo no app (📄 no topo).'); })
-        .catch(function () { EC.app.mostrarToast('Não consegui gerar o PDF.'); })
-        .then(function () { btn.disabled = false; btn.textContent = rotulo; });
+      iniciarPdfAutomatico(ultimoRegistroPdf);
     });
   }
 
