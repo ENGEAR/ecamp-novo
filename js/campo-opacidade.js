@@ -162,8 +162,8 @@ EC.campoOpacidade = (function () {
 
     html += '<label>Ano do veículo<input type="text" inputmode="numeric" data-campo="ano"></label>';
 
-    html += '<div class="co-gps"></div>' +
-      '<label>Endereço completo (rua, número, cidade, estado)<input type="text" data-campo="endereco"></label>';
+    // O endereço fica no bloco do GPS (preenchido automático e editável).
+    html += '<div class="co-gps"></div>';
 
     if (sub === 'ringelmann') {
       html += '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
@@ -194,7 +194,7 @@ EC.campoOpacidade = (function () {
     };
     reqVal('placa', 'placa / identificação');
     if (!veic.gps) falta.push('GPS');
-    reqVal('endereco', 'endereço completo');
+    if (!(veic.gps && String(veic.gps.endereco || '').trim()) && !String(veic.endereco || '').trim()) falta.push('endereço (no bloco do GPS)');
     if (sub === 'ringelmann') {
       reqVal('horaInicial', 'hora inicial');
       for (let i = 0; i < 10; i++) reqVal('leitura' + i, (i + 1) + 'ª leitura');
