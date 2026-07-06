@@ -283,19 +283,25 @@ EC.pdf = (function () {
     if (sub === 'ferroviario' || sub === 'aeronautico') return (campo.geral || {}).finalidade || '';
     return ''; // interno10152: sem método (planilha)
   }
-  // Contagem do código: ambientes (ruído interno), veículos (opacidade) ou pontos.
-  function contagemItens(reg) {
+  // Unidade contada por escopo: ruído interno e QAR interno = ambientes;
+  // opacidade = veículos; demais = pontos. Devolve { n, singular, plural } para
+  // o texto sair no singular quando n === 1 e no plural quando > 1.
+  function contagemDetalhe(reg) {
     var campo = reg.campo || {}, geral = campo.geral || {}, sub = campo.subtipo;
-    if (reg.tipo === 'ruido' && (sub === 'interno10151' || sub === 'interno10152')) {
+    if ((reg.tipo === 'ruido' && (sub === 'interno10151' || sub === 'interno10152')) || reg.tipo === 'qarint') {
       var a = parseInt(geral.qtdeAmbientes, 10) || (campo.ambientes || []).length;
-      return a + (a === 1 ? ' ambiente' : ' ambientes');
+      return { n: a, singular: 'ambiente', plural: 'ambientes' };
     }
     if (reg.tipo === 'opacidade') {
       var v = parseInt(geral.qtdeVeiculos, 10) || (campo.veiculos || []).length;
-      return v + (v === 1 ? ' veículo' : ' veículos');
+      return { n: v, singular: 'veículo', plural: 'veículos' };
     }
-    var n = contarPontos(reg);
-    return n + (n === 1 ? ' ponto' : ' pontos');
+    return { n: contarPontos(reg), singular: 'ponto', plural: 'pontos' };
+  }
+  // Contagem do código: ex.: "1 ponto", "3 veículos", "1 ambiente".
+  function contagemItens(reg) {
+    var d = contagemDetalhe(reg);
+    return d.n + ' ' + (d.n === 1 ? d.singular : d.plural);
   }
   // Código do registro (planilha escopo_metodo_os, coluna I — SEM a revisão,
   // que só o servidor conhece; ela fica nas pastas/nomes das fotos, no espelho):
@@ -572,10 +578,10 @@ EC.pdf = (function () {
       kv('Contato', os.contato);
 
       /* ---------- Serviço ---------- */
-      var nounItem = reg.tipo === 'opacidade' ? 'Veículos' : reg.tipo === 'qarint' ? 'Ambientes' : 'Pontos';
-      var contagem = geral.qtdePontos != null && geral.qtdePontos !== '' ? geral.qtdePontos
-        : (geral.qtdeVeiculos != null && geral.qtdeVeiculos !== '' ? geral.qtdeVeiculos
-          : (geral.qtdeAmbientes != null && geral.qtdeAmbientes !== '' ? geral.qtdeAmbientes : dg.qtdePontos));
+      var det = contagemDetalhe(reg);
+      var noun = det.n === 1 ? det.singular : det.plural;
+      var nounItem = noun.charAt(0).toUpperCase() + noun.slice(1); // rótulo: Ponto/Pontos, Veículo/Veículos…
+      var contagem = det.n;
       tituloSecao('Dados do serviço');
       kv('Escopo', serv.escopo);
       kv('Método', metodoServico(reg));
