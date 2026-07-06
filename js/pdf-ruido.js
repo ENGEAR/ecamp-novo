@@ -305,7 +305,10 @@ EC.pdf = (function () {
     var projeto = (reg.os && reg.os.projeto) || '';
     var escopo = (reg.servico && reg.servico.escopo) || '';
     var metodo = metodoCodigo(reg);
-    var partes = ['Campo', os, projeto, 'CAMPANHA ' + numeroCampanha(reg), escopo];
+    var partes = ['Campo', os, projeto, 'CAMPANHA ' + numeroCampanha(reg)];
+    // Particulados (QAR Externo) levam o segmento "QAR externo" antes do escopo.
+    if (reg.tipo === 'qar') partes.push('QAR externo');
+    partes.push(escopo);
     if (metodo) partes.push(metodo);
     partes.push(contagemItens(reg));
     return partes
