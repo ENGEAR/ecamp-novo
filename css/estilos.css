@@ -442,6 +442,8 @@ textarea { resize: vertical; font-family: inherit; }
 .card-tipo-icone { font-size: 1.8rem; }
 /* Imagens têm fundo branco; multiply faz o branco "sumir" sobre o cartão ativo (verde-claro) */
 .card-tipo-img { width: 64px; height: 64px; object-fit: contain; mix-blend-mode: multiply; }
+/* Versão pequena do ícone-imagem, para linhas de texto (checkpoint, revisão) */
+.icone-inline { width: 22px; height: 22px; object-fit: contain; vertical-align: -5px; mix-blend-mode: multiply; }
 .card-tipo-ativo { border-color: var(--verde); background: var(--verde-claro); }
 
 .resumo-linha {

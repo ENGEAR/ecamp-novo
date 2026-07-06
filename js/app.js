@@ -19,7 +19,7 @@
   const CHAVE_SESSAO = 'sessao:atual';
   const CHAVE_SENHA_SALVA = 'sessao:senhaSalva';
   // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
-  const VERSAO_APP = '0.34.4';
+  const VERSAO_APP = '0.34.5';
 
   function $(id) { return document.getElementById(id); }
 
@@ -201,21 +201,102 @@
     if (evento.target === $('overlay')) fecharOverlay();
   });
 
-  $('btn-historico').addEventListener('click', function () {
-    const itens = EC.storage.listar('historico:').sort(function (a, b) {
-      return ((b.valor && b.valor.salvoEm) || '').localeCompare((a.valor && a.valor.salvoEm) || '');
+  // Histórico recente: monitoramentos FINALIZADOS dos últimos 30 dias. Os que
+  // têm o registro completo guardado (loja 'registros' do IndexedDB) permitem
+  // gerar/regerar o PDF — ex.: o técnico saiu da conclusão sem compartilhar.
+  $('btn-historico').addEventListener('click', async function () {
+    const limite = Date.now() - 30 * 24 * 60 * 60 * 1000;
+
+    // Registros completos (com fotos) + legado leve do localStorage (sem fotos).
+    let completos = [];
+    try { completos = (await EC.db.getAll('registros')) || []; } catch (e) { completos = []; }
+    const porCod = {};
+    completos.forEach(function (r) {
+      if (r && r.codificacao) porCod[r.codificacao] = { reg: r, completo: true };
     });
-    abrirOverlay('🕐 Histórico', itens.length === 0
-      ? '<p class="overlay-vazio">Nenhum monitoramento finalizado ainda.</p>'
-      : itens.map(function (item) {
-          const r = item.valor || {};
-          return '<div class="overlay-item">' +
-            '<strong>OS ' + (r.os ? r.os.numero : '?') + '</strong> — ' + (r.os ? r.os.cliente : '') +
-            '<br><small>' + (r.tipo || '') + ' · ' + (r.tecnico || '') +
-            (r.salvoEm ? ' · ' + new Date(r.salvoEm).toLocaleString('pt-BR') : '') + '</small>' +
-            '</div>';
-        }).join('') +
-        '<p class="texto-apoio">"Ver detalhes" (com PDF) entra nas Fases 3 e 5.</p>');
+    EC.storage.listar('historico:').forEach(function (item) {
+      const r = item.valor || {};
+      const cod = r.codificacao || item.chave.replace('historico:', '');
+      if (!porCod[cod]) porCod[cod] = { reg: r, completo: false };
+    });
+
+    // Mantém só os últimos 30 dias; o que venceu é apagado do aparelho.
+    let itens = Object.keys(porCod).map(function (cod) {
+      return { cod: cod, reg: porCod[cod].reg, completo: porCod[cod].completo };
+    }).filter(function (it) {
+      const t = Date.parse(it.reg.salvoEm || '');
+      if (t && t < limite) {
+        if (EC.db && EC.db.disponivel()) EC.db.remove('registros', it.cod).catch(function () {});
+        EC.storage.remover('historico:' + it.cod);
+        return false;
+      }
+      return true;
+    }).sort(function (a, b) {
+      return String(b.reg.salvoEm || '').localeCompare(String(a.reg.salvoEm || ''));
+    });
+    const mapa = {}; itens.forEach(function (it) { mapa[it.cod] = it; });
+
+    abrirOverlay('🕐 Histórico recente (últimos 30 dias)',
+      (itens.length ? '<label class="overlay-busca"><input type="search" id="hist-busca" placeholder="🔍 Buscar por OS, cliente ou projeto…" autocomplete="off"></label>' : '') +
+      '<div id="hist-lista"></div>');
+
+    const lista = $('hist-lista');
+    function itemHtml(it) {
+      const r = it.reg;
+      const os = r.os || {};
+      const data = r.salvoEm ? new Date(r.salvoEm).toLocaleString('pt-BR') : '';
+      return '<div class="overlay-item">' +
+        '<strong>OS ' + (os.numero || '?') + '</strong>' + (os.cliente ? ' — ' + os.cliente : '') +
+        (os.projeto ? '<br><small>' + os.projeto + '</small>' : '') +
+        '<br><small>' + ((r.servico && r.servico.escopo) || r.tipo || '') + (r.tecnico ? ' · ' + r.tecnico : '') + (data ? ' · ' + data : '') + '</small>' +
+        (it.completo ? '' : '<br><small>⚠️ registro antigo — o PDF sai sem as fotos</small>') +
+        '<div class="overlay-item-acoes">' +
+        '<button type="button" class="botao botao-secundario hist-pdf" data-cod="' + it.cod + '">📄 Gerar PDF</button>' +
+        '<button type="button" class="botao botao-perigo hist-excluir" data-cod="' + it.cod + '" title="Excluir do aparelho">🗑️</button>' +
+        '</div></div>';
+    }
+    function render(filtro) {
+      if (itens.length === 0) {
+        lista.innerHTML = '<p class="overlay-vazio">Nenhum monitoramento finalizado nos últimos 30 dias.</p>';
+        return;
+      }
+      const q = String(filtro || '').trim().toLowerCase();
+      const vis = itens.filter(function (it) {
+        const r = it.reg; const os = r.os || {};
+        return !q || [os.numero, os.cliente, os.projeto, r.servico && r.servico.escopo, r.tecnico]
+          .some(function (v) { return String(v || '').toLowerCase().indexOf(q) !== -1; });
+      });
+      lista.innerHTML = vis.length === 0
+        ? '<p class="overlay-vazio">Nada encontrado para essa busca.</p>'
+        : vis.map(itemHtml).join('');
+      lista.querySelectorAll('.hist-pdf').forEach(function (b) {
+        b.addEventListener('click', function () {
+          const it = mapa[b.dataset.cod];
+          if (!it || !EC.pdf || !EC.pdf.suporta(it.reg)) { mostrarToast('Não foi possível gerar o PDF deste registro.'); return; }
+          b.disabled = true;
+          const rotulo = b.textContent;
+          b.textContent = '⏳ Gerando…';
+          Promise.resolve(EC.pdf.gerar(it.reg))
+            .catch(function () { mostrarToast('Não foi possível gerar o PDF. Tente de novo.'); })
+            .then(function () { b.disabled = false; b.textContent = rotulo; });
+        });
+      });
+      lista.querySelectorAll('.hist-excluir').forEach(function (b) {
+        b.addEventListener('click', function () {
+          if (!confirm('Excluir este registro do histórico do aparelho? (o que já foi enviado ao servidor não é afetado)')) return;
+          const cod = b.dataset.cod;
+          if (EC.db && EC.db.disponivel()) EC.db.remove('registros', cod).catch(function () {});
+          EC.storage.remover('historico:' + cod);
+          itens = itens.filter(function (it) { return it.cod !== cod; });
+          delete mapa[cod];
+          const bu = $('hist-busca');
+          render(bu ? bu.value : '');
+        });
+      });
+    }
+    const busca = $('hist-busca');
+    if (busca) busca.addEventListener('input', function () { render(busca.value); });
+    render('');
   });
 
   $('btn-pdfs').addEventListener('click', async function () {

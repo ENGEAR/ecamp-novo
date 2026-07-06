@@ -6,7 +6,9 @@
  *   • 'pending'          — fila de registros (com fotos) esperando enviar ao servidor;
  *   • 'rascunhos'        — rascunhos completos (com fotos) para continuar depois;
  *   • 'pendingReembolso' — fila de pedidos de reembolso (com fotos) esperando enviar;
- *   • 'pdfs'             — PDFs gerados (Blob + metadados) guardados no aparelho.
+ *   • 'pdfs'             — PDFs gerados (Blob + metadados) guardados no aparelho;
+ *   • 'registros'        — registros FINALIZADOS completos (com fotos), últimos
+ *                          30 dias, para regerar o PDF pelo Histórico recente.
  *
  * API (todas devolvem Promise):
  *   EC.db.set(loja, chave, valor) · EC.db.get(loja, chave)
@@ -19,8 +21,8 @@ EC.db = (function () {
   'use strict';
 
   var NOME = 'ecamp';
-  var VERSAO = 3; // v3: + loja 'pdfs'
-  var LOJAS = ['pending', 'rascunhos', 'pendingReembolso', 'pdfs'];
+  var VERSAO = 4; // v4: + loja 'registros'
+  var LOJAS = ['pending', 'rascunhos', 'pendingReembolso', 'pdfs', 'registros'];
   var bancoP = null;
 
   function abrir() {

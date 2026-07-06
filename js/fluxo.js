@@ -642,9 +642,17 @@ EC.fluxo = (function () {
     });
   }
 
+  // Ícone (HTML) de um tipo/subtipo: usa a imagem própria quando existe (mesma
+  // dos cartões), senão cai no emoji.
+  function htmlIcone(item) {
+    return item.img
+      ? '<img class="icone-inline" src="' + encodeURI('public/' + item.img) + '" alt="">'
+      : item.icone;
+  }
+
   function nomeTipo(id) {
     const tipo = TIPOS.filter(function (t) { return t.id === id; })[0];
-    return tipo ? tipo.icone + ' ' + tipo.nome : '—';
+    return tipo ? htmlIcone(tipo) + ' ' + tipo.nome : '—';
   }
 
   /* ---------- Seleção de equipamentos (mock — real na Fase 6) ---------- */
@@ -965,7 +973,7 @@ EC.fluxo = (function () {
     } else if (estado.campo && estado.campo.subtipo) {
       const campo = estado.campo;
       const sub = EC.campoRuido.SUBTIPOS.filter(function (s) { return s.id === campo.subtipo; })[0];
-      corpoCampo = linhaResumo('Subtipo', sub ? sub.icone + ' ' + sub.nome : campo.subtipo);
+      corpoCampo = linhaResumo('Subtipo', sub ? htmlIcone(sub) + ' ' + sub.nome : campo.subtipo);
       const interno = campo.subtipo === 'interno10151' || campo.subtipo === 'interno10152';
       if (interno) {
         // Interno: um bloco por AMBIENTE (cada um com seus pontos).
@@ -1090,6 +1098,20 @@ EC.fluxo = (function () {
       while (antigos.length >= 20) EC.storage.remover(antigos.shift().chave);
     } catch (e) { /* ignora */ }
     EC.storage.salvar('historico:' + registro.codificacao, semFotos(registro));
+
+    // 2b) Guarda o registro COMPLETO (com fotos) no IndexedDB por 30 dias —
+    //     permite regerar o PDF depois pelo "🕐 Histórico recente" (ex.: o
+    //     técnico saiu da tela de conclusão sem compartilhar). Best-effort.
+    if (EC.db && EC.db.disponivel()) {
+      EC.db.set('registros', registro.codificacao, registro).catch(function () {});
+      EC.db.getAll('registros').then(function (todos) {
+        const limite = Date.now() - 30 * 24 * 60 * 60 * 1000;
+        (todos || []).forEach(function (r) {
+          const t = Date.parse((r && r.salvoEm) || '');
+          if (r && r.codificacao && t && t < limite) EC.db.remove('registros', r.codificacao).catch(function () {});
+        });
+      }).catch(function () {});
+    }
 
     EC.storage.remover(chaveServico(estado.osNumero, estado.servicoIndice)); // rascunho do serviço concluído
     if (EC.db) EC.db.remove('rascunhos', chaveServico(estado.osNumero, estado.servicoIndice)).catch(function () {});
