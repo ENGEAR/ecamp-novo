@@ -194,11 +194,13 @@ EC.campoQar = (function () {
     renderizarPonto(pontoExibido);
   }
 
-  // Coluna 800mm + Coluna 00mm (↑/↓) de uma carta de calibração.
+  // Coluna 800mm + Coluna 400mm (↑/↓) de uma placa de retenção. A chave interna
+  // do 2º manômetro continua "_00sobe/_00desce" (não afeta rascunhos existentes
+  // nem a leitura no servidor) — só o texto exibido mudou de 00 para 400 mm.
   function htmlCarta(prefixo) {
     return '<p class="cq-sub">Coluna 800 mm (cmH₂O)</p><div class="grade-2">' +
       lblNum('↑ Para cima', prefixo + '_800sobe') + lblNum('↓ Para baixo', prefixo + '_800desce') + '</div>' +
-      '<p class="cq-sub">Coluna 00 mm (cmH₂O)</p><div class="grade-2">' +
+      '<p class="cq-sub">Coluna 400 mm (cmH₂O)</p><div class="grade-2">' +
       lblNum('↑ Para cima', prefixo + '_00sobe') + lblNum('↓ Para baixo', prefixo + '_00desce') + '</div>';
   }
 
