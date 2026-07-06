@@ -1233,6 +1233,7 @@ EC.campoRuido = (function () {
     if (!ctx.estado.campo) ctx.estado.campo = { subtipo: null, geral: {}, pontos: [] };
     pontoExibido = 1;
     ambienteExibido = 1;
+    janelaExibida = 'total'; // nunca reabrir na Residual (o form do interno é idêntico e confunde)
 
     // Pré-seleciona o subtipo pelo escopo da OS (o técnico pode trocar)
     if (!campo().subtipo && EC.mapaEscopo && EC.mapaEscopo.subtipoPorEscopo) {
