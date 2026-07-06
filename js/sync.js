@@ -49,7 +49,8 @@ EC.sync = (function () {
   // Lista de pontos do registro na MESMA ordem global que o mapeador do servidor
   // usa (para casar com o `ordem` devolvido por /registro). No ruído interno os
   // pontos vivem em campo.ambientes[].pontos (achata ambiente a ambiente, cada um
-  // limitado ao seu pontosCalculados); nos demais, é campo.pontos direto.
+  // limitado ao seu pontosCalculados); na opacidade são os VEÍCULOS; nos demais,
+  // é campo.pontos direto.
   function pontosDoRegistro(registro) {
     var campo = registro.campo || {};
     var sub = campo.subtipo || '';
@@ -63,6 +64,7 @@ EC.sync = (function () {
       });
       return flat;
     }
+    if (registro.tipo === 'opacidade') return campo.veiculos || [];
     return campo.pontos || [];
   }
 
