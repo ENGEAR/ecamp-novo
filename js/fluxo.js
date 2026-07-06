@@ -775,6 +775,7 @@ EC.fluxo = (function () {
     $('checkpoint-resumo').innerHTML =
       linhaResumo('Nº da OS', (estado.os && estado.os.numero) || '—') +
       linhaResumo('Nome do projeto', (estado.os && estado.os.projeto) || '—') +
+      linhaResumo('Escopo', servicoDetalhe('escopo')) +
       linhaResumo('Tipo', nomeTipo(estado.tipo)) +
       linhaResumo('Método', servicoDetalhe('metodo')) +
       linhaResumo('Período', servicoDetalhe('periodo')) +
