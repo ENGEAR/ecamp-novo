@@ -268,13 +268,52 @@ EC.pdf = (function () {
     if (n) return n;
     return (campo.pontos || []).length;
   }
-  // Código do registro: Campo_[NºOS]_CAMPANHA n_[ESCOPO]_[N pontos].
-  // Underscore separa as partes; espaços dentro das partes são mantidos.
+  // Segmento {método} do código (planilha escopo_metodo_os): só o ruído 10151
+  // (interno/externo/longa duração) e o ferro/aéreo (finalidade) têm; os demais
+  // escopos (10152, vibração, opacidade, MQAI, outro) ficam sem.
+  function metodoCodigo(reg) {
+    if (reg.tipo !== 'ruido') return '';
+    var campo = reg.campo || {};
+    var sub = campo.subtipo || '';
+    if (sub === 'interno10151') return 'Ambiente interno';
+    if (sub === 'externo') {
+      var escopo = (reg.servico && reg.servico.escopo) || '';
+      return /longa\s*dura/i.test(escopo) ? 'Longa duração' : 'Ambiente externo';
+    }
+    if (sub === 'ferroviario' || sub === 'aeronautico') return (campo.geral || {}).finalidade || '';
+    return ''; // interno10152: sem método (planilha)
+  }
+  // Contagem do código: ambientes (ruído interno), veículos (opacidade) ou pontos.
+  function contagemItens(reg) {
+    var campo = reg.campo || {}, geral = campo.geral || {}, sub = campo.subtipo;
+    if (reg.tipo === 'ruido' && (sub === 'interno10151' || sub === 'interno10152')) {
+      var a = parseInt(geral.qtdeAmbientes, 10) || (campo.ambientes || []).length;
+      return a + (a === 1 ? ' ambiente' : ' ambientes');
+    }
+    if (reg.tipo === 'opacidade') {
+      var v = parseInt(geral.qtdeVeiculos, 10) || (campo.veiculos || []).length;
+      return v + (v === 1 ? ' veículo' : ' veículos');
+    }
+    var n = contarPontos(reg);
+    return n + (n === 1 ? ' ponto' : ' pontos');
+  }
+  // Código do registro (planilha escopo_metodo_os, coluna I):
+  //   Campo_[NºOS]_[Projeto]_CAMPANHA n_[Escopo]_[método?]_REVISÃO r_[N pontos|ambientes|veículos]
+  // A revisão vem do servidor na finalização (registro.revisao); sem ela
+  // (offline/registro antigo) sai 0. Underscore separa as partes.
   function codigoPdf(reg) {
     var os = (reg.os && reg.os.numero) || '';
+    var projeto = (reg.os && reg.os.projeto) || '';
     var escopo = (reg.servico && reg.servico.escopo) || '';
-    var partes = ['Campo', os, 'CAMPANHA ' + numeroCampanha(reg), escopo, contarPontos(reg) + ' pontos'];
-    return partes.map(function (s) { return String(s).replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim(); }).join('_');
+    var metodo = metodoCodigo(reg);
+    var partes = ['Campo', os, projeto, 'CAMPANHA ' + numeroCampanha(reg), escopo];
+    if (metodo) partes.push(metodo);
+    partes.push('REVISÃO ' + (typeof reg.revisao === 'number' ? reg.revisao : 0));
+    partes.push(contagemItens(reg));
+    return partes
+      .map(function (s) { return String(s).replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim(); })
+      .filter(Boolean)
+      .join('_');
   }
   function nomeArquivo(reg) {
     return codigoPdf(reg) + '.pdf';

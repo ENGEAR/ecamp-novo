@@ -1086,8 +1086,26 @@ EC.fluxo = (function () {
     const registro = montarRegistro();
 
     // 1) Envia ao servidor PRIMEIRO (destino oficial: SGP → Supabase + SharePoint),
-    //    com as fotos. Se offline, tenta enfileirar.
-    if (EC.sync) EC.sync.sincronizarRegistro(registro);
+    //    com as fotos. Se offline, tenta enfileirar. O servidor devolve a REVISÃO
+    //    do registro (numerada lá) — o código do PDF espera por ela (máx. 8 s;
+    //    offline/demora → sai como REVISÃO 0).
+    let resolverRevisao = null;
+    const revisaoPronta = new Promise(function (res) { resolverRevisao = res; });
+    const tempoRevisao = setTimeout(function () { if (resolverRevisao) { resolverRevisao(); resolverRevisao = null; } }, 8000);
+    if (EC.sync) {
+      EC.sync.sincronizarRegistro(registro, function (resp) {
+        if (resp && typeof resp.revisao === 'number') {
+          registro.revisao = resp.revisao;
+          // atualiza a cópia do Histórico recente com a revisão (p/ regerar igual)
+          if (EC.db && EC.db.disponivel()) EC.db.set('registros', registro.codificacao, registro).catch(function () {});
+        }
+        clearTimeout(tempoRevisao);
+        if (resolverRevisao) { resolverRevisao(); resolverRevisao = null; }
+      });
+    } else {
+      clearTimeout(tempoRevisao);
+      if (resolverRevisao) { resolverRevisao(); resolverRevisao = null; }
+    }
 
     // 2) Guarda uma cópia LEVE no histórico do aparelho (sem o base64 das fotos —
     //    elas já foram para o servidor), para NÃO estourar a memória do navegador.
@@ -1132,7 +1150,7 @@ EC.fluxo = (function () {
     // guarda o registro COMPLETO (com fotos) e já dispara a geração AUTOMÁTICA
     // do PDF; quando pronto, o botão vira "Encaminhar" (WhatsApp).
     ultimoRegistroPdf = registro;
-    iniciarPdfAutomatico(registro);
+    iniciarPdfAutomatico(registro, revisaoPronta);
 
     estado = null;
     if (EC.app.atualizarBarraPendencias) EC.app.atualizarBarraPendencias();
@@ -1143,7 +1161,7 @@ EC.fluxo = (function () {
   // (regra do navegador), então o botão fica pronto esperando o toque.
   let pdfPronto = null; // { blob, nome } do PDF gerado na finalização
 
-  function iniciarPdfAutomatico(registro) {
+  function iniciarPdfAutomatico(registro, aguardar) {
     const btn = $('sucesso-pdf');
     pdfPronto = null;
     if (!(EC.pdf && EC.pdf.suporta(registro) && EC.pdf.gerarSalvar)) {
@@ -1153,7 +1171,8 @@ EC.fluxo = (function () {
     btn.classList.remove('oculto');
     btn.disabled = true;
     btn.textContent = '⏳ Gerando PDF…';
-    Promise.resolve(EC.pdf.gerarSalvar(registro))
+    Promise.resolve(aguardar) // espera a revisão do servidor (ou o teto de 8 s)
+      .then(function () { return EC.pdf.gerarSalvar(registro); })
       .then(function (res) {
         pdfPronto = res;
         btn.textContent = '📤 Encaminhar PDF (WhatsApp)';

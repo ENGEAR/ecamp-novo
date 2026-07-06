@@ -89,9 +89,12 @@ EC.sync = (function () {
   // são ignoradas no servidor. Lança erro em falha (err.naoSuportado=true se 422).
   var FOTOS_EM_PARALELO = 4; // quantas fotos sobem ao mesmo tempo
 
-  async function enviar(registro) {
+  // aoRegistrar (opcional): chamado assim que o SERVIDOR aceita os dados (antes
+  // das fotos), com a resposta — traz `revisao`, usada no código do PDF.
+  async function enviar(registro, aoRegistrar) {
     var resp = await postJson(ROTA_REGISTRO, semFotos(registro));
-    var pontos = resp.pontos || []; // [{ordem, janela, ponto_id}, ...]
+    if (typeof aoRegistrar === 'function') { try { aoRegistrar(resp); } catch (e) { /* ok */ } }
+    var pontos = resp.pontos || []; // [{ordem, janela, ponto_id, revisao}, ...]
     var pontosCampo = pontosDoRegistro(registro);
 
     // Monta a lista de fotos a enviar. O servidor devolve uma entrada por
@@ -154,9 +157,15 @@ EC.sync = (function () {
   }
 
   // Sincroniza UM registro (chamado logo após salvar). Em falha de rede, enfileira.
-  async function sincronizarRegistro(registro) {
+  // aoRegistrar: chamado com a resposta do servidor (traz `revisao`) ou com null
+  // quando o envio falhou (offline) — quem espera a revisão não fica travado.
+  async function sincronizarRegistro(registro, aoRegistrar) {
+    var avisado = false;
     try {
-      await enviar(registro);
+      await enviar(registro, function (resp) {
+        avisado = true;
+        if (typeof aoRegistrar === 'function') { try { aoRegistrar(resp); } catch (e) { /* ok */ } }
+      });
       try { await EC.db.remove('pending', registro.codificacao); } catch (e) { /* ok */ }
       toast('✅ Enviado ao servidor.');
     } catch (e) {
@@ -167,6 +176,7 @@ EC.sync = (function () {
         try { await EC.db.set('pending', registro.codificacao, registro); } catch (e2) { /* ok */ }
         toast('📴 Sem conexão. Guardado para sincronizar depois.');
       }
+      if (!avisado && typeof aoRegistrar === 'function') { try { aoRegistrar(null); } catch (e2) { /* ok */ } }
     }
     atualizarBarra();
   }
