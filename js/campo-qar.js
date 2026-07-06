@@ -252,8 +252,8 @@ EC.campoQar = (function () {
       '<p class="cq-passo">4º passo — Porta filtro e porta motor</p>' + htmlChecks(['Nenhuma fuga de ar detectada'], 'porta') +
       '<p class="cq-passo">5º passo — Condições ambientais</p>' +
       lblNum('Temperatura (°C)', 'temperatura') + lblNum('Pressão (mmHg)', 'pressao') + lblNum('Umidade (%)', 'umidade') +
-      '<p class="cq-passo">6º passo — Calibração (cartas)</p>' +
-      CARTAS.map(function (c) { return '<p class="grupo-checks-titulo">Carta ' + c + '</p>' + htmlCarta('carta' + c); }).join('') +
+      '<p class="cq-passo">6º passo — Calibração (placas de retenção)</p>' +
+      CARTAS.map(function (c) { return '<p class="grupo-checks-titulo">Placa de retenção ' + c + '</p>' + htmlCarta('carta' + c); }).join('') +
       '<p class="grupo-checks-titulo">Leitura com filtro no lugar</p>' +
       '<div class="grade-2">' + lblNum('Coluna 800 mm ↑', 'filtro_800sobe') + lblNum('Coluna 800 mm ↓', 'filtro_800desce') + '</div>' +
       htmlChecks(['Calibração aprovada'], 'calib') +

@@ -172,7 +172,7 @@ EC.pdf = (function () {
     if (LABELS[k]) return LABELS[k];
     var m;
     if ((m = k.match(/^leitura(\d+)$/))) return 'Leitura ' + (parseInt(m[1], 10) + 1);
-    if ((m = k.match(/^carta(\d+)_(\d+)(sobe|desce)$/))) return 'Carta ' + m[1] + ' — coluna ' + m[2] + ' ' + m[3];
+    if ((m = k.match(/^carta(\d+)_(\d+)(sobe|desce)$/))) return 'Placa de retenção ' + m[1] + ' — coluna ' + m[2] + ' ' + m[3];
     if ((m = k.match(/^filtro_(\d+)(sobe|desce)$/))) return 'Filtro — coluna ' + m[1] + ' ' + m[2];
     if ((m = k.match(/^(.*)_(ini|fim)$/))) {
       var base = BASE_INI_FIM[m[1]] || prettify(m[1]);
