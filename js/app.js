@@ -237,6 +237,7 @@
     const mapa = {}; itens.forEach(function (it) { mapa[it.cod] = it; });
 
     abrirOverlay('🕐 Histórico recente (últimos 30 dias)',
+      (itens.length ? '<p class="texto-apoio">🔒 Serviço finalizado não pode ser editado — aqui você confere e baixa o PDF de novo.</p>' : '') +
       (itens.length ? '<label class="overlay-busca"><input type="search" id="hist-busca" placeholder="🔍 Buscar por OS, cliente ou projeto…" autocomplete="off"></label>' : '') +
       '<div id="hist-lista"></div>');
 
