@@ -19,7 +19,7 @@
   const CHAVE_SESSAO = 'sessao:atual';
   const CHAVE_SENHA_SALVA = 'sessao:senhaSalva';
   // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
-  const VERSAO_APP = '0.34.7';
+  const VERSAO_APP = '0.34.8';
 
   function $(id) { return document.getElementById(id); }
 
@@ -273,20 +273,32 @@
       lista.querySelectorAll('.hist-pdf').forEach(function (b) {
         b.addEventListener('click', function () {
           const it = mapa[b.dataset.cod];
-          if (!it || !EC.pdf || !EC.pdf.suporta(it.reg)) { mostrarToast('Não foi possível gerar o PDF deste registro.'); return; }
+          if (!it) return;
           b.disabled = true;
           const rotulo = b.textContent;
-          b.textContent = '⏳ Gerando…';
-          Promise.resolve(EC.pdf.gerar(it.reg))
+          b.textContent = '⏳ Preparando…';
+          // Se o PDF deste registro já foi gerado, compartilha o salvo (mantém
+          // as fotos mesmo em registro legado); senão gera agora.
+          const salvo = (EC.db && EC.db.disponivel())
+            ? EC.db.get('pdfs', b.dataset.cod).catch(function () { return null; })
+            : Promise.resolve(null);
+          salvo.then(function (rec) {
+            if (rec && rec.blob) return EC.pdf.abrirSalvo(rec);
+            if (!EC.pdf || !EC.pdf.suporta(it.reg)) { mostrarToast('Não foi possível gerar o PDF deste registro.'); return; }
+            return Promise.resolve(EC.pdf.gerar(it.reg));
+          })
             .catch(function () { mostrarToast('Não foi possível gerar o PDF. Tente de novo.'); })
             .then(function () { b.disabled = false; b.textContent = rotulo; });
         });
       });
       lista.querySelectorAll('.hist-excluir').forEach(function (b) {
         b.addEventListener('click', function () {
-          if (!confirm('Excluir este registro do histórico do aparelho? (o que já foi enviado ao servidor não é afetado)')) return;
+          if (!confirm('Excluir este registro (e o PDF dele) do aparelho? (o que já foi enviado ao servidor não é afetado)')) return;
           const cod = b.dataset.cod;
-          if (EC.db && EC.db.disponivel()) EC.db.remove('registros', cod).catch(function () {});
+          if (EC.db && EC.db.disponivel()) {
+            EC.db.remove('registros', cod).catch(function () {});
+            EC.db.remove('pdfs', cod).catch(function () {});
+          }
           EC.storage.remover('historico:' + cod);
           itens = itens.filter(function (it) { return it.cod !== cod; });
           delete mapa[cod];
@@ -296,60 +308,6 @@
       });
     }
     const busca = $('hist-busca');
-    if (busca) busca.addEventListener('input', function () { render(busca.value); });
-    render('');
-  });
-
-  $('btn-pdfs').addEventListener('click', async function () {
-    let itens = [];
-    try { itens = await EC.pdf.listarSalvos(); } catch (e) { itens = []; }
-    const mapa = {}; itens.forEach(function (r) { mapa[r.id] = r; });
-
-    abrirOverlay('📄 Relatórios salvos',
-      (itens.length ? '<label class="overlay-busca"><input type="search" id="pdf-busca" placeholder="🔍 Buscar por OS, cliente ou projeto…" autocomplete="off"></label>' : '') +
-      '<div id="pdf-lista"></div>');
-
-    const lista = $('pdf-lista');
-    function itemHtml(r) {
-      const data = r.salvoEm ? new Date(r.salvoEm).toLocaleString('pt-BR') : '';
-      return '<div class="overlay-item">' +
-        '<strong>OS ' + (r.os || '?') + '</strong>' + (r.cliente ? ' — ' + r.cliente : '') +
-        (r.projeto ? '<br><small>' + r.projeto + '</small>' : '') +
-        '<br><small>' + (r.escopo || r.tipo || '') + (data ? ' · ' + data : '') + '</small>' +
-        '<div class="overlay-item-acoes">' +
-        '<button type="button" class="botao botao-secundario pdf-abrir" data-id="' + r.id + '">📤 Abrir / compartilhar</button>' +
-        '<button type="button" class="botao botao-perigo pdf-excluir" data-id="' + r.id + '" title="Excluir">🗑️</button>' +
-        '</div></div>';
-    }
-    function render(filtro) {
-      if (itens.length === 0) {
-        lista.innerHTML = '<p class="overlay-vazio">Nenhum PDF salvo ainda.<br>Gere um PDF na tela de conclusão do serviço — ele fica guardado aqui.</p>';
-        return;
-      }
-      const q = String(filtro || '').trim().toLowerCase();
-      const vis = itens.filter(function (r) {
-        return !q || [r.os, r.cliente, r.projeto, r.escopo].some(function (v) { return String(v || '').toLowerCase().indexOf(q) !== -1; });
-      });
-      lista.innerHTML = vis.length === 0
-        ? '<p class="overlay-vazio">Nenhum relatório encontrado para essa busca.</p>'
-        : vis.map(itemHtml).join('');
-      lista.querySelectorAll('.pdf-abrir').forEach(function (b) {
-        b.addEventListener('click', function () { const r = mapa[b.dataset.id]; if (r) EC.pdf.abrirSalvo(r); });
-      });
-      lista.querySelectorAll('.pdf-excluir').forEach(function (b) {
-        b.addEventListener('click', function () {
-          if (!confirm('Excluir este PDF salvo do aparelho?')) return;
-          const id = b.dataset.id;
-          EC.pdf.excluirSalvo(id).then(function () {
-            itens = itens.filter(function (r) { return r.id !== id; });
-            delete mapa[id];
-            const bu = $('pdf-busca');
-            render(bu ? bu.value : '');
-          });
-        });
-      });
-    }
-    const busca = $('pdf-busca');
     if (busca) busca.addEventListener('input', function () { render(busca.value); });
     render('');
   });
