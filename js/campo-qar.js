@@ -95,6 +95,46 @@ EC.campoQar = (function () {
     });
   }
 
+  // Categoria de cada equipamento (da lista do SGP p/ a variante 'qar'). Serve
+  // para separar os selecionados em duas listas: Amostrador de Grande Volume e
+  // Separador Inercial.
+  function listaEquipQar() {
+    return (EC.equip && EC.equip.porVariante) ? (EC.equip.porVariante('qar') || []) : [];
+  }
+  function categoriaDoEquip(codigo) {
+    var e = listaEquipQar().filter(function (x) { return x.codigo === codigo; })[0];
+    return e ? (e.categoria || '') : '';
+  }
+  // Códigos SELECIONADOS no pré-campo cuja categoria casa com o padrão.
+  function selecionadosPorCategoria(regex) {
+    return (ctx.estado.equipamentos || []).filter(function (c) {
+      return regex.test((categoriaDoEquip(c) || '').toLowerCase());
+    });
+  }
+  // Uma lista suspensa (só aparece se houver equipamento selecionado da categoria).
+  function selectEquip(campoNome, rotulo, codigos) {
+    if (!codigos.length) return '';
+    return '<label>' + rotulo + '<select data-campo="' + campoNome + '"><option value="">Selecione…</option>' +
+      codigos.map(function (c) { return '<option>' + c + '</option>'; }).join('') + '</select></label>';
+  }
+  // Bloco de equipamentos do ponto: dois dropdowns (AGV + Separador). Se as
+  // categorias não vierem (ex.: 1º uso offline), cai num dropdown único.
+  function htmlEquipamentosQar() {
+    var selecionados = ctx.estado.equipamentos || [];
+    if (!selecionados.length) {
+      return '<p class="texto-apoio">⚠️ Nenhum equipamento selecionado no pré-campo. Volte à seleção de equipamentos e marque os amostradores que vão para o campo.</p>';
+    }
+    var agvs = selecionadosPorCategoria(/amostrador|grande volume|agv/);
+    var seps = selecionadosPorCategoria(/separador/);
+    if (!agvs.length && !seps.length) {
+      // sem categoria conhecida: dropdown único (compatibilidade)
+      return '<label>Tipo de equipamento<select data-campo="tipoEquip"><option value="">Selecione…</option>' +
+        selecionados.map(function (c) { return '<option>' + c + '</option>'; }).join('') + '</select></label>';
+    }
+    return selectEquip('equipAGV', 'Amostrador de Grande Volume', agvs) +
+      selectEquip('equipSeparador', 'Separador inercial', seps);
+  }
+
   // Cronômetro de auxílio (não é salvo) — para cronometrar o teste de vazamento.
   function montarCronometro(div) {
     div.innerHTML =
@@ -191,18 +231,13 @@ EC.campoQar = (function () {
     const area = $('#cq-ponto');
     const ponto = campo().pontos[n - 1];
     if (!ponto) { area.innerHTML = ''; return; }
-    const equipSelecionados = ctx.estado.equipamentos || [];
 
     const html =
       '<div class="cartao-ponto"><h2>Ponto P' + n + '</h2>' +
       // Identificação
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
-      (equipSelecionados.length
-        ? '<label>Tipo de equipamento<select data-campo="tipoEquip"><option value="">Selecione…</option>' +
-          equipSelecionados.map(function (c) { return '<option>' + c + '</option>'; }).join('') +
-          '</select></label>'
-        : '<p class="texto-apoio">⚠️ Nenhum equipamento selecionado no pré-campo. Volte à seleção de equipamentos e marque os amostradores que vão para o campo.</p>') +
+      htmlEquipamentosQar() +
       '<div class="cq-gps"></div>' +
       '<div class="cq-foto-ponto"></div>' +
       // Calibração
@@ -257,7 +292,9 @@ EC.campoQar = (function () {
 
     reqVal('nome', 'nome do ponto');
     reqVal('horaInicial', 'hora inicial');
-    reqVal('tipoEquip', 'tipo de equipamento');
+    // Amostrador de Grande Volume é obrigatório; o Separador inercial é opcional
+    // (PTS não usa separador). Aceita o campo antigo tipoEquip por compatibilidade.
+    if (!(String(ponto.equipAGV || '').trim() || String(ponto.tipoEquip || '').trim())) falta.push('amostrador de grande volume');
     if (!ponto.gps) falta.push('GPS');
     if (!EC.foto.tem(ponto.fotoPonto)) falta.push('foto do ponto');
     grupoChecks('aquec', 1, 'aquecimento do motor');
