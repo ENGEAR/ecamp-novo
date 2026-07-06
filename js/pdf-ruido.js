@@ -297,10 +297,9 @@ EC.pdf = (function () {
     var n = contarPontos(reg);
     return n + (n === 1 ? ' ponto' : ' pontos');
   }
-  // Código do registro (planilha escopo_metodo_os, coluna I):
-  //   Campo_[NºOS]_[Projeto]_CAMPANHA n_[Escopo]_[método?]_REVISÃO r_[N pontos|ambientes|veículos]
-  // A revisão vem do servidor na finalização (registro.revisao); sem ela
-  // (offline/registro antigo) sai 0. Underscore separa as partes.
+  // Código do registro (planilha escopo_metodo_os, coluna I — SEM a revisão,
+  // que só o servidor conhece; ela fica nas pastas/nomes das fotos, no espelho):
+  //   Campo_[NºOS]_[Projeto]_CAMPANHA n_[Escopo]_[método?]_[N pontos|ambientes|veículos]
   function codigoPdf(reg) {
     var os = (reg.os && reg.os.numero) || '';
     var projeto = (reg.os && reg.os.projeto) || '';
@@ -308,7 +307,6 @@ EC.pdf = (function () {
     var metodo = metodoCodigo(reg);
     var partes = ['Campo', os, projeto, 'CAMPANHA ' + numeroCampanha(reg), escopo];
     if (metodo) partes.push(metodo);
-    partes.push('REVISÃO ' + (typeof reg.revisao === 'number' ? reg.revisao : 0));
     partes.push(contagemItens(reg));
     return partes
       .map(function (s) { return String(s).replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim(); })
