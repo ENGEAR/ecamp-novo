@@ -421,20 +421,48 @@ EC.reembolso = (function () {
   // Preenche datas e dias. Com campanha da Agenda: campos travados. Sem
   // campanha (OS sem viagem na Agenda): campos vazios e editáveis pelo técnico.
   function fillViagem(campanha) {
-    var ida = $('rb-ida'), volta = $('rb-volta'), ds = $('rb-dias-servico'), dd = $('rb-dias-desloc');
+    var ida = $('rb-ida'), si = $('rb-servico-inicio'), sf = $('rb-servico-fim'), volta = $('rb-volta');
+    var ds = $('rb-dias-servico'), dd = $('rb-dias-desloc');
     var daAgenda = !!campanha;
     if (daAgenda) {
       ida.value = (campanha.dataInicio || '').slice(0, 10);
       volta.value = (campanha.dataRetorno || '').slice(0, 10);
+      si.value = (campanha.servicoInicio || '').slice(0, 10);
+      sf.value = (campanha.servicoFim || '').slice(0, 10);
       ds.value = campanha.diasServico;
       dd.value = campanha.diasDeslocamento;
       $('rb-viagem-fonte').textContent = '📅 Datas e dias preenchidos pela Agenda.';
     } else {
-      ida.value = ''; volta.value = ''; ds.value = ''; dd.value = '';
-      $('rb-viagem-fonte').textContent = '✍️ Esta OS não tem viagem na Agenda — preencha as datas e os dias da viagem.';
+      ida.value = ''; si.value = ''; sf.value = ''; volta.value = '';
+      ds.value = ''; dd.value = '';
+      $('rb-viagem-fonte').textContent = '✍️ Esta OS não tem viagem na Agenda — preencha as 4 datas; os dias são calculados sozinhos.';
     }
-    [ida, volta, ds, dd].forEach(function (el) { el.readOnly = daAgenda; });
+    // datas: travadas quando vêm da Agenda; dias: sempre calculados (só leitura)
+    [ida, si, sf, volta].forEach(function (el) { el.readOnly = daAgenda; });
+    ds.readOnly = true; dd.readOnly = true;
     $('rb-viagem').classList.remove('oculto');
+  }
+
+  // Dias inteiros entre duas datas ISO (b − a); null se faltar/for inválida.
+  function diffDias(a, b) {
+    if (!a || !b) return null;
+    var d1 = new Date(a + 'T00:00:00'), d2 = new Date(b + 'T00:00:00');
+    if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return null;
+    return Math.round((d2 - d1) / 86400000);
+  }
+
+  // No modo manual, calcula dias de serviço e de deslocamento a partir das 4 datas.
+  //   serviço      = (término − início) + 1
+  //   deslocamento = (início serviço − ida) + (volta − término serviço)
+  function recalcularDiasManual() {
+    if (!modoManual()) return;
+    var ida = $('rb-ida').value, si = $('rb-servico-inicio').value, sf = $('rb-servico-fim').value, volta = $('rb-volta').value;
+    var ateServico = diffDias(ida, si), servico = diffDias(si, sf), aposServico = diffDias(sf, volta);
+    var ok = ateServico != null && servico != null && aposServico != null &&
+             ateServico >= 0 && servico >= 0 && aposServico >= 0;
+    $('rb-dias-servico').value = ok ? (servico + 1) : '';
+    $('rb-dias-desloc').value = ok ? (ateServico + aposServico) : '';
+    aoMudarDias();
   }
 
   function aoMudarDias() { pintarResumoAuto(); aoMudarVeiculo(); }
@@ -568,7 +596,7 @@ EC.reembolso = (function () {
     $('rb-solicitante').value = sessionNome();
     $('rb-viagem').classList.add('oculto');
     $('rb-auto').classList.add('oculto');
-    $('rb-ida').value = ''; $('rb-volta').value = '';
+    $('rb-ida').value = ''; $('rb-servico-inicio').value = ''; $('rb-servico-fim').value = ''; $('rb-volta').value = '';
     $('rb-dias-servico').value = ''; $('rb-dias-desloc').value = '';
     document.querySelectorAll('input[name="rb-veiculo"]').forEach(function (r) { r.checked = false; });
     $('rb-transporte-campos').classList.add('oculto');
@@ -601,6 +629,7 @@ EC.reembolso = (function () {
       combustivelJustificativa: pedido.combustivelJustificativa,
       valorPedagio: pedido.valorPedagio, distanciaManual: pedido.distanciaManual,
       dataInicio: pedido.dataInicio, dataRetorno: pedido.dataRetorno,
+      servicoInicio: pedido.servicoInicio, servicoFim: pedido.servicoFim,
       diasServico: pedido.diasServico, diasDeslocamento: pedido.diasDeslocamento,
       ajustes: pedido.ajustes
     });
@@ -622,8 +651,12 @@ EC.reembolso = (function () {
     if (osSel.campanhas.length && !campSel) return mostrarErro('Escolha a campanha.');
     if (!sessionNome()) return mostrarErro('Sua sessão expirou — entre de novo no app.');
     if (modoManual()) {
-      if (!$('rb-ida').value || !$('rb-volta').value) return mostrarErro('Informe as datas de ida e de volta da viagem.');
-      if (diasViagemVal() < 1) return mostrarErro('Informe os dias da viagem (serviço e/ou deslocamento).');
+      var ida = $('rb-ida').value, si = $('rb-servico-inicio').value, sf = $('rb-servico-fim').value, volta = $('rb-volta').value;
+      if (!ida || !si || !sf || !volta) return mostrarErro('Preencha as 4 datas: ida, início e término do serviço, e volta.');
+      if (diffDias(ida, si) < 0 || diffDias(si, sf) < 0 || diffDias(sf, volta) < 0) {
+        return mostrarErro('As datas precisam ficar em ordem: ida ≤ início do serviço ≤ término do serviço ≤ volta.');
+      }
+      if (diasViagemVal() < 1) return mostrarErro('A viagem precisa ter ao menos 1 dia.');
     }
     if (!veiculo()) return mostrarErro('Responda: o veículo é da ENGEAR ou do colaborador?');
 
@@ -679,6 +712,8 @@ EC.reembolso = (function () {
       // dias/datas informados (o servidor usa só quando a OS não tem viagem na Agenda)
       dataInicio: $('rb-ida').value || null,
       dataRetorno: $('rb-volta').value || null,
+      servicoInicio: $('rb-servico-inicio').value || null,
+      servicoFim: $('rb-servico-fim').value || null,
       diasServico: diasServicoVal(),
       diasDeslocamento: diasDeslocVal(),
       ajustes: ajustes,
@@ -829,8 +864,9 @@ EC.reembolso = (function () {
 
     $('rb-os-busca').addEventListener('input', function () { pintarResultadosOs(this.value); });
     $('rb-campanha').addEventListener('change', aoEscolherCampanha);
-    $('rb-dias-servico').addEventListener('input', aoMudarDias);
-    $('rb-dias-desloc').addEventListener('input', aoMudarDias);
+    ['rb-ida', 'rb-servico-inicio', 'rb-servico-fim', 'rb-volta'].forEach(function (id) {
+      $(id).addEventListener('change', recalcularDiasManual);
+    });
     document.querySelectorAll('input[name="rb-veiculo"]').forEach(function (r) {
       r.addEventListener('change', aoMudarVeiculo);
     });

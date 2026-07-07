@@ -310,11 +310,15 @@
             <p class="texto-apoio" id="rb-viagem-fonte"></p>
             <div class="grade-2">
               <label>Data de ida<input type="date" id="rb-ida"></label>
+              <label>Data início serviço<input type="date" id="rb-servico-inicio"></label>
+            </div>
+            <div class="grade-2">
+              <label>Data término serviço<input type="date" id="rb-servico-fim"></label>
               <label>Data de volta<input type="date" id="rb-volta"></label>
             </div>
             <div class="grade-2">
-              <label>Dias de serviço<input type="number" id="rb-dias-servico" min="0" inputmode="numeric" placeholder="0"></label>
-              <label>Dias de deslocamento<input type="number" id="rb-dias-desloc" min="0" inputmode="numeric" placeholder="0"></label>
+              <label>Dias de serviço<input type="number" id="rb-dias-servico" readonly></label>
+              <label>Dias de deslocamento<input type="number" id="rb-dias-desloc" readonly></label>
             </div>
             <div id="rb-auto" class="rb-resumo-auto oculto"></div>
           </div>
@@ -521,6 +525,8 @@
   <script src="js/fluxo.js"></script>
   <script src="js/reembolso.js"></script>
   <script src="js/agenda.js"></script>
+  <script src="js/biblioteca-dados.js"></script>
+  <script src="js/biblioteca.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

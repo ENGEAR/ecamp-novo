@@ -8,7 +8,7 @@
  * Todos os caminhos são RELATIVOS, para funcionar no GitHub Pages
  * (https://usuario.github.io/repositorio/) sem ajuste.
  */
-const VERSAO_CACHE = 'ecamp-v0.40.7';
+const VERSAO_CACHE = 'ecamp-v0.40.8';
 
 const ARQUIVOS_APP = [
   './',
@@ -38,6 +38,8 @@ const ARQUIVOS_APP = [
   './js/fluxo.js',
   './js/reembolso.js',
   './js/agenda.js',
+  './js/biblioteca-dados.js',
+  './js/biblioteca.js',
   './js/app.js',
   './js/componentes/gps.js',
   './js/componentes/foto.js',
@@ -61,12 +63,32 @@ const ARQUIVOS_APP = [
   './public/Ambiente%20Interno%20(NBR%2010152).png'
 ];
 
+// Documentos da Biblioteca (normas/procedimentos): o mesmo manifesto que o app
+// usa (js/biblioteca-dados.js) alimenta o pré-cache — assim os PDFs ficam
+// disponíveis OFFLINE. Um PDF que falhe ao baixar não derruba a instalação.
+let ARQUIVOS_BIBLIOTECA = [];
+try {
+  importScripts('./js/biblioteca-dados.js');
+  ARQUIVOS_BIBLIOTECA = (self.ECAMP_BIBLIOTECA || [])
+    .map((d) => d && d.arquivo)
+    .filter(Boolean)
+    .map((caminho) => './' + String(caminho).replace(/^\.?\//, ''));
+} catch (e) {
+  ARQUIVOS_BIBLIOTECA = [];
+}
+
 self.addEventListener('install', (evento) => {
   // NÃO chama skipWaiting: a versão nova fica "em espera". O app mostra o aviso
   // "nova versão disponível" e só assume quando o usuário toca em Atualizar
   // (evita recarregar sozinho no meio de uma medição em campo).
   evento.waitUntil(
-    caches.open(VERSAO_CACHE).then((cache) => cache.addAll(ARQUIVOS_APP))
+    caches.open(VERSAO_CACHE).then((cache) =>
+      // App shell: obrigatório (addAll falha tudo se um item faltar).
+      cache.addAll(ARQUIVOS_APP).then(() =>
+        // Biblioteca: best-effort, um PDF ausente não trava a instalação.
+        Promise.all(ARQUIVOS_BIBLIOTECA.map((url) => cache.add(url).catch(() => null)))
+      )
+    )
   );
 });
 

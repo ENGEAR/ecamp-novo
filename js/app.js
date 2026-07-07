@@ -18,7 +18,7 @@
   const CHAVE_SESSAO = 'sessao:atual';
   const CHAVE_ULTIMO_EMAIL = 'sessao:ultimoEmail';
   // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
-  const VERSAO_APP = '0.40.7';
+  const VERSAO_APP = '0.40.8';
 
   function $(id) { return document.getElementById(id); }
 
@@ -409,7 +409,8 @@
   });
 
   $('btn-biblioteca').addEventListener('click', function () {
-    abrirOverlay('📚 Biblioteca', '<p class="overlay-vazio">Normas e procedimentos entram na Fase 5.</p>');
+    if (EC.biblioteca && EC.biblioteca.abrir) EC.biblioteca.abrir();
+    else abrirOverlay('📚 Biblioteca', '<p class="overlay-vazio">Biblioteca indisponível.</p>');
   });
 
   /* ============ Barra de pendências offline ============ */
