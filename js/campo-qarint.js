@@ -222,11 +222,21 @@ EC.campoQarInterno = (function () {
       '<p class="grupo-checks-titulo">📍 Posicionamento e verificações</p>' + htmlChecks(CHECKS_POSICIONAMENTO, 'pos') +
       '<label>Valor da vazão (L/min)<input type="number" step="0.01" inputmode="decimal" data-campo="valorVazao"></label>' +
       '<p class="grupo-checks-titulo">🌬️ Coleta de fungos (orientação)</p>' + htmlChecksSub(FUNGOS, 'fung') +
+      '<div class="grade-2">' +
+      '  <label>Horário inicial<input type="time" data-campo="fungosHoraInicial"></label>' +
+      '  <label>Horário final<input type="time" data-campo="fungosHoraFinal"></label>' +
+      '</div>' +
+      '<label>Volume amostrado (L)<input type="number" step="0.01" inputmode="decimal" data-campo="fungosVolume"></label>' +
       '<p class="grupo-checks-titulo">📊 Medições</p>' + MEDICOES.map(function (m) { return lblNum(m[1], m[0]); }).join('') +
       htmlChecks(CHECKS_CONFORMIDADE, 'conf') +
       '<p class="grupo-checks-titulo">🧫 Coleta de filtro (orientação)</p>' +
       '<label>Nº do filtro<input type="text" data-campo="numFiltro"></label>' +
       htmlChecksSub(FILTRO, 'filt') +
+      '<div class="grade-2">' +
+      '  <label>Horário inicial<input type="time" data-campo="filtroHoraInicial"></label>' +
+      '  <label>Horário final<input type="time" data-campo="filtroHoraFinal"></label>' +
+      '</div>' +
+      '<label>Volume coletado (L)<input type="number" step="0.01" inputmode="decimal" data-campo="filtroVolume"></label>' +
       '<p class="grupo-checks-titulo">🚚 Transporte das amostras (orientação)</p>' + htmlChecks(TRANSPORTE, 'transp') +
       '<p class="grupo-checks-titulo">📷 Fotos (obrigatórias)</p>' +
       '<div class="qi-foto-ponto"></div><div class="qi-foto-tela"></div><div class="qi-foto-amb"></div>' +
