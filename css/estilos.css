@@ -146,7 +146,7 @@ label {
   margin-bottom: 12px;
 }
 
-input[type="text"], input[type="password"], input[type="number"], input[type="date"], input[type="time"], select, textarea {
+input[type="text"], input[type="email"], input[type="password"], input[type="number"], input[type="date"], input[type="time"], select, textarea {
   display: block;
   width: 100%;
   margin-top: 4px;
@@ -159,7 +159,7 @@ input[type="text"], input[type="password"], input[type="number"], input[type="da
 }
 /* normaliza a altura dos campos de hora/data (o controle nativo fica mais alto) */
 input[type="time"], input[type="date"] { -webkit-appearance: none; appearance: none; height: 44px; }
-input[type="text"], input[type="password"], input[type="number"] { height: 44px; }
+input[type="text"], input[type="email"], input[type="password"], input[type="number"] { height: 44px; }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--azul); border-color: var(--azul); }
 input[readonly], textarea[readonly] { background: var(--cinza-fundo); }
 textarea { resize: vertical; font-family: inherit; }
