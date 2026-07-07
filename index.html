@@ -68,7 +68,7 @@
         <h1>O que você vai fazer?</h1>
         <div class="pilha-botoes">
           <button type="button" class="botao botao-acao" id="btn-servicos">🛠️ Serviços</button>
-          <button type="button" class="botao botao-acao botao-acao-fase2" id="btn-reembolso" disabled>💰 Solicitação de reembolso<span class="selo-fase">Em manutenção</span></button>
+          <button type="button" class="botao botao-acao" id="btn-reembolso">💰 Solicitação de reembolso</button>
           <button type="button" class="botao botao-acao" id="btn-agenda-acao">📅 Agenda</button>
         </div>
         <button type="button" class="link-discreto" id="btn-bancada">🧪 Testar componentes (Fase 0)</button>
@@ -274,47 +274,78 @@
       </div>
     </section>
 
-    <!-- ======= Reembolso — meus pedidos ======= -->
+    <!-- ======= Reembolso — minhas solicitações ======= -->
     <section id="tela-reembolso" class="tela oculto">
       <div class="cartao">
         <h1>💰 Solicitação de reembolso</h1>
         <div class="pilha-botoes">
-          <button type="button" class="botao botao-primario" id="rb-novo">➕ Novo pedido</button>
+          <button type="button" class="botao botao-primario" id="rb-novo">➕ Nova solicitação</button>
         </div>
-        <p class="os-secao-titulo">Meus pedidos</p>
+        <p class="os-secao-titulo">Minhas solicitações</p>
         <div id="rb-lista"></div>
         <button type="button" class="botao botao-secundario" id="rb-voltar">← Voltar</button>
       </div>
     </section>
 
-    <!-- ======= Reembolso — novo pedido ======= -->
+    <!-- ======= Reembolso — nova solicitação ======= -->
     <section id="tela-reembolso-novo" class="tela oculto">
       <div class="cartao">
-        <h1>💰 Novo pedido de reembolso</h1>
-        <p class="texto-apoio">Preencha os dados da despesa e tire a foto do comprovante. O pedido vai para a aprovação do Financeiro.</p>
+        <h1>💰 Nova solicitação de reembolso</h1>
+        <p class="texto-apoio">Os dias e os valores são calculados sozinhos a partir da Agenda. Só aparecem OS com a programação concluída.</p>
+        <div id="rb-offline" class="alerta alerta-vermelho oculto">📡 Sem internet. Para começar uma solicitação é preciso estar conectado (os dados vêm da Agenda). Tente de novo quando a conexão voltar.</div>
 
-        <p class="dg-secao">OS do serviço</p>
-        <div id="rb-os-escolhida" class="oculto"></div>
-        <div id="rb-os-picker">
-          <input type="text" id="rb-os-busca" placeholder="🔎 Buscar OS por número ou cliente" autocomplete="off">
-          <div id="rb-os-resultados"></div>
-        </div>
+        <div id="rb-form">
+          <p class="dg-secao">Serviço</p>
+          <label>Ordem de Serviço<select id="rb-os"></select></label>
+          <label>Cliente<input type="text" id="rb-cliente" readonly placeholder="Preenchido pela OS"></label>
+          <div id="rb-campanha-bloco" class="oculto">
+            <label>Campanha<select id="rb-campanha"></select></label>
+          </div>
+          <label>Solicitante<select id="rb-solicitante"></select></label>
+          <div id="rb-auto" class="rb-resumo-auto oculto"></div>
 
-        <p class="dg-secao">Despesa</p>
-        <div class="grade-2">
-          <label>Data da despesa<input type="date" id="rb-data"></label>
-          <label>Valor (R$)<input type="number" id="rb-valor" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00"></label>
-        </div>
-        <label>Categoria<select id="rb-categoria"></select></label>
-        <label>Descrição (opcional)<textarea id="rb-descricao" rows="2" placeholder="Ex.: abastecimento na ida ao campo"></textarea></label>
+          <p class="dg-secao">Transporte</p>
+          <p class="rb-pergunta">O veículo utilizado é da ENGEAR ou do colaborador?</p>
+          <div class="rb-radios">
+            <label class="linha-check"><input type="radio" name="rb-veiculo" value="engear"><span>🚐 ENGEAR</span></label>
+            <label class="linha-check"><input type="radio" name="rb-veiculo" value="proprio"><span>🚗 Meu veículo</span></label>
+          </div>
+          <div id="rb-transporte-campos" class="oculto">
+            <div id="rb-aluguel-info" class="alerta alerta-info oculto"></div>
+            <label>Distância total percorrida (km) <span class="rotulo-apoio">(da OS)</span><input type="text" id="rb-distancia" readonly></label>
+            <div class="grade-2">
+              <label>Tipo de combustível
+                <select id="rb-combustivel">
+                  <option value="">Selecione…</option>
+                  <option value="gasolina">Gasolina</option>
+                  <option value="diesel">Diesel</option>
+                </select>
+              </label>
+              <label>Preço por litro (R$)<input type="number" id="rb-preco-litro" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+            </div>
+            <div id="rb-teto-alerta" class="alerta alerta-vermelho oculto"></div>
+            <div id="rb-teto-just" class="oculto">
+              <label>Justificativa do preço acima do teto<textarea id="rb-comb-justificativa" rows="2" placeholder="Explique por que o preço por litro ficou acima do teto"></textarea></label>
+            </div>
+            <p class="rb-sub">Evidências de combustível <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
+            <div id="rb-anexos-combustivel"></div>
+          </div>
 
-        <p class="dg-secao">Comprovante</p>
-        <div id="rb-foto"></div>
+          <p class="dg-secao">Pedágio</p>
+          <label>Valor total de pedágio (R$)<input type="number" id="rb-pedagio" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+          <p class="rb-sub">Evidências de pedágio <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
+          <div id="rb-anexos-pedagio"></div>
 
-        <div id="rb-erro" class="alerta alerta-vermelho oculto"></div>
-        <div class="pilha-botoes">
-          <button type="button" class="botao botao-primario" id="rb-enviar">Enviar pedido ✓</button>
-          <button type="button" class="botao botao-secundario" id="rb-cancelar">← Voltar</button>
+          <p class="dg-secao">Valores calculados</p>
+          <p class="texto-apoio">Confira cada valor. Se não concordar, peça o ajuste com uma justificativa — a Logística decide.</p>
+          <div id="rb-valores"></div>
+          <div id="rb-total" class="rb-total oculto"></div>
+
+          <div id="rb-erro" class="alerta alerta-vermelho oculto"></div>
+          <div class="pilha-botoes">
+            <button type="button" class="botao botao-primario" id="rb-enviar">Enviar solicitação ✓</button>
+            <button type="button" class="botao botao-secundario" id="rb-cancelar">← Voltar</button>
+          </div>
         </div>
       </div>
     </section>

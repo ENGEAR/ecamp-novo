@@ -796,3 +796,88 @@ textarea { resize: vertical; font-family: inherit; }
   font-size: 0.85rem; font-weight: 600; margin: 6px 0 10px;
 }
 #agdm-os-res { margin: -6px 0 10px; }
+
+/* ---------- Reembolso (módulo Logística) — formulário novo ---------- */
+.rb-pergunta { font-weight: 700; color: var(--azul-escuro); margin: 4px 0 6px; }
+.rb-radios { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.rb-sub { font-weight: 600; font-size: 0.92rem; margin: 8px 0 6px; }
+.rb-resumo-auto {
+  background: var(--azul-claro);
+  border: 1px solid var(--cinza-borda);
+  border-radius: var(--raio);
+  padding: 10px 12px;
+  margin: 10px 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+}
+.rb-resumo-auto div { display: flex; flex-direction: column; }
+.rb-resumo-auto span { font-size: 0.78rem; color: var(--cinza-texto); }
+.rb-resumo-auto strong { font-size: 0.95rem; color: var(--azul-escuro); }
+.rb-item {
+  background: #fff;
+  border: 1px solid var(--cinza-borda);
+  border-radius: var(--raio);
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.rb-item-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 600;
+}
+.rb-item-topo strong { color: var(--azul-escuro); }
+.rb-item-sub { font-size: 0.82rem; color: var(--cinza-texto); margin: 2px 0 8px; }
+.rb-ajuste {
+  border-top: 1px dashed var(--cinza-borda);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+.rb-total {
+  background: var(--verde-claro);
+  border: 1px solid var(--verde);
+  color: var(--verde);
+  border-radius: var(--raio);
+  padding: 12px 14px;
+  font-size: 1.05rem;
+  margin: 12px 0;
+}
+.rb-total strong { font-size: 1.2rem; }
+.rb-total-sub { display: block; font-size: 0.8rem; color: var(--cinza-texto); }
+
+/* ---------- Componente de anexos (fotos + PDF) ---------- */
+.anx-botoes { display: flex; gap: 8px; }
+.anx-botoes .botao { flex: 1; }
+.anx-lista { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.anx-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--cinza-fundo);
+  border: 1px solid var(--cinza-borda);
+  border-radius: 10px;
+  padding: 6px 8px;
+}
+.anx-item img { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; }
+.anx-pdf-icone { font-size: 1.6rem; width: 44px; text-align: center; }
+.anx-nome {
+  flex: 1;
+  font-size: 0.8rem;
+  color: var(--cinza-texto);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.anx-remover {
+  border: none;
+  background: var(--vermelho-claro);
+  color: var(--vermelho);
+  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.anx-status { font-size: 0.82rem; color: var(--cinza-texto); margin-top: 4px; min-height: 18px; }
