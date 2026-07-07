@@ -602,20 +602,44 @@ EC.fluxo = (function () {
 
   /* ---------- Tipo de monitoramento ---------- */
 
+  // O tipo de monitoramento SEGUE o escopo cadastrado na OS — não é escolha
+  // livre do técnico (decisão Raisa 2026-07-07: escolher um tipo diferente do
+  // escopo real da OS fazia o servidor tratar o registro como outro escopo,
+  // e as fotos/planilha não batiam com o serviço de verdade). Quando o escopo
+  // é reconhecido, o tipo fica travado nele — se um rascunho antigo tinha
+  // outro tipo guardado, corrige e limpa o que não bate (com aviso). Só
+  // quando o escopo NÃO é reconhecido (texto fora do padrão) sobra a escolha
+  // manual, como último recurso.
   function renderizarTipos() {
     const detectado = EC.mapaEscopo.tipoPorEscopo(servicoDetalhe('escopo'));
-    if (!estado.tipo && detectado) { estado.tipo = detectado; salvarEstado(); }
-
     const hint = $('tipo-hint');
-    if (detectado && estado.tipo === detectado) {
+    const grade = $('grade-tipos');
+
+    if (detectado) {
+      if (estado.tipo !== detectado) {
+        const tinhaProgresso = estado.equipamentos.length || estado.campo;
+        estado.tipo = detectado;
+        estado.equipamentos = [];
+        estado.preCampo = {};
+        estado.campo = null;
+        salvarEstado();
+        if (tinhaProgresso) EC.app.mostrarToast('Tipo ajustado para bater com o escopo da OS — equipamentos e campo foram reiniciados.');
+      }
       hint.className = 'alerta alerta-info';
-      hint.innerHTML = '✓ Pré-selecionado pelo escopo da OS (“' + servicoDetalhe('escopo') + '”). Você pode alterar se necessário.';
-    } else {
-      hint.className = '';
-      hint.innerHTML = '';
+      hint.innerHTML = '🔒 Definido pelo escopo da OS (“' + servicoDetalhe('escopo') + '”). Não dá para trocar aqui — se o escopo estiver errado, corrija na OS.';
+      const tipo = TIPOS.filter(function (t) { return t.id === detectado; })[0];
+      grade.innerHTML = tipo ? (
+        '<button type="button" class="card-tipo card-tipo-ativo card-tipo-travado" disabled data-tipo="' + tipo.id + '">' +
+        '  <img class="card-tipo-img" src="' + encodeURI('public/' + tipo.img) + '" alt="">' +
+        '  <span>' + tipo.nome + '</span>' +
+        '</button>'
+      ) : '';
+      return;
     }
 
-    const grade = $('grade-tipos');
+    hint.className = 'alerta alerta-amarelo';
+    hint.innerHTML = '⚠️ Escopo da OS não reconhecido automaticamente. Selecione o tipo com cuidado.';
+
     grade.innerHTML = TIPOS.map(function (tipo) {
       const ativo = estado.tipo === tipo.id;
       return (

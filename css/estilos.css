@@ -445,6 +445,8 @@ textarea { resize: vertical; font-family: inherit; }
 /* Versão pequena do ícone-imagem, para linhas de texto (checkpoint, revisão) */
 .icone-inline { width: 22px; height: 22px; object-fit: contain; vertical-align: -5px; mix-blend-mode: multiply; }
 .card-tipo-ativo { border-color: var(--verde); background: var(--verde-claro); }
+/* Travado pelo escopo da OS: sem clique, sem cara de botão quebrado */
+.card-tipo-travado { cursor: default; opacity: 0.9; grid-column: 1 / -1; max-width: 220px; margin: 0 auto; }
 
 .resumo-linha {
   display: flex;

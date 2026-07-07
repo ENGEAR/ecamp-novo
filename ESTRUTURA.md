@@ -79,6 +79,7 @@ Métodos no SGE: Vibração = Usual / Online · QAR (MQAR) e Emissões/Ar Intern
 - **Pontos:** vêm da OS; o técnico pode editar, mas com **justificativa**.
 - **Equipamentos:** exige ao menos um de cada categoria; **calibração vencida bloqueia a seleção**; vencendo (< 5 dias) só alerta; **Estação Meteorológica** só é obrigatória em longa duração.
 - **Pré-campo:** o "Próximo" só libera com os itens obrigatórios marcados (blocos 3 e 4 do ruído são opcionais — viram obrigatórios na longa duração).
+- **Tipo de monitoramento:** trava no que o escopo da OS indica (`js/mapa-escopo.js`) — sem escolha manual quando o escopo é reconhecido. Escolher um tipo diferente do escopo real quebrava a sincronização (fotos/planilha não batiam com o serviço). Só quando o escopo não é reconhecido a grade completa reaparece, clicável, como último recurso.
 
 ---
 

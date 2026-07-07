@@ -18,7 +18,7 @@
   const CHAVE_SESSAO = 'sessao:atual';
   const CHAVE_ULTIMO_EMAIL = 'sessao:ultimoEmail';
   // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
-  const VERSAO_APP = '0.39.4';
+  const VERSAO_APP = '0.39.5';
 
   function $(id) { return document.getElementById(id); }
 
