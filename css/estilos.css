@@ -567,6 +567,28 @@ textarea { resize: vertical; font-family: inherit; }
 .overlay-item-acoes .botao { flex: 1; min-width: 130px; margin: 0; }
 .overlay-item-acoes .botao-perigo { flex: 0 0 auto; min-width: 0; }
 
+/* ---------- Biblioteca ---------- */
+.bib-tipo { font-size: 1.05rem; color: var(--azul-escuro); margin: 18px 0 6px; }
+.bib-tipo:first-child { margin-top: 4px; }
+.bib-escopo { font-weight: 700; color: var(--texto); margin: 12px 0 4px; font-size: 0.95rem; }
+.bib-metodo { font-size: 0.82rem; color: var(--cinza-texto); font-style: italic; margin: 6px 0 2px; }
+.bib-doc {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--cinza-borda);
+  border-radius: 10px;
+  padding: 11px 12px;
+  margin-bottom: 8px;
+  text-decoration: none;
+  color: var(--texto);
+  font-size: 0.9rem;
+}
+.bib-doc:active { background: var(--azul-claro); }
+.bib-doc-icone { font-size: 1.2rem; flex-shrink: 0; }
+.bib-doc-titulo { flex: 1; }
+.bib-doc-abrir { color: var(--azul-escuro); font-weight: 600; font-size: 0.82rem; flex-shrink: 0; }
+
 /* ---------- Toast ---------- */
 #toast {
   position: fixed;
