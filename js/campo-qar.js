@@ -237,7 +237,8 @@ EC.campoQar = (function () {
       (extraAposHora || '') +
       lblNum('Horímetro', 'horimetro_' + sufixo) +
       '<div class="grade-2">' + lblNum('Temperatura (°C)', 'temp_' + sufixo) + lblNum('Umidade (%)', 'umid_' + sufixo) + '</div>' +
-      lblNum('Pressão (mmHg)', 'pressao_' + sufixo) +
+      '<div class="grade-2">' + lblNum('Pressão (mmHg)', 'pressao_' + sufixo) + lblNum('Velocidade do vento (m/s)', 'vento_' + sufixo) + '</div>' +
+      '<label>Como está o tempo?<input type="text" placeholder="ex.: sol, nublado" data-campo="tempo_' + sufixo + '"></label>' +
       '<p class="cq-sub">Coluna 800 mm (cmH₂O)</p><div class="grade-2">' +
       lblNum('↑ Para cima', 'col800sobe_' + sufixo) + lblNum('↓ Para baixo', 'col800desce_' + sufixo) + '</div>';
   }
@@ -284,6 +285,8 @@ EC.campoQar = (function () {
       '<p class="cq-passo">4º passo — Porta filtro e porta motor</p>' + htmlChecks(['Nenhuma fuga de ar detectada'], 'porta') +
       '<p class="cq-passo">5º passo — Condições ambientais</p>' +
       lblNum('Temperatura (°C)', 'temperatura') + lblNum('Pressão (mmHg)', 'pressao') + lblNum('Umidade (%)', 'umidade') +
+      lblNum('Velocidade do vento (m/s)', 'vento') +
+      '<label>Como está o tempo?<input type="text" placeholder="ex.: sol, nublado" data-campo="tempo"></label>' +
       '<p class="cq-passo">6º passo — Calibração (placas de retenção)</p>' +
       CARTAS.map(function (c) { return '<p class="grupo-checks-titulo">Placa de retenção ' + c + '</p>' + htmlCarta('carta' + c); }).join('') +
       '<p class="grupo-checks-titulo">Leitura com filtro no lugar</p>' +
@@ -341,6 +344,7 @@ EC.campoQar = (function () {
     grupoChecks('vaz', 2, 'teste de vazamento');
     grupoChecks('porta', 1, 'porta filtro');
     reqVal('temperatura', 'temperatura'); reqVal('pressao', 'pressão'); reqVal('umidade', 'umidade');
+    reqVal('vento', 'velocidade do vento'); reqVal('tempo', 'como está o tempo');
     grupoChecks('calib', 1, 'calibração aprovada');
     reqVal('validadeCalib', 'validade da calibração (em meses)');
 
@@ -351,7 +355,8 @@ EC.campoQar = (function () {
       ['ini', 'fim'].forEach(function (suf) {
         const rotPer = (suf === 'ini' ? 'inicial' : 'final');
         [['data_' + suf, 'data'], ['hora_' + suf, 'hora'], ['horimetro_' + suf, 'horímetro'],
-         ['temp_' + suf, 'temperatura'], ['umid_' + suf, 'umidade'], ['pressao_' + suf, 'pressão']
+         ['temp_' + suf, 'temperatura'], ['umid_' + suf, 'umidade'], ['pressao_' + suf, 'pressão'],
+         ['vento_' + suf, 'velocidade do vento'], ['tempo_' + suf, 'como está o tempo']
         ].forEach(function (par) {
           const v = col[par[0]];
           if (v === undefined || v === null || String(v).trim() === '') falta.push((k + 1) + 'ª coleta: ' + par[1] + ' ' + rotPer);
