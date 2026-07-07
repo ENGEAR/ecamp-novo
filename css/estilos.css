@@ -673,3 +673,63 @@ textarea { resize: vertical; font-family: inherit; }
   padding: 10px 12px;
   margin-bottom: 10px;
 }
+
+/* ===== Agenda (espelho do SGP) ===== */
+.ecagd-topo { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.ecagd-topo button {
+  min-width: 40px; height: 40px; border: 1px solid var(--cinza-borda); border-radius: 10px;
+  background: #fff; color: var(--texto); font-size: 17px; cursor: pointer; padding: 0 10px;
+}
+#agd-hoje { font-size: 0.9rem; font-weight: 600; color: var(--azul-escuro); }
+#agd-mes { flex: 1; text-align: center; font-weight: 700; color: var(--texto); text-transform: capitalize; }
+.ecagd-filtros { margin-top: 8px; }
+.ecagd-so-leitura, .ecagd-offline {
+  border-radius: 10px; padding: 9px 12px; font-size: 0.9rem; margin-bottom: 10px;
+}
+.ecagd-so-leitura { background: var(--azul-claro); color: var(--azul-escuro); }
+.ecagd-offline { background: var(--amarelo-claro); color: #8a6d00; }
+.ecagd-aviso-conflito {
+  background: var(--vermelho-claro); color: var(--vermelho); border: 1px solid var(--vermelho);
+  border-radius: 10px; padding: 9px 12px; font-size: 0.9rem; font-weight: 600; margin-bottom: 10px;
+}
+.ecagd-vazio { text-align: center; color: var(--cinza-texto); padding: 40px 10px; font-size: 1rem; line-height: 1.8; }
+.ecagd-dia {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: var(--cinza-fundo); border-radius: 8px; padding: 7px 10px; margin: 14px 0 6px;
+  font-weight: 700; font-size: 0.92rem; color: var(--texto); text-transform: capitalize;
+}
+.ecagd-dia.conflito { background: var(--vermelho-claro); color: var(--vermelho); }
+.ecagd-dia-meta { font-weight: 600; font-size: 0.8rem; color: var(--cinza-texto); }
+.ecagd-dia.conflito .ecagd-dia-meta { color: var(--vermelho); }
+.ecagd-evt {
+  border: 1px solid var(--cinza-borda); border-left: 4px solid var(--azul);
+  border-radius: 10px; padding: 9px 11px; margin-bottom: 6px; cursor: pointer; background: #fff;
+}
+.ecagd-evt:active { background: var(--cinza-fundo); }
+.ecagd-evt.conflito { box-shadow: inset 0 0 0 2px var(--vermelho); background: var(--vermelho-claro); }
+.ecagd-evt-linha1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.ecagd-evt-emp { font-weight: 700; font-size: 0.95rem; color: var(--texto); }
+.ecagd-chip { font-size: 0.68rem; font-weight: 700; padding: 3px 9px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; }
+.ecagd-evt-os { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.78rem; font-weight: 600; color: var(--azul-escuro); margin-top: 3px; }
+.ecagd-evt-sub { font-size: 0.85rem; color: var(--cinza-texto); margin-top: 2px; }
+
+/* Modal da agenda */
+#agd-modal { position: fixed; inset: 0; z-index: 300; }
+#agd-modal.oculto { display: none; }
+.ecagd-m-fundo { position: absolute; inset: 0; background: rgba(22, 39, 110, 0.45); }
+.ecagd-m-caixa { position: absolute; inset: 0; overflow-y: auto; padding: 18px 12px; display: flex; align-items: flex-start; justify-content: center; }
+.ecagd-m-caixa .cartao { position: relative; width: 100%; max-width: 480px; margin: 0; }
+.ecagd-m-topo { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.ecagd-m-topo h2 { margin: 0; font-size: 1.15rem; }
+.ecagd-m-topo button { background: none; border: none; font-size: 20px; color: var(--cinza-texto); cursor: pointer; padding: 4px 8px; }
+.ecagd-m-os { font-size: 0.88rem; color: var(--cinza-texto); margin-bottom: 8px; }
+#agdm-campos { border: 0; margin: 0; padding: 0; min-width: 0; }
+.ecagd-tecs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.ecagd-tec {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 0.82rem; font-weight: 600;
+  border-radius: 20px; padding: 7px 12px; cursor: pointer;
+  border: 1px solid var(--cinza-borda); background: var(--cinza-fundo); color: var(--cinza-texto);
+}
+.ecagd-tec.on { border-color: var(--azul); background: var(--azul-claro); color: var(--azul-escuro); }
+.ecagd-tec small { font-weight: 400; opacity: 0.8; }
+.ecagd-m-excluir { background: var(--vermelho-claro); border-radius: 10px; padding: 10px 12px; margin-top: 8px; color: var(--vermelho); font-size: 0.92rem; }

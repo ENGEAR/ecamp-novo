@@ -69,7 +69,7 @@
         <div class="pilha-botoes">
           <button type="button" class="botao botao-acao" id="btn-servicos">🛠️ Serviços</button>
           <button type="button" class="botao botao-acao" id="btn-reembolso">💰 Solicitação de reembolso</button>
-          <button type="button" class="botao botao-acao botao-acao-fase2" id="btn-agenda-acao">📅 Agenda<span class="selo-fase">Fase 2</span></button>
+          <button type="button" class="botao botao-acao" id="btn-agenda-acao">📅 Agenda</button>
         </div>
         <button type="button" class="link-discreto" id="btn-bancada">🧪 Testar componentes (Fase 0)</button>
       </div>
@@ -319,6 +319,32 @@
       </div>
     </section>
 
+    <!-- ======= Agenda (espelho do SGP — mesma base de dados) ======= -->
+    <section id="tela-agenda" class="tela oculto">
+      <div class="cartao">
+        <h1>📅 Agenda</h1>
+        <div id="agd-aviso"></div>
+        <div class="ecagd-topo">
+          <button type="button" id="agd-prev" title="Mês anterior">‹</button>
+          <span id="agd-mes"></span>
+          <button type="button" id="agd-next" title="Próximo mês">›</button>
+          <button type="button" id="agd-hoje">Hoje</button>
+          <button type="button" id="agd-atualizar" title="Atualizar agora">🔄</button>
+        </div>
+        <input type="text" id="agd-busca" placeholder="🔎 Buscar empresa, cidade, serviço, OS…" autocomplete="off">
+        <div class="grade-2 ecagd-filtros">
+          <label><select id="agd-f-status"><option value="">Status: todos</option></select></label>
+          <label><select id="agd-f-tec"><option value="">Técnico: todos</option></select></label>
+        </div>
+        <div id="agd-conflito-aviso"></div>
+        <div id="agd-lista"></div>
+        <div class="pilha-botoes">
+          <button type="button" class="botao botao-primario oculto" id="agd-novo">➕ Novo agendamento</button>
+          <button type="button" class="botao botao-secundario" id="agd-voltar">← Voltar</button>
+        </div>
+      </div>
+    </section>
+
     <!-- ======= Placeholder Fase 2 (Agenda) ======= -->
     <section id="tela-fase2" class="tela oculto">
       <div class="cartao">
@@ -386,6 +412,9 @@
     </div>
   </div>
 
+  <!-- ======= Modal da Agenda (novo / editar / leitura) ======= -->
+  <div id="agd-modal" class="oculto"></div>
+
   <!-- ======= Toast de feedback ======= -->
   <div id="toast" class="oculto"></div>
 
@@ -427,6 +456,7 @@
   <script src="js/campo-outro.js"></script>
   <script src="js/fluxo.js"></script>
   <script src="js/reembolso.js"></script>
+  <script src="js/agenda.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

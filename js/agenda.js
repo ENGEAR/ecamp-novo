@@ -1,0 +1,543 @@
+/**
+ * agenda.js — Agenda do SGP dentro do e-CAMP (mesma base de dados)
+ *
+ * Lê e grava DIRETO nas tabelas da agenda do SGP (Supabase), com a conta da
+ * pessoa logada. As permissões são as MESMAS do SGP, aplicadas pelo próprio
+ * banco (RLS):
+ *  - ver: qualquer pessoa logada;
+ *  - criar/editar: admin ou papéis agenda/comercial/operacional;
+ *  - excluir: só admin;
+ *  - marcar férias: admin ou quem tem "pode marcar férias" na tela de Usuários.
+ *
+ * Regras espelhadas do SGP:
+ *  - tipos: serviço / deslocamento / férias; status: prog/exec/agua/canc/reag;
+ *  - férias sempre no topo do dia;
+ *  - conflito: mesmo técnico em 2+ serviços (não cancelados) no mesmo dia;
+ *  - bloqueio: férias × campo do mesmo técnico no mesmo dia (não deixa salvar);
+ *  - novo agendamento cria uma linha por dia (data de início → término);
+ *  - editar altera SÓ o dia aberto e marca manual=true;
+ *  - excluir (admin): só o dia ou todos da OS; dias de proposta apagados são
+ *    registrados como "dispensados" para o SGP não recolocá-los sozinho.
+ *
+ * Offline: mostra a última agenda carregada (aviso no topo); salvar exige internet.
+ *
+ * Expõe EC.agenda = { abrir }
+ */
+(function () {
+  'use strict';
+
+  var CHAVE_CACHE = 'agenda:cache';
+
+  var STATUS = {
+    prog: { label: 'Programado', cor: '#1976d2', fundo: 'rgba(25,118,210,0.10)' },
+    exec: { label: 'Executado', cor: '#16a34a', fundo: 'rgba(22,163,74,0.10)' },
+    agua: { label: 'Aguardando confirmação', cor: '#d97706', fundo: 'rgba(217,119,6,0.12)' },
+    canc: { label: 'Cancelado', cor: '#c0392b', fundo: 'rgba(192,57,43,0.10)' },
+    reag: { label: 'Reagendamento pendente', cor: '#8b97a8', fundo: 'rgba(139,151,168,0.14)' }
+  };
+  var FERIAS_COR = '#6d28d9', FERIAS_FUNDO = '#ede9fe';
+  var DOW = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  var MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  var UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function parseISO(s) { var p = s.split('-'); return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])); }
+  function isoParaBR(s) { if (!s) return ''; var p = s.split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
+  function dataLonga(s) { var d = parseISO(s); return DOW[d.getDay()] + ', ' + d.getDate() + ' de ' + MESES[d.getMonth()] + ' de ' + d.getFullYear(); }
+  // Exibição: primeiro e último nome ("Robson Luiz Pimenta" → "Robson Pimenta").
+  function nomeCurto(n) { var p = String(n || '').trim().split(/\s+/); return p.length <= 1 ? n : p[0] + ' ' + p[p.length - 1]; }
+  function faixaDias(ini, fim) {
+    if (!ini) return [];
+    if (!fim || fim < ini) return [ini];
+    var out = [], d = parseISO(ini), end = parseISO(fim), guarda = 0;
+    while (d <= end && guarda < 400) { out.push(iso(d)); d.setDate(d.getDate() + 1); guarda++; }
+    return out;
+  }
+
+  /* ============ Estado ============ */
+  var ref = new Date();          // mês exibido
+  var eventos = [];              // todos os agendamentos carregados
+  var catTecnicos = [];          // catálogo de técnicos ativos
+  var perms = null;              // { podeEditar, souAdmin, podeFerias }
+  var offline = false;           // mostrando cache?
+  var carregando = false;
+
+  function sb() { return EC.auth && EC.auth.cliente ? EC.auth.cliente() : null; }
+
+  /* ============ Permissões (mesmas do SGP, lidas do banco) ============ */
+  async function carregarPermissoes() {
+    var cli = sb();
+    var vazio = { podeEditar: false, souAdmin: false, podeFerias: false };
+    if (!cli) return vazio;
+    try {
+      var s = await cli.auth.getSession();
+      var user = s && s.data && s.data.session ? s.data.session.user : null;
+      if (!user) return vazio;
+      var codigos = [];
+      try {
+        var q = await cli.from('usuario_papeis').select('papel:papel_id(codigo)').eq('usuario_id', user.id);
+        (q.data || []).forEach(function (r) { if (r.papel && r.papel.codigo) codigos.push(r.papel.codigo); });
+      } catch (e) { /* sem papéis */ }
+      var souAdmin = codigos.indexOf('admin') !== -1;
+      var podeEditar = souAdmin || ['agenda', 'comercial', 'operacional'].some(function (c) { return codigos.indexOf(c) !== -1; });
+      var podeFerias = souAdmin;
+      if (!podeFerias) {
+        try {
+          var m = await cli.from('usuarios').select('pode_marcar_ferias').eq('id', user.id).single();
+          podeFerias = !!(m.data && m.data.pode_marcar_ferias);
+        } catch (e) { /* mantém false */ }
+      }
+      return { podeEditar: podeEditar, souAdmin: souAdmin, podeFerias: podeFerias };
+    } catch (e) { return vazio; }
+  }
+
+  /* ============ Carga dos dados (mesma consulta do SGP) ============ */
+  async function carregarDados() {
+    var cli = sb();
+    if (!cli) throw new Error('sem cliente');
+    var q = await cli.from('agendamentos')
+      .select('id, proposta_id, ordem_servico_id, manual, empresa, cidade, uf, servico, projeto, data, status, observacoes, campanha_numero, tipo, tecnicos, proposta:proposta_id(ano, seq), ordem_servico:ordem_servico_id(numero)')
+      .order('data');
+    if (q.error) throw new Error(q.error.message);
+    eventos = (q.data || []).map(function (a) {
+      var os = (a.ordem_servico && a.ordem_servico.numero) ||
+        (a.proposta && a.proposta.ano != null && a.proposta.seq != null
+          ? 'OS ' + a.proposta.ano + String(a.proposta.seq).padStart(3, '0') : null);
+      return {
+        id: a.id, proposta_id: a.proposta_id || null, ordem_servico_id: a.ordem_servico_id || null,
+        os: os, empresa: a.empresa || '—', cidade: a.cidade || '', uf: a.uf || '',
+        servico: a.servico || '', projeto: a.projeto || null, data: a.data,
+        status: a.status || 'prog', observacoes: a.observacoes || '',
+        campanha_numero: a.campanha_numero || null, tipo: a.tipo || 'servico',
+        tecnicos: a.tecnicos || [], manual: !!a.manual
+      };
+    });
+    try {
+      var t = await cli.from('tecnicos').select('id, nome, vinculo, ativo').order('nome');
+      catTecnicos = (t.data || []).filter(function (x) { return x.ativo; }).map(function (x) {
+        return { id: x.id, nome: x.nome, tipo: String(x.vinculo || 'clt').toLowerCase().indexOf('free') !== -1 ? 'freelancer' : 'clt' };
+      });
+    } catch (e) { catTecnicos = []; }
+    EC.storage.salvar(CHAVE_CACHE, { em: new Date().toISOString(), eventos: eventos, catTecnicos: catTecnicos });
+  }
+
+  /* ============ Regras espelhadas ============ */
+  // Conflito: técnico em 2+ eventos não cancelados no mesmo dia → { dia: [nomes] }
+  function calcularConflitos(lista) {
+    var porDiaTec = {};
+    lista.forEach(function (e) {
+      if (e.status === 'canc') return;
+      (e.tecnicos || []).forEach(function (t) {
+        porDiaTec[e.data] = porDiaTec[e.data] || {};
+        porDiaTec[e.data][t.nome] = (porDiaTec[e.data][t.nome] || 0) + 1;
+      });
+    });
+    var conf = {};
+    Object.keys(porDiaTec).forEach(function (dia) {
+      Object.keys(porDiaTec[dia]).forEach(function (nome) {
+        if (porDiaTec[dia][nome] > 1) { conf[dia] = conf[dia] || []; conf[dia].push(nome); }
+      });
+    });
+    return conf;
+  }
+
+  // Bloqueio (ao salvar): férias × campo do mesmo técnico no mesmo dia.
+  function checarBloqueio(ev, dias) {
+    var nomes = (ev.tecnicos || []).map(function (t) { return t.nome; });
+    if (!nomes.length || !dias.length) return null;
+    var relev = eventos.filter(function (x) { return x.id !== ev.id && x.status !== 'canc' && dias.indexOf(x.data) !== -1; });
+    var i, x, c;
+    if (ev.tipo === 'ferias') {
+      for (i = 0; i < relev.length; i++) {
+        x = relev[i];
+        if (x.tipo === 'ferias') continue;
+        c = (x.tecnicos || []).filter(function (t) { return nomes.indexOf(t.nome) !== -1; }).map(function (t) { return nomeCurto(t.nome); });
+        if (c.length) return c.join(', ') + ' já tem agendamento de campo em ' + isoParaBR(x.data) + (x.empresa ? ' (' + x.empresa + ')' : '') + '. Libere o dia do funcionário antes de marcar as férias.';
+      }
+    } else {
+      for (i = 0; i < relev.length; i++) {
+        x = relev[i];
+        if (x.tipo !== 'ferias') continue;
+        c = (x.tecnicos || []).filter(function (t) { return nomes.indexOf(t.nome) !== -1; }).map(function (t) { return nomeCurto(t.nome); });
+        if (c.length) return c.join(', ') + ' está de férias em ' + isoParaBR(x.data) + '. Não é possível agendar — ajuste as férias antes.';
+      }
+    }
+    return null;
+  }
+
+  /* ============ Render da lista ============ */
+  function eventosFiltrados() {
+    var busca = ($('agd-busca').value || '').trim().toLowerCase();
+    var fStatus = $('agd-f-status').value;
+    var fTec = $('agd-f-tec').value;
+    return eventos.filter(function (e) {
+      if (fStatus && e.status !== fStatus) return false;
+      if (fTec && !(e.tecnicos || []).some(function (t) { return t.nome === fTec; })) return false;
+      if (busca) {
+        var alvo = (e.empresa + ' ' + e.cidade + ' ' + e.servico + ' ' + (e.os || '') + ' ' + (e.projeto || '')).toLowerCase();
+        if (alvo.indexOf(busca) === -1) return false;
+      }
+      return true;
+    });
+  }
+
+  function render() {
+    var y = ref.getFullYear(), mo = ref.getMonth();
+    var buscando = !!(($('agd-busca').value || '').trim() || $('agd-f-status').value || $('agd-f-tec').value);
+    $('agd-mes').textContent = MESES[mo] + ' ' + y;
+
+    var lista = eventosFiltrados();
+    // Sem filtro: mostra o mês exibido. Com filtro/busca: mostra TODOS os resultados
+    // (senão a busca parece "não funcionar" — mesmo cuidado do SGP).
+    var doPeriodo = buscando ? lista : lista.filter(function (e) {
+      var d = parseISO(e.data);
+      return d.getFullYear() === y && d.getMonth() === mo;
+    });
+
+    var conflitos = calcularConflitos(lista);
+
+    // agrupa por dia; férias sempre no topo (sort estável)
+    var porDia = {};
+    doPeriodo.forEach(function (e) { (porDia[e.data] = porDia[e.data] || []).push(e); });
+    Object.keys(porDia).forEach(function (d) {
+      porDia[d].sort(function (a, b) { return (a.tipo === 'ferias' ? 0 : 1) - (b.tipo === 'ferias' ? 0 : 1); });
+    });
+    var dias = Object.keys(porDia).sort();
+
+    var nConf = dias.filter(function (d) { return conflitos[d]; }).length;
+    $('agd-conflito-aviso').innerHTML = nConf
+      ? '<div class="ecagd-aviso-conflito">⚠ ' + nConf + ' dia(s) com técnico em mais de um serviço. Veja os destaques em vermelho.</div>' : '';
+
+    if (!dias.length) {
+      $('agd-lista').innerHTML = '<div class="ecagd-vazio">🗓️<br><strong>' +
+        (buscando ? 'Nada encontrado para essa busca.' : 'Nenhum agendamento neste mês.') +
+        '</strong></div>';
+      return;
+    }
+
+    var html = '';
+    dias.forEach(function (dia) {
+      var evs = porDia[dia];
+      var tecsDia = {};
+      evs.forEach(function (e) { if (e.status !== 'canc') (e.tecnicos || []).forEach(function (t) { tecsDia[t.nome] = 1; }); });
+      var temConfDia = !!conflitos[dia];
+      html += '<div class="ecagd-dia' + (temConfDia ? ' conflito' : '') + '">' +
+        '<span>' + esc(dataLonga(dia)) + '</span>' +
+        '<span class="ecagd-dia-meta">' + evs.length + ' serviço(s) · ' + Object.keys(tecsDia).length + ' técnico(s)' + (temConfDia ? ' · ⚠' : '') + '</span></div>';
+      evs.forEach(function (e, idx) {
+        var st = STATUS[e.status] || STATUS.prog;
+        var ferias = e.tipo === 'ferias';
+        var conf = temConfDia && (e.tecnicos || []).some(function (t) { return conflitos[dia].indexOf(t.nome) !== -1; });
+        var tecsTxt = (e.tecnicos || []).map(function (t) { return nomeCurto(t.nome); }).join(', ');
+        var sub = ferias ? (tecsTxt || '—')
+          : [e.cidade, e.tipo === 'deslocamento' ? '🚗 Deslocamento' : e.servico].filter(Boolean).join(' · ') + (tecsTxt ? ' · ' + tecsTxt : '');
+        html += '<div class="ecagd-evt' + (conf ? ' conflito' : '') + '" data-id="' + esc(e.id) + '" style="border-left-color:' + (ferias ? FERIAS_COR : st.cor) + '">' +
+          '<div class="ecagd-evt-linha1">' +
+            '<span class="ecagd-evt-emp">' + (ferias ? '🏖 Férias' : esc(e.empresa)) + (conf ? ' ⚠' : '') + '</span>' +
+            '<span class="ecagd-chip" style="background:' + (ferias ? FERIAS_FUNDO : st.fundo) + ';color:' + (ferias ? FERIAS_COR : st.cor) + '">' + (ferias ? 'Férias' : esc(st.label)) + '</span>' +
+          '</div>' +
+          ((e.os || e.campanha_numero) ? '<div class="ecagd-evt-os">' + esc(e.os || '') + (e.campanha_numero ? ' · Camp ' + e.campanha_numero : '') + '</div>' : '') +
+          (!ferias && e.projeto ? '<div class="ecagd-evt-sub">📁 ' + esc(e.projeto) + '</div>' : '') +
+          '<div class="ecagd-evt-sub">' + esc(sub) + '</div>' +
+        '</div>';
+      });
+    });
+    $('agd-lista').innerHTML = html;
+
+    // clique no evento → abre o modal (edição ou leitura)
+    Array.prototype.forEach.call(document.querySelectorAll('#agd-lista .ecagd-evt'), function (el) {
+      el.addEventListener('click', function () {
+        var ev = eventos.filter(function (e) { return e.id === el.getAttribute('data-id'); })[0];
+        if (ev) abrirModal(ev, false);
+      });
+    });
+  }
+
+  function preencherFiltros() {
+    var tecs = {};
+    eventos.forEach(function (e) { (e.tecnicos || []).forEach(function (t) { tecs[t.nome] = 1; }); });
+    var selT = $('agd-f-tec'), atualT = selT.value;
+    selT.innerHTML = '<option value="">Técnico: todos</option>' + Object.keys(tecs).sort().map(function (n) {
+      return '<option value="' + esc(n) + '">' + esc(nomeCurto(n)) + '</option>';
+    }).join('');
+    if (atualT) selT.value = atualT;
+    var selS = $('agd-f-status');
+    if (!selS.options.length || selS.options.length === 1) {
+      selS.innerHTML = '<option value="">Status: todos</option>' + Object.keys(STATUS).map(function (k) {
+        return '<option value="' + k + '">' + esc(STATUS[k].label) + '</option>';
+      }).join('');
+    }
+  }
+
+  /* ============ Modal (novo / editar / leitura) ============ */
+  var mEv = null, mNovo = false, mTecs = [], mDataFim = '';
+
+  function abrirModal(ev, novo) {
+    mEv = JSON.parse(JSON.stringify(ev)); // cópia — só grava ao salvar
+    mNovo = novo;
+    mTecs = (ev.tecnicos || []).slice();
+    mDataFim = ev.data;
+    renderModal();
+    $('agd-modal').classList.remove('oculto');
+    document.body.style.overflow = 'hidden';
+  }
+  function fecharModal() {
+    $('agd-modal').classList.add('oculto');
+    $('agd-modal').innerHTML = '';
+    document.body.style.overflow = '';
+    mEv = null;
+  }
+
+  function renderModal(mensagemErro, confirmandoExclusao) {
+    var soLeitura = !perms.podeEditar;
+    var st = mEv.status || 'prog';
+    var podeFerias = perms.podeFerias || mEv.tipo === 'ferias';
+    var titulo = soLeitura ? 'Agendamento' : (mNovo ? 'Novo agendamento' : 'Editar agendamento');
+    var osInfo = (mEv.os || mEv.campanha_numero)
+      ? '<div class="ecagd-m-os">Ordem de Serviço: <b>' + esc(mEv.os || '—') + '</b>' + (mEv.campanha_numero ? ' · Campanha <b>' + mEv.campanha_numero + '</b>' : '') + '</div>' : '';
+
+    var tecsHtml = catTecnicos.length === 0
+      ? '<p class="texto-apoio">Nenhum técnico cadastrado (a lista é gerida no SGP).</p>'
+      : '<div class="ecagd-tecs">' + catTecnicos.map(function (c) {
+          var on = mTecs.some(function (t) { return t.nome === c.nome; });
+          return '<button type="button" class="ecagd-tec' + (on ? ' on' : '') + '" data-nome="' + esc(c.nome) + '" data-tipo="' + esc(c.tipo) + '">' +
+            (on ? '✓ ' : '') + esc(nomeCurto(c.nome)) + ' <small>' + (c.tipo === 'freelancer' ? 'Freelancer' : 'CLT') + '</small></button>';
+        }).join('') + '</div>';
+
+    var statusOpts = Object.keys(STATUS).map(function (k) {
+      return '<option value="' + k + '"' + (k === st ? ' selected' : '') + '>' + esc(STATUS[k].label) + '</option>';
+    }).join('');
+    var ufOpts = '<option value="">—</option>' + UFS.map(function (u) {
+      return '<option' + (u === mEv.uf ? ' selected' : '') + '>' + u + '</option>';
+    }).join('');
+
+    var datas = mNovo
+      ? '<div class="grade-2">' +
+          '<label>Data de início<input type="date" id="agdm-data" value="' + esc(mEv.data) + '"></label>' +
+          '<label>Data de término<input type="date" id="agdm-fim" value="' + esc(mDataFim) + '"></label>' +
+        '</div>' +
+        '<p class="texto-apoio">Preencha a <b>data inicial e final</b> de saída e retorno do laboratório, <b>incluindo as datas de deslocamento</b>. Cadastre tudo como <b>Serviço</b> ou <b>Deslocamento</b> e depois <b>edite manualmente</b> os demais dias.</p>'
+      : '<label>Data<input type="date" id="agdm-data" value="' + esc(mEv.data) + '"></label>';
+
+    var rodape;
+    if (soLeitura) {
+      rodape = '<div class="pilha-botoes"><button type="button" class="botao botao-primario" id="agdm-fechar2">Fechar</button></div>';
+    } else if (confirmandoExclusao) {
+      rodape = '<div class="ecagd-m-excluir"><b>Excluir este agendamento?</b><div class="pilha-botoes">' +
+        '<button type="button" class="botao botao-secundario" id="agdm-del-um">Excluir só este dia</button>' +
+        ((mEv.proposta_id || mEv.ordem_servico_id) ? '<button type="button" class="botao botao-perigo" id="agdm-del-os">Excluir todos da OS' + (mEv.os ? ' (' + esc(mEv.os) + ')' : '') + '</button>' : '') +
+        '<button type="button" class="botao botao-secundario" id="agdm-del-nao">Cancelar</button></div></div>';
+    } else {
+      rodape = '<div class="pilha-botoes">' +
+        '<button type="button" class="botao botao-primario" id="agdm-salvar">Salvar</button>' +
+        (!mNovo && mEv.id && perms.souAdmin ? '<button type="button" class="botao botao-perigo" id="agdm-excluir">Excluir</button>' : '') +
+        '<button type="button" class="botao botao-secundario" id="agdm-cancelar">Cancelar</button></div>';
+    }
+
+    $('agd-modal').innerHTML =
+      '<div class="ecagd-m-fundo"></div>' +
+      '<div class="ecagd-m-caixa"><div class="cartao">' +
+        '<div class="ecagd-m-topo"><h2>' + titulo + '</h2><button type="button" id="agdm-fechar" title="Fechar">✕</button></div>' +
+        (soLeitura ? '<p class="texto-apoio">👁 Você tem acesso de <b>visualização</b>. Para criar ou editar, fale com o administrador.</p>' : '') +
+        osInfo +
+        '<fieldset id="agdm-campos"' + (soLeitura ? ' disabled' : '') + '>' +
+          '<label>Empresa / Cliente<input type="text" id="agdm-empresa" value="' + esc(mEv.empresa === '—' ? '' : mEv.empresa) + '"></label>' +
+          '<div class="grade-2">' +
+            '<label>Cidade<input type="text" id="agdm-cidade" value="' + esc(mEv.cidade) + '"></label>' +
+            '<label>UF<select id="agdm-uf">' + ufOpts + '</select></label>' +
+          '</div>' +
+          '<label>Projeto<input type="text" id="agdm-projeto" value="' + esc(mEv.projeto || '') + '"></label>' +
+          '<div class="grade-2">' +
+            '<label>Serviço<input type="text" id="agdm-servico" value="' + esc(mEv.servico) + '"></label>' +
+            '<label>Tipo<select id="agdm-tipo">' +
+              '<option value="servico"' + (mEv.tipo === 'servico' ? ' selected' : '') + '>Serviço</option>' +
+              '<option value="deslocamento"' + (mEv.tipo === 'deslocamento' ? ' selected' : '') + '>Deslocamento</option>' +
+              (podeFerias ? '<option value="ferias"' + (mEv.tipo === 'ferias' ? ' selected' : '') + '>Férias</option>' : '') +
+            '</select></label>' +
+          '</div>' +
+          datas +
+          '<label>Status<select id="agdm-status">' + statusOpts + '</select></label>' +
+          '<p class="dg-secao">Técnicos' + (mTecs.length ? ' (' + mTecs.length + ' selecionado' + (mTecs.length === 1 ? '' : 's') + ')' : '') + '</p>' +
+          tecsHtml +
+          '<label>Observações<textarea id="agdm-obs" rows="2">' + esc(mEv.observacoes) + '</textarea></label>' +
+        '</fieldset>' +
+        (mensagemErro ? '<div class="alerta alerta-vermelho">⚠ ' + esc(mensagemErro) + '</div>' : '') +
+        rodape +
+      '</div></div>';
+
+    // eventos do modal
+    $('agdm-fechar').addEventListener('click', fecharModal);
+    if ($('agdm-fechar2')) $('agdm-fechar2').addEventListener('click', fecharModal);
+    if ($('agdm-cancelar')) $('agdm-cancelar').addEventListener('click', fecharModal);
+    Array.prototype.forEach.call(document.querySelectorAll('#agd-modal .ecagd-tec'), function (b) {
+      b.addEventListener('click', function () {
+        var nome = b.getAttribute('data-nome'), tipo = b.getAttribute('data-tipo');
+        var i = -1;
+        mTecs.forEach(function (t, j) { if (t.nome === nome) i = j; });
+        if (i >= 0) mTecs.splice(i, 1); else mTecs.push({ nome: nome, tipo: tipo });
+        colherCampos();
+        renderModal();
+      });
+    });
+    if ($('agdm-salvar')) $('agdm-salvar').addEventListener('click', salvarModal);
+    if ($('agdm-excluir')) $('agdm-excluir').addEventListener('click', function () { colherCampos(); renderModal('', true); });
+    if ($('agdm-del-nao')) $('agdm-del-nao').addEventListener('click', function () { renderModal(); });
+    if ($('agdm-del-um')) $('agdm-del-um').addEventListener('click', function () { excluirModal('um'); });
+    if ($('agdm-del-os')) $('agdm-del-os').addEventListener('click', function () { excluirModal('os'); });
+  }
+
+  function colherCampos() {
+    if (!$('agdm-empresa')) return;
+    mEv.empresa = $('agdm-empresa').value;
+    mEv.cidade = $('agdm-cidade').value;
+    mEv.uf = $('agdm-uf').value;
+    mEv.projeto = $('agdm-projeto').value;
+    mEv.servico = $('agdm-servico').value;
+    mEv.tipo = $('agdm-tipo').value;
+    mEv.data = $('agdm-data').value || mEv.data;
+    if ($('agdm-fim')) mDataFim = $('agdm-fim').value || mDataFim;
+    mEv.status = $('agdm-status').value;
+    mEv.observacoes = $('agdm-obs').value;
+  }
+
+  async function salvarModal() {
+    colherCampos();
+    if (mEv.tipo !== 'ferias' && !String(mEv.empresa || '').trim()) { renderModal('Preencha a empresa/cliente.'); return; }
+    if (mEv.tipo === 'ferias' && mTecs.length === 0) { renderModal('Férias precisam de pelo menos um técnico selecionado.'); return; }
+    var dias = mNovo ? faixaDias(mEv.data, mDataFim) : [mEv.data];
+    var bloq = checarBloqueio({ id: mEv.id, tipo: mEv.tipo, tecnicos: mTecs }, dias);
+    if (bloq) { renderModal(bloq); return; }
+
+    var cli = sb();
+    var botao = $('agdm-salvar');
+    botao.disabled = true; botao.textContent = 'Salvando…';
+    try {
+      var base = {
+        empresa: mEv.empresa, cidade: mEv.cidade || null, uf: mEv.uf || null,
+        servico: mEv.servico || null, projeto: mEv.projeto || null,
+        status: mEv.status, observacoes: mEv.observacoes || null, tipo: mEv.tipo,
+        tecnicos: mTecs, manual: true,
+        proposta_id: mEv.proposta_id || null, ordem_servico_id: mEv.ordem_servico_id || null
+      };
+      var r;
+      if (mNovo) {
+        var linhas = dias.map(function (d) { var l = Object.assign({}, base); l.data = d; return l; });
+        r = await cli.from('agendamentos').insert(linhas);
+      } else {
+        var payload = Object.assign({}, base, { data: mEv.data });
+        r = await cli.from('agendamentos').update(payload).eq('id', mEv.id);
+      }
+      if (r.error) throw new Error(r.error.message);
+      fecharModal();
+      EC.app.mostrarToast('✅ Agendamento salvo.');
+      await recarregar();
+    } catch (e) {
+      var msg = String(e.message || '');
+      if (msg.indexOf('security policy') !== -1 || msg.indexOf('policy') !== -1) msg = 'Sem permissão para salvar na agenda. Fale com o administrador.';
+      else if (msg.indexOf('Failed to fetch') !== -1) msg = 'Sem conexão. Para salvar na agenda é preciso internet.';
+      renderModal(msg);
+    }
+  }
+
+  async function excluirModal(escopo) {
+    var cli = sb();
+    try {
+      // Registra como "dispensados" os dias de proposta que serão apagados
+      // (para o SGP não recolocá-los sozinho) — mesma regra do SGP.
+      var apagados = escopo === 'os' && mEv.proposta_id
+        ? eventos.filter(function (x) { return x.proposta_id === mEv.proposta_id; })
+        : escopo === 'os' && mEv.ordem_servico_id
+          ? eventos.filter(function (x) { return x.ordem_servico_id === mEv.ordem_servico_id; })
+          : [mEv];
+      var disp = apagados.filter(function (x) { return x.proposta_id; }).map(function (x) {
+        return { proposta_id: x.proposta_id, campanha_numero: x.campanha_numero || null, data: x.data, tipo: x.tipo || 'servico' };
+      });
+      if (disp.length) {
+        await cli.from('agenda_dispensados').upsert(disp, { onConflict: 'proposta_id,campanha_numero,data,tipo', ignoreDuplicates: true });
+      }
+      var r;
+      if (escopo === 'os' && mEv.proposta_id) r = await cli.from('agendamentos').delete().eq('proposta_id', mEv.proposta_id);
+      else if (escopo === 'os' && mEv.ordem_servico_id) r = await cli.from('agendamentos').delete().eq('ordem_servico_id', mEv.ordem_servico_id);
+      else r = await cli.from('agendamentos').delete().eq('id', mEv.id);
+      if (r.error) throw new Error(r.error.message);
+      fecharModal();
+      EC.app.mostrarToast('🗑️ Agendamento excluído.');
+      await recarregar();
+    } catch (e) {
+      var msg = String(e.message || '');
+      if (msg.indexOf('policy') !== -1) msg = 'Só o administrador pode excluir agendamentos.';
+      renderModal(msg, false);
+    }
+  }
+
+  /* ============ Abertura / recarga ============ */
+  async function recarregar() {
+    if (carregando) return;
+    carregando = true;
+    $('agd-aviso').innerHTML = '<p class="texto-apoio">⏳ Carregando a agenda…</p>';
+    try {
+      if (!perms) perms = await carregarPermissoes();
+      await carregarDados();
+      offline = false;
+      $('agd-aviso').innerHTML = perms.podeEditar ? '' :
+        '<div class="ecagd-so-leitura">👁 Você tem acesso de <b>visualização</b> da agenda.</div>';
+    } catch (e) {
+      // Sem internet (ou sessão expirada): usa a última agenda carregada.
+      var cache = EC.storage.ler(CHAVE_CACHE);
+      if (cache && cache.eventos) {
+        eventos = cache.eventos;
+        catTecnicos = cache.catTecnicos || [];
+        offline = true;
+        if (!perms) perms = { podeEditar: false, souAdmin: false, podeFerias: false };
+        $('agd-aviso').innerHTML = '<div class="ecagd-offline">📡 Sem conexão — mostrando a agenda carregada em ' +
+          new Date(cache.em).toLocaleString('pt-BR') + '. Para atualizar ou salvar, conecte-se.</div>';
+      } else {
+        eventos = [];
+        if (!perms) perms = { podeEditar: false, souAdmin: false, podeFerias: false };
+        $('agd-aviso').innerHTML = '<div class="ecagd-offline">📡 Não foi possível carregar a agenda. Verifique a internet e toque em 🔄.</div>';
+      }
+    }
+    $('agd-novo').classList.toggle('oculto', !(perms && perms.podeEditar) || offline);
+    preencherFiltros();
+    render();
+    carregando = false;
+  }
+
+  function abrir() {
+    EC.app.mostrarTela('tela-agenda');
+    ref = new Date();
+    recarregar();
+  }
+
+  /* ============ Ligações da tela ============ */
+  function ligar() {
+    $('agd-prev').addEventListener('click', function () { ref.setMonth(ref.getMonth() - 1); render(); });
+    $('agd-next').addEventListener('click', function () { ref.setMonth(ref.getMonth() + 1); render(); });
+    $('agd-hoje').addEventListener('click', function () { ref = new Date(); render(); });
+    $('agd-atualizar').addEventListener('click', function () { perms = null; recarregar(); });
+    $('agd-busca').addEventListener('input', render);
+    $('agd-f-status').addEventListener('change', render);
+    $('agd-f-tec').addEventListener('change', render);
+    $('agd-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-acao'); });
+    $('agd-novo').addEventListener('click', function () {
+      abrirModal({
+        empresa: '', cidade: '', uf: '', servico: '', projeto: null,
+        data: iso(new Date()), status: 'prog', observacoes: '', tipo: 'servico',
+        tecnicos: [], manual: true, proposta_id: null, ordem_servico_id: null, campanha_numero: null, os: null
+      }, true);
+    });
+    // fechar tocando no fundo escuro
+    $('agd-modal').addEventListener('click', function (ev) {
+      if (ev.target.classList && ev.target.classList.contains('ecagd-m-fundo')) fecharModal();
+    });
+  }
+
+  window.EC = window.EC || {};
+  EC.agenda = { abrir: abrir, _ligar: ligar };
+})();

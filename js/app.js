@@ -18,7 +18,7 @@
   const CHAVE_SESSAO = 'sessao:atual';
   const CHAVE_ULTIMO_EMAIL = 'sessao:ultimoEmail';
   // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
-  const VERSAO_APP = '0.36.1';
+  const VERSAO_APP = '0.37.0';
 
   function $(id) { return document.getElementById(id); }
 
@@ -198,8 +198,7 @@
     EC.reembolso.abrir();
   });
   $('btn-agenda-acao').addEventListener('click', function () {
-    $('fase2-titulo').textContent = '📅 Agenda';
-    mostrarTela('tela-fase2');
+    EC.agenda.abrir();
   });
   $('btn-bancada').addEventListener('click', abrirBancada);
 
@@ -342,7 +341,7 @@
   });
 
   $('btn-agenda').addEventListener('click', function () {
-    abrirOverlay('📅 Agenda', '<p class="overlay-vazio">🔒 Disponível na Fase 2.</p>');
+    EC.agenda.abrir();
   });
 
   $('btn-biblioteca').addEventListener('click', function () {
@@ -452,6 +451,7 @@
 
   /* ============ Inicialização ============ */
   mostrarVersao();
+  if (EC.agenda) EC.agenda._ligar();
   // Limpeza da época do login antigo (nome + senha única do app).
   EC.storage.remover('sessao:senhaSalva');
   const sessao = sessaoAtual();

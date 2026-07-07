@@ -83,5 +83,6 @@
   }
 
   window.EC = window.EC || {};
-  EC.auth = { entrar: entrar, sair: sair };
+  // cliente: outros módulos (ex.: Agenda) usam a MESMA conexão autenticada.
+  EC.auth = { entrar: entrar, sair: sair, cliente: obterCliente };
 })();
