@@ -234,9 +234,10 @@ EC.reembolso = (function () {
       $('rb-dist-status').textContent = '';
       return;
     }
-    // sem distância na OS: pede origem/destino e calcula (ida e volta)
+    // sem distância na OS: pede origem/destino e calcula (ida e volta).
+    // Origem: a última usada; na 1ª vez, a base da ENGEAR (Mateus Leme/MG).
     cidades.classList.remove('oculto');
-    var ori = EC.storage.ler('logistica:origem') || {};
+    var ori = EC.storage.ler('logistica:origem') || { cidade: 'Mateus Leme', uf: 'MG' };
     $('rb-origem-cidade').value = ori.cidade || '';
     setUF('rb-origem-uf', ori.uf || '');
     $('rb-destino-cidade').value = (osSel && osSel.municipio) || '';
