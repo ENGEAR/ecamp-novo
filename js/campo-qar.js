@@ -259,7 +259,7 @@ EC.campoQar = (function () {
       '<p class="grupo-checks-titulo">Leitura com filtro no lugar</p>' +
       '<div class="grade-2">' + lblNum('Coluna 800 mm ↑', 'filtro_800sobe') + lblNum('Coluna 800 mm ↓', 'filtro_800desce') + '</div>' +
       htmlChecks(['Calibração aprovada'], 'calib') +
-      '<label>Validade da calibração<input type="text" data-campo="validadeCalib"></label>' +
+      '<label>Validade da calibração (em meses)<input type="number" min="0" step="1" inputmode="numeric" data-campo="validadeCalib"></label>' +
       // Coletas
       '<label>Quantas coletas neste ponto?<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdeColetas"></label>' +
       '<div id="cq-coletas"></div>' +
@@ -305,7 +305,7 @@ EC.campoQar = (function () {
     grupoChecks('porta', 1, 'porta filtro');
     reqVal('temperatura', 'temperatura'); reqVal('pressao', 'pressão'); reqVal('umidade', 'umidade');
     grupoChecks('calib', 1, 'calibração aprovada');
-    reqVal('validadeCalib', 'validade da calibração');
+    reqVal('validadeCalib', 'validade da calibração (em meses)');
 
     const nColetas = Math.min(20, Math.max(0, parseInt(ponto.qtdeColetas, 10) || 0));
     if (!nColetas) { falta.push('quantidade de coletas'); return falta; }
