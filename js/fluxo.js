@@ -1375,5 +1375,19 @@ EC.fluxo = (function () {
     if (EC.equip && EC.equip.carregar) EC.equip.carregar();
   }
 
-  return { iniciar: iniciar };
+  // Reabre um rascunho a partir do menu "Rascunhos" (número da OS + índice do
+  // serviço). Acha a OS na lista do aparelho e cai no mesmo fluxo do toque na
+  // lista de serviços (continuar / reiniciar / descartar).
+  function continuarRascunho(numeroOs, indice) {
+    if (!telasIniciadas) { telasIniciadas = true; inicializarTelas(); }
+    const os = (EC.os && EC.os.osPorNumero) ? EC.os.osPorNumero(numeroOs) : null;
+    if (!os || !os.servicos || !os.servicos[indice]) {
+      EC.app.mostrarToast('Essa OS não está na lista atual do aparelho. Abra em "Serviços" e busque por ela.');
+      return;
+    }
+    if (EC.os && EC.os.marcarRecente) EC.os.marcarRecente(numeroOs);
+    aoTocarServico(os, indice);
+  }
+
+  return { iniciar: iniciar, continuarRascunho: continuarRascunho };
 })();
