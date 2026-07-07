@@ -219,16 +219,67 @@ EC.reembolso = (function () {
     return v > 0 ? v : 0;
   }
 
+  var UFS = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG',
+    'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
+  function fillUFselect(id) { $(id).innerHTML = opcao('', 'UF') + UFS.map(function (u) { return opcao(u, u); }).join(''); }
+  function setUF(id, uf) { $(id).value = String(uf || '').toUpperCase(); }
+
   function pintarDistancia() {
-    var inp = $('rb-distancia'), hint = $('rb-distancia-hint');
+    var inp = $('rb-distancia'), hint = $('rb-distancia-hint'), cidades = $('rb-dist-cidades');
     if (distanciaDaOs() > 0) {
+      cidades.classList.add('oculto');
       inp.value = String(osSel.distanciaKm) + ' km';
       inp.readOnly = true;
       hint.textContent = '(vem da OS)';
-    } else {
+      $('rb-dist-status').textContent = '';
+      return;
+    }
+    // sem distância na OS: pede origem/destino e calcula (ida e volta)
+    cidades.classList.remove('oculto');
+    var ori = EC.storage.ler('logistica:origem') || {};
+    $('rb-origem-cidade').value = ori.cidade || '';
+    setUF('rb-origem-uf', ori.uf || '');
+    $('rb-destino-cidade').value = (osSel && osSel.municipio) || '';
+    setUF('rb-destino-uf', (osSel && osSel.uf) || '');
+    inp.value = '';
+    inp.readOnly = true;   // vem do cálculo; vira editável se offline/erro
+    hint.textContent = '(calculada pelo trajeto)';
+    calcularDistancia();
+  }
+
+  var distTimer = null;
+  function agendarCalculo() { clearTimeout(distTimer); distTimer = setTimeout(calcularDistancia, 800); }
+
+  async function calcularDistancia() {
+    clearTimeout(distTimer); // cancela um debounce pendente (evita chamada dupla)
+    if (!osSel || distanciaDaOs() > 0) return;
+    var oc = $('rb-origem-cidade').value.trim(), ou = $('rb-origem-uf').value;
+    var dc = $('rb-destino-cidade').value.trim(), du = $('rb-destino-uf').value;
+    var status = $('rb-dist-status'), inp = $('rb-distancia');
+    if (!oc || !ou || !dc || !du) {
+      status.textContent = 'Preencha origem e destino (cidade e UF) para calcular a distância.';
+      return;
+    }
+    if (!navigator.onLine) {
+      status.textContent = '📴 Sem internet — digite a distância (ida e volta) manualmente.';
+      inp.readOnly = false;
+      return;
+    }
+    status.textContent = '🔄 Calculando a distância…';
+    inp.readOnly = true;
+    try {
+      var corpo = await getJson(BASE + '/distancia?origem=' + encodeURIComponent(oc) + '&ufOrigem=' + encodeURIComponent(ou) +
+        '&destino=' + encodeURIComponent(dc) + '&ufDestino=' + encodeURIComponent(du));
+      inp.value = corpo.totalKm + ' km';
+      inp.readOnly = true;
+      status.textContent = '✅ ' + corpo.totalKm + ' km no total (ida ' + corpo.idaKm + ' + volta ' + corpo.idaKm + '), calculado pelo mapa.';
+      EC.storage.salvar('logistica:origem', { cidade: oc, uf: ou });
+      pintarValores();
+    } catch (e) {
+      status.textContent = '⚠️ ' + e.message + '. Digite a distância (ida e volta) manualmente.';
       inp.value = '';
       inp.readOnly = false;
-      hint.textContent = '(não veio da OS — preencha)';
+      pintarValores();
     }
   }
 
@@ -768,6 +819,8 @@ EC.reembolso = (function () {
     if (iniciado) return;
     iniciado = true;
 
+    fillUFselect('rb-origem-uf');
+    fillUFselect('rb-destino-uf');
     $('rb-novo').addEventListener('click', abrirNovo);
     $('rb-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-acao'); });
     $('rb-cancelar').addEventListener('click', function () { EC.app.mostrarTela('tela-reembolso'); pintarLista(); });
@@ -783,6 +836,10 @@ EC.reembolso = (function () {
     $('rb-combustivel').addEventListener('change', function () { pintarTeto(); pintarValores(); });
     $('rb-preco-litro').addEventListener('input', function () { pintarTeto(); pintarValores(); });
     $('rb-distancia').addEventListener('input', pintarValores);
+    $('rb-origem-cidade').addEventListener('input', agendarCalculo);
+    $('rb-destino-cidade').addEventListener('input', agendarCalculo);
+    $('rb-origem-uf').addEventListener('change', calcularDistancia);
+    $('rb-destino-uf').addEventListener('change', calcularDistancia);
     $('rb-pedagio').addEventListener('input', pintarValores);
   }
 

@@ -327,7 +327,19 @@
           </div>
           <div id="rb-transporte-campos" class="oculto">
             <div id="rb-aluguel-info" class="alerta alerta-info oculto"></div>
-            <label>Distância total percorrida (km) <span class="rotulo-apoio" id="rb-distancia-hint"></span><input type="text" id="rb-distancia" inputmode="decimal" placeholder="Digite os km percorridos"></label>
+            <div id="rb-dist-cidades" class="oculto">
+              <p class="rb-sub">Trajeto — para calcular a distância (ida e volta)</p>
+              <div class="grade-2">
+                <label>Cidade de origem<input type="text" id="rb-origem-cidade" autocomplete="off" placeholder="De onde saiu"></label>
+                <label>UF<select id="rb-origem-uf"></select></label>
+              </div>
+              <div class="grade-2">
+                <label>Cidade de destino<input type="text" id="rb-destino-cidade" autocomplete="off" placeholder="Para onde foi"></label>
+                <label>UF<select id="rb-destino-uf"></select></label>
+              </div>
+              <div id="rb-dist-status" class="texto-apoio"></div>
+            </div>
+            <label>Distância total percorrida — ida e volta (km) <span class="rotulo-apoio" id="rb-distancia-hint"></span><input type="text" id="rb-distancia" inputmode="decimal" placeholder="km"></label>
             <div class="grade-2">
               <label>Tipo de combustível
                 <select id="rb-combustivel">
