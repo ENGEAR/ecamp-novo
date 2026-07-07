@@ -18,7 +18,7 @@
   const CHAVE_SESSAO = 'sessao:atual';
   const CHAVE_ULTIMO_EMAIL = 'sessao:ultimoEmail';
   // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
-  const VERSAO_APP = '0.40.3';
+  const VERSAO_APP = '0.40.4';
 
   function $(id) { return document.getElementById(id); }
 
@@ -363,17 +363,45 @@
     render('');
   });
 
+  // Rascunhos: OS/serviços que foram INICIADOS e interrompidos (não finalizados),
+  // dos últimos 30 dias. Só os rascunhos de serviço ('rascunho:fluxo_...') entram
+  // — o 'rascunho:os_...' é só dado compartilhado da OS, não um serviço em aberto.
+  // Tocar num item reabre o serviço para continuar.
   $('btn-rascunhos').addEventListener('click', function () {
-    const itens = EC.storage.listar('rascunho:');
-    abrirOverlay('📝 Rascunhos', itens.length === 0
-      ? '<p class="overlay-vazio">Nenhum rascunho salvo ainda.<br>O "continuar rascunho" completo entra na Fase 5.</p>'
-      : itens.map(function (item) {
-          const salvoEm = item.valor && item.valor.salvoEm
-            ? new Date(item.valor.salvoEm).toLocaleString('pt-BR') : '';
-          return '<div class="overlay-item">📝 ' + item.chave.replace('rascunho:', '') +
-            (salvoEm ? '<br><small>salvo em ' + salvoEm + '</small>' : '') + '</div>';
-        }).join('') +
-        '<p class="texto-apoio">Listagem simples da Fase 0 — reabrir e continuar entra na Fase 5.</p>');
+    const limite = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const itens = EC.storage.listar('rascunho:fluxo_')
+      .map(function (item) { return item.valor || {}; })
+      .filter(function (e) {
+        const t = Date.parse(e.atualizadoEm || '');
+        return t && t >= limite; // só os iniciados nos últimos 30 dias
+      })
+      .sort(function (a, b) {
+        return String(b.atualizadoEm || '').localeCompare(String(a.atualizadoEm || ''));
+      });
+
+    abrirOverlay('📝 Rascunhos (últimos 30 dias)', itens.length === 0
+      ? '<p class="overlay-vazio">Nenhuma OS iniciada e interrompida nos últimos 30 dias.</p>'
+      : '<p class="texto-apoio">Serviços começados e ainda não finalizados. Toque para continuar de onde parou.</p>' +
+        '<div id="rasc-lista">' + itens.map(function (e) {
+          const os = e.os || {};
+          const data = e.atualizadoEm ? new Date(e.atualizadoEm).toLocaleString('pt-BR') : '';
+          return '<div class="overlay-item overlay-item-clicavel" data-os="' + (e.osNumero || '') + '" data-indice="' + (e.servicoIndice != null ? e.servicoIndice : '') + '">' +
+            '<strong>OS ' + (os.numero || e.osNumero || '?') + '</strong>' + (os.cliente ? ' — ' + os.cliente : '') +
+            (os.projeto ? '<br><small>' + os.projeto + '</small>' : '') +
+            '<br><small>' + ((e.servico && e.servico.escopo) || '') + (data ? ' · último salvamento ' + data : '') + '</small>' +
+            '</div>';
+        }).join('') + '</div>');
+
+    const lista = $('rasc-lista');
+    if (lista) lista.querySelectorAll('.overlay-item-clicavel').forEach(function (el) {
+      el.addEventListener('click', function () {
+        const numero = el.dataset.os;
+        const indice = parseInt(el.dataset.indice, 10);
+        if (!numero || isNaN(indice)) return;
+        fecharOverlay();
+        if (EC.fluxo && EC.fluxo.continuarRascunho) EC.fluxo.continuarRascunho(numero, indice);
+      });
+    });
   });
 
   $('btn-agenda').addEventListener('click', function () {

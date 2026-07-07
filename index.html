@@ -20,7 +20,7 @@
     <img src="public/logo-recortada.png" id="header-logo" alt="eCamp — voltar à tela inicial" title="Voltar à tela inicial">
     <div class="header-acoes">
       <button type="button" class="botao-icone" id="btn-historico" title="Histórico de monitoramentos">🕐</button>
-      <button type="button" class="botao-icone" id="btn-rascunhos" title="Rascunhos salvos">📝</button>
+      <button type="button" class="botao-icone" id="btn-rascunhos" title="Rascunhos — OS iniciadas e não finalizadas (últimos 30 dias)">📝</button>
       <button type="button" class="botao-icone" id="btn-agenda" title="Agenda">📅</button>
       <button type="button" class="botao-icone" id="btn-biblioteca" title="Biblioteca">📚</button>
       <button type="button" id="chip-usuario" title="Sair do eCamp">
@@ -306,7 +306,18 @@
             <label>Campanha<select id="rb-campanha"></select></label>
           </div>
           <label>Solicitante<input type="text" id="rb-solicitante" readonly></label>
-          <div id="rb-auto" class="rb-resumo-auto oculto"></div>
+          <div id="rb-viagem" class="oculto">
+            <p class="texto-apoio" id="rb-viagem-fonte"></p>
+            <div class="grade-2">
+              <label>Data de ida<input type="date" id="rb-ida"></label>
+              <label>Data de volta<input type="date" id="rb-volta"></label>
+            </div>
+            <div class="grade-2">
+              <label>Dias de serviço<input type="number" id="rb-dias-servico" min="0" inputmode="numeric" placeholder="0"></label>
+              <label>Dias de deslocamento<input type="number" id="rb-dias-desloc" min="0" inputmode="numeric" placeholder="0"></label>
+            </div>
+            <div id="rb-auto" class="rb-resumo-auto oculto"></div>
+          </div>
 
           <p class="dg-secao">Transporte</p>
           <p class="rb-pergunta">O veículo utilizado é da ENGEAR ou do colaborador?</p>
