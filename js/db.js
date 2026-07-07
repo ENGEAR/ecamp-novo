@@ -37,7 +37,11 @@ EC.db = (function () {
       };
       req.onsuccess = function () { resolve(req.result); };
       req.onerror = function () { reject(req.error); };
+      req.onblocked = function () { reject(new Error('IndexedDB bloqueado')); };
     });
+    // NÃO deixa uma falha transitória de abertura travar o EC.db pela sessão
+    // inteira: descarta a promessa rejeitada para a próxima chamada tentar de novo.
+    bancoP.catch(function () { bancoP = null; });
     return bancoP;
   }
 

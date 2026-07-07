@@ -18,9 +18,35 @@
   const CHAVE_SESSAO = 'sessao:atual';
   const CHAVE_ULTIMO_EMAIL = 'sessao:ultimoEmail';
   // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
-  const VERSAO_APP = '0.39.1';
+  const VERSAO_APP = '0.39.2';
 
   function $(id) { return document.getElementById(id); }
+
+  /* ============ Armazenamento PERSISTENTE (não perder histórico) ============ */
+  // Pede ao navegador para NÃO descartar os dados do app (IndexedDB + localStorage:
+  // histórico recente, rascunhos, fila offline). Sem isso, o navegador/OS pode
+  // "evictar" tudo numa atualização/reinstalação ou por falta de espaço — que é
+  // exatamente o que fazia o Histórico recente sumir. É idempotente: se já está
+  // persistente, não faz nada. Precisa de gesto/engajamento em alguns navegadores,
+  // então também tentamos de novo no primeiro toque do usuário.
+  function garantirPersistencia() {
+    if (!(navigator.storage && navigator.storage.persist)) return;
+    navigator.storage.persisted().then(function (jaOk) {
+      if (jaOk) return;
+      navigator.storage.persist().then(function (ok) {
+        if (!ok) {
+          console.warn('eCamp: armazenamento persistente ainda NÃO concedido — tentaremos de novo.');
+          // 2ª tentativa após um gesto do usuário (alguns navegadores exigem).
+          const retry = function () {
+            navigator.storage.persist().finally(function () {
+              document.removeEventListener('click', retry, true);
+            });
+          };
+          document.addEventListener('click', retry, true);
+        }
+      }).catch(function () { /* API pode falhar em modo privado; ignora */ });
+    }).catch(function () { /* ignora */ });
+  }
 
   /* ============ Versão no rodapé ============ */
   // Mostra a versão REAL: lê o nome do cache ativo do service worker (ecamp-vX.Y.Z).
@@ -450,6 +476,7 @@
   };
 
   /* ============ Inicialização ============ */
+  garantirPersistencia();
   mostrarVersao();
   if (EC.agenda) EC.agenda._ligar();
   // Limpeza da época do login antigo (nome + senha única do app).

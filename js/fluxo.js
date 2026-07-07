@@ -1105,7 +1105,9 @@ EC.fluxo = (function () {
     try {
       const antigos = EC.storage.listar('historico:')
         .sort(function (a, b) { return (a.valor.salvoEm || '').localeCompare(b.valor.salvoEm || ''); });
-      while (antigos.length >= 20) EC.storage.remover(antigos.shift().chave);
+      // fallback leve (sem fotos, KB por registro): guarda bastante — é a cópia
+      // mais durável do histórico (localStorage sobrevive mesmo sem o IndexedDB).
+      while (antigos.length >= 60) EC.storage.remover(antigos.shift().chave);
     } catch (e) { /* ignora */ }
     EC.storage.salvar('historico:' + registro.codificacao, semFotos(registro));
 
