@@ -733,3 +733,31 @@ textarea { resize: vertical; font-family: inherit; }
 .ecagd-tec.on { border-color: var(--azul); background: var(--azul-claro); color: var(--azul-escuro); }
 .ecagd-tec small { font-weight: 400; opacity: 0.8; }
 .ecagd-m-excluir { background: var(--vermelho-claro); border-radius: 10px; padding: 10px 12px; margin-top: 8px; color: var(--vermelho); font-size: 0.92rem; }
+
+/* Agenda — seletor de visão (Mês / Semana / Lista) e grade do mês */
+#agd-novo { margin: 0 0 12px; }
+.ecagd-visoes { display: flex; background: var(--cinza-fundo); border: 1px solid var(--cinza-borda); border-radius: 10px; padding: 3px; gap: 3px; margin-bottom: 10px; }
+.ecagd-visoes button {
+  flex: 1; border: none; background: transparent; color: var(--cinza-texto);
+  font-size: 0.92rem; font-weight: 600; padding: 9px 0; border-radius: 8px; cursor: pointer;
+}
+.ecagd-visoes button.ativo { background: #fff; color: var(--azul-escuro); box-shadow: var(--sombra); }
+.ecagd-dia-vazio { color: var(--cinza-texto); font-size: 0.85rem; padding: 4px 10px 2px; font-style: italic; }
+.ecagd-grade {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px;
+  margin-bottom: 12px;
+}
+.ecagd-dow { text-align: center; font-size: 0.68rem; font-weight: 700; color: var(--cinza-texto); text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 0; }
+.ecagd-cel {
+  background: #fff; border: 1px solid var(--cinza-borda); border-radius: 8px;
+  min-height: 46px; padding: 3px 4px; cursor: pointer; text-align: center;
+}
+.ecagd-cel span { font-size: 0.82rem; font-weight: 600; color: var(--texto); }
+.ecagd-cel.outro-mes { background: var(--cinza-fundo); }
+.ecagd-cel.outro-mes span { color: var(--cinza-borda); }
+.ecagd-cel.hoje { outline: 2px solid var(--azul); outline-offset: -2px; }
+.ecagd-cel.sel { background: var(--azul-claro); border-color: var(--azul); }
+.ecagd-cel.conflito { box-shadow: inset 0 0 0 2px var(--vermelho); }
+.ecagd-pontos { display: flex; justify-content: center; align-items: center; gap: 2px; margin-top: 2px; min-height: 8px; flex-wrap: wrap; }
+.ecagd-pontos i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.ecagd-pontos b { font-size: 0.6rem; color: var(--cinza-texto); }

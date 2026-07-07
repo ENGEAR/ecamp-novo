@@ -61,7 +61,9 @@
   }
 
   /* ============ Estado ============ */
-  var ref = new Date();          // mês exibido
+  var ref = new Date();          // mês/semana exibidos
+  var visao = 'lista';           // 'mes' | 'semana' | 'lista'
+  var diaSel = null;             // dia tocado na grade do mês (ISO)
   var eventos = [];              // todos os agendamentos carregados
   var catTecnicos = [];          // catálogo de técnicos ativos
   var perms = null;              // { podeEditar, souAdmin, podeFerias }
@@ -187,67 +189,142 @@
     });
   }
 
-  function render() {
-    var y = ref.getFullYear(), mo = ref.getMonth();
-    var buscando = !!(($('agd-busca').value || '').trim() || $('agd-f-status').value || $('agd-f-tec').value);
-    $('agd-mes').textContent = MESES[mo] + ' ' + y;
+  function inicioSemana(d) { var x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - x.getDay()); return x; }
 
-    var lista = eventosFiltrados();
-    // Sem filtro: mostra o mês exibido. Com filtro/busca: mostra TODOS os resultados
-    // (senão a busca parece "não funcionar" — mesmo cuidado do SGP).
-    var doPeriodo = buscando ? lista : lista.filter(function (e) {
-      var d = parseISO(e.data);
-      return d.getFullYear() === y && d.getMonth() === mo;
-    });
-
-    var conflitos = calcularConflitos(lista);
-
-    // agrupa por dia; férias sempre no topo (sort estável)
+  // agrupa por dia; férias sempre no topo (sort estável)
+  function agruparPorDia(lista) {
     var porDia = {};
-    doPeriodo.forEach(function (e) { (porDia[e.data] = porDia[e.data] || []).push(e); });
+    lista.forEach(function (e) { (porDia[e.data] = porDia[e.data] || []).push(e); });
     Object.keys(porDia).forEach(function (d) {
       porDia[d].sort(function (a, b) { return (a.tipo === 'ferias' ? 0 : 1) - (b.tipo === 'ferias' ? 0 : 1); });
     });
-    var dias = Object.keys(porDia).sort();
+    return porDia;
+  }
 
-    var nConf = dias.filter(function (d) { return conflitos[d]; }).length;
+  function cartaoEvento(e, conflitos) {
+    var st = STATUS[e.status] || STATUS.prog;
+    var ferias = e.tipo === 'ferias';
+    var conf = !!conflitos[e.data] && (e.tecnicos || []).some(function (t) { return conflitos[e.data].indexOf(t.nome) !== -1; });
+    var tecsTxt = (e.tecnicos || []).map(function (t) { return nomeCurto(t.nome); }).join(', ');
+    var sub = ferias ? (tecsTxt || '—')
+      : [e.cidade, e.tipo === 'deslocamento' ? '🚗 Deslocamento' : e.servico].filter(Boolean).join(' · ') + (tecsTxt ? ' · ' + tecsTxt : '');
+    return '<div class="ecagd-evt' + (conf ? ' conflito' : '') + '" data-id="' + esc(e.id) + '" style="border-left-color:' + (ferias ? FERIAS_COR : st.cor) + '">' +
+      '<div class="ecagd-evt-linha1">' +
+        '<span class="ecagd-evt-emp">' + (ferias ? '🏖 Férias' : esc(e.empresa)) + (conf ? ' ⚠' : '') + '</span>' +
+        '<span class="ecagd-chip" style="background:' + (ferias ? FERIAS_FUNDO : st.fundo) + ';color:' + (ferias ? FERIAS_COR : st.cor) + '">' + (ferias ? 'Férias' : esc(st.label)) + '</span>' +
+      '</div>' +
+      ((e.os || e.campanha_numero) ? '<div class="ecagd-evt-os">' + esc(e.os || '') + (e.campanha_numero ? ' · Camp ' + e.campanha_numero : '') + '</div>' : '') +
+      (!ferias && e.projeto ? '<div class="ecagd-evt-sub">📁 ' + esc(e.projeto) + '</div>' : '') +
+      '<div class="ecagd-evt-sub">' + esc(sub) + '</div>' +
+    '</div>';
+  }
+
+  function cabecalhoDia(dia, evs, conflitos) {
+    var tecsDia = {};
+    evs.forEach(function (e) { if (e.status !== 'canc') (e.tecnicos || []).forEach(function (t) { tecsDia[t.nome] = 1; }); });
+    var temConf = !!conflitos[dia];
+    return '<div class="ecagd-dia' + (temConf ? ' conflito' : '') + '">' +
+      '<span>' + esc(dataLonga(dia)) + '</span>' +
+      '<span class="ecagd-dia-meta">' + evs.length + ' serviço(s) · ' + Object.keys(tecsDia).length + ' técnico(s)' + (temConf ? ' · ⚠' : '') + '</span></div>';
+  }
+
+  // Lista corrida de dias (usada pelas visões Lista e Semana e pela busca)
+  function htmlLista(dias, porDia, conflitos, mostrarVazios) {
+    var html = '';
+    dias.forEach(function (dia) {
+      var evs = porDia[dia] || [];
+      if (!evs.length && !mostrarVazios) return;
+      html += cabecalhoDia(dia, evs, conflitos);
+      if (!evs.length) html += '<div class="ecagd-dia-vazio">— sem agendamentos —</div>';
+      evs.forEach(function (e) { html += cartaoEvento(e, conflitos); });
+    });
+    return html;
+  }
+
+  // Grade do mês: cada dia com até 3 bolinhas coloridas; tocar mostra o dia abaixo.
+  function htmlMes(porDia, conflitos) {
+    var y = ref.getFullYear(), mo = ref.getMonth();
+    var ini = inicioSemana(new Date(y, mo, 1));
+    var hojeISO = iso(new Date());
+    var html = '<div class="ecagd-grade">' + DOW.map(function (d) { return '<div class="ecagd-dow">' + d + '</div>'; }).join('');
+    var d = new Date(ini);
+    for (var i = 0; i < 42; i++) {
+      var dIso = iso(d);
+      var evs = porDia[dIso] || [];
+      var outroMes = d.getMonth() !== mo;
+      var cls = 'ecagd-cel' + (outroMes ? ' outro-mes' : '') + (dIso === hojeISO ? ' hoje' : '') +
+        (conflitos[dIso] ? ' conflito' : '') + (dIso === diaSel ? ' sel' : '');
+      var pontos = evs.slice(0, 3).map(function (e) {
+        var cor = e.tipo === 'ferias' ? FERIAS_COR : (STATUS[e.status] || STATUS.prog).cor;
+        return '<i style="background:' + cor + '"></i>';
+      }).join('');
+      html += '<div class="' + cls + '" data-dia="' + dIso + '"><span>' + d.getDate() + '</span>' +
+        '<div class="ecagd-pontos">' + pontos + (evs.length > 3 ? '<b>+' + (evs.length - 3) + '</b>' : '') + '</div></div>';
+      d.setDate(d.getDate() + 1);
+    }
+    html += '</div>';
+    // detalhe do dia tocado
+    if (diaSel) {
+      var evsSel = porDia[diaSel] || [];
+      html += cabecalhoDia(diaSel, evsSel, conflitos);
+      if (!evsSel.length) html += '<div class="ecagd-dia-vazio">— sem agendamentos —</div>';
+      evsSel.forEach(function (e) { html += cartaoEvento(e, conflitos); });
+    } else {
+      html += '<p class="texto-apoio" style="margin-top:10px">Toque num dia para ver os agendamentos dele.</p>';
+    }
+    return html;
+  }
+
+  function render() {
+    var y = ref.getFullYear(), mo = ref.getMonth();
+    var buscando = !!(($('agd-busca').value || '').trim() || $('agd-f-status').value || $('agd-f-tec').value);
+
+    // botões de visão
+    ['mes', 'semana', 'lista'].forEach(function (v) {
+      $('agd-v-' + v).classList.toggle('ativo', visao === v);
+    });
+
+    // rótulo do período
+    if (visao === 'semana' && !buscando) {
+      var s = inicioSemana(ref); var f = new Date(s); f.setDate(s.getDate() + 6);
+      $('agd-mes').textContent = s.getDate() + ' ' + MESES[s.getMonth()].slice(0, 3) + ' – ' +
+        f.getDate() + ' ' + MESES[f.getMonth()].slice(0, 3) + ' ' + f.getFullYear();
+    } else {
+      $('agd-mes').textContent = buscando ? 'Resultados da busca' : MESES[mo] + ' ' + y;
+    }
+
+    var lista = eventosFiltrados();
+    var conflitos = calcularConflitos(lista);
+    var porDia = agruparPorDia(lista);
+
+    var html;
+    if (buscando) {
+      // Busca/filtros ativos: mostra TODOS os resultados em lista, de qualquer
+      // período (senão a busca parece "não funcionar" — mesmo cuidado do SGP).
+      var diasBusca = Object.keys(porDia).sort();
+      html = diasBusca.length ? htmlLista(diasBusca, porDia, conflitos, false)
+        : '<div class="ecagd-vazio">🗓️<br><strong>Nada encontrado para essa busca.</strong></div>';
+    } else if (visao === 'mes') {
+      html = htmlMes(porDia, conflitos);
+    } else if (visao === 'semana') {
+      var diasSemana = [];
+      var ds = inicioSemana(ref);
+      for (var i = 0; i < 7; i++) { diasSemana.push(iso(ds)); ds.setDate(ds.getDate() + 1); }
+      html = htmlLista(diasSemana, porDia, conflitos, true);
+    } else {
+      var diasMes = Object.keys(porDia).sort().filter(function (dia) {
+        var d = parseISO(dia);
+        return d.getFullYear() === y && d.getMonth() === mo;
+      });
+      html = diasMes.length ? htmlLista(diasMes, porDia, conflitos, false)
+        : '<div class="ecagd-vazio">🗓️<br><strong>Nenhum agendamento neste mês.</strong></div>';
+    }
+
+    // aviso de conflito (sobre os dias visíveis do período atual)
+    var nConf = Object.keys(porDia).filter(function (d) { return conflitos[d]; }).length;
     $('agd-conflito-aviso').innerHTML = nConf
       ? '<div class="ecagd-aviso-conflito">⚠ ' + nConf + ' dia(s) com técnico em mais de um serviço. Veja os destaques em vermelho.</div>' : '';
 
-    if (!dias.length) {
-      $('agd-lista').innerHTML = '<div class="ecagd-vazio">🗓️<br><strong>' +
-        (buscando ? 'Nada encontrado para essa busca.' : 'Nenhum agendamento neste mês.') +
-        '</strong></div>';
-      return;
-    }
-
-    var html = '';
-    dias.forEach(function (dia) {
-      var evs = porDia[dia];
-      var tecsDia = {};
-      evs.forEach(function (e) { if (e.status !== 'canc') (e.tecnicos || []).forEach(function (t) { tecsDia[t.nome] = 1; }); });
-      var temConfDia = !!conflitos[dia];
-      html += '<div class="ecagd-dia' + (temConfDia ? ' conflito' : '') + '">' +
-        '<span>' + esc(dataLonga(dia)) + '</span>' +
-        '<span class="ecagd-dia-meta">' + evs.length + ' serviço(s) · ' + Object.keys(tecsDia).length + ' técnico(s)' + (temConfDia ? ' · ⚠' : '') + '</span></div>';
-      evs.forEach(function (e, idx) {
-        var st = STATUS[e.status] || STATUS.prog;
-        var ferias = e.tipo === 'ferias';
-        var conf = temConfDia && (e.tecnicos || []).some(function (t) { return conflitos[dia].indexOf(t.nome) !== -1; });
-        var tecsTxt = (e.tecnicos || []).map(function (t) { return nomeCurto(t.nome); }).join(', ');
-        var sub = ferias ? (tecsTxt || '—')
-          : [e.cidade, e.tipo === 'deslocamento' ? '🚗 Deslocamento' : e.servico].filter(Boolean).join(' · ') + (tecsTxt ? ' · ' + tecsTxt : '');
-        html += '<div class="ecagd-evt' + (conf ? ' conflito' : '') + '" data-id="' + esc(e.id) + '" style="border-left-color:' + (ferias ? FERIAS_COR : st.cor) + '">' +
-          '<div class="ecagd-evt-linha1">' +
-            '<span class="ecagd-evt-emp">' + (ferias ? '🏖 Férias' : esc(e.empresa)) + (conf ? ' ⚠' : '') + '</span>' +
-            '<span class="ecagd-chip" style="background:' + (ferias ? FERIAS_FUNDO : st.fundo) + ';color:' + (ferias ? FERIAS_COR : st.cor) + '">' + (ferias ? 'Férias' : esc(st.label)) + '</span>' +
-          '</div>' +
-          ((e.os || e.campanha_numero) ? '<div class="ecagd-evt-os">' + esc(e.os || '') + (e.campanha_numero ? ' · Camp ' + e.campanha_numero : '') + '</div>' : '') +
-          (!ferias && e.projeto ? '<div class="ecagd-evt-sub">📁 ' + esc(e.projeto) + '</div>' : '') +
-          '<div class="ecagd-evt-sub">' + esc(sub) + '</div>' +
-        '</div>';
-      });
-    });
     $('agd-lista').innerHTML = html;
 
     // clique no evento → abre o modal (edição ou leitura)
@@ -255,6 +332,13 @@
       el.addEventListener('click', function () {
         var ev = eventos.filter(function (e) { return e.id === el.getAttribute('data-id'); })[0];
         if (ev) abrirModal(ev, false);
+      });
+    });
+    // toque num dia da grade do mês → mostra os agendamentos dele
+    Array.prototype.forEach.call(document.querySelectorAll('#agd-lista .ecagd-cel'), function (el) {
+      el.addEventListener('click', function () {
+        diaSel = el.getAttribute('data-dia');
+        render();
       });
     });
   }
@@ -512,14 +596,24 @@
   function abrir() {
     EC.app.mostrarTela('tela-agenda');
     ref = new Date();
+    diaSel = iso(new Date());
     recarregar();
   }
 
   /* ============ Ligações da tela ============ */
   function ligar() {
-    $('agd-prev').addEventListener('click', function () { ref.setMonth(ref.getMonth() - 1); render(); });
-    $('agd-next').addEventListener('click', function () { ref.setMonth(ref.getMonth() + 1); render(); });
-    $('agd-hoje').addEventListener('click', function () { ref = new Date(); render(); });
+    function mover(passo) {
+      if (visao === 'semana') ref.setDate(ref.getDate() + passo * 7);
+      else ref.setMonth(ref.getMonth() + passo);
+      diaSel = null;
+      render();
+    }
+    $('agd-prev').addEventListener('click', function () { mover(-1); });
+    $('agd-next').addEventListener('click', function () { mover(1); });
+    $('agd-hoje').addEventListener('click', function () { ref = new Date(); diaSel = iso(new Date()); render(); });
+    ['mes', 'semana', 'lista'].forEach(function (v) {
+      $('agd-v-' + v).addEventListener('click', function () { visao = v; render(); });
+    });
     $('agd-atualizar').addEventListener('click', function () { perms = null; recarregar(); });
     $('agd-busca').addEventListener('input', render);
     $('agd-f-status').addEventListener('change', render);
