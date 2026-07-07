@@ -30,21 +30,21 @@ EC.campoQarInterno = (function () {
     'Equipamentos calibrados',
     'Pontos posicionados corretamente (1,5 m do piso, afastado de paredes, longe de insuflamento direto, distante do operador, no tripé, distribuído uniformemente)',
     'Medições realizadas longe de fontes poluentes externas (resíduos, automóveis, jardins, obras, combustão)',
-    'Vazão entre 25,5 e 31,1 L/min',
     'Evitar medição diretamente na saída do ar'
   ];
   const CHECKS_CONFORMIDADE = ['Critérios de conformidade verificados', 'Amostras armazenadas'];
 
-  const FUNGOS = [
+  // Item 1 (Vazão entre 25,5...) é o ponto de corte: o campo de valor da
+  // vazão entra logo depois dele (ver renderizarPonto) — daí "Registrar
+  // abaixo" no texto.
+  const FUNGOS_ANTES = [
     { sub: 'Antes da coleta:', texto: 'Verificar vazão da bomba' },
-    { sub: null, texto: 'Vazão entre 25,5 e 31,1 L/min' },
-    { sub: null, texto: 'Registrar verificação da vazão' },
+    { sub: null, texto: 'Vazão entre 25,5 e 31,1 L/min (Registrar abaixo)' }
+  ];
+  const FUNGOS_DEPOIS = [
     { sub: 'Durante a coleta:', texto: 'Inserir placa corretamente' },
     { sub: null, texto: 'Retirar tampa da placa somente no momento da coleta' },
     { sub: null, texto: 'Programar tempo de coleta' },
-    { sub: null, texto: 'Registrar horário inicial' },
-    { sub: null, texto: 'Registrar horário final' },
-    { sub: null, texto: 'Registrar volume amostrado' },
     { sub: 'Após a coleta:', texto: 'Tampar placa imediatamente' },
     { sub: null, texto: 'Vedação com fita' },
     { sub: null, texto: 'Identificar placa' },
@@ -52,8 +52,7 @@ EC.campoQarInterno = (function () {
     { sub: null, texto: 'Higienizar impactador com álcool 70%' }
   ];
   const FILTRO = [
-    { sub: 'Antes da coleta:', texto: 'Registrar código do filtro' },
-    { sub: null, texto: 'Verificar integridade do porta-filtro' },
+    { sub: 'Antes da coleta:', texto: 'Verificar integridade do porta-filtro' },
     { sub: null, texto: 'Realizar calibração inicial' },
     { sub: null, texto: 'Ajustar vazão para 3 L/min' },
     { sub: 'Durante a coleta:', texto: 'Posicionar entrada de ar corretamente' },
@@ -86,10 +85,13 @@ EC.campoQarInterno = (function () {
   function htmlChecks(itens, prefixo) {
     return itens.map(function (t, i) { return '<label class="linha-check check-campo"><input type="checkbox" data-check="' + prefixo + i + '"><span>' + t + '</span></label>'; }).join('');
   }
-  function htmlChecksSub(lista, prefixo) {
+  // offset: para dividir uma lista em dois trechos renderizados separados
+  // (com algo no meio) sem colidir os índices dos data-check.
+  function htmlChecksSub(lista, prefixo, offset) {
+    offset = offset || 0;
     return lista.map(function (it, i) {
       return (it.sub ? '<p class="subgrupo-titulo">' + it.sub + '</p>' : '') +
-        '<label class="linha-check check-campo"><input type="checkbox" data-check="' + prefixo + i + '"><span>' + it.texto + '</span></label>';
+        '<label class="linha-check check-campo"><input type="checkbox" data-check="' + prefixo + (offset + i) + '"><span>' + it.texto + '</span></label>';
     }).join('');
   }
 
@@ -220,8 +222,10 @@ EC.campoQarInterno = (function () {
       '<label>Quantidade aproximada de pessoas<input type="number" min="0" inputmode="numeric" data-campo="pessoas"></label>' +
       '<label>Janela<select data-campo="janela"><option value="">Selecione…</option><option>Aberta</option><option>Fechada</option></select></label>' +
       '<p class="grupo-checks-titulo">📍 Posicionamento e verificações</p>' + htmlChecks(CHECKS_POSICIONAMENTO, 'pos') +
+      '<p class="grupo-checks-titulo">🌬️ Coleta de fungos</p>' +
+      htmlChecksSub(FUNGOS_ANTES, 'fung', 0) +
       '<label>Valor da vazão (L/min)<input type="number" step="0.01" inputmode="decimal" data-campo="valorVazao"></label>' +
-      '<p class="grupo-checks-titulo">🌬️ Coleta de fungos (orientação)</p>' + htmlChecksSub(FUNGOS, 'fung') +
+      htmlChecksSub(FUNGOS_DEPOIS, 'fung', FUNGOS_ANTES.length) +
       '<div class="grade-2">' +
       '  <label>Horário inicial<input type="time" data-campo="fungosHoraInicial"></label>' +
       '  <label>Horário final<input type="time" data-campo="fungosHoraFinal"></label>' +
