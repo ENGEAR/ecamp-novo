@@ -803,6 +803,7 @@ textarea { resize: vertical; font-family: inherit; }
 .rb-pergunta { font-weight: 700; color: var(--azul-escuro); margin: 4px 0 6px; }
 .rb-radios { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
 .rb-sub { font-weight: 600; font-size: 0.92rem; margin: 8px 0 6px; }
+#rb-dist-status { margin: 8px 0 16px; }
 .rb-resumo-auto {
   background: var(--azul-claro);
   border: 1px solid var(--cinza-borda);
