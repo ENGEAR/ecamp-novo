@@ -231,9 +231,10 @@ EC.campoQar = (function () {
       lblNum('↑ Para cima', prefixo + '_00sobe') + lblNum('↓ Para baixo', prefixo + '_00desce') + '</div>';
   }
 
-  function htmlBlocoColeta(sufixo) {
+  function htmlBlocoColeta(sufixo, extraAposHora) {
     return '<label>Data<input type="date" data-campo="data_' + sufixo + '"></label>' +
       '<label>Hora<input type="time" data-campo="hora_' + sufixo + '"></label>' +
+      (extraAposHora || '') +
       lblNum('Horímetro', 'horimetro_' + sufixo) +
       '<div class="grade-2">' + lblNum('Temperatura (°C)', 'temp_' + sufixo) + lblNum('Umidade (%)', 'umid_' + sufixo) + '</div>' +
       lblNum('Pressão (mmHg)', 'pressao_' + sufixo) +
@@ -249,7 +250,8 @@ EC.campoQar = (function () {
     let html = '';
     for (let k = 0; k < n; k++) {
       html += '<div class="cartao-coleta"><h3>' + (k + 1) + 'ª coleta</h3>' +
-        '<p class="grupo-checks-titulo">Dados iniciais</p>' + htmlBlocoColeta('ini') +
+        '<p class="grupo-checks-titulo">Dados iniciais</p>' +
+        htmlBlocoColeta('ini', '<label>Código do filtro<input type="text" data-campo="codigoFiltro"></label>') +
         '<p class="grupo-checks-titulo">Dados finais</p>' + htmlBlocoColeta('fim') + '</div>';
     }
     div.innerHTML = html;
