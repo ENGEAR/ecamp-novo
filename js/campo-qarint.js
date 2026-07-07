@@ -220,7 +220,9 @@ EC.campoQarInterno = (function () {
       '<div class="qi-gps"></div>' +
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       '<label>Quantidade aproximada de pessoas<input type="number" min="0" inputmode="numeric" data-campo="pessoas"></label>' +
-      '<label>Janela<select data-campo="janela"><option value="">Selecione…</option><option>Aberta</option><option>Fechada</option></select></label>' +
+      // Janela (aberta/fechada) não se aplica ao ponto externo de referência
+      // (é do lado de fora — não há janela a considerar).
+      (ehExterno ? '' : '<label>Janela<select data-campo="janela"><option value="">Selecione…</option><option>Aberta</option><option>Fechada</option></select></label>') +
       '<p class="grupo-checks-titulo">📍 Posicionamento e verificações</p>' + htmlChecks(CHECKS_POSICIONAMENTO, 'pos') +
       '<p class="grupo-checks-titulo">🌬️ Coleta de fungos</p>' +
       htmlChecksSub(FUNGOS_ANTES, 'fung', 0) +
@@ -258,7 +260,7 @@ EC.campoQarInterno = (function () {
 
   /* ===== Validação (só o essencial trava) ===== */
 
-  function itensFaltandoDoPonto(ponto) {
+  function itensFaltandoDoPonto(ponto, ehExterno) {
     ponto = ponto || {};
     const falta = [];
     const reqVal = function (chave, rotulo) {
@@ -274,7 +276,8 @@ EC.campoQarInterno = (function () {
     if (!ponto.gps) falta.push('GPS');
     reqVal('horaInicial', 'hora inicial');
     reqVal('pessoas', 'quantidade de pessoas');
-    reqVal('janela', 'janela (aberta/fechada)');
+    // Janela (aberta/fechada) não se aplica ao ponto externo de referência.
+    if (!ehExterno) reqVal('janela', 'janela (aberta/fechada)');
     grupoChecks('pos', CHECKS_POSICIONAMENTO.length, 'posicionamento');
     reqVal('valorVazao', 'valor da vazão');
     MEDICOES.forEach(function (m) { reqVal(m[0], m[1]); });
@@ -300,7 +303,7 @@ EC.campoQarInterno = (function () {
       if (!amb.pontosCalculados) { out.push(rotAmb + ': calcular os pontos (informe a área e toque em Calcular)'); continue; }
       const totalPt = amb.pontosCalculados + 1;
       for (let p = 0; p < totalPt; p++) {
-        itensFaltandoDoPonto((amb.pontos || [])[p]).forEach(function (x) { out.push(rotAmb + ' ' + rotuloPonto(p + 1) + ': ' + x); });
+        itensFaltandoDoPonto((amb.pontos || [])[p], p === 0).forEach(function (x) { out.push(rotAmb + ' ' + rotuloPonto(p + 1) + ': ' + x); });
       }
     }
     return out;
