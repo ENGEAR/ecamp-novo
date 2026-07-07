@@ -761,3 +761,36 @@ textarea { resize: vertical; font-family: inherit; }
 .ecagd-pontos { display: flex; justify-content: center; align-items: center; gap: 2px; margin-top: 2px; min-height: 8px; flex-wrap: wrap; }
 .ecagd-pontos i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
 .ecagd-pontos b { font-size: 0.6rem; color: var(--cinza-texto); }
+
+/* Agenda — alerta de OS sem agendamento + vínculo de OS no modal */
+.ecagd-os-pend {
+  width: 100%; display: flex; align-items: center; gap: 8px; text-align: left;
+  background: var(--amarelo-claro); border: 1px solid var(--amarelo); color: #8a6d00;
+  border-radius: 10px; padding: 11px 12px; font-size: 0.95rem; cursor: pointer; margin-bottom: 12px;
+  animation: ecagd-pulso 2s ease-in-out infinite;
+}
+.ecagd-sino { font-size: 1.15rem; display: inline-block; transform-origin: top center; animation: ecagd-sino 1.8s ease-in-out infinite; }
+@keyframes ecagd-sino { 0%,55%,100%{ transform: rotate(0); } 60%{ transform: rotate(14deg); } 66%{ transform: rotate(-12deg); } 72%{ transform: rotate(9deg); } 78%{ transform: rotate(-6deg); } 84%{ transform: rotate(3deg); } 90%{ transform: rotate(0); } }
+@keyframes ecagd-pulso { 0%,100%{ box-shadow: 0 0 0 0 rgba(217,119,6,0.35); } 50%{ box-shadow: 0 0 0 7px rgba(217,119,6,0); } }
+.ecagd-ospend {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
+  border: 1px solid var(--cinza-borda); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
+  font-size: 0.9rem;
+}
+.ecagd-ospend small { color: var(--cinza-texto); }
+.ecagd-ospend-acoes { display: flex; gap: 6px; flex-wrap: wrap; }
+.ecagd-os-ok { color: var(--verde); }
+.ecagd-os-item {
+  border: 1px solid var(--cinza-borda); border-top: none; padding: 9px 12px; cursor: pointer; font-size: 0.9rem;
+  background: #fff;
+}
+.ecagd-os-item:first-child { border-top: 1px solid var(--cinza-borda); border-radius: 8px 8px 0 0; }
+.ecagd-os-item:last-child { border-radius: 0 0 8px 8px; }
+.ecagd-os-item:active { background: var(--azul-claro); }
+.ecagd-os-item b { color: var(--azul-escuro); font-family: ui-monospace, Menlo, Consolas, monospace; }
+.ecagd-os-item.vazio { color: var(--cinza-texto); cursor: default; font-style: italic; }
+.ecagd-os-aviso {
+  background: var(--amarelo-claro); color: #8a6d00; border-radius: 8px; padding: 8px 10px;
+  font-size: 0.85rem; font-weight: 600; margin: 6px 0 10px;
+}
+#agdm-os-res { margin: -6px 0 10px; }

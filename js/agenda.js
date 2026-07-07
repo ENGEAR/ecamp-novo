@@ -66,6 +66,8 @@
   var diaSel = null;             // dia tocado na grade do mês (ISO)
   var eventos = [];              // todos os agendamentos carregados
   var catTecnicos = [];          // catálogo de técnicos ativos
+  var oss = [];                  // ordens de serviço (p/ vincular e p/ o alerta)
+  var ocultas = [];              // OS dispensadas do alerta (agenda_os_ocultas)
   var perms = null;              // { podeEditar, souAdmin, podeFerias }
   var offline = false;           // mostrando cache?
   var carregando = false;
@@ -126,7 +128,28 @@
         return { id: x.id, nome: x.nome, tipo: String(x.vinculo || 'clt').toLowerCase().indexOf('free') !== -1 ? 'freelancer' : 'clt' };
       });
     } catch (e) { catTecnicos = []; }
-    EC.storage.salvar(CHAVE_CACHE, { em: new Date().toISOString(), eventos: eventos, catTecnicos: catTecnicos });
+    // OS (mesma consulta do SGP): para vincular no agendamento e para o alerta.
+    try {
+      var o = await cli.from('ordens_servico')
+        .select('id, numero, proposta_id, cliente_nome, municipio, uf, servico, detalhes, proposta:proposta_id(status)')
+        .order('numero', { ascending: false });
+      oss = (o.data || []).map(function (x) {
+        var det = x.detalhes || {};
+        return {
+          id: x.id, numero: x.numero, proposta_id: x.proposta_id || null,
+          empresa: x.cliente_nome || '', cidade: x.municipio || '', uf: x.uf || '',
+          servico: x.servico || '', projeto: det.projeto || null,
+          nCampanhas: Number(det.nCampanhas) || 1,
+          // Só OS de proposta ACEITA (ou sem proposta vinculada) contam como pendência.
+          aceita: !x.proposta_id || !!(x.proposta && x.proposta.status === 'ACEITA')
+        };
+      });
+    } catch (e) { oss = []; }
+    try {
+      var oc = await cli.from('agenda_os_ocultas').select('ordem_servico_id');
+      ocultas = (oc.data || []).map(function (r) { return r.ordem_servico_id; });
+    } catch (e) { ocultas = []; }
+    EC.storage.salvar(CHAVE_CACHE, { em: new Date().toISOString(), eventos: eventos, catTecnicos: catTecnicos, oss: oss, ocultas: ocultas });
   }
 
   /* ============ Regras espelhadas ============ */
@@ -147,6 +170,26 @@
       });
     });
     return conf;
+  }
+
+  // Campanhas de cada proposta que JÁ estão na agenda (para avisar duplicidade).
+  function campanhasNaAgenda() {
+    var m = {};
+    eventos.forEach(function (e) {
+      if (e.proposta_id && e.campanha_numero) {
+        m[e.proposta_id] = m[e.proposta_id] || [];
+        if (m[e.proposta_id].indexOf(e.campanha_numero) === -1) m[e.proposta_id].push(e.campanha_numero);
+      }
+    });
+    return m;
+  }
+
+  // Pendência: OS (de proposta ACEITA) que ainda não têm NENHUM dia na agenda.
+  function osSemAgenda() {
+    return oss.filter(function (o) {
+      return o.aceita && ocultas.indexOf(o.id) === -1 &&
+        !eventos.some(function (e) { return e.ordem_servico_id === o.id || (o.proposta_id && e.proposta_id === o.proposta_id); });
+    });
   }
 
   // Bloqueio (ao salvar): férias × campo do mesmo técnico no mesmo dia.
@@ -359,14 +402,82 @@
     }
   }
 
+  /* ============ Alerta "OS sem agendamento" (espelho do sino do SGP) ============ */
+  function atualizarBannerOS() {
+    var area = $('agd-os-pend');
+    var pend = (perms && perms.podeEditar && !offline) ? osSemAgenda() : [];
+    if (!pend.length) { area.classList.add('oculto'); area.innerHTML = ''; return; }
+    area.innerHTML = '<button type="button" class="ecagd-os-pend"><span class="ecagd-sino">🔔</span> ' +
+      '<b>' + pend.length + ' OS sem agendamento</b>&nbsp;— toque para resolver</button>';
+    area.classList.remove('oculto');
+    area.querySelector('button').addEventListener('click', abrirModalOSPend);
+  }
+
+  function abrirModalOSPend() {
+    var pend = osSemAgenda();
+    $('agd-modal').innerHTML =
+      '<div class="ecagd-m-fundo"></div>' +
+      '<div class="ecagd-m-caixa"><div class="cartao">' +
+        '<div class="ecagd-m-topo"><h2>🔔 OS sem agendamento</h2><button type="button" id="agdm-fechar" title="Fechar">✕</button></div>' +
+        '<p class="texto-apoio">OS de propostas aceitas que ainda não têm nenhum dia na agenda. Agende, ou dispense para o alerta não voltar.</p>' +
+        (pend.length ? pend.map(function (o, i) {
+          return '<div class="ecagd-ospend">' +
+            '<div><b>' + esc(o.numero) + '</b> — ' + esc(o.empresa) +
+            (o.projeto ? '<br><small>📁 ' + esc(o.projeto) + '</small>' : '') +
+            '<br><small>' + esc([[o.cidade, o.uf].filter(Boolean).join('/'), o.servico].filter(Boolean).join(' · ')) + '</small></div>' +
+            '<div class="ecagd-ospend-acoes">' +
+              '<button type="button" class="botao botao-primario botao-mini" data-ag="' + i + '">📅 Agendar</button>' +
+              '<button type="button" class="botao botao-secundario botao-mini" data-disp="' + i + '">✕ Dispensar</button>' +
+            '</div></div>';
+        }).join('') : '<p class="texto-apoio">Nenhuma pendência. 🎉</p>') +
+        '<div class="pilha-botoes"><button type="button" class="botao botao-secundario" id="agdm-fechar2">Fechar</button></div>' +
+      '</div></div>';
+    $('agd-modal').classList.remove('oculto');
+    document.body.style.overflow = 'hidden';
+    $('agdm-fechar').addEventListener('click', fecharModal);
+    $('agdm-fechar2').addEventListener('click', fecharModal);
+    Array.prototype.forEach.call(document.querySelectorAll('#agd-modal [data-ag]'), function (b) {
+      b.addEventListener('click', function () { agendarOS(pend[Number(b.getAttribute('data-ag'))]); });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('#agd-modal [data-disp]'), function (b) {
+      b.addEventListener('click', function () { dispensarOS(pend[Number(b.getAttribute('data-disp'))]); });
+    });
+  }
+
+  // Abre o "Novo agendamento" já com a OS pendente vinculada (igual ao SGP).
+  function agendarOS(o) {
+    abrirModal({
+      empresa: o.empresa, cidade: o.cidade, uf: o.uf, servico: o.servico, projeto: o.projeto,
+      data: iso(new Date()), status: 'prog', observacoes: '', tipo: 'servico', tecnicos: [], manual: true,
+      os: o.numero, ordem_servico_id: o.id, proposta_id: o.proposta_id,
+      campanha_numero: o.nCampanhas === 1 ? 1 : null
+    }, true);
+  }
+
+  // Dispensa a OS do alerta (fica registrado no banco; não volta a aparecer).
+  async function dispensarOS(o) {
+    if (!confirm('Remover a ' + o.numero + ' da lista de pendências? Ela não voltará a aparecer no alerta.')) return;
+    try {
+      var r = await sb().from('agenda_os_ocultas').insert({ ordem_servico_id: o.id });
+      if (r.error) throw new Error(r.error.message);
+      EC.app.mostrarToast('OS dispensada do alerta.');
+      fecharModal();
+      await recarregar();
+    } catch (e) {
+      alert('Erro ao dispensar: ' + (e.message || e));
+    }
+  }
+
   /* ============ Modal (novo / editar / leitura) ============ */
-  var mEv = null, mNovo = false, mTecs = [], mDataFim = '';
+  var mEv = null, mNovo = false, mTecs = [], mDataFim = '', mBuscaOS = '', mAvisoOS = '';
 
   function abrirModal(ev, novo) {
     mEv = JSON.parse(JSON.stringify(ev)); // cópia — só grava ao salvar
     mNovo = novo;
     mTecs = (ev.tecnicos || []).slice();
     mDataFim = ev.data;
+    mBuscaOS = '';
+    mAvisoOS = '';
     renderModal();
     $('agd-modal').classList.remove('oculto');
     document.body.style.overflow = 'hidden';
@@ -383,8 +494,38 @@
     var st = mEv.status || 'prog';
     var podeFerias = perms.podeFerias || mEv.tipo === 'ferias';
     var titulo = soLeitura ? 'Agendamento' : (mNovo ? 'Novo agendamento' : 'Editar agendamento');
-    var osInfo = (mEv.os || mEv.campanha_numero)
+    var temOS = !!(mEv.proposta_id || mEv.ordem_servico_id);
+    var osSel = null;
+    oss.forEach(function (o) { if (o.id === mEv.ordem_servico_id) osSel = o; });
+    var nCamp = osSel ? osSel.nCampanhas : 0;
+
+    // Vínculo com a OS: no novo, busca e escolhe (igual ao SGP); na edição, só informa.
+    var osBloco = '';
+    if (mNovo && !soLeitura) {
+      osBloco = '<label>Ordem de Serviço ' +
+        (mEv.os ? '<b class="ecagd-os-ok">· ' + esc(mEv.os) + ' ✓</b>' : '<small>(opcional)</small>') +
+        '<input type="text" id="agdm-os-busca" placeholder="Buscar OS pelo número ou cliente…" value="' + esc(mBuscaOS) + '" autocomplete="off"></label>' +
+        '<div id="agdm-os-res"></div>' +
+        (mEv.ordem_servico_id ? '<button type="button" class="botao botao-secundario botao-mini" id="agdm-os-desv">✕ Desvincular OS</button>' : '') +
+        (mAvisoOS ? '<div class="ecagd-os-aviso">' + esc(mAvisoOS) + '</div>' : '');
+    }
+    var osInfo = (!mNovo && (mEv.os || mEv.campanha_numero))
       ? '<div class="ecagd-m-os">Ordem de Serviço: <b>' + esc(mEv.os || '—') + '</b>' + (mEv.campanha_numero ? ' · Campanha <b>' + mEv.campanha_numero + '</b>' : '') + '</div>' : '';
+
+    // Campanha (quando vinculado a uma OS)
+    var campBloco = '';
+    if (temOS) {
+      if (nCamp >= 1) {
+        var campAg = mEv.proposta_id ? (campanhasNaAgenda()[mEv.proposta_id] || []) : [];
+        var opts = '<option value="">— escolha a campanha —</option>';
+        for (var n = 1; n <= nCamp; n++) {
+          opts += '<option value="' + n + '"' + (mEv.campanha_numero === n ? ' selected' : '') + '>Campanha ' + n + (campAg.indexOf(n) !== -1 ? ' — já na agenda' : '') + '</option>';
+        }
+        campBloco = '<label>Campanha (a OS tem ' + nCamp + ')<select id="agdm-campanha">' + opts + '</select></label>';
+      } else {
+        campBloco = '<label>Campanha<input type="number" id="agdm-campanha" min="1" inputmode="numeric" placeholder="Nº da campanha" value="' + (mEv.campanha_numero || '') + '"></label>';
+      }
+    }
 
     var tecsHtml = catTecnicos.length === 0
       ? '<p class="texto-apoio">Nenhum técnico cadastrado (a lista é gerida no SGP).</p>'
@@ -431,6 +572,7 @@
         (soLeitura ? '<p class="texto-apoio">👁 Você tem acesso de <b>visualização</b>. Para criar ou editar, fale com o administrador.</p>' : '') +
         osInfo +
         '<fieldset id="agdm-campos"' + (soLeitura ? ' disabled' : '') + '>' +
+          osBloco + campBloco +
           '<label>Empresa / Cliente<input type="text" id="agdm-empresa" value="' + esc(mEv.empresa === '—' ? '' : mEv.empresa) + '"></label>' +
           '<div class="grade-2">' +
             '<label>Cidade<input type="text" id="agdm-cidade" value="' + esc(mEv.cidade) + '"></label>' +
@@ -456,6 +598,21 @@
       '</div></div>';
 
     // eventos do modal
+    if ($('agdm-os-busca')) {
+      $('agdm-os-busca').addEventListener('input', function () {
+        mBuscaOS = this.value;
+        atualizarResultadosOS();
+      });
+      atualizarResultadosOS();
+    }
+    if ($('agdm-os-desv')) {
+      $('agdm-os-desv').addEventListener('click', function () {
+        colherCampos();
+        mEv.os = null; mEv.ordem_servico_id = null; mEv.proposta_id = null; mEv.campanha_numero = null;
+        mAvisoOS = '';
+        renderModal();
+      });
+    }
     $('agdm-fechar').addEventListener('click', fecharModal);
     if ($('agdm-fechar2')) $('agdm-fechar2').addEventListener('click', fecharModal);
     if ($('agdm-cancelar')) $('agdm-cancelar').addEventListener('click', fecharModal);
@@ -488,6 +645,47 @@
     if ($('agdm-fim')) mDataFim = $('agdm-fim').value || mDataFim;
     mEv.status = $('agdm-status').value;
     mEv.observacoes = $('agdm-obs').value;
+    if ($('agdm-os-busca')) mBuscaOS = $('agdm-os-busca').value;
+    if ($('agdm-campanha')) mEv.campanha_numero = $('agdm-campanha').value ? Number($('agdm-campanha').value) : null;
+  }
+
+  // Busca de OS dentro do modal (atualiza SÓ a lista de resultados, sem
+  // redesenhar o modal — para o campo não perder o foco enquanto digita).
+  function atualizarResultadosOS() {
+    var res = $('agdm-os-res');
+    if (!res) return;
+    var q = mBuscaOS.trim().toLowerCase();
+    if (!q) { res.innerHTML = ''; return; }
+    var achadas = oss.filter(function (o) {
+      return (o.numero + ' ' + o.empresa).toLowerCase().indexOf(q) !== -1;
+    }).slice(0, 6);
+    res.innerHTML = achadas.length
+      ? achadas.map(function (o, i) {
+          return '<div class="ecagd-os-item" data-i="' + i + '"><b>' + esc(o.numero) + '</b> ' + esc(o.empresa) + '</div>';
+        }).join('')
+      : '<div class="ecagd-os-item vazio">Nenhuma OS encontrada.</div>';
+    Array.prototype.forEach.call(res.querySelectorAll('.ecagd-os-item[data-i]'), function (el) {
+      el.addEventListener('click', function () { escolherOS(achadas[Number(el.getAttribute('data-i'))]); });
+    });
+  }
+
+  // Vincula a OS escolhida e preenche os campos a partir dela (igual ao SGP),
+  // avisando se a OS já tem dias na agenda (para não duplicar o serviço).
+  function escolherOS(o) {
+    colherCampos();
+    mEv.os = o.numero; mEv.ordem_servico_id = o.id; mEv.proposta_id = o.proposta_id;
+    mEv.empresa = o.empresa || mEv.empresa;
+    mEv.cidade = o.cidade || mEv.cidade;
+    mEv.uf = o.uf || mEv.uf;
+    mEv.servico = o.servico || mEv.servico;
+    mEv.projeto = o.projeto || mEv.projeto;
+    mEv.campanha_numero = o.nCampanhas === 1 ? 1 : (mEv.campanha_numero || null);
+    var camps = o.proposta_id ? (campanhasNaAgenda()[o.proposta_id] || []) : [];
+    mAvisoOS = camps.length
+      ? '⚠ Esta OS já tem dias na agenda (campanha' + (camps.length > 1 ? 's' : '') + ' ' + camps.slice().sort(function (a, b) { return a - b; }).join(', ') + '). Verifique para não duplicar o mesmo serviço.'
+      : '';
+    mBuscaOS = '';
+    renderModal();
   }
 
   async function salvarModal() {
@@ -506,7 +704,7 @@
         empresa: mEv.empresa, cidade: mEv.cidade || null, uf: mEv.uf || null,
         servico: mEv.servico || null, projeto: mEv.projeto || null,
         status: mEv.status, observacoes: mEv.observacoes || null, tipo: mEv.tipo,
-        tecnicos: mTecs, manual: true,
+        tecnicos: mTecs, manual: true, campanha_numero: mEv.campanha_numero || null,
         proposta_id: mEv.proposta_id || null, ordem_servico_id: mEv.ordem_servico_id || null
       };
       var r;
@@ -577,6 +775,8 @@
       if (cache && cache.eventos) {
         eventos = cache.eventos;
         catTecnicos = cache.catTecnicos || [];
+        oss = cache.oss || [];
+        ocultas = cache.ocultas || [];
         offline = true;
         if (!perms) perms = { podeEditar: false, souAdmin: false, podeFerias: false };
         $('agd-aviso').innerHTML = '<div class="ecagd-offline">📡 Sem conexão — mostrando a agenda carregada em ' +
@@ -589,6 +789,7 @@
     }
     $('agd-novo').classList.toggle('oculto', !(perms && perms.podeEditar) || offline);
     preencherFiltros();
+    atualizarBannerOS();
     render();
     carregando = false;
   }
