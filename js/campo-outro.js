@@ -4,10 +4,10 @@
  * Tipo genérico (escopo "Outros") conforme `ecamp_especificacao.docx` item 8.6.
  * Sem subtipo. Campos gerais: tipo de monitoramento (texto), objetivo, qtde de
  * pontos. Por ponto: identificação, medição principal + unidade, 2 fotos,
- * condições ambientais (com alerta de vento ≥ 5 m/s) e observações.
+ * condições ambientais e observações.
  *
  * Interface (EC.campoOutro): renderizar(container, ctx) · itensFaltando(estado) · TIPO_CARIMBO
- * Depende de: EC.gps, EC.foto, EC.paginacao, EC.alertaVento.
+ * Depende de: EC.gps, EC.foto, EC.paginacao.
  */
 window.EC = window.EC || {};
 
@@ -107,7 +107,6 @@ EC.campoOutro = (function () {
       '  <label>Umidade<span class="unidade">(%)</span><input type="number" step="1" min="0" max="100" inputmode="numeric" data-campo="umidade"></label>' +
       '</div>' +
       '<label>Vento<span class="unidade">(m/s)</span><input type="number" step="0.1" min="0" inputmode="decimal" data-campo="vento"></label>' +
-      '<div class="alerta alerta-amarelo ou-alerta-vento oculto">⚠️ Esperar o vento abaixar. Não é aceito monitoramento com vento acima de 5 m/s.</div>' +
       '<label>Observações<textarea rows="2" data-campo="observacoes"></textarea></label>' +
       '</div>';
 
@@ -115,15 +114,6 @@ EC.campoOutro = (function () {
     const gps = montarGps(area, ponto);
     montarFoto(area, '.ou-foto-tela', ponto, 'fotoTela', '📷 Foto da tela do equipamento (obrigatória)', gps, 'TELA', n);
     montarFoto(area, '.ou-foto-ponto', ponto, 'fotoPonto', '📷 Foto do ponto (obrigatória)', gps, 'PONTO', n);
-
-    const ventoInput = area.querySelector('[data-campo="vento"]');
-    const ventoAlerta = area.querySelector('.ou-alerta-vento');
-    function avaliarVento() {
-      const v = ventoInput.value === '' ? null : parseFloat(ventoInput.value.replace(',', '.'));
-      ventoAlerta.classList.toggle('oculto', !EC.alertaVento.avaliar(v));
-    }
-    ventoInput.addEventListener('input', avaliarVento);
-    avaliarVento();
   }
 
   /* ===== Validação ===== */
