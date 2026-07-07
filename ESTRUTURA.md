@@ -1,7 +1,7 @@
 # eCamp — Estrutura do app (estado atual)
 
 > Resumo de como o app está montado, com foco em **o que abre em cada caso** (escopo × método).
-> Publicado em: https://engear.github.io/ecamp-novo/ · Atualizado conforme a Fase 2 (Ruído piloto).
+> Publicado em: https://ecamp-omega.vercel.app/ · Atualizado conforme a Fase 2 (Ruído piloto).
 
 ---
 
@@ -99,7 +99,7 @@ Blocos: **Ordem de serviço** (nº, código, emitido por, data emissão) · **Cl
 
 ## Observações técnicas
 
-- App estático (HTML/JS puro, PWA offline), publicado no GitHub Pages: repositório `ENGEAR/ecamp-novo`, branch `gh-pages`.
+- App estático (HTML/JS puro, PWA offline), publicado no Vercel (projeto `ecamp`, https://ecamp-omega.vercel.app/). Código-fonte no GitHub (`ENGEAR/ecamp-novo`, branch `main`) só como controle de versão — GitHub Pages não é mais usado como hospedagem.
 - Lista de OS e equipamentos ainda são **mock** (`js/dados-os-mock.js`, `js/equipamentos-mock.js`); a ligação real com o SGE é fase posterior.
 - A correlação escopo→método está em `js/mapa-escopo.js`; os formulários de ruído em `js/campo-ruido.js`.
 - Há um botão de teste **"🧪 [TESTE] Marcar tudo"** no pré-campo, a ser removido antes de produção.
