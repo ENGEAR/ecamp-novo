@@ -47,19 +47,22 @@ EC.sync = (function () {
   }
 
   // Lista de pontos do registro na MESMA ordem global que o mapeador do servidor
-  // usa (para casar com o `ordem` devolvido por /registro). No ruído interno os
-  // pontos vivem em campo.ambientes[].pontos (achata ambiente a ambiente, cada um
-  // limitado ao seu pontosCalculados); na opacidade são os VEÍCULOS; nos demais,
-  // é campo.pontos direto.
+  // usa (para casar com o `ordem` devolvido por /registro). No ruído interno e no
+  // QAR Interno os pontos vivem em campo.ambientes[].pontos (achata ambiente a
+  // ambiente, cada um limitado ao seu pontosCalculados — no QAR Interno soma +1
+  // pelo ponto externo de referência, P1-Ext); na opacidade são os VEÍCULOS; nos
+  // demais, é campo.pontos direto.
   function pontosDoRegistro(registro) {
     var campo = registro.campo || {};
     var sub = campo.subtipo || '';
-    if (sub === 'interno10151' || sub === 'interno10152') {
+    var ehRuidoInterno = (sub === 'interno10151' || sub === 'interno10152');
+    var ehQarInterno = (registro.tipo === 'qarint');
+    if (ehRuidoInterno || ehQarInterno) {
       var flat = [];
       (campo.ambientes || []).forEach(function (amb) {
         var pts = (amb && amb.pontos) || [];
         var calc = parseInt(amb && amb.pontosCalculados, 10);
-        var limite = isNaN(calc) ? pts.length : Math.max(0, calc);
+        var limite = isNaN(calc) ? pts.length : Math.max(0, calc + (ehQarInterno ? 1 : 0));
         pts.slice(0, limite).forEach(function (p) { flat.push(p); });
       });
       return flat;
