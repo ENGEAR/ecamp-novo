@@ -56,14 +56,21 @@
     var nome = (user.email || email).split('@')[0];
 
     // Nome e situação da conta — mesma tabela de usuários do SGP.
-    var q = await sb.from('usuarios').select('nome, ativo').eq('id', user.id).single()
-      .catch(function () { return { data: null }; });
-    if (q && q.data) {
-      if (q.data.ativo === false) {
+    // A consulta do Supabase é "thenable" mas NÃO tem .catch; por isso usamos
+    // try/await. Sem linha, ela resolve com data:null (não estoura).
+    var perfil = null;
+    try {
+      var q = await sb.from('usuarios').select('nome, ativo').eq('id', user.id).single();
+      perfil = (q && q.data) ? q.data : null;
+    } catch (e) {
+      perfil = null; // falha ao ler o perfil não impede o login
+    }
+    if (perfil) {
+      if (perfil.ativo === false) {
         await sb.auth.signOut().catch(function () {});
         throw new Error('🚫 Seu acesso foi desativado. Fale com o administrador do sistema.');
       }
-      if (q.data.nome) nome = q.data.nome;
+      if (perfil.nome) nome = perfil.nome;
     }
 
     return { nome: nome, email: user.email || email };
