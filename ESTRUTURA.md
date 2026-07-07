@@ -85,7 +85,7 @@ Métodos no SGE: Vibração = Usual / Online · QAR (MQAR) e Emissões/Ar Intern
 
 ## 6. "Dados gerais do serviço" — espelha a OS oficial completa
 
-Blocos: **Ordem de serviço** (nº, código, emitido por, data emissão) · **Cliente** (razão social, CNPJ/CPF, endereço, município/UF, contato) · **Local do serviço** (mesmo do contratante) · **Serviço** (serviço, frequência, rota, nº de campanhas) · **Escopo deste serviço** (campanha, escopo, Pontos editável, Dias, Período, Método, Observação) · **Observações da OS** · **Preenchimento** (data/hora).
+Blocos: **Ordem de serviço** (nº, código, emitido por, data emissão) · **Cliente** (razão social, CNPJ/CPF, endereço, município/UF, contato) · **Local do serviço** (endereço/município = mesmo do contratante; **link do Google Maps editável**, comum a todos os escopos — só esse campo do bloco não é somente leitura) · **Serviço** (serviço, frequência, rota, nº de campanhas) · **Escopo deste serviço** (campanha, escopo, Pontos editável, Dias, Período, Método, Observação) · **Observações da OS** · **Preenchimento** (data/hora).
 
 ---
 

@@ -552,7 +552,7 @@ EC.fluxo = (function () {
     // Local do serviço (mesmo do contratante)
     $('dg-localEndereco').value = traco(o.endereco);
     $('dg-localMunicipio').value = traco(o.municipioUF);
-    $('dg-maps').value = traco(o.linkMaps);
+    $('dg-maps').value = o.linkMaps || ''; // editável — sem traço, senão atrapalha colar o link
     // Serviço
     $('dg-resumo').value = traco(o.resumo);
     $('dg-frequencia').value = traco(o.frequencia);
@@ -583,6 +583,13 @@ EC.fluxo = (function () {
       estado.dadosGerais.justificativaPontos = $('dg-justificativa').value;
       salvarEstado();
     };
+    // Local do monitoramento (link do Maps): único campo editável do bloco
+    // "Dados gerais" — os demais vêm fixos da OS. Comum a todos os escopos
+    // (tela roda antes da escolha do tipo).
+    $('dg-maps').oninput = function () {
+      estado.os.linkMaps = $('dg-maps').value;
+      salvarEstado();
+    };
   }
 
   function pontosAlterados() {
@@ -595,9 +602,12 @@ EC.fluxo = (function () {
 
   function coletarDadosGerais() {
     if (!estado) return;
-    // data/hora e Maps são só leitura (vêm da OS/preenchimento automático)
+    // data/hora são só leitura (vêm do preenchimento automático); o link do
+    // Maps já é salvo pelo oninput, mas recolhe aqui também (mesmo padrão de
+    // pontos/justificativa) — cobre o caso de sair sem disparar o evento.
     estado.dadosGerais.qtdePontos = parseInt($('dg-pontos').value, 10) || estado.dadosGerais.qtdePontos;
     estado.dadosGerais.justificativaPontos = $('dg-justificativa').value.trim();
+    estado.os.linkMaps = $('dg-maps').value.trim();
   }
 
   /* ---------- Tipo de monitoramento ---------- */
