@@ -135,6 +135,33 @@ EC.campoQar = (function () {
       selectEquip('equipSeparador', 'Separador inercial', seps);
   }
 
+  // Aviso do carvão do AGV escolhido: mostra a capacidade restante e alerta se as
+  // coletas planejadas (somadas por AGV, em todos os pontos) passam do restante.
+  // O restante vem do SGP na lista de equipamentos (carvaoRestante). Se o dado não
+  // vier (offline/versão antiga do servidor), não mostra nada.
+  function atualizarAvisoCarvao(area) {
+    var div = area.querySelector('.cq-carvao-aviso');
+    if (!div) return;
+    var ponto = campo().pontos[pontoExibido - 1] || {};
+    var cod = ponto.equipAGV;
+    var item = cod ? listaEquipQar().filter(function (x) { return x.codigo === cod; })[0] : null;
+    if (!item || typeof item.carvaoRestante !== 'number') { div.innerHTML = ''; return; }
+    var restante = item.carvaoRestante;
+    // total de coletas planejadas para ESTE AGV, somando todos os pontos.
+    var planejado = 0;
+    (campo().pontos || []).forEach(function (p) {
+      if (p && p.equipAGV === cod) planejado += parseInt(p.qtdeColetas, 10) || 0;
+    });
+    var carv = item.carvaoCodigo ? ('Carvão ' + item.carvaoCodigo + ' · ') : '';
+    if (restante <= 0) {
+      div.innerHTML = '<div class="alerta alerta-vermelho">🔴 ' + carv + 'carvão esgotado — troque o carvão no SGP antes de usar este AGV.</div>';
+    } else if (planejado > restante) {
+      div.innerHTML = '<div class="alerta alerta-amarelo">⚠️ ' + carv + 'restam <strong>' + restante + '</strong> amostragem(ns), mas as coletas planejadas para este AGV somam <strong>' + planejado + '</strong>. Troque o carvão ou reduza as coletas.</div>';
+    } else {
+      div.innerHTML = '<div class="alerta alerta-info">🪨 ' + carv + '<strong>' + restante + '</strong> amostragem(ns) restante(s) no carvão.</div>';
+    }
+  }
+
   // Cronômetro de auxílio (não é salvo) — para cronometrar o teste de vazamento.
   function montarCronometro(div) {
     div.innerHTML =
@@ -240,6 +267,7 @@ EC.campoQar = (function () {
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       htmlEquipamentosQar() +
+      '<div class="cq-carvao-aviso"></div>' +
       '<div class="cq-gps"></div>' +
       '<div class="cq-foto-ponto"></div>' +
       // Calibração
@@ -273,7 +301,14 @@ EC.campoQar = (function () {
     montarFoto(area, '.cq-foto-ponto', ponto, 'fotoPonto', '📷 Foto do ponto (obrigatória)', gpsInstancia, n);
     area.querySelectorAll('.cq-crono').forEach(montarCronometro);
     renderColetas(area, ponto);
-    area.querySelector('[data-campo="qtdeColetas"]').addEventListener('input', function () { renderColetas(area, ponto); });
+    area.querySelector('[data-campo="qtdeColetas"]').addEventListener('input', function () {
+      renderColetas(area, ponto);
+      atualizarAvisoCarvao(area);
+    });
+    // Aviso do carvão: atualiza ao render e quando trocam o AGV.
+    atualizarAvisoCarvao(area);
+    var selAgv = area.querySelector('[data-campo="equipAGV"]');
+    if (selAgv) selAgv.addEventListener('change', function () { atualizarAvisoCarvao(area); });
   }
 
   /* ===== Validação ===== */
