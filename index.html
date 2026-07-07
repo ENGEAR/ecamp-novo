@@ -43,19 +43,38 @@
     <section id="tela-login" class="tela">
       <div class="cartao cartao-login">
         <img src="public/logo-recortada.png" class="logo-login" alt="eCamp — ENGEAR Laboratório">
-        <form id="form-login" autocomplete="off">
-          <label>Nome do técnico
-            <input type="text" id="login-nome" placeholder="Digite seu nome" required>
+        <form id="form-login" autocomplete="on">
+          <label>E-mail
+            <input type="email" id="login-email" placeholder="seu e-mail do SGP" autocomplete="username" autocapitalize="none" required>
           </label>
-          <label>Senha do app
-            <input type="password" id="login-senha" placeholder="Senha" required>
+          <label>Senha
+            <input type="password" id="login-senha" placeholder="Senha" autocomplete="current-password" required>
           </label>
           <label class="linha-check">
-            <input type="checkbox" id="login-salvar-senha">
-            <span>Salvar senha neste dispositivo</span>
+            <input type="checkbox" id="login-ver-senha">
+            <span>Mostrar senha</span>
           </label>
           <div id="login-erro" class="alerta alerta-vermelho oculto"></div>
-          <button type="submit" class="botao botao-primario botao-largo">Entrar</button>
+          <button type="submit" class="botao botao-primario botao-largo" id="login-entrar">Entrar</button>
+          <p class="texto-apoio">Use a conta criada pelo administrador (a mesma do SGP). O primeiro acesso precisa de internet; depois você continua conectado neste aparelho.</p>
+          <p class="texto-apoio">Esqueceu a senha? Peça ao administrador para redefinir.</p>
+        </form>
+
+        <!-- Senha temporária (criada/redefinida pelo admin): obriga a criar a própria senha -->
+        <form id="form-nova-senha" autocomplete="off" class="oculto">
+          <div class="alerta alerta-info">🔑 Sua senha atual é <strong>temporária</strong>. Crie a sua própria senha para continuar.</div>
+          <label>Nova senha
+            <input type="password" id="nova-senha" placeholder="mínimo 8 caracteres" autocomplete="new-password" required>
+          </label>
+          <label>Repita a nova senha
+            <input type="password" id="nova-senha-2" placeholder="digite de novo" autocomplete="new-password" required>
+          </label>
+          <label class="linha-check">
+            <input type="checkbox" id="nova-senha-ver">
+            <span>Mostrar senha</span>
+          </label>
+          <div id="nova-senha-erro" class="alerta alerta-vermelho oculto"></div>
+          <button type="submit" class="botao botao-primario botao-largo" id="nova-senha-salvar">Salvar nova senha</button>
         </form>
       </div>
     </section>
@@ -397,6 +416,8 @@
   <footer id="rodape">eCamp — Software desenvolvido pela ENGEAR Laboratório Ltda</footer>
 
   <script src="js/storage.js"></script>
+  <script src="js/vendor/supabase.js"></script>
+  <script src="js/auth.js"></script>
   <script src="js/db.js"></script>
   <script src="js/sync.js"></script>
   <script src="js/esquemas.js"></script>

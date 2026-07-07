@@ -15,11 +15,10 @@
 (function () {
   'use strict';
 
-  const SENHA_APP = 'campo26*';
   const CHAVE_SESSAO = 'sessao:atual';
-  const CHAVE_SENHA_SALVA = 'sessao:senhaSalva';
+  const CHAVE_ULTIMO_EMAIL = 'sessao:ultimoEmail';
   // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
-  const VERSAO_APP = '0.34.18';
+  const VERSAO_APP = '0.35.0';
 
   function $(id) { return document.getElementById(id); }
 
@@ -112,7 +111,7 @@
     };
   }
 
-  /* ============ Sessão / Login ============ */
+  /* ============ Sessão / Login (e-mail e senha — mesma conta do SGP) ============ */
   function sessaoAtual() { return EC.storage.ler(CHAVE_SESSAO); }
 
   function entrarNoApp() {
@@ -128,41 +127,97 @@
     $('header').classList.add('oculto');
     $('barra-pendencias').classList.add('oculto');
     $('login-erro').classList.add('oculto');
-    $('login-nome').value = '';
-    const senhaSalva = EC.storage.ler(CHAVE_SENHA_SALVA);
-    $('login-senha').value = senhaSalva || '';
-    $('login-salvar-senha').checked = !!senhaSalva;
+    $('form-login').classList.remove('oculto');
+    $('form-nova-senha').classList.add('oculto');
+    $('login-email').value = EC.storage.ler(CHAVE_ULTIMO_EMAIL) || '';
+    $('login-senha').value = '';
     mostrarTela('tela-login');
   }
 
-  $('form-login').addEventListener('submit', function (evento) {
-    evento.preventDefault();
-    const nome = $('login-nome').value.trim();
-    const senha = $('login-senha').value;
+  function mostrarErroLogin(elemento, mensagem) {
+    const erro = $(elemento);
+    erro.textContent = mensagem;
+    erro.classList.remove('oculto');
+  }
 
-    if (senha !== SENHA_APP) {
-      const erro = $('login-erro');
-      erro.textContent = '🛑 Senha incorreta. Verifique e tente novamente.';
-      erro.classList.remove('oculto');
-      return;
-    }
-
-    if ($('login-salvar-senha').checked) {
-      EC.storage.salvar(CHAVE_SENHA_SALVA, senha);
-    } else {
-      EC.storage.remover(CHAVE_SENHA_SALVA);
-    }
+  // Guarda a sessão do app (o supabase-js guarda a dele por conta própria).
+  function salvarSessao(conta) {
     EC.storage.salvar(CHAVE_SESSAO, {
-      nome: nome,
-      senhaSalva: $('login-salvar-senha').checked,
+      nome: conta.nome,
+      email: conta.email,
       entrouEm: new Date().toISOString()
     });
-    entrarNoApp();
+    EC.storage.salvar(CHAVE_ULTIMO_EMAIL, conta.email);
+  }
+
+  let contaPendente = null; // conta que entrou com senha temporária, aguardando a definitiva
+
+  $('form-login').addEventListener('submit', async function (evento) {
+    evento.preventDefault();
+    $('login-erro').classList.add('oculto');
+    const email = $('login-email').value.trim().toLowerCase();
+    const senha = $('login-senha').value;
+    const botao = $('login-entrar');
+    botao.disabled = true;
+    botao.textContent = 'Entrando…';
+    try {
+      const conta = await EC.auth.entrar(email, senha);
+      if (conta.senhaTemporaria) {
+        // Igual ao SGP: senha temporária obriga a criar a própria senha.
+        contaPendente = conta;
+        $('form-login').classList.add('oculto');
+        $('form-nova-senha').classList.remove('oculto');
+        $('nova-senha').focus();
+      } else {
+        salvarSessao(conta);
+        entrarNoApp();
+      }
+    } catch (e) {
+      mostrarErroLogin('login-erro', e.message);
+    } finally {
+      botao.disabled = false;
+      botao.textContent = 'Entrar';
+    }
+  });
+
+  $('form-nova-senha').addEventListener('submit', async function (evento) {
+    evento.preventDefault();
+    $('nova-senha-erro').classList.add('oculto');
+    const nova = $('nova-senha').value;
+    const repete = $('nova-senha-2').value;
+    if (nova.length < 8) { mostrarErroLogin('nova-senha-erro', '🛑 A nova senha deve ter ao menos 8 caracteres.'); return; }
+    if (nova !== repete) { mostrarErroLogin('nova-senha-erro', '🛑 As senhas não conferem.'); return; }
+    const botao = $('nova-senha-salvar');
+    botao.disabled = true;
+    botao.textContent = 'Salvando…';
+    try {
+      await EC.auth.definirNovaSenha(nova);
+      salvarSessao(contaPendente);
+      contaPendente = null;
+      mostrarToast('✅ Senha criada. Bem-vindo(a)!');
+      entrarNoApp();
+    } catch (e) {
+      mostrarErroLogin('nova-senha-erro', e.message);
+    } finally {
+      botao.disabled = false;
+      botao.textContent = 'Salvar nova senha';
+    }
+  });
+
+  // "Mostrar senha" dos dois formulários
+  $('login-ver-senha').addEventListener('change', function () {
+    $('login-senha').type = this.checked ? 'text' : 'password';
+  });
+  $('nova-senha-ver').addEventListener('change', function () {
+    const tipo = this.checked ? 'text' : 'password';
+    $('nova-senha').type = tipo;
+    $('nova-senha-2').type = tipo;
   });
 
   $('chip-usuario').addEventListener('click', function () {
     if (confirm('Sair do eCamp?')) {
       EC.storage.remover(CHAVE_SESSAO);
+      EC.auth.sair();
       prepararLogin();
     }
   });
@@ -436,9 +491,15 @@
 
   /* ============ Inicialização ============ */
   mostrarVersao();
-  if (sessaoAtual()) {
+  // Limpeza da época do login antigo (nome + senha única do app).
+  EC.storage.remover('sessao:senhaSalva');
+  const sessao = sessaoAtual();
+  if (sessao && sessao.email) {
+    // Sessão por e-mail válida: entra direto (funciona offline).
     entrarNoApp();
   } else {
+    // Sem sessão, ou sessão do formato antigo (sem e-mail): pede o novo login.
+    if (sessao) EC.storage.remover(CHAVE_SESSAO);
     prepararLogin();
   }
 })();
