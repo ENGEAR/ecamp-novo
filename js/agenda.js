@@ -798,6 +798,7 @@
     EC.app.mostrarTela('tela-agenda');
     ref = new Date();
     diaSel = iso(new Date());
+    visao = 'mes'; // ao abrir a agenda, começa sempre na visão por MÊS
     recarregar();
   }
 

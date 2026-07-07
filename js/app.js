@@ -18,7 +18,7 @@
   const CHAVE_SESSAO = 'sessao:atual';
   const CHAVE_ULTIMO_EMAIL = 'sessao:ultimoEmail';
   // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
-  const VERSAO_APP = '0.39.2';
+  const VERSAO_APP = '0.39.3';
 
   function $(id) { return document.getElementById(id); }
 
@@ -221,7 +221,8 @@
     EC.fluxo.iniciar();
   });
   $('btn-reembolso').addEventListener('click', function () {
-    EC.reembolso.abrir();
+    // Menu travado temporariamente (o botão fica disabled; isto é reforço).
+    mostrarToast('🔧 Solicitação de reembolso em manutenção.');
   });
   $('btn-agenda-acao').addEventListener('click', function () {
     EC.agenda.abrir();
