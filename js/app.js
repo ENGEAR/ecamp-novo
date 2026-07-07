@@ -18,7 +18,7 @@
   const CHAVE_SESSAO = 'sessao:atual';
   const CHAVE_ULTIMO_EMAIL = 'sessao:ultimoEmail';
   // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
-  const VERSAO_APP = '0.35.2';
+  const VERSAO_APP = '0.36.0';
 
   function $(id) { return document.getElementById(id); }
 
@@ -127,8 +127,6 @@
     $('header').classList.add('oculto');
     $('barra-pendencias').classList.add('oculto');
     $('login-erro').classList.add('oculto');
-    $('form-login').classList.remove('oculto');
-    $('form-nova-senha').classList.add('oculto');
     $('login-email').value = EC.storage.ler(CHAVE_ULTIMO_EMAIL) || '';
     $('login-senha').value = '';
     mostrarTela('tela-login');
@@ -150,8 +148,6 @@
     EC.storage.salvar(CHAVE_ULTIMO_EMAIL, conta.email);
   }
 
-  let contaPendente = null; // conta que entrou com senha temporária, aguardando a definitiva
-
   $('form-login').addEventListener('submit', async function (evento) {
     evento.preventDefault();
     $('login-erro').classList.add('oculto');
@@ -161,17 +157,11 @@
     botao.disabled = true;
     botao.textContent = 'Entrando…';
     try {
+      // Entra direto com e-mail + senha. A senha é gerida pelo admin no SGP
+      // (inicial padrão campo26*; redefinida quando a pessoa pedir).
       const conta = await EC.auth.entrar(email, senha);
-      if (conta.senhaTemporaria) {
-        // Igual ao SGP: senha temporária obriga a criar a própria senha.
-        contaPendente = conta;
-        $('form-login').classList.add('oculto');
-        $('form-nova-senha').classList.remove('oculto');
-        $('nova-senha').focus();
-      } else {
-        salvarSessao(conta);
-        entrarNoApp();
-      }
+      salvarSessao(conta);
+      entrarNoApp();
     } catch (e) {
       mostrarErroLogin('login-erro', e.message);
     } finally {
@@ -180,38 +170,9 @@
     }
   });
 
-  $('form-nova-senha').addEventListener('submit', async function (evento) {
-    evento.preventDefault();
-    $('nova-senha-erro').classList.add('oculto');
-    const nova = $('nova-senha').value;
-    const repete = $('nova-senha-2').value;
-    if (nova.length < 8) { mostrarErroLogin('nova-senha-erro', '🛑 A nova senha deve ter ao menos 8 caracteres.'); return; }
-    if (nova !== repete) { mostrarErroLogin('nova-senha-erro', '🛑 As senhas não conferem.'); return; }
-    const botao = $('nova-senha-salvar');
-    botao.disabled = true;
-    botao.textContent = 'Salvando…';
-    try {
-      await EC.auth.definirNovaSenha(nova);
-      salvarSessao(contaPendente);
-      contaPendente = null;
-      mostrarToast('✅ Senha criada. Bem-vindo(a)!');
-      entrarNoApp();
-    } catch (e) {
-      mostrarErroLogin('nova-senha-erro', e.message);
-    } finally {
-      botao.disabled = false;
-      botao.textContent = 'Salvar nova senha';
-    }
-  });
-
-  // "Mostrar senha" dos dois formulários
+  // "Mostrar senha"
   $('login-ver-senha').addEventListener('change', function () {
     $('login-senha').type = this.checked ? 'text' : 'password';
-  });
-  $('nova-senha-ver').addEventListener('change', function () {
-    const tipo = this.checked ? 'text' : 'password';
-    $('nova-senha').type = tipo;
-    $('nova-senha-2').type = tipo;
   });
 
   $('chip-usuario').addEventListener('click', function () {

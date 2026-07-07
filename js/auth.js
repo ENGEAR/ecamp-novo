@@ -5,15 +5,16 @@
  * SGP (Supabase Auth). Nada de cadastro por fora: se o admin não criou a conta,
  * a pessoa não entra.
  *
- * Regras espelhadas do SGP:
- *  - conta desativada (usuarios.ativo = false) → não entra;
- *  - senha temporária (criada/redefinida pelo admin) → obriga a criar a própria
- *    senha antes de usar o app (igual à tela "Trocar senha" do SGP).
+ * A senha é gerida pelo admin no SGP (tela Usuários): senha inicial padrão
+ * campo26*, redefinida quando a pessoa pedir. O e-CAMP só valida e-mail + senha
+ * e entra direto — sem obrigar a criar senha própria.
+ *
+ * Regra espelhada do SGP: conta desativada (usuarios.ativo = false) → não entra.
  *
  * O primeiro acesso precisa de internet. Depois, a sessão fica guardada no
  * aparelho e o app continua abrindo offline como sempre.
  *
- * Expõe EC.auth = { entrar, definirNovaSenha, sair }
+ * Expõe EC.auth = { entrar, sair }
  */
 (function () {
   'use strict';
@@ -40,8 +41,7 @@
   }
 
   /**
-   * Entra com e-mail e senha. Devolve:
-   *   { nome, email, senhaTemporaria }
+   * Entra com e-mail e senha. Devolve { nome, email }.
    * Em caso de problema, lança Error com mensagem pronta para a tela.
    */
   async function entrar(email, senha) {
@@ -66,27 +66,7 @@
       if (q.data.nome) nome = q.data.nome;
     }
 
-    return {
-      nome: nome,
-      email: user.email || email,
-      senhaTemporaria: !!(user.user_metadata && user.user_metadata.senha_temporaria === true)
-    };
-  }
-
-  /**
-   * Cria a senha definitiva de quem entrou com senha temporária.
-   * A identidade acabou de ser confirmada pelo próprio login.
-   */
-  async function definirNovaSenha(novaSenha) {
-    var sb = obterCliente();
-    if (!sb) throw new Error('🛑 O componente de login não carregou. Feche e abra o app com internet.');
-    var r = await sb.auth.updateUser({ password: novaSenha, data: { senha_temporaria: false } })
-      .catch(function (e) { return { error: e }; });
-    if (r.error) {
-      var m = String(r.error.message || '');
-      if (m.indexOf('different from the old') !== -1) throw new Error('🛑 A nova senha precisa ser diferente da temporária.');
-      throw new Error(erroAmigavel(m));
-    }
+    return { nome: nome, email: user.email || email };
   }
 
   /** Sai da conta (ignora falhas de rede — a sessão local é apagada pelo app). */
@@ -96,5 +76,5 @@
   }
 
   window.EC = window.EC || {};
-  EC.auth = { entrar: entrar, definirNovaSenha: definirNovaSenha, sair: sair };
+  EC.auth = { entrar: entrar, sair: sair };
 })();
