@@ -18,7 +18,7 @@
   const CHAVE_SESSAO = 'sessao:atual';
   const CHAVE_ULTIMO_EMAIL = 'sessao:ultimoEmail';
   // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
-  const VERSAO_APP = '0.40.2';
+  const VERSAO_APP = '0.40.3';
 
   function $(id) { return document.getElementById(id); }
 
@@ -140,9 +140,19 @@
   /* ============ Sessão / Login (e-mail e senha — mesma conta do SGP) ============ */
   function sessaoAtual() { return EC.storage.ler(CHAVE_SESSAO); }
 
+  // Iniciais do nome (ex.: "Raisa Sant'Ana" → "RS") — o nome completo não
+  // cabe no chip do cabeçalho em telas estreitas e desconfigurava o layout.
+  function iniciaisNome(nome) {
+    const partes = (nome || '').trim().split(/\s+/).filter(Boolean);
+    if (!partes.length) return '?';
+    if (partes.length === 1) return partes[0].charAt(0).toUpperCase();
+    return (partes[0].charAt(0) + partes[partes.length - 1].charAt(0)).toUpperCase();
+  }
+
   function entrarNoApp() {
     const sessao = sessaoAtual();
-    $('chip-nome').textContent = sessao.nome;
+    $('chip-nome').textContent = iniciaisNome(sessao.nome);
+    $('chip-nome').title = sessao.nome;
     $('chip-avatar').textContent = (sessao.nome.trim().charAt(0) || '?').toUpperCase();
     $('header').classList.remove('oculto');
     atualizarBarraPendencias();

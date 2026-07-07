@@ -1,19 +1,18 @@
 /**
  * reembolso.js — Solicitação de Reembolso de viagem (módulo Logística)
  *
- * Fluxo da especificação: o técnico escolhe a OS (só com programação
- * CONCLUÍDA), a campanha e o solicitante (técnicos vinculados na Agenda);
- * os dias (viagem/serviço/deslocamento), a categoria (CLT/freelancer), a
- * data de retorno e a distância vêm SOZINHOS do servidor. O app calcula os
- * valores (combustível, aluguel, hospedagem, mão de obra, alimentação) com
- * os valores/diárias vigentes e pergunta "Você concorda com este valor?" —
- * discordou, pede ajuste com justificativa. O servidor recalcula tudo no
- * envio (o app nunca manda valor pronto) e a solicitação entra como
- * "Aguardando aprovação da Logística".
+ * Fluxo: o técnico busca a OS (todas as OS que têm viagem na Agenda aparecem,
+ * concluídas ou não), escolhe a campanha e o solicitante é SEMPRE ele mesmo
+ * (o usuário logado no e-CAMP). Os dias (viagem/serviço/deslocamento), as
+ * datas de ida/volta e a categoria (CLT/freelancer) vêm da Agenda. A distância
+ * vem da OS; se a OS não tiver, o técnico digita. O app calcula os valores e
+ * pergunta "Você concorda com este valor?" — discordou, pede ajuste com
+ * justificativa. O servidor recalcula tudo no envio (o app nunca manda valor
+ * pronto) e a solicitação entra como "Aguardando aprovação da Logística".
  *
- * Offline: a CRIAÇÃO precisa de internet (os dados vêm da Agenda), mas o
- * ENVIO não — se a conexão cair na hora de enviar, o pedido (com anexos)
- * fica na fila (IndexedDB 'pendingReembolso') e sobe sozinho depois.
+ * Offline: a CRIAÇÃO precisa de internet (os dados vêm da Agenda); o ENVIO não
+ * — se a conexão cair, o pedido (com anexos) fica na fila (IndexedDB
+ * 'pendingReembolso') e sobe sozinho depois.
  *
  * Interface (EC.reembolso): abrir() — chamada pelo botão da tela inicial.
  */
@@ -25,14 +24,13 @@ EC.reembolso = (function () {
   var BASE = 'https://engear-sgp.vercel.app/api/logistica';
   var TOKEN = 'f8b17592b0130d95047d37865a14b31570c6381509ccc066';
 
-  var CH_CONTEXTO = 'logistica:contexto';   // cache do contexto (OS elegíveis + valores)
+  var CH_CONTEXTO = 'logistica:contexto';   // cache do contexto (OS + valores)
   var CH_LISTA = 'logistica:lista';         // cache das minhas solicitações
   var LOJA_PENDENTES = 'pendingReembolso';  // fila offline (IndexedDB)
-  var MAX_ANEXOS = 20;                      // por bloco (combustível, pedágio, ajuste…)
+  var MAX_ANEXOS = 20;                      // por bloco
   var LADO_MAXIMO = 1600;                   // resolução máxima das fotos
-  var PDF_MAX_MB = 3.5;                     // limite por PDF (limite de corpo da Vercel)
+  var PDF_MAX_MB = 3.5;                     // limite por PDF (corpo da Vercel)
 
-  // Itens dos valores automáticos ("Você concorda com este valor?")
   var ITENS = [
     { chave: 'transporte',  rotulo: '⛽ Transporte (combustível)' },
     { chave: 'aluguel',     rotulo: '🚗 Aluguel de veículo' },
@@ -43,18 +41,20 @@ EC.reembolso = (function () {
 
   var ctx = null;          // contexto do servidor: { valores, os: [...] }
   var osSel = null, campSel = null, tecSel = null;
-  var anexos = {};         // instâncias do componente de anexos, por bloco
+  var anexos = {};
   var iniciado = false;
 
   function $(id) { return document.getElementById(id); }
   function toast(msg) { if (EC.app && EC.app.mostrarToast) EC.app.mostrarToast(msg); }
+  function sessionNome() { return ((EC.storage.ler('sessao:atual') || {}).nome || '').trim(); }
 
   function moedaBR(v) { return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
   function dataBR(iso) {
-    if (!iso) return '';
+    if (!iso) return '—';
     var p = String(iso).slice(0, 10).split('-');
     return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : String(iso);
   }
+  function opcao(valor, texto) { return '<option value="' + valor + '">' + texto + '</option>'; }
 
   /* ============ HTTP ============ */
 
@@ -185,6 +185,48 @@ EC.reembolso = (function () {
     return { obter: function () { return arquivos.slice(); } };
   }
 
+  /* ============ Dados do usuário / distância ============ */
+
+  // Categoria (CLT/freelancer) do usuário logado: da campanha selecionada;
+  // se não estiver lá, procura o nome em qualquer OS do contexto; senão, CLT.
+  function tipoDoUsuario() {
+    var alvo = sessionNome().toLowerCase();
+    if (campSel) {
+      var t = campSel.tecnicos.filter(function (x) { return x.nome.trim().toLowerCase() === alvo; })[0];
+      if (t) return t.tipo;
+    }
+    var achado = null;
+    (ctx && ctx.os || []).some(function (o) {
+      return (o.campanhas || []).some(function (c) {
+        var t = c.tecnicos.filter(function (x) { return x.nome.trim().toLowerCase() === alvo; })[0];
+        if (t) { achado = t.tipo; return true; }
+        return false;
+      });
+    });
+    return achado || 'clt';
+  }
+
+  function distanciaDaOs() { return osSel && osSel.distanciaKm ? Number(osSel.distanciaKm) : 0; }
+
+  function distanciaAtual() {
+    if (distanciaDaOs() > 0) return distanciaDaOs();
+    var v = parseFloat(String($('rb-distancia').value).replace(/[^\d.,]/g, '').replace(',', '.'));
+    return v > 0 ? v : 0;
+  }
+
+  function pintarDistancia() {
+    var inp = $('rb-distancia'), hint = $('rb-distancia-hint');
+    if (distanciaDaOs() > 0) {
+      inp.value = String(osSel.distanciaKm) + ' km';
+      inp.readOnly = true;
+      hint.textContent = '(vem da OS)';
+    } else {
+      inp.value = '';
+      inp.readOnly = false;
+      hint.textContent = '(não veio da OS — preencha)';
+    }
+  }
+
   /* ============ Cálculo (espelho das regras do servidor) ============ */
 
   function veiculo() {
@@ -197,7 +239,7 @@ EC.reembolso = (function () {
     var v = ctx.valores, c = campSel;
     var preco = parseFloat($('rb-preco-litro').value) || 0;
     var consumo = Number(v.consumo_padrao_kml) || 0;
-    var dist = Number(osSel && osSel.distanciaKm) || 0;
+    var dist = distanciaAtual();
     var r2 = function (x) { return Math.round(x * 100) / 100; };
 
     var combustivel = (preco > 0 && dist > 0 && consumo > 0) ? r2((dist / consumo) * preco) : 0;
@@ -225,7 +267,7 @@ EC.reembolso = (function () {
       ? Number(ctx.valores.teto_diesel) : Number(ctx.valores.teto_gasolina);
   }
 
-  /* ============ Contexto (OS elegíveis + valores) ============ */
+  /* ============ Contexto ============ */
 
   async function atualizarContexto() {
     try {
@@ -239,12 +281,101 @@ EC.reembolso = (function () {
     }
   }
 
-  /* ============ Formulário — montagem e cascata ============ */
+  /* ============ Busca / escolha da OS ============ */
 
-  function opcao(valor, texto) { return '<option value="' + valor + '">' + texto + '</option>'; }
+  function cartaoOsBusca(o) {
+    return (
+      '<button type="button" class="os-item" data-id="' + o.osId + '">' +
+      '  <span class="os-numero">OS ' + o.numero + '</span>' +
+      '  <span class="os-cliente">' + o.cliente + '</span>' +
+      '</button>'
+    );
+  }
+
+  function pintarResultadosOs(termo) {
+    var alvo = $('rb-os-resultados');
+    var lista = (ctx && ctx.os) || [];
+    var t = (termo || '').toLowerCase().trim();
+    var achadas = t
+      ? lista.filter(function (o) { return (o.numero + ' ' + o.cliente).toLowerCase().indexOf(t) !== -1; })
+      : lista;
+    achadas = achadas.slice(0, 12);
+    alvo.innerHTML = achadas.length
+      ? achadas.map(cartaoOsBusca).join('')
+      : '<p class="texto-apoio">Nenhuma OS encontrada.</p>';
+    alvo.querySelectorAll('.os-item[data-id]').forEach(function (item) {
+      item.addEventListener('click', function () {
+        var o = lista.filter(function (x) { return x.osId === item.dataset.id; })[0];
+        if (o) escolherOs(o);
+      });
+    });
+  }
+
+  function escolherOs(o) {
+    osSel = o; campSel = null; tecSel = null;
+    $('rb-os-picker').classList.add('oculto');
+    var chip = $('rb-os-escolhida');
+    chip.innerHTML =
+      '<div class="rb-os-chip">' +
+      '  <div><span class="os-numero">OS ' + o.numero + '</span><br>' +
+      '  <span class="os-cliente">' + o.cliente + '</span></div>' +
+      '  <button type="button" class="botao botao-mini" id="rb-os-trocar">Trocar</button>' +
+      '</div>';
+    chip.classList.remove('oculto');
+    $('rb-os-trocar').addEventListener('click', function () {
+      chip.classList.add('oculto'); chip.innerHTML = '';
+      $('rb-os-picker').classList.remove('oculto');
+      $('rb-os-busca').value = ''; pintarResultadosOs(''); $('rb-os-busca').focus();
+    });
+
+    $('rb-cliente').value = o.cliente || '';
+    pintarDistancia();
+
+    var bloco = $('rb-campanha-bloco'), sel = $('rb-campanha');
+    if (o.campanhas.length > 1) {
+      sel.innerHTML = o.campanhas.map(function (c) {
+        return opcao(c.numero, 'Campanha ' + c.numero + ' — ' + dataBR(c.dataInicio) + ' a ' + dataBR(c.dataRetorno));
+      }).join('');
+      bloco.classList.remove('oculto');
+    } else {
+      sel.innerHTML = o.campanhas.length ? opcao(o.campanhas[0].numero, '1') : '';
+      bloco.classList.add('oculto');
+    }
+    aoEscolherCampanha();
+  }
+
+  function aoEscolherCampanha() {
+    campSel = null; tecSel = null;
+    var n = parseInt($('rb-campanha').value, 10);
+    if (osSel) campSel = (osSel.campanhas || []).filter(function (c) { return c.numero === n; })[0] || null;
+
+    // solicitante é SEMPRE o usuário logado
+    $('rb-solicitante').value = sessionNome();
+    if (campSel) tecSel = { nome: sessionNome(), tipo: tipoDoUsuario() };
+
+    pintarResumoAuto();
+    aoMudarVeiculo();
+  }
+
+  /* ============ Resumo automático (ida/volta + dias + categoria) ============ */
+
+  function pintarResumoAuto() {
+    var alvo = $('rb-auto');
+    if (!campSel) { alvo.classList.add('oculto'); return; }
+    var tipo = tecSel ? (tecSel.tipo === 'freelancer' ? 'Freelancer' : 'CLT') : '—';
+    alvo.innerHTML =
+      '<div><span>Data de ida</span><strong>' + dataBR(campSel.dataInicio) + '</strong></div>' +
+      '<div><span>Data de volta</span><strong>' + dataBR(campSel.dataRetorno) + '</strong></div>' +
+      '<div><span>Dias em viagem</span><strong>' + campSel.diasViagem + '</strong></div>' +
+      '<div><span>Dias de serviço</span><strong>' + campSel.diasServico + '</strong></div>' +
+      '<div><span>Dias de deslocamento</span><strong>' + campSel.diasDeslocamento + '</strong></div>' +
+      '<div><span>Categoria de contratação</span><strong>' + tipo + '</strong></div>';
+    alvo.classList.remove('oculto');
+  }
+
+  /* ============ Valores calculados ============ */
 
   function montarValores() {
-    // estrutura FIXA (montada 1x por solicitação) — os números são atualizados em spans
     $('rb-valores').innerHTML = ITENS.map(function (it) {
       return (
         '<div class="rb-item" id="rb-item-' + it.chave + '">' +
@@ -285,7 +416,9 @@ EC.reembolso = (function () {
 
     var c = campSel, v = ctx.valores;
     var sub = {
-      transporte: (osSel.distanciaKm ? osSel.distanciaKm + ' km ÷ ' + v.consumo_padrao_kml + ' km/L × preço do litro' : 'sem distância cadastrada na OS'),
+      transporte: (distanciaAtual() > 0
+        ? distanciaAtual() + ' km ÷ ' + v.consumo_padrao_kml + ' km/L × preço do litro'
+        : 'informe a distância e o preço do litro'),
       aluguel: moedaBR(v.aluguel_veiculo_dia) + '/dia × ' + c.diasViagem + ' dia(s) de viagem',
       hospedagem: moedaBR(v.hospedagem_dia) + '/dia × ' + c.diasServico + ' dia(s) de serviço',
       mao_obra: tecSel.tipo === 'freelancer'
@@ -299,7 +432,6 @@ EC.reembolso = (function () {
     ITENS.forEach(function (it) {
       $('rb-val-' + it.chave).textContent = moedaBR(calc[it.chave]);
       $('rb-sub-' + it.chave).textContent = sub[it.chave] || '';
-      // aluguel só aparece para veículo próprio; transporte some sem combustível informado
       var esconder = (it.chave === 'aluguel' && veiculo() !== 'proprio') ||
                      (it.chave === 'transporte' && calc.transporte <= 0);
       $('rb-item-' + it.chave).classList.toggle('oculto', esconder);
@@ -335,75 +467,6 @@ EC.reembolso = (function () {
     pintarValores();
   }
 
-  function pintarResumoAuto() {
-    var alvo = $('rb-auto');
-    if (!campSel || !tecSel) { alvo.classList.add('oculto'); return; }
-    alvo.innerHTML =
-      '<div><span>Categoria de contratação</span><strong>' + (tecSel.tipo === 'freelancer' ? 'Freelancer' : 'CLT') + '</strong></div>' +
-      '<div><span>Data de retorno da viagem</span><strong>' + dataBR(campSel.dataRetorno) + '</strong></div>' +
-      '<div><span>Dias em viagem</span><strong>' + campSel.diasViagem + '</strong></div>' +
-      '<div><span>Dias de serviço</span><strong>' + campSel.diasServico + '</strong></div>' +
-      '<div><span>Dias de deslocamento</span><strong>' + campSel.diasDeslocamento + '</strong></div>';
-    alvo.classList.remove('oculto');
-  }
-
-  function aoEscolherCampanha() {
-    campSel = null; tecSel = null;
-    var n = parseInt($('rb-campanha').value, 10);
-    if (osSel) campSel = (osSel.campanhas || []).filter(function (c) { return c.numero === n; })[0] || null;
-
-    var sel = $('rb-solicitante');
-    var nomeSessao = ((EC.storage.ler('sessao:atual') || {}).nome || '').trim().toLowerCase();
-    if (campSel && campSel.tecnicos.length === 0) {
-      // dias puxados do Resumo entram sem técnicos — precisam ser incluídos na Agenda
-      sel.innerHTML = opcao('', 'Nenhum técnico vinculado na Agenda');
-      mostrarErro('Esta OS não tem técnicos vinculados nos dias da Agenda. Peça para incluir os técnicos nos dias (na Agenda) e tente de novo.');
-    } else if (campSel) {
-      mostrarErro(null);
-      sel.innerHTML = opcao('', 'Selecione…') + campSel.tecnicos.map(function (t) {
-        return opcao(t.nome, t.nome + (t.tipo === 'freelancer' ? ' (Freelancer)' : ' (CLT)'));
-      }).join('');
-      // pré-seleciona quem está logado, se estiver na lista
-      var meu = campSel.tecnicos.filter(function (t) { return t.nome.trim().toLowerCase() === nomeSessao; })[0];
-      if (meu) { sel.value = meu.nome; }
-    } else {
-      sel.innerHTML = opcao('', 'Escolha a OS primeiro');
-    }
-    aoEscolherSolicitante();
-  }
-
-  function aoEscolherSolicitante() {
-    tecSel = null;
-    if (campSel) {
-      var nome = $('rb-solicitante').value;
-      tecSel = campSel.tecnicos.filter(function (t) { return t.nome === nome; })[0] || null;
-    }
-    pintarResumoAuto();
-    aoMudarVeiculo(); // re-renderiza aluguel + valores
-  }
-
-  function aoEscolherOs() {
-    osSel = null; campSel = null; tecSel = null;
-    var id = $('rb-os').value;
-    osSel = (ctx && ctx.os || []).filter(function (o) { return o.osId === id; })[0] || null;
-
-    $('rb-cliente').value = osSel ? osSel.cliente : '';
-    $('rb-distancia').value = osSel && osSel.distanciaKm ? String(osSel.distanciaKm) + ' km' : 'não cadastrada';
-
-    var bloco = $('rb-campanha-bloco');
-    var sel = $('rb-campanha');
-    if (osSel && osSel.campanhas.length > 1) {
-      sel.innerHTML = osSel.campanhas.map(function (c) {
-        return opcao(c.numero, 'Campanha ' + c.numero + ' — retorno ' + dataBR(c.dataRetorno));
-      }).join('');
-      bloco.classList.remove('oculto');
-    } else {
-      sel.innerHTML = osSel && osSel.campanhas.length ? opcao(osSel.campanhas[0].numero, '1') : '';
-      bloco.classList.add('oculto');
-    }
-    aoEscolherCampanha();
-  }
-
   /* ============ Nova solicitação ============ */
 
   async function abrirNovo() {
@@ -415,14 +478,17 @@ EC.reembolso = (function () {
     $('rb-form').classList.toggle('oculto', !temCtx);
     if (!temCtx) return;
 
-    // zera o formulário
     osSel = null; campSel = null; tecSel = null;
-    $('rb-os').innerHTML = opcao('', ctx.os.length ? 'Selecione…' : 'Nenhuma OS com programação concluída') +
-      ctx.os.map(function (o) { return opcao(o.osId, 'OS ' + o.numero + ' — ' + o.cliente); }).join('');
+    $('rb-os-escolhida').classList.add('oculto');
+    $('rb-os-escolhida').innerHTML = '';
+    $('rb-os-picker').classList.remove('oculto');
+    $('rb-os-busca').value = '';
+    pintarResultadosOs('');
     $('rb-cliente').value = '';
     $('rb-distancia').value = '';
+    $('rb-distancia-hint').textContent = '';
     $('rb-campanha-bloco').classList.add('oculto');
-    $('rb-solicitante').innerHTML = opcao('', 'Escolha a OS primeiro');
+    $('rb-solicitante').value = sessionNome();
     document.querySelectorAll('input[name="rb-veiculo"]').forEach(function (r) { r.checked = false; });
     $('rb-transporte-campos').classList.add('oculto');
     $('rb-combustivel').value = '';
@@ -431,7 +497,7 @@ EC.reembolso = (function () {
     $('rb-teto-alerta').classList.add('oculto');
     $('rb-teto-just').classList.add('oculto');
     $('rb-pedagio').value = '';
-    montarValores();       // recria itens + anexos zerados
+    montarValores();
     pintarResumoAuto();
     pintarValores();
   }
@@ -452,7 +518,8 @@ EC.reembolso = (function () {
       solicitante: pedido.solicitante, veiculo: pedido.veiculo,
       tipoCombustivel: pedido.tipoCombustivel, precoLitro: pedido.precoLitro,
       combustivelJustificativa: pedido.combustivelJustificativa,
-      valorPedagio: pedido.valorPedagio, ajustes: pedido.ajustes
+      valorPedagio: pedido.valorPedagio, distanciaManual: pedido.distanciaManual,
+      ajustes: pedido.ajustes
     });
     var lista = pedido.anexos || [];
     for (var i = 0; i < lista.length; i++) {
@@ -466,15 +533,18 @@ EC.reembolso = (function () {
   }
 
   async function enviarFormulario() {
-    if (!osSel) return mostrarErro('Escolha a Ordem de Serviço.');
+    if (!osSel) return mostrarErro('Busque e escolha a Ordem de Serviço.');
     if (!campSel) return mostrarErro('Escolha a campanha.');
-    if (!tecSel) return mostrarErro('Escolha o solicitante (técnico vinculado à OS na Agenda).');
+    if (!sessionNome()) return mostrarErro('Sua sessão expirou — entre de novo no app.');
     if (!veiculo()) return mostrarErro('Responda: o veículo é da ENGEAR ou do colaborador?');
 
     var preco = parseFloat($('rb-preco-litro').value) || 0;
     var tipoComb = $('rb-combustivel').value;
     if (preco > 0 && !tipoComb) return mostrarErro('Escolha o tipo de combustível (gasolina ou diesel).');
     if (tipoComb && !(preco > 0)) return mostrarErro('Informe o preço por litro do combustível.');
+    if (tipoComb && preco > 0 && distanciaAtual() <= 0) {
+      return mostrarErro('Informe a distância percorrida (km) para calcular o combustível.');
+    }
     if (preco > tetoDoCombustivel() && tipoComb) {
       if (!$('rb-comb-justificativa').value.trim()) {
         return mostrarErro('O preço por litro passou do teto — a justificativa é obrigatória.');
@@ -484,7 +554,6 @@ EC.reembolso = (function () {
       }
     }
 
-    // decisões dos valores automáticos
     var calc = calcular();
     var ajustes = [];
     for (var i = 0; i < ITENS.length; i++) {
@@ -499,7 +568,6 @@ EC.reembolso = (function () {
     }
     mostrarErro(null);
 
-    // junta os anexos de todos os blocos
     var todosAnexos = [];
     Object.keys(anexos).forEach(function (bloco) {
       anexos[bloco].obter().forEach(function (a) {
@@ -512,15 +580,15 @@ EC.reembolso = (function () {
       osId: osSel.osId,
       os: osSel.numero,
       campanha: campSel.numero,
-      solicitante: tecSel.nome,
+      solicitante: sessionNome(),
       veiculo: veiculo(),
       tipoCombustivel: tipoComb || null,
       precoLitro: preco > 0 ? preco : null,
       combustivelJustificativa: $('rb-comb-justificativa').value.trim(),
       valorPedagio: parseFloat($('rb-pedagio').value) || 0,
+      distanciaManual: distanciaDaOs() > 0 ? null : distanciaAtual(),
       ajustes: ajustes,
       anexos: todosAnexos,
-      // só para exibir na fila offline:
       valorTotal: calc ? calc.total : 0,
       dataRetorno: campSel.dataRetorno,
       cliente: osSel.cliente,
@@ -536,7 +604,6 @@ EC.reembolso = (function () {
       atualizarListaDoServidor();
     } catch (e) {
       if (e.rejeitado) {
-        // o servidor recusou de verdade (dados inválidos) — não adianta guardar
         botao.disabled = false;
         botao.textContent = 'Enviar solicitação ✓';
         return mostrarErro(e.message);
@@ -574,7 +641,6 @@ EC.reembolso = (function () {
         ok++;
       } catch (e) {
         if (e.rejeitado) {
-          // inválido no servidor: tira da fila e avisa (não fica preso para sempre)
           try { await EC.db.remove(LOJA_PENDENTES, chaves[i]); } catch (e2) { /* ok */ }
           toast('⚠️ Uma solicitação guardada foi recusada pelo servidor: ' + e.message);
         }
@@ -614,7 +680,7 @@ EC.reembolso = (function () {
       '  <div class="rb-pedido-topo"><span class="os-numero">OS ' + (p.os || '?') + '</span>' +
       '    <span class="rb-status ' + st.cls + '">' + st.txt + '</span></div>' +
       '  <div class="rb-pedido-linha"><strong>' + moedaBR(p.valor_total != null ? p.valor_total : p.valorTotal) + '</strong>' +
-      (retorno ? ' · retorno ' + retorno : '') + '</div>' +
+      (retorno !== '—' ? ' · retorno ' + retorno : '') + '</div>' +
       (p.cliente ? '<div class="os-resumo">' + p.cliente + '</div>' : '') +
       obs + pagoInfo +
       '</div>'
@@ -622,7 +688,7 @@ EC.reembolso = (function () {
   }
 
   function listaEmCache() {
-    var nome = ((EC.storage.ler('sessao:atual') || {}).nome || '').trim();
+    var nome = sessionNome();
     var cache = EC.storage.ler(CH_LISTA);
     if (cache && cache.solicitante === nome && Array.isArray(cache.pedidos)) return cache.pedidos;
     return [];
@@ -646,7 +712,7 @@ EC.reembolso = (function () {
   }
 
   async function atualizarListaDoServidor() {
-    var nome = ((EC.storage.ler('sessao:atual') || {}).nome || '').trim();
+    var nome = sessionNome();
     if (!nome) return;
     try {
       var corpo = await getJson(BASE + '/lista?solicitante=' + encodeURIComponent(nome));
@@ -666,14 +732,14 @@ EC.reembolso = (function () {
     $('rb-cancelar').addEventListener('click', function () { EC.app.mostrarTela('tela-reembolso'); pintarLista(); });
     $('rb-enviar').addEventListener('click', enviarFormulario);
 
-    $('rb-os').addEventListener('change', aoEscolherOs);
+    $('rb-os-busca').addEventListener('input', function () { pintarResultadosOs(this.value); });
     $('rb-campanha').addEventListener('change', aoEscolherCampanha);
-    $('rb-solicitante').addEventListener('change', aoEscolherSolicitante);
     document.querySelectorAll('input[name="rb-veiculo"]').forEach(function (r) {
       r.addEventListener('change', aoMudarVeiculo);
     });
     $('rb-combustivel').addEventListener('change', function () { pintarTeto(); pintarValores(); });
     $('rb-preco-litro').addEventListener('input', function () { pintarTeto(); pintarValores(); });
+    $('rb-distancia').addEventListener('input', pintarValores);
     $('rb-pedagio').addEventListener('input', pintarValores);
   }
 
@@ -683,7 +749,7 @@ EC.reembolso = (function () {
     pintarLista();
     enviarPendentes(true);
     atualizarListaDoServidor();
-    atualizarContexto(); // deixa o contexto fresquinho para a "Nova solicitação"
+    atualizarContexto();
   }
 
   window.addEventListener('online', function () { enviarPendentes(true); });

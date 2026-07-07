@@ -291,17 +291,21 @@
     <section id="tela-reembolso-novo" class="tela oculto">
       <div class="cartao">
         <h1>💰 Nova solicitação de reembolso</h1>
-        <p class="texto-apoio">Os dias e os valores são calculados sozinhos a partir da Agenda. Só aparecem OS com a programação concluída.</p>
+        <p class="texto-apoio">Os dias e os valores são calculados sozinhos a partir da Agenda.</p>
         <div id="rb-offline" class="alerta alerta-vermelho oculto">📡 Sem internet. Para começar uma solicitação é preciso estar conectado (os dados vêm da Agenda). Tente de novo quando a conexão voltar.</div>
 
         <div id="rb-form">
           <p class="dg-secao">Serviço</p>
-          <label>Ordem de Serviço<select id="rb-os"></select></label>
+          <div id="rb-os-escolhida" class="oculto"></div>
+          <div id="rb-os-picker">
+            <input type="text" id="rb-os-busca" placeholder="🔎 Buscar OS por número ou cliente" autocomplete="off">
+            <div id="rb-os-resultados"></div>
+          </div>
           <label>Cliente<input type="text" id="rb-cliente" readonly placeholder="Preenchido pela OS"></label>
           <div id="rb-campanha-bloco" class="oculto">
             <label>Campanha<select id="rb-campanha"></select></label>
           </div>
-          <label>Solicitante<select id="rb-solicitante"></select></label>
+          <label>Solicitante<input type="text" id="rb-solicitante" readonly></label>
           <div id="rb-auto" class="rb-resumo-auto oculto"></div>
 
           <p class="dg-secao">Transporte</p>
@@ -312,7 +316,7 @@
           </div>
           <div id="rb-transporte-campos" class="oculto">
             <div id="rb-aluguel-info" class="alerta alerta-info oculto"></div>
-            <label>Distância total percorrida (km) <span class="rotulo-apoio">(da OS)</span><input type="text" id="rb-distancia" readonly></label>
+            <label>Distância total percorrida (km) <span class="rotulo-apoio" id="rb-distancia-hint"></span><input type="text" id="rb-distancia" inputmode="decimal" placeholder="Digite os km percorridos"></label>
             <div class="grade-2">
               <label>Tipo de combustível
                 <select id="rb-combustivel">
@@ -337,7 +341,7 @@
           <div id="rb-anexos-pedagio"></div>
 
           <p class="dg-secao">Valores calculados</p>
-          <p class="texto-apoio">Confira cada valor. Se não concordar, peça o ajuste com uma justificativa — a Logística decide.</p>
+          <p class="texto-apoio">Confira cada valor. Se não concordar, peça o ajuste com uma justificativa.</p>
           <div id="rb-valores"></div>
           <div id="rb-total" class="rb-total oculto"></div>
 
