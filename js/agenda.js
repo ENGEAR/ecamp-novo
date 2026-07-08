@@ -106,13 +106,16 @@
     var cli = sb();
     if (!cli) throw new Error('sem cliente');
     var q = await cli.from('agendamentos')
-      .select('id, proposta_id, ordem_servico_id, manual, empresa, cidade, uf, servico, projeto, data, status, observacoes, campanha_numero, tipo, tecnicos, proposta:proposta_id(ano, seq), ordem_servico:ordem_servico_id(numero)')
+      .select('id, proposta_id, ordem_servico_id, manual, empresa, cidade, uf, servico, projeto, data, status, observacoes, campanha_numero, tipo, tecnicos, proposta:proposta_id(ano, seq, codigo_origem), ordem_servico:ordem_servico_id(numero)')
       .order('data');
     if (q.error) throw new Error(q.error.message);
     eventos = (q.data || []).map(function (a) {
-      var os = (a.ordem_servico && a.ordem_servico.numero) ||
-        (a.proposta && a.proposta.ano != null && a.proposta.seq != null
-          ? 'OS ' + a.proposta.ano + String(a.proposta.seq).padStart(3, '0') : null);
+      // Número da OS: da OS vinculada; senão, do codigo_origem da proposta (número
+      // real, ex.: 26249). Só cai no ano+seq se não houver codigo_origem.
+      var os = null;
+      if (a.ordem_servico && a.ordem_servico.numero) os = a.ordem_servico.numero;
+      else if (a.proposta && a.proposta.codigo_origem) os = 'OS ' + String(a.proposta.codigo_origem).split('_')[1];
+      else if (a.proposta && a.proposta.ano != null && a.proposta.seq != null) os = 'OS ' + a.proposta.ano + String(a.proposta.seq).padStart(3, '0');
       return {
         id: a.id, proposta_id: a.proposta_id || null, ordem_servico_id: a.ordem_servico_id || null,
         os: os, empresa: a.empresa || '—', cidade: a.cidade || '', uf: a.uf || '',
