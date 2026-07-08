@@ -37,6 +37,11 @@ EC.aprovacoes = (function () {
     var p = sessao().papeis || [];
     return p.indexOf('logistica') !== -1 || p.indexOf('admin') !== -1;
   }
+  function ehFinanceiro() {
+    var p = sessao().papeis || [];
+    return p.indexOf('financeiro') !== -1 || p.indexOf('admin') !== -1;
+  }
+  function podeAlgumaAcao() { return ehLogistica() || ehFinanceiro(); }
 
   // Sessões antigas podem não ter os papéis gravados — busca uma vez.
   async function garantirPapeis() {
@@ -48,13 +53,13 @@ EC.aprovacoes = (function () {
 
   /* ============ Sino / badge no topo ============ */
 
-  async function contarPendentes() {
+  async function contarStatus(status) {
     var cli = sb();
     if (!cli) return 0;
     try {
       var q = await cli.from('logistica_solicitacoes')
         .select('id', { count: 'exact', head: true })
-        .eq('status', 'aguardando_logistica');
+        .eq('status', status);
       return q.count || 0;
     } catch (e) { return 0; }
   }
@@ -63,9 +68,12 @@ EC.aprovacoes = (function () {
     var botao = $('btn-aprovacoes');
     if (!botao) return;
     await garantirPapeis();
-    botao.classList.toggle('oculto', !ehLogistica());
-    if (!ehLogistica()) return;
-    var n = await contarPendentes();
+    // O sino aparece p/ quem aprova (Logística) OU quem paga (Financeiro).
+    botao.classList.toggle('oculto', !podeAlgumaAcao());
+    if (!podeAlgumaAcao()) return;
+    var n = 0;
+    if (ehLogistica()) n += await contarStatus('aguardando_logistica');
+    if (ehFinanceiro()) n += await contarStatus('aguardando_pagamento');
     var badge = $('sino-badge');
     if (n > 0) { badge.textContent = n > 99 ? '99+' : String(n); badge.classList.remove('oculto'); }
     else badge.classList.add('oculto');
@@ -73,13 +81,17 @@ EC.aprovacoes = (function () {
 
   /* ============ Lista de pendentes ============ */
 
+  var COLS_LISTA = 'id, os, cliente, solicitante, designado, valor_total, percentual_solicitado, valor_solicitado, status, created_at';
+
   function cartao(s) {
     var pct = s.percentual_solicitado != null ? Number(s.percentual_solicitado) : 100;
     var valor = s.valor_solicitado != null ? s.valor_solicitado : s.valor_total;
+    var chip = s.status === 'aguardando_pagamento'
+      ? '<span class="rb-status rb-aprovado">✅ Aguardando pagamento</span>'
+      : '<span class="rb-status rb-pendente">⏳ Aguardando aprovação</span>';
     return (
       '<button type="button" class="rb-pedido apr-cartao" data-id="' + s.id + '">' +
-      '  <div class="rb-pedido-topo"><span class="os-numero">OS ' + esc(s.os) + '</span>' +
-      '    <span class="rb-status rb-pendente">⏳ Aguardando</span></div>' +
+      '  <div class="rb-pedido-topo"><span class="os-numero">OS ' + esc(s.os) + '</span>' + chip + '</div>' +
       '  <div class="rb-pedido-linha"><strong>' + moeda(valor) + '</strong>' + (pct < 100 ? ' (' + pct + '% de ' + moeda(s.valor_total) + ')' : '') + '</div>' +
       (s.cliente ? '  <div class="os-resumo">' + esc(s.cliente) + '</div>' : '') +
       '  <div class="os-resumo">👷 ' + esc(s.designado || '—') + ' · ✍️ ' + esc(s.solicitante || '—') + '</div>' +
@@ -87,20 +99,30 @@ EC.aprovacoes = (function () {
     );
   }
 
+  async function buscarStatus(cli, status) {
+    var q = await cli.from('logistica_solicitacoes').select(COLS_LISTA)
+      .eq('status', status).order('created_at', { ascending: true });
+    if (q.error) throw q.error;
+    return q.data || [];
+  }
+
   async function pintarLista() {
     var area = $('apr-lista');
     area.innerHTML = '<p class="texto-apoio">Carregando…</p>';
     var cli = sb();
-    if (!cli) { area.innerHTML = '<p class="texto-apoio">📡 Sem conexão. Abra com internet para ver e aprovar.</p>'; return; }
+    if (!cli) { area.innerHTML = '<p class="texto-apoio">📡 Sem conexão. Abra com internet para ver e decidir.</p>'; return; }
     try {
-      var q = await cli.from('logistica_solicitacoes')
-        .select('id, os, cliente, solicitante, designado, valor_total, percentual_solicitado, valor_solicitado, created_at')
-        .eq('status', 'aguardando_logistica')
-        .order('created_at', { ascending: true });
-      if (q.error) throw q.error;
-      var lista = q.data || [];
-      if (!lista.length) { area.innerHTML = '<p class="texto-apoio">🎉 Nenhuma solicitação aguardando aprovação.</p>'; return; }
-      area.innerHTML = lista.map(cartao).join('');
+      var secoes = [];
+      if (ehLogistica()) secoes.push({ titulo: '⏳ Aguardando aprovação da Logística', itens: await buscarStatus(cli, 'aguardando_logistica') });
+      if (ehFinanceiro()) secoes.push({ titulo: '💰 Aguardando pagamento (Financeiro)', itens: await buscarStatus(cli, 'aguardando_pagamento') });
+
+      var totalItens = secoes.reduce(function (t, s) { return t + s.itens.length; }, 0);
+      if (!totalItens) { area.innerHTML = '<p class="texto-apoio">🎉 Nada pendente por aqui.</p>'; return; }
+
+      area.innerHTML = secoes.map(function (sec) {
+        return '<p class="dg-secao">' + sec.titulo + ' (' + sec.itens.length + ')</p>' +
+          (sec.itens.length ? sec.itens.map(cartao).join('') : '<p class="texto-apoio">Nada pendente.</p>');
+      }).join('');
       area.querySelectorAll('.apr-cartao[data-id]').forEach(function (el) {
         el.addEventListener('click', function () { abrirDetalhe(el.dataset.id); });
       });
@@ -275,8 +297,10 @@ EC.aprovacoes = (function () {
     EC.app.mostrarTela('tela-aprovacao-detalhe');
     window.scrollTo(0, 0);
     $('apr-obs').value = '';
+    $('apr-acao-logistica').classList.add('oculto');
+    $('apr-acao-pagamento').classList.add('oculto');
     mostrarErro(null);
-    detalheAtual = null; orcAtual = null;
+    detalheAtual = null; orcAtual = null; pagUploader = null;
     var area = $('apr-detalhe');
     area.innerHTML = '<p class="texto-apoio">Carregando…</p>';
     $('apr-anexos').innerHTML = '';
@@ -295,6 +319,7 @@ EC.aprovacoes = (function () {
       orcAtual = res[2];
       area.innerHTML = renderDetalhe(s, (res[0].data) || []);
       renderAnexos(cli, (res[1].data) || []);
+      mostrarAcoes(s);
     } catch (e) {
       area.innerHTML = '<p class="texto-apoio">⚠️ Não consegui carregar: ' + esc(e.message || 'erro') + '</p>';
     }
@@ -355,6 +380,164 @@ EC.aprovacoes = (function () {
     botoes.forEach(function (b) { $(b).disabled = false; });
   }
 
+  /* ============ Ações: mostra o bloco certo por status × papel ============ */
+
+  var pagUploader = null;
+
+  function mostrarAcoes(s) {
+    var bLog = $('apr-acao-logistica'), bPag = $('apr-acao-pagamento');
+    bLog.classList.add('oculto'); bPag.classList.add('oculto');
+    if (s.status === 'aguardando_logistica' && ehLogistica()) {
+      $('apr-obs').value = '';
+      bLog.classList.remove('oculto');
+    } else if (s.status === 'aguardando_pagamento' && ehFinanceiro()) {
+      $('pag-data').value = hojeISO();
+      $('pag-forma').value = '';
+      pagUploader = criarUploadComprovante($('pag-anexos'));
+      bPag.classList.remove('oculto');
+    }
+  }
+
+  function hojeISO() {
+    var d = new Date();
+    function dois(n) { return n < 10 ? '0' + n : '' + n; }
+    return d.getFullYear() + '-' + dois(d.getMonth() + 1) + '-' + dois(d.getDate());
+  }
+
+  /* ============ Comprovante do pagamento (foto/galeria/PDF) ============ */
+
+  var LADO_MAXIMO = 1600, PDF_MAX_MB = 3.5;
+
+  function criarUploadComprovante(container) {
+    var arquivos = [];
+    container.innerHTML =
+      '<div class="anx">' +
+      '  <div class="anx-lista"></div>' +
+      '  <div class="anx-botoes">' +
+      '    <button type="button" class="botao botao-secundario pg-foto">📷 Foto</button>' +
+      '    <button type="button" class="botao botao-secundario pg-galeria">🖼️ Galeria</button>' +
+      '    <button type="button" class="botao botao-secundario pg-pdf">📎 PDF</button>' +
+      '  </div>' +
+      '  <input type="file" accept="image/*" capture="environment" class="pg-e-foto" hidden>' +
+      '  <input type="file" accept="image/*" class="pg-e-galeria" hidden>' +
+      '  <input type="file" accept="application/pdf" class="pg-e-pdf" hidden>' +
+      '  <div class="anx-status"></div>' +
+      '</div>';
+    var lista = container.querySelector('.anx-lista');
+    var status = container.querySelector('.anx-status');
+
+    function render() {
+      lista.innerHTML = arquivos.map(function (a, i) {
+        var v = a.mime === 'application/pdf'
+          ? '<span class="anx-pdf-icone">📄</span>'
+          : '<img src="data:image/jpeg;base64,' + a.base64 + '" alt="comprovante" data-ver="' + i + '">';
+        return '<div class="anx-item">' + v + '<span class="anx-nome">' + esc(a.nomeArquivo) + '</span>' +
+          '<button type="button" class="anx-remover" data-i="' + i + '">✕</button></div>';
+      }).join('');
+      lista.querySelectorAll('.anx-remover').forEach(function (b) {
+        b.addEventListener('click', function () { arquivos.splice(parseInt(b.dataset.i, 10), 1); render(); });
+      });
+      lista.querySelectorAll('img[data-ver]').forEach(function (img) {
+        img.addEventListener('click', function () { abrirLightboxUrl('data:image/jpeg;base64,' + arquivos[parseInt(img.dataset.ver, 10)].base64); });
+      });
+    }
+    function carimbo() { var d = new Date(); function z(n) { return n < 10 ? '0' + n : '' + n; } return '' + d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + '_' + z(d.getHours()) + z(d.getMinutes()) + z(d.getSeconds()); }
+    function processarImagem(arq, pronto) {
+      var leitor = new FileReader();
+      leitor.onload = function () {
+        var img = new Image();
+        img.onload = function () {
+          var escala = Math.min(1, LADO_MAXIMO / Math.max(img.width, img.height));
+          var canvas = document.createElement('canvas');
+          canvas.width = Math.round(img.width * escala); canvas.height = Math.round(img.height * escala);
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          arquivos.push({ nomeArquivo: 'COMPROVANTE_' + carimbo() + '.jpg', base64: canvas.toDataURL('image/jpeg', 0.85).split(',')[1], mime: 'image/jpeg' });
+          pronto(true);
+        };
+        img.onerror = function () { pronto(false); };
+        img.src = leitor.result;
+      };
+      leitor.onerror = function () { pronto(false); };
+      leitor.readAsDataURL(arq);
+    }
+    function ligarImagem(input) {
+      input.addEventListener('change', function () {
+        var arq = input.files && input.files[0];
+        if (!arq) return;
+        status.textContent = '⏳ Processando…';
+        processarImagem(arq, function (ok) { render(); status.textContent = ok ? '✅ Comprovante adicionado.' : '⚠️ Não consegui ler a imagem.'; input.value = ''; });
+      });
+    }
+    ligarImagem(container.querySelector('.pg-e-foto'));
+    ligarImagem(container.querySelector('.pg-e-galeria'));
+    container.querySelector('.pg-e-pdf').addEventListener('change', function () {
+      var arq = this.files && this.files[0];
+      if (!arq) return;
+      if (arq.size > PDF_MAX_MB * 1024 * 1024) { status.textContent = '⚠️ PDF muito grande (máx. ' + PDF_MAX_MB + ' MB).'; this.value = ''; return; }
+      var leitor = new FileReader();
+      leitor.onload = function () {
+        arquivos.push({ nomeArquivo: (arq.name || ('comprovante_' + carimbo() + '.pdf')).replace(/[^\w.\-()À-ſ ]+/g, '_'), base64: String(leitor.result).split(',')[1], mime: 'application/pdf' });
+        render(); status.textContent = '✅ PDF anexado.';
+      };
+      leitor.readAsDataURL(arq);
+    });
+    container.querySelector('.pg-foto').addEventListener('click', function () { container.querySelector('.pg-e-foto').click(); });
+    container.querySelector('.pg-galeria').addEventListener('click', function () { container.querySelector('.pg-e-galeria').click(); });
+    container.querySelector('.pg-pdf').addEventListener('click', function () { container.querySelector('.pg-e-pdf').click(); });
+    render();
+    return { obter: function () { return arquivos.slice(); } };
+  }
+
+  function b64ParaBytes(b64) {
+    var bin = atob(b64), n = bin.length, bytes = new Uint8Array(n);
+    for (var i = 0; i < n; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+
+  async function registrarPagamento() {
+    var s = detalheAtual;
+    if (!s) return;
+    var data = $('pag-data').value;
+    var forma = $('pag-forma').value;
+    var comprovantes = pagUploader ? pagUploader.obter() : [];
+    if (!data) return mostrarErro('Informe a data do pagamento.');
+    if (!forma) return mostrarErro('Escolha a forma de pagamento.');
+    if (!comprovantes.length) return mostrarErro('Anexe o comprovante do pagamento (foto ou PDF).');
+    var cli = sb();
+    if (!cli) return mostrarErro('Sem conexão — abra com internet para registrar o pagamento.');
+    mostrarErro(null);
+
+    var botao = $('pag-registrar');
+    botao.disabled = true; botao.textContent = '⏳ Registrando…';
+    try {
+      var user = (await cli.auth.getUser()).data.user;
+      // 1) sobe os comprovantes no bucket (bloco 'pagamento')
+      for (var i = 0; i < comprovantes.length; i++) {
+        var c = comprovantes[i];
+        var caminho = s.os + '/' + s.codigo + '/pagamento/' + c.nomeArquivo;
+        var up = await cli.storage.from('logistica').upload(caminho, b64ParaBytes(c.base64), { contentType: c.mime, upsert: true });
+        if (up.error) throw up.error;
+        await cli.from('logistica_anexos').insert({ solicitacao_id: s.id, bloco: 'pagamento', arquivo: c.nomeArquivo, url: caminho, mime: c.mime });
+      }
+      // 2) marca como pago (só se ainda estiver aguardando pagamento)
+      var upd = await cli.from('logistica_solicitacoes')
+        .update({ status: 'pago', pago_em: data, forma_pagamento: forma, pago_por: user ? user.id : null })
+        .eq('id', s.id).eq('status', 'aguardando_pagamento').select('id');
+      if (upd.error) throw upd.error;
+      if (!upd.data || !upd.data.length) {
+        toast('Este pagamento já foi registrado por outra pessoa.');
+      } else {
+        try { await cli.from('logistica_eventos').insert({ solicitacao_id: s.id, acao: 'pagou', detalhe: forma + ' em ' + data, por_nome: sessao().nome || null }); } catch (e) { /* best-effort */ }
+        toast('💰 Pagamento registrado! Solicitação concluída.');
+      }
+      EC.app.mostrarTela('tela-aprovacoes');
+      pintarLista(); atualizarBadge();
+    } catch (e) {
+      mostrarErro('Não consegui registrar: ' + (e.message || 'erro'));
+    }
+    botao.disabled = false; botao.textContent = '💰 Registrar pagamento';
+  }
+
   /* ============ Navegação ============ */
 
   var iniciado = false;
@@ -366,6 +549,7 @@ EC.aprovacoes = (function () {
     $('apr-aprovar').addEventListener('click', function () { decidir('aguardando_pagamento'); });
     $('apr-correcao').addEventListener('click', function () { decidir('correcao'); });
     $('apr-rejeitar').addEventListener('click', function () { decidir('rejeitado'); });
+    $('pag-registrar').addEventListener('click', registrarPagamento);
   }
 
   function abrir() {

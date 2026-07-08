@@ -417,15 +417,44 @@
         <p class="dg-secao">Evidências</p>
         <div id="apr-anexos"></div>
 
-        <p class="dg-secao">Decisão</p>
-        <label>Observação <span class="rotulo-apoio">(obrigatória para rejeitar ou pedir correção)</span>
-          <textarea id="apr-obs" rows="3" placeholder="Escreva uma observação (opcional ao aprovar)"></textarea>
-        </label>
+        <!-- Ação da LOGÍSTICA (quando aguardando aprovação) -->
+        <div id="apr-acao-logistica" class="oculto">
+          <p class="dg-secao">Decisão da Logística</p>
+          <label>Observação <span class="rotulo-apoio">(obrigatória para rejeitar ou pedir correção)</span>
+            <textarea id="apr-obs" rows="3" placeholder="Escreva uma observação (opcional ao aprovar)"></textarea>
+          </label>
+          <div class="pilha-botoes">
+            <button type="button" class="botao botao-primario" id="apr-aprovar">✅ Aprovar</button>
+            <button type="button" class="botao botao-ajuste" id="apr-correcao">✏️ Solicitar correção</button>
+            <button type="button" class="botao botao-perigo" id="apr-rejeitar">❌ Rejeitar</button>
+          </div>
+        </div>
+
+        <!-- Ação do FINANCEIRO (quando aguardando pagamento) -->
+        <div id="apr-acao-pagamento" class="oculto">
+          <p class="dg-secao">Registrar pagamento</p>
+          <div class="grade-2">
+            <label>Data do pagamento<input type="date" id="pag-data"></label>
+            <label>Forma de pagamento
+              <select id="pag-forma">
+                <option value="">Selecione…</option>
+                <option value="Pix">Pix</option>
+                <option value="Transferência bancária">Transferência bancária</option>
+                <option value="Dinheiro">Dinheiro</option>
+                <option value="Cartão">Cartão</option>
+                <option value="Outro">Outro</option>
+              </select>
+            </label>
+          </div>
+          <p class="rb-sub">Comprovante <span class="rotulo-apoio">(foto ou PDF)</span></p>
+          <div id="pag-anexos"></div>
+          <div class="pilha-botoes">
+            <button type="button" class="botao botao-primario" id="pag-registrar">💰 Registrar pagamento</button>
+          </div>
+        </div>
+
         <div id="apr-erro" class="alerta alerta-vermelho oculto"></div>
         <div class="pilha-botoes">
-          <button type="button" class="botao botao-primario" id="apr-aprovar">✅ Aprovar</button>
-          <button type="button" class="botao botao-ajuste" id="apr-correcao">✏️ Solicitar correção</button>
-          <button type="button" class="botao botao-perigo" id="apr-rejeitar">❌ Rejeitar</button>
           <button type="button" class="botao botao-secundario" id="apr-detalhe-voltar">← Voltar</button>
         </div>
       </div>
