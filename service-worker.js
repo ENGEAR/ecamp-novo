@@ -8,7 +8,7 @@
  * Todos os caminhos são RELATIVOS, para funcionar no GitHub Pages
  * (https://usuario.github.io/repositorio/) sem ajuste.
  */
-const VERSAO_CACHE = 'ecamp-v0.40.8';
+const VERSAO_CACHE = 'ecamp-v0.40.9';
 
 const ARQUIVOS_APP = [
   './',
@@ -66,13 +66,16 @@ const ARQUIVOS_APP = [
 // Documentos da Biblioteca (normas/procedimentos): o mesmo manifesto que o app
 // usa (js/biblioteca-dados.js) alimenta o pré-cache — assim os PDFs ficam
 // disponíveis OFFLINE. Um PDF que falhe ao baixar não derruba a instalação.
+// encodeURI casa com o href do app (biblioteca.js também usa encodeURI): os
+// nomes têm espaços/acentos, então ambos precisam gerar a MESMA URL, senão o
+// cache não bate e o offline falha.
 let ARQUIVOS_BIBLIOTECA = [];
 try {
   importScripts('./js/biblioteca-dados.js');
   ARQUIVOS_BIBLIOTECA = (self.ECAMP_BIBLIOTECA || [])
     .map((d) => d && d.arquivo)
     .filter(Boolean)
-    .map((caminho) => './' + String(caminho).replace(/^\.?\//, ''));
+    .map((caminho) => encodeURI('./' + String(caminho).replace(/^\.?\//, '')));
 } catch (e) {
   ARQUIVOS_BIBLIOTECA = [];
 }
