@@ -46,6 +46,16 @@ EC.biblioteca = (function () {
     });
   }
 
+  // Nº do POP a partir do título ("POP 001 …" → 1). Sem POP (normas) → Infinity,
+  // caindo para a ordem alfabética. Serve para ordenar por sequência de POP.
+  function popDe(d) {
+    const m = String((d && d.titulo) || '').match(/POP\s*0*(\d+)/i);
+    return m ? parseInt(m[1], 10) : Infinity;
+  }
+  function menorPop(lista) {
+    return lista.reduce(function (min, d) { return Math.min(min, popDe(d)); }, Infinity);
+  }
+
   // Monta o HTML de um TIPO (Normas ou Procedimentos): agrupa por escopo e método.
   function htmlTipo(tipo, lista) {
     const doTipo = lista.filter(function (d) { return (d.tipo || '') === tipo.chave; });
@@ -64,13 +74,22 @@ EC.biblioteca = (function () {
     let html = '<h2 class="bib-tipo">' + tipo.titulo + '</h2>';
     ordenarEscopos(Object.keys(porEscopo)).forEach(function (escopo) {
       html += '<p class="bib-escopo">' + escapar(escopo) + '</p>';
+      // Métodos na ordem do menor POP dos seus documentos (procedimentos ficam
+      // em sequência de POP; normas, sem POP, caem na ordem alfabética).
       const metodos = Object.keys(porEscopo[escopo]).sort(function (a, b) {
-        if (!a) return 1; if (!b) return -1; return a.localeCompare(b, 'pt-BR');
+        const pa = menorPop(porEscopo[escopo][a]); const pb = menorPop(porEscopo[escopo][b]);
+        if (pa !== pb) return pa - pb;
+        if (!a) return 1; if (!b) return -1;
+        return a.localeCompare(b, 'pt-BR');
       });
       metodos.forEach(function (metodo) {
         if (metodo) html += '<p class="bib-metodo">' + escapar(metodo) + '</p>';
         porEscopo[escopo][metodo]
-          .sort(function (a, b) { return String(a.titulo).localeCompare(String(b.titulo), 'pt-BR'); })
+          .sort(function (a, b) {
+            const pa = popDe(a); const pb = popDe(b);
+            if (pa !== pb) return pa - pb;
+            return String(a.titulo).localeCompare(String(b.titulo), 'pt-BR');
+          })
           .forEach(function (d) {
             html += '<a class="bib-doc" href="' + encodeURI(d.arquivo) + '" target="_blank" rel="noopener">' +
               '<span class="bib-doc-icone">📄</span><span class="bib-doc-titulo">' + escapar(d.titulo) + '</span>' +

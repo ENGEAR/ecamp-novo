@@ -30,7 +30,7 @@ self.ECAMP_BIBLIOTECA = [
   // Ruído
   { tipo: 'procedimento', escopo: 'Ruído', metodo: 'NBR 10151', titulo: 'POP 001 — Ruído externo e interno (NBR 10151) — rev.07', arquivo: 'normas/procedimentos/proc_ruido_externo e interno (10151)_POP 001_rev07.pdf' },
   { tipo: 'procedimento', escopo: 'Ruído', metodo: 'NBR 10152', titulo: 'POP 004 — Ruído interno (NBR 10152) — rev.03', arquivo: 'normas/procedimentos/proc_ruido_interno (10152)_POP 004_rev03.pdf' },
-  { tipo: 'procedimento', escopo: 'Ruído', metodo: 'Ferroviário', titulo: 'POP 015 — Ruído ferroviário — rev.02', arquivo: 'normas/procedimentos/proc_ruido_ferroviario_POP 015_rev02.pdf' },
+  { tipo: 'procedimento', escopo: 'Ruído', metodo: 'Ferroviário e Aeronáutico', titulo: 'POP 015 — Ruído ferroviário e aeronáutico — rev.02', arquivo: 'normas/procedimentos/proc_ruido_ferroviario e aeronautico_POP 015_rev02.pdf' },
   // Vibração
   { tipo: 'procedimento', escopo: 'Vibração', metodo: 'NBR 9653', titulo: 'POP 002 — Sismografia (ABNT NBR 9653) — rev.07', arquivo: 'normas/procedimentos/proc_sismografia_ABNT 9653_POP 002_rev07.pdf' },
   { tipo: 'procedimento', escopo: 'Vibração', metodo: 'CETESB', titulo: 'POP 013 — Sismografia (CETESB) — rev.03', arquivo: 'normas/procedimentos/proc_sismografia_cetesb_POP 013_rev03.pdf' },
