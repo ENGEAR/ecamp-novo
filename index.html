@@ -283,6 +283,7 @@
         <h1>💰 Solicitação de reembolso</h1>
         <div class="pilha-botoes">
           <button type="button" class="botao botao-primario" id="rb-novo">➕ Nova solicitação</button>
+          <button type="button" class="botao botao-secundario oculto" id="rb-saldo-btn">💠 Serviços com saldo pendente <span id="rb-saldo-badge"></span></button>
         </div>
         <p class="os-secao-titulo">Minhas solicitações</p>
         <p class="texto-apoio">Toque numa solicitação para ver o extrato completo.</p>
@@ -406,6 +407,35 @@
         <h1>🧾 Extrato da solicitação</h1>
         <div id="rb-extrato"></div>
         <button type="button" class="botao botao-secundario" id="rb-extrato-voltar">← Voltar</button>
+      </div>
+    </section>
+
+    <!-- ======= Serviços com saldo pendente — lista ======= -->
+    <section id="tela-saldo-pendente" class="tela oculto">
+      <div class="cartao">
+        <h1>💠 Serviços com saldo pendente</h1>
+        <p class="texto-apoio">Serviços já aprovados que ainda têm parte da logística a solicitar. Abra, ajuste o percentual e peça o saldo — vai direto para pagamento.</p>
+        <div id="rb-saldo-lista"></div>
+        <button type="button" class="botao botao-secundario" id="rb-saldo-voltar">← Voltar</button>
+      </div>
+    </section>
+
+    <!-- ======= Saldo pendente — solicitar (valores travados) ======= -->
+    <section id="tela-saldo-detalhe" class="tela oculto">
+      <div class="cartao">
+        <h1>💠 Solicitar saldo</h1>
+        <p class="texto-apoio">Estes valores já foram aprovados pela Logística — você só escolhe o percentual. O pedido vai direto para pagamento.</p>
+        <div id="rb-saldo-det"></div>
+        <p class="dg-secao">Percentual a solicitar agora</p>
+        <div id="rb-saldo-info" class="alerta alerta-info"></div>
+        <label>Percentual (%)<input type="number" id="rb-saldo-pct" min="1" max="100" step="1" inputmode="numeric"></label>
+        <div id="rb-saldo-valor" class="rb-total"></div>
+        <div id="rb-saldo-erro" class="alerta alerta-vermelho oculto"></div>
+        <div class="pilha-botoes">
+          <button type="button" class="botao botao-primario" id="rb-saldo-enviar">💰 Solicitar saldo</button>
+          <button type="button" class="botao botao-ajuste" id="rb-saldo-alterar">✏️ Preciso alterar algo (passa pela Logística)</button>
+          <button type="button" class="botao botao-secundario" id="rb-saldo-det-voltar">← Voltar</button>
+        </div>
       </div>
     </section>
 

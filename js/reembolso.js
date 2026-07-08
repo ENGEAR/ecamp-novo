@@ -877,6 +877,12 @@ EC.reembolso = (function () {
   /* ============ Envio (2 etapas: dados → anexos) ============ */
 
   async function enviarPedido(pedido) {
+    // Pedido de SALDO: copia a parcela aprovada no servidor e vai direto p/ pagamento.
+    if (pedido._saldo) {
+      return await postJson(BASE + '/saldo', {
+        codigo: pedido.codigo, origemCodigo: pedido.origemCodigo, percentualSolicitado: pedido.percentualSolicitado
+      });
+    }
     var resp = await postJson(BASE + '/enviar', {
       codigo: pedido.codigo, osId: pedido.osId, campanha: pedido.campanha,
       solicitante: pedido.solicitante, designado: pedido.designado, veiculo: pedido.veiculo,
@@ -1034,7 +1040,7 @@ EC.reembolso = (function () {
     for (var i = 0; i < chaves.length; i++) {
       var pedido = null;
       try { pedido = await EC.db.get(LOJA_PENDENTES, chaves[i]); } catch (e) { pedido = null; }
-      if (!pedido || !pedido.codigo || !pedido.osId) {
+      if (!pedido || !pedido.codigo || (!pedido.osId && !pedido._saldo)) {
         try { await EC.db.remove(LOJA_PENDENTES, chaves[i]); } catch (e) { /* ok */ }
         continue;
       }
@@ -1108,6 +1114,7 @@ EC.reembolso = (function () {
   async function pintarLista() {
     var area = $('rb-lista');
     if (!area) return;
+    atualizarSaldoBtn();
     var fila = await pedidosPendentes();
     var enviados = listaEmCache();
     var codigosFila = fila.map(function (p) { return p.codigo; });
@@ -1134,24 +1141,15 @@ EC.reembolso = (function () {
 
   /* ============ Extrato da solicitação (read-only) ============ */
 
-  function abrirExtrato(p, aguardandoEnvio) {
-    EC.app.mostrarTela('tela-reembolso-extrato');
-    window.scrollTo(0, 0);
-    // aceita tanto o registro do servidor quanto o pedido offline (nomes diferentes)
-    var total = p.valor_total != null ? p.valor_total : p.valorTotal;
-    var pct = p.percentual_solicitado != null ? Number(p.percentual_solicitado) : (p.percentual || 100);
-    var solicitado = p.valor_solicitado != null ? p.valor_solicitado : p.valorSolicitado;
-    if (solicitado == null) solicitado = Math.round(Number(total || 0) * pct) / 100;
-    var st = aguardandoEnvio
-      ? { txt: '📴 Aguardando envio', cls: 'rb-aguardando' }
-      : (STATUS[p.status] || { txt: p.status, cls: 'rb-aguardando' });
+  // Resumo (read-only) de um pedido: quem, datas, transporte e valores.
+  // Reaproveitado pelo extrato e pela tela de saldo pendente.
+  function renderResumoPedido(p) {
     var tipo = p.solicitante_tipo === 'freelancer' ? 'Freelancer' : (p.solicitante_tipo === 'clt' ? 'CLT' : '—');
     var comb = p.tipo_combustivel ? (p.tipo_combustivel === 'diesel' ? 'Diesel' : 'Gasolina') : null;
     var trajeto = (p.origem_cidade || p.destino_cidade)
       ? ((p.origem_cidade || '?') + (p.origem_uf ? '/' + p.origem_uf : '') + ' → ' + (p.destino_cidade || '?') + (p.destino_uf ? '/' + p.destino_uf : ''))
       : (p.origemCidade ? (p.origemCidade + '/' + (p.origemUf || '') + ' → ' + (p.destinoCidade || '') + '/' + (p.destinoUf || '')) : '—');
     var alimentacao = Number(p.valor_almoco || 0) + Number(p.valor_jantar || 0) + Number(p.valor_lanche || 0);
-
     function linha(rot, val) { return '<div class="apr-linha"><span>' + rot + '</span><strong>' + val + '</strong></div>'; }
     var valores = [
       ['⛽ Transporte (combustível)', p.valor_combustivel],
@@ -1162,19 +1160,7 @@ EC.reembolso = (function () {
       ['🍽️ Alimentação', alimentacao]
     ].filter(function (l) { return Number(l[1]) > 0; })
      .map(function (l) { return linha(l[0], moedaBR(l[1])); }).join('');
-
-    var obs = (p.status === 'rejeitado' || p.status === 'correcao') && p.observacao_logistica
-      ? '<div class="rb-motivo">Observação da Logística: ' + p.observacao_logistica + '</div>' : '';
-    var pago = p.status === 'pago'
-      ? '<div class="apr-orc apr-orc-verde"><strong>💰 Pago</strong> em ' + dataBR(p.pago_em) + (p.forma_pagamento ? ' · ' + p.forma_pagamento : '') + '</div>' : '';
-
-    $('rb-extrato').innerHTML =
-      '<div class="rb-pedido-topo" style="margin-bottom:10px;"><span class="os-numero">OS ' + (p.os || '?') + '</span>' +
-      '<span class="rb-status ' + st.cls + '">' + st.txt + '</span></div>' +
-      (p.cliente ? '<div class="os-resumo" style="margin-bottom:8px;">' + p.cliente + '</div>' : '') +
-      pago + obs +
-      '<div class="rb-total" style="margin-top:6px;">Solicitado (' + pct + '%): <strong>' + moedaBR(solicitado) + '</strong>' +
-      '<span class="rb-total-sub">Total da logística: ' + moedaBR(total) + '</span></div>' +
+    return (
       '<p class="dg-secao">Quem</p><div class="rb-resumo-auto">' +
         linha('Solicitante', p.solicitante || '—') + linha('Designado', (p.designado || '—') + ' · ' + tipo) +
       '</div>' +
@@ -1190,7 +1176,162 @@ EC.reembolso = (function () {
         linha('Distância (ida e volta)', p.distancia_km ? p.distancia_km + ' km' : '—') +
         linha('Combustível', comb ? (comb + (p.preco_litro ? ' · ' + moedaBR(p.preco_litro) + '/L' : '')) : '—') +
       '</div>' +
-      '<p class="dg-secao">Valores</p>' + (valores || '<p class="texto-apoio">—</p>');
+      '<p class="dg-secao">Valores</p>' + (valores || '<p class="texto-apoio">—</p>')
+    );
+  }
+
+  function abrirExtrato(p, aguardandoEnvio) {
+    EC.app.mostrarTela('tela-reembolso-extrato');
+    window.scrollTo(0, 0);
+    var total = p.valor_total != null ? p.valor_total : p.valorTotal;
+    var pct = p.percentual_solicitado != null ? Number(p.percentual_solicitado) : (p.percentual || 100);
+    var solicitado = p.valor_solicitado != null ? p.valor_solicitado : p.valorSolicitado;
+    if (solicitado == null) solicitado = Math.round(Number(total || 0) * pct) / 100;
+    var st = aguardandoEnvio
+      ? { txt: '📴 Aguardando envio', cls: 'rb-aguardando' }
+      : (STATUS[p.status] || { txt: p.status, cls: 'rb-aguardando' });
+    var obs = (p.status === 'rejeitado' || p.status === 'correcao') && p.observacao_logistica
+      ? '<div class="rb-motivo">Observação da Logística: ' + p.observacao_logistica + '</div>' : '';
+    var pago = p.status === 'pago'
+      ? '<div class="apr-orc apr-orc-verde"><strong>💰 Pago</strong> em ' + dataBR(p.pago_em) + (p.forma_pagamento ? ' · ' + p.forma_pagamento : '') + '</div>' : '';
+
+    $('rb-extrato').innerHTML =
+      '<div class="rb-pedido-topo" style="margin-bottom:10px;"><span class="os-numero">OS ' + (p.os || '?') + '</span>' +
+      '<span class="rb-status ' + st.cls + '">' + st.txt + '</span></div>' +
+      (p.cliente ? '<div class="os-resumo" style="margin-bottom:8px;">' + p.cliente + '</div>' : '') +
+      pago + obs +
+      '<div class="rb-total" style="margin-top:6px;">Solicitado (' + pct + '%): <strong>' + moedaBR(solicitado) + '</strong>' +
+      '<span class="rb-total-sub">Total da logística: ' + moedaBR(total) + '</span></div>' +
+      renderResumoPedido(p);
+  }
+
+  /* ============ Serviços com saldo pendente ============ */
+
+  var saldoAtual = null; // { os, campanha, cliente, template, jaConsumido, disponivel }
+
+  // Campanhas do usuário que já têm parcela APROVADA e ainda têm % a solicitar.
+  function saldosDisponiveis() {
+    var grupos = {};
+    listaEmCache().forEach(function (p) {
+      var chave = p.os + '|' + p.campanha_numero;
+      if (!grupos[chave]) grupos[chave] = { os: p.os, campanha: p.campanha_numero, cliente: p.cliente, jaConsumido: Number(p.jaConsumido || 0), aprovada: null };
+      grupos[chave].jaConsumido = Math.max(grupos[chave].jaConsumido, Number(p.jaConsumido || 0));
+      // template = parcela já aprovada mais recente (a lista vem por created_at desc)
+      if (!grupos[chave].aprovada && (p.status === 'aguardando_pagamento' || p.status === 'pago')) grupos[chave].aprovada = p;
+    });
+    var out = [];
+    Object.keys(grupos).forEach(function (k) {
+      var g = grupos[k];
+      var disp = Math.round((100 - g.jaConsumido) * 100) / 100;
+      if (g.aprovada && disp > 0) out.push({ os: g.os, campanha: g.campanha, cliente: g.cliente, template: g.aprovada, jaConsumido: g.jaConsumido, disponivel: disp });
+    });
+    return out;
+  }
+
+  function atualizarSaldoBtn() {
+    var btn = $('rb-saldo-btn');
+    if (!btn) return;
+    var n = saldosDisponiveis().length;
+    btn.classList.toggle('oculto', n === 0);
+    $('rb-saldo-badge').textContent = n > 0 ? '(' + n + ')' : '';
+  }
+
+  function pintarSaldoLista() {
+    var area = $('rb-saldo-lista');
+    var lista = saldosDisponiveis();
+    if (!lista.length) { area.innerHTML = '<p class="texto-apoio">Nenhum serviço com saldo pendente. 🎉</p>'; return; }
+    area.innerHTML = lista.map(function (s) {
+      return '<button type="button" class="rb-pedido rb-pedido-click" data-chave="' + s.os + '|' + s.campanha + '">' +
+        '<div class="rb-pedido-topo"><span class="os-numero">OS ' + s.os + '</span>' +
+        '<span class="rb-status rb-pendente">faltam ' + s.disponivel + '%</span></div>' +
+        (s.cliente ? '<div class="os-resumo">' + s.cliente + '</div>' : '') +
+        '<div class="os-resumo">Total da logística: ' + moedaBR(s.template.valor_total) + ' · já solicitado ' + s.jaConsumido + '%</div>' +
+        '<div class="rb-ver-extrato">💠 Solicitar saldo ›</div>' +
+        '</button>';
+    }).join('');
+    area.querySelectorAll('.rb-pedido-click[data-chave]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var s = lista.filter(function (x) { return (x.os + '|' + x.campanha) === el.dataset.chave; })[0];
+        if (s) abrirSaldoDetalhe(s);
+      });
+    });
+  }
+
+  function abrirSaldos() {
+    EC.app.mostrarTela('tela-saldo-pendente');
+    pintarSaldoLista();
+  }
+
+  function saldoErro(msg) {
+    var e = $('rb-saldo-erro');
+    if (!msg) { e.classList.add('oculto'); return; }
+    e.textContent = '🛑 ' + msg; e.classList.remove('oculto');
+  }
+
+  function pintarSaldoValor() {
+    if (!saldoAtual) return;
+    var pct = parseFloat($('rb-saldo-pct').value) || 0;
+    var v = Math.round(Number(saldoAtual.template.valor_total || 0) * pct) / 100;
+    $('rb-saldo-valor').innerHTML = 'Vai solicitar <strong>' + pct + '% = ' + moedaBR(v) + '</strong>';
+  }
+
+  function abrirSaldoDetalhe(s) {
+    saldoAtual = s;
+    EC.app.mostrarTela('tela-saldo-detalhe');
+    window.scrollTo(0, 0);
+    saldoErro(null);
+    $('rb-saldo-det').innerHTML = renderResumoPedido(s.template);
+    $('rb-saldo-info').textContent = 'ℹ️ Já solicitado nesta campanha: ' + s.jaConsumido + '%. Disponível: ' + s.disponivel + '%.';
+    var inp = $('rb-saldo-pct');
+    inp.max = s.disponivel;
+    inp.value = s.disponivel;
+    pintarSaldoValor();
+  }
+
+  async function enviarSaldo() {
+    var s = saldoAtual;
+    if (!s) return;
+    var pct = parseFloat($('rb-saldo-pct').value);
+    if (!(pct > 0)) return saldoErro('Informe o percentual a solicitar.');
+    if (pct > s.disponivel + 0.01) return saldoErro('Você pode solicitar no máximo ' + s.disponivel + '% (o resto já foi solicitado/pago).');
+    saldoErro(null);
+    var pedido = {
+      _saldo: true,
+      codigo: 'LG_SALDO_' + s.os + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+      origemCodigo: s.template.codigo,
+      percentualSolicitado: pct,
+      os: s.os, cliente: s.cliente,
+      valorTotal: s.template.valor_total, percentual: pct,
+      valorSolicitado: Math.round(Number(s.template.valor_total || 0) * pct) / 100,
+      dataRetorno: s.template.data_retorno, designado: s.template.designado
+    };
+    var botao = $('rb-saldo-enviar');
+    botao.disabled = true; botao.textContent = '⏳ Enviando…';
+    try {
+      await enviarPedido(pedido);
+      toast('✅ Saldo solicitado! Foi direto para pagamento.');
+      atualizarListaDoServidor();
+    } catch (e) {
+      if (e.rejeitado) { botao.disabled = false; botao.textContent = '💰 Solicitar saldo'; return saldoErro(e.message); }
+      try { await EC.db.set(LOJA_PENDENTES, pedido.codigo, pedido); } catch (e2) { /* ok */ }
+      toast('📴 Sem conexão. Pedido de saldo guardado — será enviado quando a internet voltar.');
+    }
+    botao.disabled = false; botao.textContent = '💰 Solicitar saldo';
+    EC.app.mostrarTela('tela-reembolso');
+    pintarLista(); atualizarSaldoBtn();
+  }
+
+  // "Preciso alterar algo" → abre a solicitação NORMAL já com a OS/campanha
+  // escolhida (editável, passa pela aprovação da Logística).
+  async function alterarSaldo() {
+    var s = saldoAtual;
+    if (!s) return;
+    await abrirNovo(true);
+    if (!ctx) return;
+    var o = (ctx.os || []).filter(function (x) { return x.numero === s.os; })[0];
+    if (!o) { toast('Abra pela "Nova solicitação" e busque a OS.'); return; }
+    escolherOs(o);
+    if ((o.campanhas || []).length > 1) { $('rb-campanha').value = s.campanha; aoEscolherCampanha(); }
   }
 
   async function atualizarListaDoServidor() {
@@ -1214,6 +1355,12 @@ EC.reembolso = (function () {
     $('rb-novo').addEventListener('click', function () { abrirNovo(false); });
     $('rb-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-acao'); });
     $('rb-extrato-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-reembolso'); });
+    $('rb-saldo-btn').addEventListener('click', abrirSaldos);
+    $('rb-saldo-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-reembolso'); });
+    $('rb-saldo-det-voltar').addEventListener('click', abrirSaldos);
+    $('rb-saldo-enviar').addEventListener('click', enviarSaldo);
+    $('rb-saldo-alterar').addEventListener('click', alterarSaldo);
+    $('rb-saldo-pct').addEventListener('input', pintarSaldoValor);
     $('rb-cancelar').addEventListener('click', function () { EC.app.mostrarTela('tela-reembolso'); pintarLista(); });
     $('rb-enviar').addEventListener('click', enviarFormulario);
     $('rb-rascunho-descartar').addEventListener('click', async function () {
