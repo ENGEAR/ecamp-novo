@@ -55,12 +55,6 @@ EC.reembolso = (function () {
   function sessao() { return EC.storage.ler('sessao:atual') || {}; }
   function sessionNome() { return (sessao().nome || '').trim(); }
 
-  // Quem tem papel Logística (ou admin) no SGP pode preencher em nome de outro.
-  function podePreencherPorOutro() {
-    var p = sessao().papeis || [];
-    return p.indexOf('logistica') !== -1 || p.indexOf('admin') !== -1;
-  }
-
   function moedaBR(v) { return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
   function dataBR(iso) {
     if (!iso) return '—';
@@ -264,26 +258,6 @@ EC.reembolso = (function () {
   }
 
   /* ============ Dados do solicitante / distância ============ */
-
-  // Categoria (CLT/freelancer) do SOLICITANTE (campo): da campanha selecionada;
-  // se não estiver lá, procura o nome em qualquer OS do contexto; senão, CLT.
-  function tipoDoSolicitante(nome) {
-    var alvo = String(nome || '').trim().toLowerCase();
-    if (!alvo) return 'clt';
-    if (campSel) {
-      var t = campSel.tecnicos.filter(function (x) { return x.nome.trim().toLowerCase() === alvo; })[0];
-      if (t) return t.tipo;
-    }
-    var achado = null;
-    (ctx && ctx.os || []).some(function (o) {
-      return (o.campanhas || []).some(function (c) {
-        var t = c.tecnicos.filter(function (x) { return x.nome.trim().toLowerCase() === alvo; })[0];
-        if (t) { achado = t.tipo; return true; }
-        return false;
-      });
-    });
-    return achado || 'clt';
-  }
 
   function distanciaDaOs() { return osSel && osSel.distanciaKm ? Number(osSel.distanciaKm) : 0; }
 
@@ -523,45 +497,64 @@ EC.reembolso = (function () {
     var n = parseInt($('rb-campanha').value, 10);
     if (osSel) campSel = (osSel.campanhas || []).filter(function (c) { return c.numero === n; })[0] || null;
 
-    // solicitante padrão = usuário logado (Logística/admin pode trocar)
-    var sol = $('rb-solicitante');
-    if (!sol.value.trim() || sol.readOnly) sol.value = sessionNome();
-    atualizarTecSel();
+    // solicitante é SEMPRE o usuário logado (só informativo, não muda)
+    $('rb-solicitante').value = sessionNome();
 
-    fillViagem(campSel);
+    // Designado: técnico da viagem, escolhido entre os vinculados na Agenda
+    var semAgenda = $('rb-sem-agenda'), blocoDesig = $('rb-designado-bloco'), sel = $('rb-designado');
+    if (!osSel) {
+      semAgenda.classList.add('oculto');
+      blocoDesig.classList.add('oculto');
+    } else if (!campSel) {
+      // OS sem NENHUM serviço na Agenda → orienta a incluir primeiro
+      semAgenda.textContent = '📅 Esta OS ainda não tem o serviço na Agenda. Peça para incluir a programação (dias e técnicos) na Agenda primeiro — depois é só voltar aqui.';
+      semAgenda.classList.remove('oculto');
+      blocoDesig.classList.add('oculto');
+      $('rb-viagem').classList.add('oculto');
+    } else if (campSel.tecnicos.length === 0) {
+      // tem dias na Agenda, mas sem técnicos → também precisa completar lá
+      semAgenda.textContent = '👷 Esta OS está na Agenda, mas sem técnicos vinculados nos dias. Peça para incluir os técnicos na Agenda primeiro — depois é só voltar aqui.';
+      semAgenda.classList.remove('oculto');
+      blocoDesig.classList.add('oculto');
+    } else {
+      semAgenda.classList.add('oculto');
+      var nomeSessao = sessionNome().toLowerCase();
+      sel.innerHTML = opcao('', 'Selecione…') + campSel.tecnicos.map(function (t) {
+        return opcao(t.nome, t.nome + (t.tipo === 'freelancer' ? ' (Freelancer)' : ' (CLT)'));
+      }).join('');
+      // pré-seleciona o usuário logado, se ele estiver entre os técnicos da OS
+      var meu = campSel.tecnicos.filter(function (t) { return t.nome.trim().toLowerCase() === nomeSessao; })[0];
+      if (meu) sel.value = meu.nome;
+      blocoDesig.classList.remove('oculto');
+    }
+
+    atualizarTecSel();
+    if (campSel) fillViagem(campSel);
     pintarResumoAuto();
     aoMudarVeiculo();
   }
 
+  // tecSel = DESIGNADO escolhido (a categoria dele entra no cálculo)
   function atualizarTecSel() {
-    var nome = $('rb-solicitante').value.trim();
-    tecSel = osSel && nome ? { nome: nome, tipo: tipoDoSolicitante(nome) } : null;
+    tecSel = null;
+    if (!campSel) return;
+    var nome = $('rb-designado').value;
+    var t = campSel.tecnicos.filter(function (x) { return x.nome === nome; })[0];
+    if (t) tecSel = { nome: t.nome, tipo: t.tipo };
   }
 
-  /* ============ Dados da viagem (da Agenda ou pelas datas) ============ */
-
-  function modoManual() { return !!osSel && osSel.campanhas.length === 0; }
+  /* ============ Dados da viagem (sempre da Agenda) ============ */
 
   function fillViagem(campanha) {
-    var ida = $('rb-ida'), si = $('rb-servico-inicio'), sf = $('rb-servico-fim'), volta = $('rb-volta');
-    var ds = $('rb-dias-servico'), dd = $('rb-dias-desloc');
-    var daAgenda = !!campanha;
-    if (daAgenda) {
-      ida.value = (campanha.dataInicio || '').slice(0, 10);
-      volta.value = (campanha.dataRetorno || '').slice(0, 10);
-      si.value = (campanha.servicoInicio || '').slice(0, 10);
-      sf.value = (campanha.servicoFim || '').slice(0, 10);
-      ds.value = campanha.diasServico;
-      dd.value = campanha.diasDeslocamento;
-      $('rb-viagem-fonte').textContent = '📅 Datas e dias preenchidos pela Agenda.';
-    } else {
-      ida.value = ''; si.value = ''; sf.value = ''; volta.value = '';
-      ds.value = ''; dd.value = '';
-      $('rb-viagem-fonte').textContent = '✍️ Esta OS não tem viagem na Agenda — preencha as 4 datas; os dias são calculados sozinhos.';
-    }
-    // datas: travadas quando vêm da Agenda; dias: sempre calculados (só leitura)
-    [ida, si, sf, volta].forEach(function (el) { el.readOnly = daAgenda; });
-    ds.readOnly = true; dd.readOnly = true;
+    $('rb-ida').value = (campanha.dataInicio || '').slice(0, 10);
+    $('rb-volta').value = (campanha.dataRetorno || '').slice(0, 10);
+    $('rb-servico-inicio').value = (campanha.servicoInicio || '').slice(0, 10);
+    $('rb-servico-fim').value = (campanha.servicoFim || '').slice(0, 10);
+    $('rb-dias-servico').value = campanha.diasServico;
+    $('rb-dias-desloc').value = campanha.diasDeslocamento;
+    $('rb-viagem-fonte').textContent = '📅 Datas e dias preenchidos pela Agenda.';
+    ['rb-ida', 'rb-servico-inicio', 'rb-servico-fim', 'rb-volta', 'rb-dias-servico', 'rb-dias-desloc']
+      .forEach(function (id) { $(id).readOnly = true; });
     $('rb-viagem').classList.remove('oculto');
   }
 
@@ -573,29 +566,13 @@ EC.reembolso = (function () {
     return Math.round((d2 - d1) / 86400000);
   }
 
-  // No modo manual, calcula dias de serviço e de deslocamento a partir das 4 datas.
-  //   serviço      = (término − início) + 1
-  //   deslocamento = (início serviço − ida) + (chegada − término serviço)
-  function recalcularDiasManual() {
-    if (!modoManual()) return;
-    var ida = $('rb-ida').value, si = $('rb-servico-inicio').value, sf = $('rb-servico-fim').value, volta = $('rb-volta').value;
-    var ateServico = diffDias(ida, si), servico = diffDias(si, sf), aposServico = diffDias(sf, volta);
-    var ok = ateServico != null && servico != null && aposServico != null &&
-             ateServico >= 0 && servico >= 0 && aposServico >= 0;
-    $('rb-dias-servico').value = ok ? (servico + 1) : '';
-    $('rb-dias-desloc').value = ok ? (ateServico + aposServico) : '';
-    aoMudarDias();
-  }
-
-  function aoMudarDias() { pintarResumoAuto(); aoMudarVeiculo(); }
-
   function pintarResumoAuto() {
     var alvo = $('rb-auto');
     if (!osSel || !tecSel) { alvo.classList.add('oculto'); return; }
     var tipo = tecSel.tipo === 'freelancer' ? 'Freelancer' : 'CLT';
     alvo.innerHTML =
       '<div><span>Dias em viagem (total)</span><strong>' + diasViagemVal() + '</strong></div>' +
-      '<div><span>Categoria de contratação</span><strong>' + tipo + '</strong></div>';
+      '<div><span>Categoria do designado</span><strong>' + tipo + '</strong></div>';
     alvo.classList.remove('oculto');
   }
 
@@ -728,9 +705,7 @@ EC.reembolso = (function () {
     return {
       osId: osSel.osId,
       campanha: $('rb-campanha').value,
-      solicitante: $('rb-solicitante').value,
-      ida: $('rb-ida').value, servicoInicio: $('rb-servico-inicio').value,
-      servicoFim: $('rb-servico-fim').value, volta: $('rb-volta').value,
+      designado: $('rb-designado').value,
       veiculo: veiculo(),
       origemCidade: $('rb-origem-cidade').value, origemUf: $('rb-origem-uf').value,
       destinoCidade: $('rb-destino-cidade').value, destinoUf: $('rb-destino-uf').value,
@@ -777,16 +752,9 @@ EC.reembolso = (function () {
         $('rb-campanha').value = r.campanha;
         aoEscolherCampanha();
       }
-      if (r.solicitante && !$('rb-solicitante').readOnly) {
-        $('rb-solicitante').value = r.solicitante;
+      if (r.designado) {
+        $('rb-designado').value = r.designado;
         atualizarTecSel();
-      }
-      if (modoManual()) {
-        $('rb-ida').value = r.ida || '';
-        $('rb-servico-inicio').value = r.servicoInicio || '';
-        $('rb-servico-fim').value = r.servicoFim || '';
-        $('rb-volta').value = r.volta || '';
-        recalcularDiasManual();
       }
       if (r.veiculo) {
         var radio = document.querySelector('input[name="rb-veiculo"][value="' + r.veiculo + '"]');
@@ -845,10 +813,10 @@ EC.reembolso = (function () {
     $('rb-distancia').value = '';
     $('rb-distancia-hint').textContent = '';
     $('rb-campanha-bloco').classList.add('oculto');
-    var sol = $('rb-solicitante');
-    sol.value = sessionNome();
-    sol.readOnly = !podePreencherPorOutro();
-    sol.placeholder = sol.readOnly ? '' : 'Nome do técnico solicitante';
+    $('rb-solicitante').value = sessionNome();
+    $('rb-sem-agenda').classList.add('oculto');
+    $('rb-designado-bloco').classList.add('oculto');
+    $('rb-designado').innerHTML = '';
     $('rb-viagem').classList.add('oculto');
     $('rb-auto').classList.add('oculto');
     $('rb-ida').value = ''; $('rb-servico-inicio').value = ''; $('rb-servico-fim').value = ''; $('rb-volta').value = '';
@@ -888,7 +856,7 @@ EC.reembolso = (function () {
   async function enviarPedido(pedido) {
     var resp = await postJson(BASE + '/enviar', {
       codigo: pedido.codigo, osId: pedido.osId, campanha: pedido.campanha,
-      solicitante: pedido.solicitante, veiculo: pedido.veiculo,
+      solicitante: pedido.solicitante, designado: pedido.designado, veiculo: pedido.veiculo,
       tipoCombustivel: pedido.tipoCombustivel, precoLitro: pedido.precoLitro,
       combustivelJustificativa: pedido.combustivelJustificativa,
       valorPedagio: pedido.valorPedagio, distanciaManual: pedido.distanciaManual,
@@ -911,17 +879,16 @@ EC.reembolso = (function () {
 
   async function enviarFormulario() {
     if (!osSel) return mostrarErro('Busque e escolha a Ordem de Serviço.');
-    if (osSel.campanhas.length && !campSel) return mostrarErro('Escolha a campanha.');
-    var solicitante = $('rb-solicitante').value.trim();
-    if (!solicitante) return mostrarErro('Informe o solicitante.');
-    if (modoManual()) {
-      var ida = $('rb-ida').value, si = $('rb-servico-inicio').value, sf = $('rb-servico-fim').value, volta = $('rb-volta').value;
-      if (!ida || !si || !sf || !volta) return mostrarErro('Preencha as 4 datas: ida, início e término do serviço, e chegada.');
-      if (diffDias(ida, si) < 0 || diffDias(si, sf) < 0 || diffDias(sf, volta) < 0) {
-        return mostrarErro('As datas precisam ficar em ordem: ida ≤ início do serviço ≤ término do serviço ≤ chegada.');
-      }
-      if (diasViagemVal() < 1) return mostrarErro('A viagem precisa ter ao menos 1 dia.');
+    if (osSel.campanhas.length === 0) {
+      return mostrarErro('Esta OS ainda não tem o serviço na Agenda — peça para incluir a programação (dias e técnicos) primeiro.');
     }
+    if (!campSel) return mostrarErro('Escolha a campanha.');
+    if (campSel.tecnicos.length === 0) {
+      return mostrarErro('Esta OS está na Agenda sem técnicos vinculados — peça para incluir os técnicos nos dias primeiro.');
+    }
+    if (!tecSel) return mostrarErro('Escolha o designado (o técnico da viagem).');
+    var solicitante = sessionNome();
+    if (!solicitante) return mostrarErro('Sua sessão expirou — entre de novo no app.');
     if (!veiculo()) return mostrarErro('Responda: o veículo é da ENGEAR ou do colaborador?');
 
     var preco = parseFloat($('rb-preco-litro').value) || 0;
@@ -972,6 +939,7 @@ EC.reembolso = (function () {
       os: osSel.numero,
       campanha: campSel ? campSel.numero : null,
       solicitante: solicitante,
+      designado: tecSel.nome,
       veiculo: veiculo(),
       tipoCombustivel: tipoComb || null,
       precoLitro: preco > 0 ? preco : null,
@@ -1090,6 +1058,7 @@ EC.reembolso = (function () {
       '    <span class="rb-status ' + st.cls + '">' + st.txt + '</span></div>' +
       '  <div class="rb-pedido-linha">' + linhaValor +
       (retorno !== '—' ? ' · retorno ' + retorno : '') + '</div>' +
+      (p.designado ? '<div class="os-resumo">👷 Designado: ' + p.designado + '</div>' : '') +
       (p.cliente ? '<div class="os-resumo">' + p.cliente + '</div>' : '') +
       obs + pagoInfo +
       '</div>'
@@ -1132,17 +1101,6 @@ EC.reembolso = (function () {
 
   /* ============ Inicialização / navegação ============ */
 
-  // Sessões antigas (login antes desta versão) não têm os papéis gravados —
-  // busca uma vez e completa a sessão.
-  async function garantirPapeis() {
-    var s = sessao();
-    if (Array.isArray(s.papeis) || !EC.auth || !EC.auth.meusPapeis) return;
-    try {
-      s.papeis = await EC.auth.meusPapeis();
-      EC.storage.salvar('sessao:atual', s);
-    } catch (e) { /* offline: tenta de novo na próxima */ }
-  }
-
   function iniciar() {
     if (iniciado) return;
     iniciado = true;
@@ -1161,13 +1119,10 @@ EC.reembolso = (function () {
 
     $('rb-os-busca').addEventListener('input', function () { pintarResultadosOs(this.value); });
     $('rb-campanha').addEventListener('change', aoEscolherCampanha);
-    $('rb-solicitante').addEventListener('input', function () {
+    $('rb-designado').addEventListener('change', function () {
       atualizarTecSel();
       pintarResumoAuto();
       pintarValores();
-    });
-    ['rb-ida', 'rb-servico-inicio', 'rb-servico-fim', 'rb-volta'].forEach(function (id) {
-      $(id).addEventListener('change', function () { recalcularDiasManual(); pintarValores(); });
     });
     document.querySelectorAll('input[name="rb-veiculo"]').forEach(function (r) {
       r.addEventListener('change', aoMudarVeiculo);
@@ -1191,7 +1146,6 @@ EC.reembolso = (function () {
     iniciar();
     EC.app.mostrarTela('tela-reembolso');
     pintarLista();
-    garantirPapeis();
     enviarPendentes(true);
     atualizarListaDoServidor();
     atualizarContexto();

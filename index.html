@@ -307,7 +307,11 @@
           <div id="rb-campanha-bloco" class="oculto">
             <label>Campanha<select id="rb-campanha"></select></label>
           </div>
-          <label>Solicitante<input type="text" id="rb-solicitante" readonly></label>
+          <label>Solicitante <span class="rotulo-apoio">(quem está preenchendo)</span><input type="text" id="rb-solicitante" readonly></label>
+          <div id="rb-sem-agenda" class="alerta alerta-amarelo oculto">📅 Esta OS ainda não tem o serviço na Agenda. Peça para incluir a programação (dias e técnicos) na Agenda primeiro — depois é só voltar aqui.</div>
+          <div id="rb-designado-bloco" class="oculto">
+            <label>Designado <span class="rotulo-apoio">(técnico da viagem, vinculado à OS na Agenda)</span><select id="rb-designado"></select></label>
+          </div>
           <div id="rb-viagem" class="oculto">
             <p class="texto-apoio" id="rb-viagem-fonte"></p>
             <div class="grade-2">
