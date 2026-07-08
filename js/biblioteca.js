@@ -25,9 +25,6 @@ EC.biblioteca = (function () {
     { chave: 'norma', titulo: 'Normas', icone: '📘' },
     { chave: 'procedimento', titulo: 'Procedimentos', icone: '📗' }
   ];
-  // Ordem preferida das categorias (escopos); as não listadas vão ao fim.
-  const ORDEM_ESCOPO = ['Ruído', 'Vibração', 'QAR Externo', 'QAR Interno', 'Opacidade', 'Outro', 'Geral'];
-
   // Nível atual da navegação. Zerado ao abrir.
   let nivel = { tipo: null, escopo: null };
 
@@ -50,12 +47,9 @@ EC.biblioteca = (function () {
   }
   function plural(n) { return n + ' ' + (n === 1 ? 'documento' : 'documentos'); }
 
+  // Categorias (escopos) em ordem alfabética.
   function ordenarEscopos(escopos) {
-    return escopos.sort(function (a, b) {
-      const ia = ORDEM_ESCOPO.indexOf(a); const ib = ORDEM_ESCOPO.indexOf(b);
-      if (ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
-      return a.localeCompare(b, 'pt-BR');
-    });
+    return escopos.sort(function (a, b) { return a.localeCompare(b, 'pt-BR'); });
   }
 
   // Nº do POP a partir do título ("POP 001 …" → 1). Sem POP (normas) → Infinity,
