@@ -978,3 +978,86 @@ textarea { resize: vertical; font-family: inherit; }
   cursor: pointer;
 }
 .anx-status { font-size: 0.82rem; color: var(--cinza-texto); margin-top: 4px; min-height: 18px; }
+
+/* ---------- Aprovações de logística (sino + telas) ---------- */
+.botao-sino { position: relative; }
+.sino-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: var(--vermelho);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  line-height: 1;
+}
+.apr-cartao {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--cinza-borda);
+  background: #fff;
+  cursor: pointer;
+}
+.apr-cartao:active { background: var(--azul-claro); }
+.apr-cab {
+  font-weight: 700;
+  color: var(--azul-escuro);
+  font-size: 1.05rem;
+  margin-bottom: 10px;
+}
+.apr-linha {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--cinza-borda);
+}
+.apr-linha strong { color: var(--azul-escuro); }
+.apr-ajuste {
+  background: var(--amarelo-claro);
+  border: 1px solid var(--amarelo);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+.apr-just {
+  font-size: 0.85rem;
+  color: var(--cinza-texto);
+  margin-top: 4px;
+  font-style: italic;
+}
+.botao-ajuste { background: var(--amarelo-claro); color: #7a6200; }
+/* Resumo orçamentário */
+.apr-orc { border-radius: 10px; padding: 10px 12px; margin: 4px 0 12px; font-size: 0.88rem; }
+.apr-orc-topo { display: flex; justify-content: space-between; font-size: 0.95rem; margin-bottom: 4px; }
+.apr-orc-linha { color: inherit; opacity: 0.95; }
+.apr-orc-verde { background: var(--verde-claro); border: 1px solid var(--verde); color: #145c33; }
+.apr-orc-amarelo { background: var(--amarelo-claro); border: 1px solid var(--amarelo); color: #7a6200; }
+.apr-orc-vermelho { background: var(--vermelho-claro); border: 1px solid var(--vermelho); color: #8f1f1f; }
+.apr-orc-cinza { background: var(--cinza-fundo); border: 1px solid var(--cinza-borda); color: var(--cinza-texto); }
+/* Evidências */
+.apr-anexos-lista { display: flex; flex-wrap: wrap; gap: 8px; }
+.apr-anexo img {
+  width: 90px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--cinza-borda);
+  cursor: pointer;
+}
+.apr-anexo-pdf {
+  display: inline-block;
+  padding: 8px 12px;
+  background: var(--azul-claro);
+  border-radius: 8px;
+  color: var(--azul-escuro);
+  text-decoration: none;
+  font-size: 0.85rem;
+}

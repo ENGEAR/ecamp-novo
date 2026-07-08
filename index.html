@@ -19,6 +19,7 @@
   <header id="header" class="oculto">
     <img src="public/logo-recortada.png" id="header-logo" alt="eCamp — voltar à tela inicial" title="Voltar à tela inicial">
     <div class="header-acoes">
+      <button type="button" class="botao-icone botao-sino oculto" id="btn-aprovacoes" title="Aprovações de logística">🔔<span id="sino-badge" class="sino-badge oculto">0</span></button>
       <button type="button" class="botao-icone" id="btn-historico" title="Histórico de monitoramentos">🕐</button>
       <button type="button" class="botao-icone" id="btn-rascunhos" title="Rascunhos — OS iniciadas e não finalizadas (últimos 30 dias)">📝</button>
       <button type="button" class="botao-icone" id="btn-agenda" title="Agenda">📅</button>
@@ -397,6 +398,39 @@
       </div>
     </section>
 
+    <!-- ======= Aprovações de logística — lista (só papel logística/admin) ======= -->
+    <section id="tela-aprovacoes" class="tela oculto">
+      <div class="cartao">
+        <h1>✅ Aprovações de logística</h1>
+        <p class="texto-apoio">Solicitações de reembolso aguardando a análise da Logística.</p>
+        <div id="apr-lista"></div>
+        <button type="button" class="botao botao-secundario" id="apr-voltar">← Voltar</button>
+      </div>
+    </section>
+
+    <!-- ======= Aprovações — detalhe / decisão ======= -->
+    <section id="tela-aprovacao-detalhe" class="tela oculto">
+      <div class="cartao">
+        <h1>📋 Analisar solicitação</h1>
+        <div id="apr-detalhe"></div>
+
+        <p class="dg-secao">Evidências</p>
+        <div id="apr-anexos"></div>
+
+        <p class="dg-secao">Decisão</p>
+        <label>Observação <span class="rotulo-apoio">(obrigatória para rejeitar ou pedir correção)</span>
+          <textarea id="apr-obs" rows="3" placeholder="Escreva uma observação (opcional ao aprovar)"></textarea>
+        </label>
+        <div id="apr-erro" class="alerta alerta-vermelho oculto"></div>
+        <div class="pilha-botoes">
+          <button type="button" class="botao botao-primario" id="apr-aprovar">✅ Aprovar</button>
+          <button type="button" class="botao botao-ajuste" id="apr-correcao">✏️ Solicitar correção</button>
+          <button type="button" class="botao botao-perigo" id="apr-rejeitar">❌ Rejeitar</button>
+          <button type="button" class="botao botao-secundario" id="apr-detalhe-voltar">← Voltar</button>
+        </div>
+      </div>
+    </section>
+
     <!-- ======= Agenda (espelho do SGP — mesma base de dados) ======= -->
     <section id="tela-agenda" class="tela oculto">
       <div class="cartao">
@@ -496,6 +530,7 @@
   <script src="js/campo-outro.js"></script>
   <script src="js/fluxo.js"></script>
   <script src="js/reembolso.js"></script>
+  <script src="js/aprovacoes.js"></script>
   <script src="js/agenda.js"></script>
   <script src="js/biblioteca-dados.js"></script>
   <script src="js/biblioteca.js"></script>

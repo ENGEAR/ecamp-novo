@@ -22,7 +22,7 @@
   // lugar nenhum). Opt-in explícito: só grava se a pessoa marcar a caixinha.
   const CHAVE_CREDENCIAIS = 'sessao:credenciais';
   // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
-  const VERSAO_APP = '0.42.3';
+  const VERSAO_APP = '0.43.0';
 
   function $(id) { return document.getElementById(id); }
 
@@ -162,6 +162,8 @@
     $('chip-avatar').title = sessao.nome;
     $('header').classList.remove('oculto');
     atualizarBarraPendencias();
+    // Sino de aprovações: aparece só para quem tem papel logística/admin.
+    if (EC.aprovacoes && EC.aprovacoes.atualizarBadge) EC.aprovacoes.atualizarBadge();
     mostrarTela('tela-acao');
   }
 
@@ -427,6 +429,10 @@
   $('btn-biblioteca').addEventListener('click', function () {
     if (EC.biblioteca && EC.biblioteca.abrir) EC.biblioteca.abrir();
     else abrirOverlay('📚 Biblioteca', '<p class="overlay-vazio">Biblioteca indisponível.</p>');
+  });
+
+  $('btn-aprovacoes').addEventListener('click', function () {
+    if (EC.aprovacoes && EC.aprovacoes.abrir) EC.aprovacoes.abrir();
   });
 
   /* ============ Barra de pendências offline ============ */
