@@ -81,27 +81,28 @@ code { background: var(--azul-claro); padding: 1px 5px; border-radius: 4px; font
 #chip-usuario {
   display: flex;
   align-items: center;
-  gap: 6px;
-  border: 1px solid var(--cinza-borda);
-  background: var(--azul-claro);
-  border-radius: 999px;
-  padding: 6px 12px;
+  border: none;
+  background: none;
+  padding: 0;
   cursor: pointer;
-  font-size: 0.85rem;
-  color: var(--azul-escuro);
-  max-width: 40vw;
+  flex-shrink: 0;
 }
-/* Economia de espaço no topo: só as INICIAIS (2 letras) em azul-escuro,
-   sem o círculo do avatar. */
-#chip-avatar { display: none; }
-#chip-nome {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* Só as INICIAIS (2 letras) em BRANCO, dentro de um círculo azul-escuro. */
+#chip-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--azul-escuro);
+  color: #fff;
   font-weight: 700;
+  font-size: 0.8rem;
   letter-spacing: 0.5px;
-  color: var(--azul-escuro);
+  flex-shrink: 0;
 }
+#chip-nome { display: none; }
 
 /* ---------- Barra de pendências ---------- */
 #barra-pendencias {

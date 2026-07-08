@@ -22,7 +22,7 @@
   // lugar nenhum). Opt-in explícito: só grava se a pessoa marcar a caixinha.
   const CHAVE_CREDENCIAIS = 'sessao:credenciais';
   // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
-  const VERSAO_APP = '0.42.2';
+  const VERSAO_APP = '0.42.3';
 
   function $(id) { return document.getElementById(id); }
 
@@ -158,9 +158,8 @@
 
   function entrarNoApp() {
     const sessao = sessaoAtual();
-    $('chip-nome').textContent = iniciaisNome(sessao.nome);
-    $('chip-nome').title = sessao.nome;
-    $('chip-avatar').textContent = (sessao.nome.trim().charAt(0) || '?').toUpperCase();
+    $('chip-avatar').textContent = iniciaisNome(sessao.nome);
+    $('chip-avatar').title = sessao.nome;
     $('header').classList.remove('oculto');
     atualizarBarraPendencias();
     mostrarTela('tela-acao');
