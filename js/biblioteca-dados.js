@@ -51,5 +51,26 @@ self.ECAMP_BIBLIOTECA = [
   { tipo: 'procedimento', escopo: 'Geral', metodo: '', titulo: 'POP 012 — Normas de direção — rev.00', arquivo: 'normas/procedimentos/proc_geral_normas de direção_POP 012_rev00.pdf' },
 
   /* ===================== NORMAS ===================== */
-  // (a incluir quando os PDFs das normas forem adicionados à pasta normas/)
+  { tipo: 'norma', escopo: 'QAR Externo', metodo: 'NBR 13412', titulo: 'NBR 13412:1995 — Material particulado em suspensão na atmosfera', arquivo: 'normas/normas/ABNT NBR 13412-1995_norma_qarext_Material Particulado em suspensao na atmosfera.pdf' },
+  { tipo: 'norma', escopo: 'Vibração', metodo: 'CECAV', titulo: 'CECAV — Patrimônio espeleológico', arquivo: 'normas/normas/CECAV_norma_sismografia_Patrimonio Espeleológico.pdf' },
+  { tipo: 'norma', escopo: 'QAR Externo', metodo: 'CONAMA 506', titulo: 'CONAMA 506/2024 — Padrões de qualidade do ar', arquivo: 'normas/normas/CONAMA 506-2024_norma_qarext.pdf' },
+  { tipo: 'norma', escopo: 'Vibração', metodo: 'CETESB DD 215/2007', titulo: 'CETESB DD 215/2007 — Vibrações em áreas habitadas', arquivo: 'normas/normas/DD CETESB - 215 de 2007_norma_sismografia.pdf' },
+  { tipo: 'norma', escopo: 'QAR Externo', metodo: 'Guia MMA', titulo: 'Guia MMA — Monitoramento da qualidade do ar', arquivo: 'normas/normas/Guia MMA_norma_qarext.pdf' },
+  { tipo: 'norma', escopo: 'Ruído', metodo: 'NBR 10052', titulo: 'NBR 10052:2020 — Medições em campo de isolamento acústico', arquivo: 'normas/normas/NBR 10052-2020_norma_ruido_ Medições em campo de isolamento a ruido acust.pdf' },
+  { tipo: 'norma', escopo: 'Ruído', metodo: 'NBR 16032', titulo: 'NBR 16032:2020 — Nível de pressão sonora de equipamentos', arquivo: 'normas/normas/NBR 16032-2020_norma_ruido_Medição de nível de pressão sonora de equipa.pdf' },
+  { tipo: 'norma', escopo: 'QAR Externo', metodo: 'NBR 9547', titulo: 'NBR 9547:1997 — MP em suspensão no ar ambiente (método AGV)', arquivo: 'normas/normas/NBR 9547-1997_norma_qarext_MP em suspensão no ar ambiente - método AGV.pdf' },
+  { tipo: 'norma', escopo: 'Ruído', metodo: 'NBR 10151', titulo: 'NBR 10151:2020 — Níveis de pressão sonora em áreas habitadas', arquivo: 'normas/normas/NBR10151-2020_norma_ruido_ Medição e avaliação de níveis de pressão sonora em áreas habitadas.pdf' },
+  { tipo: 'norma', escopo: 'Ruído', metodo: 'NBR 10152', titulo: 'NBR 10152:2020 — Níveis de pressão sonora em ambientes internos', arquivo: 'normas/normas/NBR10152-2020_norma_ruido_Níveis de pressão sonora em ambientes internos a edificações.pdf' },
+  { tipo: 'norma', escopo: 'QAR Externo', metodo: 'NBR 12065', titulo: 'NBR 12065:1991 — Determinação de poeira sedimentável', arquivo: 'normas/normas/NBR12065-1991_norma_qarext_Determinação de Poeira Sedimentaveis.pdf' },
+  { tipo: 'norma', escopo: 'QAR Interno', metodo: 'NBR 12085', titulo: 'NBR 12085:1991 — Aerodispersóides por filtração', arquivo: 'normas/normas/NBR12085-1991_norma_qarint_ Agentes químicos no ar - coleta de aerodispersóides por filtração.pdf' },
+  { tipo: 'norma', escopo: 'Opacidade', metodo: 'NBR 12897', titulo: 'NBR 12897:1993 — Emprego do opacímetro', arquivo: 'normas/normas/NBR12897-1993_norma_fuligem_Emprego do opacímetro .pdf' },
+  { tipo: 'norma', escopo: 'QAR Externo', metodo: 'NBR 12979', titulo: 'NBR 12979:1993 — Determinação de SO₂ no ar ambiente', arquivo: 'normas/normas/NBR12979-1993_norma_qarext_Determinação de SO2 ar ambiente.pdf' },
+  { tipo: 'norma', escopo: 'Ruído', metodo: 'NBR 16425-1', titulo: 'NBR 16425-1:2016 — Ruído de sistemas de transporte (geral)', arquivo: 'normas/normas/NBR16425_1-2016_norma_ruido_Ruido Sistema Transporte Geral.pdf' },
+  { tipo: 'norma', escopo: 'Ruído', metodo: 'NBR 16425-2', titulo: 'NBR 16425-2:2020 — Ruído de sistema de transporte aéreo', arquivo: 'normas/normas/NBR16425_2-2020_norma_ruido_Ruido Sistema Aéreo.pdf' },
+  { tipo: 'norma', escopo: 'Ruído', metodo: 'NBR 16425-4', titulo: 'NBR 16425-4:2020 — Ruído de sistema de transporte ferroviário', arquivo: 'normas/normas/NBR16425_4-2020_norma_ruido_Ruido Sistema Ferroviario.pdf' },
+  { tipo: 'norma', escopo: 'QAR Interno', metodo: 'NBR 17037', titulo: 'NBR 17037:2023 — Qualidade do ar em ambiente climatizado', arquivo: 'normas/normas/NBR17037-2023_norma_qarint_QAr ambiente climatizado.pdf' },
+  { tipo: 'norma', escopo: 'Opacidade', metodo: 'NBR 6016', titulo: 'NBR 6016:2015 — Gás de escapamento de motor diesel (avaliação)', arquivo: 'normas/normas/NBR6016-2015_norma_fuligem_Gás de escapamento de motor Diesel — Avaliação.pdf' },
+  { tipo: 'norma', escopo: 'Vibração', metodo: 'NBR 9653', titulo: 'NBR 9653:2018 — Avaliação dos efeitos de detonação', arquivo: 'normas/normas/NBR9653-2018_norma_sismografia_Avaliação dos efeitos detonação.pdf' },
+  { tipo: 'norma', escopo: 'Geral', metodo: 'ISO/IEC 17025', titulo: 'ISO/IEC 17025:2017 — Competência de laboratórios de ensaio e calibração', arquivo: 'normas/normas/NBRISO_IEC17025-2017_norma_geral_Competência de laboratórios de ensaio e calibração.pdf' },
+  { tipo: 'norma', escopo: 'QAR Externo', metodo: 'AS/NZS 3580.9', titulo: 'AS/NZS 3580.9:2013 — Material particulado em suspensão (PM2,5)', arquivo: 'normas/normas/asnzs-3580-9-2013_norma_qarext_Determinação de material particulado em suspensão PM2,5.pdf' },
 ];
