@@ -183,20 +183,38 @@ EC.aprovacoes = (function () {
 
     var pct = s.percentual_solicitado != null ? Number(s.percentual_solicitado) : 100;
     var solicitado = s.valor_solicitado != null ? s.valor_solicitado : s.valor_total;
-    var comb = s.tipo_combustivel ? (s.tipo_combustivel === 'diesel' ? 'Diesel' : 'Gasolina') : '—';
+    var comb = s.tipo_combustivel ? (s.tipo_combustivel === 'diesel' ? 'Diesel' : 'Gasolina') : null;
+    var trajeto = (s.origem_cidade || s.destino_cidade)
+      ? (esc(s.origem_cidade || '?') + (s.origem_uf ? '/' + esc(s.origem_uf) : '') + ' → ' +
+         esc(s.destino_cidade || '?') + (s.destino_uf ? '/' + esc(s.destino_uf) : ''))
+      : '—';
+    var combTxt = comb
+      ? comb + (s.preco_litro ? ' · ' + moeda(s.preco_litro) + '/L' : '')
+      : 'não informado';
 
     return (
       '<div class="apr-cab"><span class="os-numero">OS ' + esc(s.os) + '</span>' + (s.cliente ? ' · ' + esc(s.cliente) : '') + '</div>' +
       renderOrcamento(orcAtual) +
+      '<p class="dg-secao">Quem</p>' +
       '<div class="rb-resumo-auto">' +
         linhaInfo('Solicitante (preencheu)', s.solicitante || '—') +
         linhaInfo('Designado (viagem)', (s.designado || '—') + ' · ' + tipo) +
+      '</div>' +
+      '<p class="dg-secao">Datas da viagem</p>' +
+      '<div class="rb-resumo-auto">' +
+        linhaInfo('Ida', dataBR(s.data_inicio)) +
+        linhaInfo('Início do serviço', dataBR(s.servico_inicio)) +
+        linhaInfo('Término do serviço', dataBR(s.servico_fim)) +
         linhaInfo('Chegada', dataBR(s.data_retorno)) +
-        linhaInfo('Dias de viagem', s.dias_viagem) +
         linhaInfo('Dias de serviço', s.dias_servico) +
         linhaInfo('Dias de deslocamento', s.dias_deslocamento) +
+      '</div>' +
+      '<p class="dg-secao">Transporte</p>' +
+      '<div class="rb-resumo-auto">' +
         linhaInfo('Veículo', s.veiculo === 'proprio' ? 'Próprio' : (s.veiculo === 'engear' ? 'ENGEAR' : '—')) +
-        linhaInfo('Distância / combustível', (s.distancia_km ? s.distancia_km + ' km' : '—') + (s.preco_litro ? ' · ' + comb + ' ' + moeda(s.preco_litro) + '/L' : '')) +
+        linhaInfo('Origem → Destino', trajeto) +
+        linhaInfo('Distância (ida e volta)', s.distancia_km ? s.distancia_km + ' km' : '—') +
+        linhaInfo('Combustível', combTxt) +
       '</div>' +
       (s.combustivel_justificativa ? '<div class="apr-just">⛽ Justificativa do combustível acima do teto: ' + esc(s.combustivel_justificativa) + '</div>' : '') +
       '<p class="dg-secao">Valores</p>' + valoresHtml +

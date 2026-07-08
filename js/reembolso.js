@@ -863,6 +863,8 @@ EC.reembolso = (function () {
       dataInicio: pedido.dataInicio, dataRetorno: pedido.dataRetorno,
       servicoInicio: pedido.servicoInicio, servicoFim: pedido.servicoFim,
       diasServico: pedido.diasServico, diasDeslocamento: pedido.diasDeslocamento,
+      origemCidade: pedido.origemCidade, origemUf: pedido.origemUf,
+      destinoCidade: pedido.destinoCidade, destinoUf: pedido.destinoUf,
       percentualSolicitado: pedido.percentualSolicitado,
       ajustes: pedido.ajustes
     });
@@ -946,6 +948,11 @@ EC.reembolso = (function () {
       combustivelJustificativa: $('rb-comb-justificativa').value.trim(),
       valorPedagio: parseFloat($('rb-pedagio').value) || 0,
       distanciaManual: distanciaDaOs() > 0 ? null : distanciaAtual(),
+      // trajeto (só quando a distância veio das cidades, não da OS)
+      origemCidade: distanciaDaOs() > 0 ? null : ($('rb-origem-cidade').value.trim() || null),
+      origemUf: distanciaDaOs() > 0 ? null : ($('rb-origem-uf').value || null),
+      destinoCidade: distanciaDaOs() > 0 ? null : ($('rb-destino-cidade').value.trim() || null),
+      destinoUf: distanciaDaOs() > 0 ? null : ($('rb-destino-uf').value || null),
       // dias/datas informados (o servidor usa só quando a OS não tem viagem na Agenda)
       dataInicio: $('rb-ida').value || null,
       dataRetorno: $('rb-volta').value || null,
