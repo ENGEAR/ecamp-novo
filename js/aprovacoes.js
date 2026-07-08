@@ -240,8 +240,8 @@ EC.aprovacoes = (function () {
       '</div>' +
       (s.combustivel_justificativa ? '<div class="apr-just">⛽ Justificativa do combustível acima do teto: ' + esc(s.combustivel_justificativa) + '</div>' : '') +
       '<p class="dg-secao">Valores</p>' + valoresHtml +
-      '<div class="rb-total" style="margin-top:10px;">Total da logística: <strong>' + moeda(s.valor_total) + '</strong>' +
-      '<span class="rb-total-sub">Solicitado: ' + pct + '% = ' + moeda(solicitado) + '</span></div>' +
+      '<div class="rb-total" style="margin-top:10px;">Solicitado (' + pct + '%): <strong>' + moeda(solicitado) + '</strong>' +
+      '<span class="rb-total-sub">Total da logística: ' + moeda(s.valor_total) + '</span></div>' +
       ajHtml
     );
   }
