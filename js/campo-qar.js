@@ -42,6 +42,12 @@ EC.campoQar = (function () {
     return '<label>' + rotulo + '<input type="number" step="0.01" inputmode="decimal" data-campo="' + campoNome + '"></label>';
   }
 
+  function lblSelect(rotulo, campoNome, opcoes) {
+    return '<label>' + rotulo + '<select data-campo="' + campoNome + '"><option value="">Selecione…</option>' +
+      opcoes.map(function (o) { return '<option>' + o + '</option>'; }).join('') + '</select></label>';
+  }
+  const OPCOES_VENTO = ['Fraco', 'Médio', 'Forte'];
+
   function htmlChecks(itens, prefixo) {
     return itens.map(function (texto, i) {
       return '<label class="linha-check check-campo"><input type="checkbox" data-check="' + prefixo + i + '"><span>' + texto + '</span></label>';
@@ -237,7 +243,7 @@ EC.campoQar = (function () {
       (extraAposHora || '') +
       lblNum('Horímetro', 'horimetro_' + sufixo) +
       '<div class="grade-2">' + lblNum('Temperatura (°C)', 'temp_' + sufixo) + lblNum('Umidade (%)', 'umid_' + sufixo) + '</div>' +
-      '<div class="grade-2">' + lblNum('Pressão (mmHg)', 'pressao_' + sufixo) + lblNum('Velocidade do vento (m/s)', 'vento_' + sufixo) + '</div>' +
+      '<div class="grade-2">' + lblNum('Pressão (mmHg)', 'pressao_' + sufixo) + lblSelect('Vento', 'vento_' + sufixo, OPCOES_VENTO) + '</div>' +
       '<label>Como está o tempo?<input type="text" placeholder="ex.: sol, nublado" data-campo="tempo_' + sufixo + '"></label>' +
       '<p class="cq-sub">Coluna 800 mm (cmH₂O)</p><div class="grade-2">' +
       lblNum('↑ Para cima', 'col800sobe_' + sufixo) + lblNum('↓ Para baixo', 'col800desce_' + sufixo) + '</div>';
@@ -268,6 +274,7 @@ EC.campoQar = (function () {
       '<div class="cartao-ponto"><h2>Ponto P' + n + '</h2>' +
       // Identificação
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
+      '<label>Característica do ambiente<input type="text" placeholder="ex.: fluxo intenso de veículos, próximo estrada não pavimentada" data-campo="caracteristicaAmbiente"></label>' +
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       htmlEquipamentosQar() +
       '<div class="cq-carvao-aviso"></div>' +
@@ -285,7 +292,7 @@ EC.campoQar = (function () {
       '<p class="cq-passo">4º passo — Porta filtro e porta motor</p>' + htmlChecks(['Nenhuma fuga de ar detectada'], 'porta') +
       '<p class="cq-passo">5º passo — Condições ambientais</p>' +
       lblNum('Temperatura (°C)', 'temperatura') + lblNum('Pressão (mmHg)', 'pressao') + lblNum('Umidade (%)', 'umidade') +
-      lblNum('Velocidade do vento (m/s)', 'vento') +
+      lblSelect('Vento', 'vento', OPCOES_VENTO) +
       '<label>Como está o tempo?<input type="text" placeholder="ex.: sol, nublado" data-campo="tempo"></label>' +
       '<p class="cq-passo">6º passo — Calibração (placas de retenção)</p>' +
       CARTAS.map(function (c) { return '<p class="grupo-checks-titulo">Placa de retenção ' + c + '</p>' + htmlCarta('carta' + c); }).join('') +
@@ -344,7 +351,7 @@ EC.campoQar = (function () {
     grupoChecks('vaz', 2, 'teste de vazamento');
     grupoChecks('porta', 1, 'porta filtro');
     reqVal('temperatura', 'temperatura'); reqVal('pressao', 'pressão'); reqVal('umidade', 'umidade');
-    reqVal('vento', 'velocidade do vento'); reqVal('tempo', 'como está o tempo');
+    reqVal('vento', 'vento'); reqVal('tempo', 'como está o tempo');
     grupoChecks('calib', 1, 'calibração aprovada');
     reqVal('validadeCalib', 'validade da calibração (em meses)');
 
@@ -356,7 +363,7 @@ EC.campoQar = (function () {
         const rotPer = (suf === 'ini' ? 'inicial' : 'final');
         [['data_' + suf, 'data'], ['hora_' + suf, 'hora'], ['horimetro_' + suf, 'horímetro'],
          ['temp_' + suf, 'temperatura'], ['umid_' + suf, 'umidade'], ['pressao_' + suf, 'pressão'],
-         ['vento_' + suf, 'velocidade do vento'], ['tempo_' + suf, 'como está o tempo']
+         ['vento_' + suf, 'vento'], ['tempo_' + suf, 'como está o tempo']
         ].forEach(function (par) {
           const v = col[par[0]];
           if (v === undefined || v === null || String(v).trim() === '') falta.push((k + 1) + 'ª coleta: ' + par[1] + ' ' + rotPer);
