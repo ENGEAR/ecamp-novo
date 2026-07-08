@@ -371,7 +371,7 @@ EC.reembolso = (function () {
     var diasServico = diasServicoVal(), diasDeslocamento = diasDeslocVal(), diasViagem = diasViagemVal();
     var diarias = diariasVal();
     var preco = parseFloat($('rb-preco-litro').value) || 0;
-    var consumo = Number(v.consumo_padrao_kml) || 0;
+    var consumo = consumoAtual();
     var dist = distanciaAtual();
     var r2 = function (x) { return Math.round(x * 100) / 100; };
 
@@ -430,6 +430,15 @@ EC.reembolso = (function () {
     if (!ctx) return 0;
     return $('rb-combustivel').value === 'diesel'
       ? Number(ctx.valores.teto_diesel) : Number(ctx.valores.teto_gasolina);
+  }
+
+  // Consumo (km/L) do combustível ESCOLHIDO: gasolina 12 / diesel 10 (da tela
+  // de valores do SGP). Contexto antigo em cache (consumo único) ainda funciona.
+  function consumoAtual() {
+    if (!ctx) return 0;
+    var v = ctx.valores;
+    var porTipo = $('rb-combustivel').value === 'diesel' ? v.consumo_diesel_kml : v.consumo_gasolina_kml;
+    return Number(porTipo || v.consumo_padrao_kml) || 0;
   }
 
   /* ============ Contexto ============ */
@@ -641,7 +650,8 @@ EC.reembolso = (function () {
     var dServico = diasServicoVal(), dDesloc = diasDeslocVal(), dViagem = diasViagemVal();
     var sub = {
       transporte: (distanciaAtual() > 0
-        ? distanciaAtual() + ' km ÷ ' + v.consumo_padrao_kml + ' km/L × preço do litro'
+        ? distanciaAtual() + ' km ÷ ' + consumoAtual() + ' km/L (' +
+          ($('rb-combustivel').value === 'diesel' ? 'diesel' : 'gasolina') + ') × preço do litro'
         : 'informe a distância e o preço do litro'),
       aluguel: moedaBR(v.aluguel_veiculo_dia) + '/dia × ' + dViagem + ' dia(s) de viagem',
       hospedagem: moedaBR(v.hospedagem_dia) + '/diária × ' + calc.diarias + ' diária(s) — da saída à chegada' +
