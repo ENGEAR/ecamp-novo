@@ -1061,3 +1061,19 @@ textarea { resize: vertical; font-family: inherit; }
   text-decoration: none;
   font-size: 0.85rem;
 }
+
+/* ---------- Minhas solicitações: cartão clicável + extrato ---------- */
+.rb-pedido-click {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.rb-pedido-click:active { background: var(--azul-claro); }
+.rb-ver-extrato {
+  margin-top: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--azul-escuro);
+}

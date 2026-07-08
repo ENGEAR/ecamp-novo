@@ -285,6 +285,7 @@
           <button type="button" class="botao botao-primario" id="rb-novo">➕ Nova solicitação</button>
         </div>
         <p class="os-secao-titulo">Minhas solicitações</p>
+        <p class="texto-apoio">Toque numa solicitação para ver o extrato completo.</p>
         <div id="rb-lista"></div>
         <button type="button" class="botao botao-secundario" id="rb-voltar">← Voltar</button>
       </div>
@@ -383,6 +384,7 @@
           <div id="rb-total" class="rb-total oculto"></div>
 
           <div id="rb-pct-bloco" class="oculto">
+            <div id="rb-pct-info" class="alerta alerta-info oculto"></div>
             <label>Percentual solicitado da logística (%)
               <input type="number" id="rb-percentual" min="1" max="100" step="1" inputmode="numeric" value="100">
             </label>
@@ -395,6 +397,15 @@
             <button type="button" class="botao botao-secundario" id="rb-cancelar">← Voltar</button>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- ======= Reembolso — extrato da solicitação (read-only) ======= -->
+    <section id="tela-reembolso-extrato" class="tela oculto">
+      <div class="cartao">
+        <h1>🧾 Extrato da solicitação</h1>
+        <div id="rb-extrato"></div>
+        <button type="button" class="botao botao-secundario" id="rb-extrato-voltar">← Voltar</button>
       </div>
     </section>
 

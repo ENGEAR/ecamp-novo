@@ -46,6 +46,7 @@ EC.reembolso = (function () {
 
   var ctx = null;          // contexto do servidor: { valores, os: [...] }
   var osSel = null, campSel = null, tecSel = null;
+  var dispCampanha = 100; // % da logística ainda disponível na campanha (100 − já solicitado)
   var anexos = {};
   var iniciado = false;
   var restaurando = false; // evita salvar rascunho no meio da restauração
@@ -528,6 +529,14 @@ EC.reembolso = (function () {
       blocoDesig.classList.remove('oculto');
     }
 
+    // Percentual já solicitado desta campanha (parcial) → disponível
+    dispCampanha = campSel ? Math.round((100 - (Number(campSel.jaSolicitado) || 0)) * 100) / 100 : 100;
+    var pctInp = $('rb-percentual');
+    pctInp.max = Math.max(1, dispCampanha);
+    // Se a campanha já teve parcelas, sugere pedir o que falta (não passa do disponível)
+    if (campSel && dispCampanha < 100) pctInp.value = dispCampanha > 0 ? dispCampanha : 0;
+    else pctInp.value = 100;
+
     atualizarTecSel();
     if (campSel) fillViagem(campSel);
     pintarResumoAuto();
@@ -656,6 +665,20 @@ EC.reembolso = (function () {
     $('rb-total').innerHTML = 'Valor total da logística: <strong>' + moedaBR(totalFinal) + '</strong>' +
       '<span class="rb-total-sub">inclui pedágio de ' + moedaBR(calc.pedagio) +
       (totalFinal !== calc.total ? ' · com os valores propostos nos ajustes' : '') + '</span>';
+
+    // Nota de disponível (quando a campanha já teve parcelas)
+    var info = $('rb-pct-info');
+    if (dispCampanha <= 0) {
+      info.className = 'alerta alerta-vermelho';
+      info.textContent = '🚫 Esta campanha já teve 100% da logística solicitado/pago — não é possível novo reembolso.';
+      info.classList.remove('oculto');
+    } else if (dispCampanha < 100) {
+      info.className = 'alerta alerta-info';
+      info.textContent = 'ℹ️ Já solicitado nesta campanha: ' + (Math.round((100 - dispCampanha) * 100) / 100) + '%. Disponível: ' + dispCampanha + '% (você pode pedir até isso).';
+      info.classList.remove('oculto');
+    } else {
+      info.classList.add('oculto');
+    }
 
     var pct = percentualVal();
     var solicitado = Math.round(totalFinal * pct) / 100;
@@ -925,6 +948,8 @@ EC.reembolso = (function () {
     }
     var pct = percentualVal();
     if (!(pct > 0 && pct <= 100)) return mostrarErro('O percentual solicitado precisa ficar entre 1% e 100%.');
+    if (dispCampanha <= 0) return mostrarErro('Esta campanha já teve 100% da logística solicitado/pago — não é possível novo reembolso.');
+    if (pct > dispCampanha + 0.01) return mostrarErro('Você pode solicitar no máximo ' + dispCampanha + '% (o resto desta campanha já foi solicitado/pago).');
     mostrarErro(null);
 
     var todosAnexos = [];
@@ -1060,7 +1085,7 @@ EC.reembolso = (function () {
     var pagoInfo = p.status === 'pago' && p.pago_em
       ? '<div class="os-resumo">Pago em ' + dataBR(p.pago_em) + (p.forma_pagamento ? ' · ' + p.forma_pagamento : '') + '</div>' : '';
     return (
-      '<div class="rb-pedido">' +
+      '<button type="button" class="rb-pedido rb-pedido-click" data-codigo="' + (p.codigo || '') + '">' +
       '  <div class="rb-pedido-topo"><span class="os-numero">OS ' + (p.os || '?') + '</span>' +
       '    <span class="rb-status ' + st.cls + '">' + st.txt + '</span></div>' +
       '  <div class="rb-pedido-linha">' + linhaValor +
@@ -1068,7 +1093,8 @@ EC.reembolso = (function () {
       (p.designado ? '<div class="os-resumo">👷 Designado: ' + p.designado + '</div>' : '') +
       (p.cliente ? '<div class="os-resumo">' + p.cliente + '</div>' : '') +
       obs + pagoInfo +
-      '</div>'
+      '  <div class="rb-ver-extrato">🧾 Ver extrato ›</div>' +
+      '</button>'
     );
   }
 
@@ -1094,6 +1120,77 @@ EC.reembolso = (function () {
     area.innerHTML =
       fila.map(function (p) { return cartaoPedido(p, true); }).join('') +
       enviados.map(function (p) { return cartaoPedido(p, false); }).join('');
+    // clicar num cartão abre o extrato completo
+    var porCodigo = {};
+    fila.forEach(function (p) { porCodigo[p.codigo] = { pedido: p, aguardandoEnvio: true }; });
+    enviados.forEach(function (p) { porCodigo[p.codigo] = { pedido: p, aguardandoEnvio: false }; });
+    area.querySelectorAll('.rb-pedido-click[data-codigo]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var item = porCodigo[el.dataset.codigo];
+        if (item) abrirExtrato(item.pedido, item.aguardandoEnvio);
+      });
+    });
+  }
+
+  /* ============ Extrato da solicitação (read-only) ============ */
+
+  function abrirExtrato(p, aguardandoEnvio) {
+    EC.app.mostrarTela('tela-reembolso-extrato');
+    window.scrollTo(0, 0);
+    // aceita tanto o registro do servidor quanto o pedido offline (nomes diferentes)
+    var total = p.valor_total != null ? p.valor_total : p.valorTotal;
+    var pct = p.percentual_solicitado != null ? Number(p.percentual_solicitado) : (p.percentual || 100);
+    var solicitado = p.valor_solicitado != null ? p.valor_solicitado : p.valorSolicitado;
+    if (solicitado == null) solicitado = Math.round(Number(total || 0) * pct) / 100;
+    var st = aguardandoEnvio
+      ? { txt: '📴 Aguardando envio', cls: 'rb-aguardando' }
+      : (STATUS[p.status] || { txt: p.status, cls: 'rb-aguardando' });
+    var tipo = p.solicitante_tipo === 'freelancer' ? 'Freelancer' : (p.solicitante_tipo === 'clt' ? 'CLT' : '—');
+    var comb = p.tipo_combustivel ? (p.tipo_combustivel === 'diesel' ? 'Diesel' : 'Gasolina') : null;
+    var trajeto = (p.origem_cidade || p.destino_cidade)
+      ? ((p.origem_cidade || '?') + (p.origem_uf ? '/' + p.origem_uf : '') + ' → ' + (p.destino_cidade || '?') + (p.destino_uf ? '/' + p.destino_uf : ''))
+      : (p.origemCidade ? (p.origemCidade + '/' + (p.origemUf || '') + ' → ' + (p.destinoCidade || '') + '/' + (p.destinoUf || '')) : '—');
+    var alimentacao = Number(p.valor_almoco || 0) + Number(p.valor_jantar || 0) + Number(p.valor_lanche || 0);
+
+    function linha(rot, val) { return '<div class="apr-linha"><span>' + rot + '</span><strong>' + val + '</strong></div>'; }
+    var valores = [
+      ['⛽ Transporte (combustível)', p.valor_combustivel],
+      ['🚗 Aluguel de veículo', p.valor_aluguel],
+      ['🛣️ Pedágio', p.valor_pedagio],
+      ['🏨 Hospedagem', p.valor_hospedagem],
+      ['👷 Mão de obra', p.valor_mao_obra],
+      ['🍽️ Alimentação', alimentacao]
+    ].filter(function (l) { return Number(l[1]) > 0; })
+     .map(function (l) { return linha(l[0], moedaBR(l[1])); }).join('');
+
+    var obs = (p.status === 'rejeitado' || p.status === 'correcao') && p.observacao_logistica
+      ? '<div class="rb-motivo">Observação da Logística: ' + p.observacao_logistica + '</div>' : '';
+    var pago = p.status === 'pago'
+      ? '<div class="apr-orc apr-orc-verde"><strong>💰 Pago</strong> em ' + dataBR(p.pago_em) + (p.forma_pagamento ? ' · ' + p.forma_pagamento : '') + '</div>' : '';
+
+    $('rb-extrato').innerHTML =
+      '<div class="rb-pedido-topo" style="margin-bottom:10px;"><span class="os-numero">OS ' + (p.os || '?') + '</span>' +
+      '<span class="rb-status ' + st.cls + '">' + st.txt + '</span></div>' +
+      (p.cliente ? '<div class="os-resumo" style="margin-bottom:8px;">' + p.cliente + '</div>' : '') +
+      pago + obs +
+      '<div class="rb-total" style="margin-top:6px;">Solicitado (' + pct + '%): <strong>' + moedaBR(solicitado) + '</strong>' +
+      '<span class="rb-total-sub">Total da logística: ' + moedaBR(total) + '</span></div>' +
+      '<p class="dg-secao">Quem</p><div class="rb-resumo-auto">' +
+        linha('Solicitante', p.solicitante || '—') + linha('Designado', (p.designado || '—') + ' · ' + tipo) +
+      '</div>' +
+      '<p class="dg-secao">Datas da viagem</p><div class="rb-resumo-auto">' +
+        linha('Ida', dataBR(p.data_inicio)) + linha('Início do serviço', dataBR(p.servico_inicio)) +
+        linha('Término do serviço', dataBR(p.servico_fim)) + linha('Chegada', dataBR(p.data_retorno || p.dataRetorno)) +
+        linha('Dias de serviço', p.dias_servico != null ? p.dias_servico : '—') +
+        linha('Dias de deslocamento', p.dias_deslocamento != null ? p.dias_deslocamento : '—') +
+      '</div>' +
+      '<p class="dg-secao">Transporte</p><div class="rb-resumo-auto">' +
+        linha('Veículo', p.veiculo === 'proprio' ? 'Próprio' : (p.veiculo === 'engear' ? 'ENGEAR' : '—')) +
+        linha('Origem → Destino', trajeto) +
+        linha('Distância (ida e volta)', p.distancia_km ? p.distancia_km + ' km' : '—') +
+        linha('Combustível', comb ? (comb + (p.preco_litro ? ' · ' + moedaBR(p.preco_litro) + '/L' : '')) : '—') +
+      '</div>' +
+      '<p class="dg-secao">Valores</p>' + (valores || '<p class="texto-apoio">—</p>');
   }
 
   async function atualizarListaDoServidor() {
@@ -1116,6 +1213,7 @@ EC.reembolso = (function () {
     fillUFselect('rb-destino-uf');
     $('rb-novo').addEventListener('click', function () { abrirNovo(false); });
     $('rb-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-acao'); });
+    $('rb-extrato-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-reembolso'); });
     $('rb-cancelar').addEventListener('click', function () { EC.app.mostrarTela('tela-reembolso'); pintarLista(); });
     $('rb-enviar').addEventListener('click', enviarFormulario);
     $('rb-rascunho-descartar').addEventListener('click', async function () {
