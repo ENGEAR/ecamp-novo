@@ -17,8 +17,12 @@
 
   const CHAVE_SESSAO = 'sessao:atual';
   const CHAVE_ULTIMO_EMAIL = 'sessao:ultimoEmail';
+  // E-mail + senha salvos no aparelho quando a pessoa marca "Salvar e-mail e
+  // senha" — fica em texto puro no localStorage do aparelho (não é enviado a
+  // lugar nenhum). Opt-in explícito: só grava se a pessoa marcar a caixinha.
+  const CHAVE_CREDENCIAIS = 'sessao:credenciais';
   // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
-  const VERSAO_APP = '0.42.0';
+  const VERSAO_APP = '0.42.1';
 
   function $(id) { return document.getElementById(id); }
 
@@ -55,7 +59,10 @@
   function mostrarVersao() {
     const rodape = $('rodape');
     if (!rodape) return;
-    const base = 'eCamp — Software desenvolvido pela ENGEAR Laboratório Ltda · versão ';
+    // Texto curto de propósito: cabe numa linha só mesmo em telas estreitas —
+    // o rodapé fica menor e o espaço reservado pra ele (CSS) não precisa
+    // "adivinhar" quantas linhas vão aparecer em cada aparelho.
+    const base = 'eCamp ENGEAR Laboratório · versão ';
     rodape.textContent = base + VERSAO_APP;
     if ('caches' in window) {
       caches.keys().then(function (nomes) {
@@ -163,8 +170,16 @@
     $('header').classList.add('oculto');
     $('barra-pendencias').classList.add('oculto');
     $('login-erro').classList.add('oculto');
-    $('login-email').value = EC.storage.ler(CHAVE_ULTIMO_EMAIL) || '';
-    $('login-senha').value = '';
+    const salvas = EC.storage.ler(CHAVE_CREDENCIAIS);
+    if (salvas && salvas.email) {
+      $('login-email').value = salvas.email;
+      $('login-senha').value = salvas.senha || '';
+      $('login-salvar').checked = true;
+    } else {
+      $('login-email').value = EC.storage.ler(CHAVE_ULTIMO_EMAIL) || '';
+      $('login-senha').value = '';
+      $('login-salvar').checked = false;
+    }
     mostrarTela('tela-login');
   }
 
@@ -198,6 +213,8 @@
       // (inicial padrão campo26*; redefinida quando a pessoa pedir).
       const conta = await EC.auth.entrar(email, senha);
       salvarSessao(conta);
+      if ($('login-salvar').checked) EC.storage.salvar(CHAVE_CREDENCIAIS, { email: email, senha: senha });
+      else EC.storage.remover(CHAVE_CREDENCIAIS);
       entrarNoApp();
     } catch (e) {
       mostrarErroLogin('login-erro', e.message);
