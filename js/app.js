@@ -18,7 +18,7 @@
   const CHAVE_SESSAO = 'sessao:atual';
   const CHAVE_ULTIMO_EMAIL = 'sessao:ultimoEmail';
   // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
-  const VERSAO_APP = '0.40.11';
+  const VERSAO_APP = '0.41.0';
 
   function $(id) { return document.getElementById(id); }
 
@@ -179,6 +179,7 @@
     EC.storage.salvar(CHAVE_SESSAO, {
       nome: conta.nome,
       email: conta.email,
+      papeis: conta.papeis || [],   // papéis do SGP (ex.: logistica) — liberam extras
       entrouEm: new Date().toISOString()
     });
     EC.storage.salvar(CHAVE_ULTIMO_EMAIL, conta.email);
@@ -236,7 +237,6 @@
   $('btn-agenda-acao').addEventListener('click', function () {
     EC.agenda.abrir();
   });
-  $('btn-bancada').addEventListener('click', abrirBancada);
 
   /* ============ Overlays-placeholder do header ============ */
   function abrirOverlay(titulo, html) {
@@ -455,53 +455,6 @@
   $('pendencias-sincronizar').addEventListener('click', function () {
     if (EC.sync) EC.sync.sincronizarPendentes();
   });
-
-  /* ============ Bancada de teste dos componentes (Fase 0) ============ */
-  let bancadaIniciada = false;
-
-  function abrirBancada() {
-    mostrarTela('tela-teste');
-    if (bancadaIniciada) return;
-    bancadaIniciada = true;
-
-    // Dados mockados para os componentes (na Fase 1+ virão do fluxo real)
-    const MOCK = { os: '2026-0158', tipo: 'RUIDOEXTERNO', ponto: 'P03' };
-
-    const gps = EC.gps.criar($('teste-gps'), {});
-
-    EC.foto.criar($('teste-foto'), {
-      os: MOCK.os,
-      tipo: MOCK.tipo,
-      ponto: MOCK.ponto,
-      obterUtm: function () {
-        return gps.textoCarimbo() || '23K 612345 E 7791234 N (exemplo)';
-      }
-    });
-
-    EC.paginacao.criar($('teste-paginacao'), {
-      total: 5,
-      aoMudar: function (numero) {
-        $('teste-paginacao-info').textContent = 'Ponto ativo: P' + numero +
-          ' — os formulários das próximas fases trocam o conteúdo conforme o ponto.';
-      }
-    });
-
-    EC.alertaVento.criar($('teste-vento'), {});
-
-    EC.checagens.criar($('teste-checagens'), {});
-
-    EC.navegacao.criar($('teste-navegacao'), {
-      chaveRascunho: 'OS_' + MOCK.os + '_' + MOCK.tipo + '_' + MOCK.ponto,
-      obterDados: function () {
-        return {
-          campoExemplo: $('teste-campo-exemplo').value,
-          gps: gps.obterDados()
-        };
-      },
-      aoVoltar: function () { mostrarTela('tela-acao'); },
-      aoProximo: function () { mostrarToast('Exemplo de "Próximo →" — o passo real entra na Fase 1.'); }
-    });
-  }
 
   /* ============ Botões de voltar dos placeholders ============ */
   $('fase2-voltar').addEventListener('click', function () { mostrarTela('tela-acao'); });

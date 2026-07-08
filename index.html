@@ -71,7 +71,6 @@
           <button type="button" class="botao botao-acao" id="btn-reembolso">💰 Solicitação de reembolso</button>
           <button type="button" class="botao botao-acao" id="btn-agenda-acao">📅 Agenda</button>
         </div>
-        <button type="button" class="link-discreto" id="btn-bancada">🧪 Testar componentes (Fase 0)</button>
       </div>
     </section>
 
@@ -291,8 +290,11 @@
     <section id="tela-reembolso-novo" class="tela oculto">
       <div class="cartao">
         <h1>💰 Nova solicitação de reembolso</h1>
-        <p class="texto-apoio">Os dias e os valores são calculados sozinhos a partir da Agenda.</p>
         <div id="rb-offline" class="alerta alerta-vermelho oculto">📡 Sem internet. Para começar uma solicitação é preciso estar conectado (os dados vêm da Agenda). Tente de novo quando a conexão voltar.</div>
+        <div id="rb-rascunho-aviso" class="alerta alerta-info oculto">
+          💾 Continuando de onde você parou.
+          <button type="button" class="botao botao-mini" id="rb-rascunho-descartar">Começar do zero</button>
+        </div>
 
         <div id="rb-form">
           <p class="dg-secao">Serviço</p>
@@ -314,7 +316,7 @@
             </div>
             <div class="grade-2">
               <label>Data término serviço<input type="date" id="rb-servico-fim"></label>
-              <label>Data de volta<input type="date" id="rb-volta"></label>
+              <label>Data da chegada<input type="date" id="rb-volta"></label>
             </div>
             <div class="grade-2">
               <label>Dias de serviço<input type="number" id="rb-dias-servico" readonly></label>
@@ -372,6 +374,13 @@
           <div id="rb-valores"></div>
           <div id="rb-total" class="rb-total oculto"></div>
 
+          <div id="rb-pct-bloco" class="oculto">
+            <label>Percentual solicitado da logística (%)
+              <input type="number" id="rb-percentual" min="1" max="100" step="1" inputmode="numeric" value="100">
+            </label>
+            <div id="rb-solicitado" class="rb-total"></div>
+          </div>
+
           <div id="rb-erro" class="alerta alerta-vermelho oculto"></div>
           <div class="pilha-botoes">
             <button type="button" class="botao botao-primario" id="rb-enviar">Enviar solicitação ✓</button>
@@ -420,50 +429,6 @@
         <p class="texto-grande">🔒 Disponível na Fase 2.</p>
         <p>Este módulo será construído depois que o app de campo estiver pronto.</p>
         <button type="button" class="botao botao-secundario" id="fase2-voltar">← Voltar</button>
-      </div>
-    </section>
-
-    <!-- ======= Bancada de teste dos componentes transversais (Fase 0) ======= -->
-    <section id="tela-teste" class="tela oculto">
-      <div class="cartao">
-        <h1>🧪 Componentes transversais — bancada de teste</h1>
-        <p>Cada bloco abaixo é um componente isolado que os formulários das próximas fases vão reutilizar. Dados de OS/tipo/ponto estão <strong>mockados</strong>: OS <code>2026-0158</code> · tipo <code>RUIDOEXTERNO</code> · ponto <code>P03</code>.</p>
-      </div>
-
-      <div class="cartao">
-        <h2>📍 Campo de GPS (captura + UTM + endereço)</h2>
-        <div id="teste-gps"></div>
-      </div>
-
-      <div class="cartao">
-        <h2>📷 Foto com carimbo UTM</h2>
-        <p class="texto-apoio">Capture o GPS acima primeiro para o carimbo usar a coordenada real; sem GPS, usa uma coordenada de exemplo.</p>
-        <div id="teste-foto"></div>
-      </div>
-
-      <div class="cartao">
-        <h2>🔢 Paginação de pontos</h2>
-        <div id="teste-paginacao"></div>
-        <p id="teste-paginacao-info" class="texto-apoio"></p>
-      </div>
-
-      <div class="cartao">
-        <h2>🌬️ Alerta de vento (≥ 5 m/s)</h2>
-        <div id="teste-vento"></div>
-      </div>
-
-      <div class="cartao">
-        <h2>🎚️ Diferença entre checagens (≥ 0,5 dB)</h2>
-        <p class="texto-apoio">Exemplo da especificação: inicial = − 0,10 e final = + 0,45 → diferença 0,55 → alerta.</p>
-        <div id="teste-checagens"></div>
-      </div>
-
-      <div class="cartao">
-        <h2>🧭 Botões padrão de navegação</h2>
-        <label>Campo de exemplo (entra no rascunho)
-          <input type="text" id="teste-campo-exemplo" placeholder="Digite algo e salve o rascunho">
-        </label>
-        <div id="teste-navegacao"></div>
       </div>
     </section>
 

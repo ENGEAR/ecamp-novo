@@ -73,7 +73,27 @@
       if (perfil.nome) nome = perfil.nome;
     }
 
-    return { nome: nome, email: user.email || email };
+    return { nome: nome, email: user.email || email, papeis: await meusPapeis() };
+  }
+
+  /**
+   * Papéis do usuário logado (ex.: ['logistica'] ou ['admin']). Vazio se não
+   * der para consultar (offline/erro) — os módulos tratam como "sem extras".
+   */
+  async function meusPapeis() {
+    var sb = obterCliente();
+    if (!sb) return [];
+    try {
+      var u = await sb.auth.getUser();
+      var id = u && u.data && u.data.user ? u.data.user.id : null;
+      if (!id) return [];
+      var q = await sb.from('usuario_papeis').select('papeis(codigo)').eq('usuario_id', id);
+      return (q.data || []).map(function (r) {
+        return r.papeis && r.papeis.codigo ? r.papeis.codigo : null;
+      }).filter(Boolean);
+    } catch (e) {
+      return [];
+    }
   }
 
   /** Sai da conta (ignora falhas de rede — a sessão local é apagada pelo app). */
@@ -84,5 +104,5 @@
 
   window.EC = window.EC || {};
   // cliente: outros módulos (ex.: Agenda) usam a MESMA conexão autenticada.
-  EC.auth = { entrar: entrar, sair: sair, cliente: obterCliente };
+  EC.auth = { entrar: entrar, sair: sair, cliente: obterCliente, meusPapeis: meusPapeis };
 })();

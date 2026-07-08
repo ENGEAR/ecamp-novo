@@ -1,18 +1,22 @@
 /**
  * reembolso.js — Solicitação de Reembolso de viagem (módulo Logística)
  *
- * Fluxo: o técnico busca a OS (todas as OS que têm viagem na Agenda aparecem,
- * concluídas ou não), escolhe a campanha e o solicitante é SEMPRE ele mesmo
- * (o usuário logado no e-CAMP). Os dias (viagem/serviço/deslocamento), as
- * datas de ida/volta e a categoria (CLT/freelancer) vêm da Agenda. A distância
- * vem da OS; se a OS não tiver, o técnico digita. O app calcula os valores e
- * pergunta "Você concorda com este valor?" — discordou, pede ajuste com
- * justificativa. O servidor recalcula tudo no envio (o app nunca manda valor
- * pronto) e a solicitação entra como "Aguardando aprovação da Logística".
+ * Fluxo: busca a OS (todas as OS aparecem), campanha e datas vêm da Agenda
+ * quando existem (senão o técnico informa as 4 datas: ida, início/término do
+ * serviço e chegada — os dias saem sozinhos das datas). O solicitante é o
+ * usuário logado; quem tem papel Logística/admin no SGP pode preencher em nome
+ * de outro técnico. O app calcula os valores com as diárias vigentes do SGP:
+ *   • hospedagem  = R$/diária × nº de diárias (chegada − saída);
+ *   • alimentação = almoço/jantar × dias de serviço + lanche × deslocamento;
+ *   • mão de obra = freelancer (desloc+serviço) ou CLT (viagem ≥ 2 dias);
+ *   • combustível/aluguel/pedágio no bloco Transporte.
+ * Em cada valor: "Concordo" ou "Solicitar ajuste" (justificativa + NOVO VALOR,
+ * que substitui o calculado no total). O total é o VALOR TOTAL DA LOGÍSTICA e
+ * o técnico informa o PERCENTUAL que está solicitando (padrão 100%).
  *
- * Offline: a CRIAÇÃO precisa de internet (os dados vêm da Agenda); o ENVIO não
- * — se a conexão cair, o pedido (com anexos) fica na fila (IndexedDB
- * 'pendingReembolso') e sobe sozinho depois.
+ * O servidor recalcula tudo no envio (o app nunca manda valor pronto).
+ * Rascunho: o preenchimento é salvo sozinho no aparelho (IndexedDB) — dá para
+ * sair e continuar depois. Envio offline: fica na fila e sobe sozinho.
  *
  * Interface (EC.reembolso): abrir() — chamada pelo botão da tela inicial.
  */
@@ -27,6 +31,7 @@ EC.reembolso = (function () {
   var CH_CONTEXTO = 'logistica:contexto';   // cache do contexto (OS + valores)
   var CH_LISTA = 'logistica:lista';         // cache das minhas solicitações
   var LOJA_PENDENTES = 'pendingReembolso';  // fila offline (IndexedDB)
+  var LOJA_RASCUNHO = 'rascunhos';          // rascunho do formulário (IndexedDB)
   var MAX_ANEXOS = 20;                      // por bloco
   var LADO_MAXIMO = 1600;                   // resolução máxima das fotos
   var PDF_MAX_MB = 3.5;                     // limite por PDF (corpo da Vercel)
@@ -43,10 +48,18 @@ EC.reembolso = (function () {
   var osSel = null, campSel = null, tecSel = null;
   var anexos = {};
   var iniciado = false;
+  var restaurando = false; // evita salvar rascunho no meio da restauração
 
   function $(id) { return document.getElementById(id); }
   function toast(msg) { if (EC.app && EC.app.mostrarToast) EC.app.mostrarToast(msg); }
-  function sessionNome() { return ((EC.storage.ler('sessao:atual') || {}).nome || '').trim(); }
+  function sessao() { return EC.storage.ler('sessao:atual') || {}; }
+  function sessionNome() { return (sessao().nome || '').trim(); }
+
+  // Quem tem papel Logística (ou admin) no SGP pode preencher em nome de outro.
+  function podePreencherPorOutro() {
+    var p = sessao().papeis || [];
+    return p.indexOf('logistica') !== -1 || p.indexOf('admin') !== -1;
+  }
 
   function moedaBR(v) { return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
   function dataBR(iso) {
@@ -56,10 +69,16 @@ EC.reembolso = (function () {
   }
   function opcao(valor, texto) { return '<option value="' + valor + '">' + texto + '</option>'; }
 
-  // Dias da viagem lidos dos campos (preenchidos pela Agenda ou à mão)
+  // Dias da viagem lidos dos campos (preenchidos pela Agenda ou pelas datas)
   function diasServicoVal() { return Math.max(0, parseInt($('rb-dias-servico').value, 10) || 0); }
   function diasDeslocVal() { return Math.max(0, parseInt($('rb-dias-desloc').value, 10) || 0); }
   function diasViagemVal() { return diasServicoVal() + diasDeslocVal(); }
+
+  // Nº de diárias de hospedagem = noites fora = data da chegada − data da saída
+  function diariasVal() {
+    var d = diffDias($('rb-ida').value, $('rb-volta').value);
+    return d == null ? 0 : Math.max(0, d);
+  }
 
   /* ============ HTTP ============ */
 
@@ -86,18 +105,31 @@ EC.reembolso = (function () {
     return corpo;
   }
 
-  /* ============ Componente de anexos (fotos + PDF) ============ */
+  /* ============ Componente de anexos (câmera + galeria + PDF) ============ */
 
-  function criarAnexos(container) {
-    var arquivos = [];
+  // Foto ampliada para conferência (toque em qualquer lugar fecha)
+  function abrirLightbox(base64) {
+    var ov = document.createElement('div');
+    ov.className = 'foto-lightbox';
+    ov.innerHTML = '<img src="data:image/jpeg;base64,' + base64 + '" alt="Evidência ampliada">' +
+      '<button type="button" class="foto-lightbox-fechar" aria-label="Fechar">✕</button>';
+    ov.addEventListener('click', function () { ov.remove(); });
+    document.body.appendChild(ov);
+  }
+
+  function criarAnexos(container, opcoes) {
+    opcoes = opcoes || {};
+    var arquivos = Array.isArray(opcoes.iniciais) ? opcoes.iniciais.slice() : [];
     container.innerHTML =
       '<div class="anx">' +
       '  <div class="anx-lista"></div>' +
       '  <div class="anx-botoes">' +
       '    <button type="button" class="botao botao-secundario anx-foto">📷 Tirar foto</button>' +
-      '    <button type="button" class="botao botao-secundario anx-pdf">📎 Anexar PDF</button>' +
+      '    <button type="button" class="botao botao-secundario anx-galeria">🖼️ Da galeria</button>' +
+      '    <button type="button" class="botao botao-secundario anx-pdf">📎 PDF</button>' +
       '  </div>' +
       '  <input type="file" accept="image/*" capture="environment" class="anx-entrada-foto" hidden>' +
+      '  <input type="file" accept="image/*" multiple class="anx-entrada-galeria" hidden>' +
       '  <input type="file" accept="application/pdf" class="anx-entrada-pdf" hidden>' +
       '  <div class="anx-status"></div>' +
       '</div>';
@@ -105,24 +137,32 @@ EC.reembolso = (function () {
     var lista = container.querySelector('.anx-lista');
     var status = container.querySelector('.anx-status');
     var btnFoto = container.querySelector('.anx-foto');
+    var btnGaleria = container.querySelector('.anx-galeria');
     var btnPdf = container.querySelector('.anx-pdf');
     var inFoto = container.querySelector('.anx-entrada-foto');
+    var inGaleria = container.querySelector('.anx-entrada-galeria');
     var inPdf = container.querySelector('.anx-entrada-pdf');
+
+    function notificar() { if (typeof opcoes.aoMudar === 'function') opcoes.aoMudar(); }
 
     function render() {
       lista.innerHTML = arquivos.map(function (a, i) {
         var visual = a.mime === 'application/pdf'
           ? '<span class="anx-pdf-icone">📄</span>'
-          : '<img src="data:image/jpeg;base64,' + a.base64 + '" alt="anexo">';
+          : '<img src="data:image/jpeg;base64,' + a.base64 + '" alt="anexo" data-ver="' + i + '" title="Toque para ampliar">';
         return '<div class="anx-item">' + visual +
           '<span class="anx-nome">' + a.nomeArquivo + '</span>' +
           '<button type="button" class="anx-remover" data-i="' + i + '" title="Remover">✕</button></div>';
       }).join('');
       lista.querySelectorAll('.anx-remover').forEach(function (b) {
-        b.addEventListener('click', function () { arquivos.splice(parseInt(b.dataset.i, 10), 1); render(); });
+        b.addEventListener('click', function () { arquivos.splice(parseInt(b.dataset.i, 10), 1); render(); notificar(); });
+      });
+      // toque na miniatura abre a foto ampliada para conferência
+      lista.querySelectorAll('img[data-ver]').forEach(function (img) {
+        img.addEventListener('click', function () { abrirLightbox(arquivos[parseInt(img.dataset.ver, 10)].base64); });
       });
       var cheio = arquivos.length >= MAX_ANEXOS;
-      btnFoto.disabled = cheio; btnPdf.disabled = cheio;
+      btnFoto.disabled = cheio; btnGaleria.disabled = cheio; btnPdf.disabled = cheio;
     }
 
     function carimbo() {
@@ -132,13 +172,8 @@ EC.reembolso = (function () {
         '_' + dois(d.getHours()) + dois(d.getMinutes()) + dois(d.getSeconds());
     }
 
-    btnFoto.addEventListener('click', function () { inFoto.click(); });
-    btnPdf.addEventListener('click', function () { inPdf.click(); });
-
-    inFoto.addEventListener('change', function () {
-      var arq = inFoto.files && inFoto.files[0];
-      if (!arq) return;
-      status.textContent = '⏳ Processando a foto…';
+    // Reduz a imagem e guarda como JPEG base64. Chama pronto() ao terminar.
+    function processarImagem(arq, pronto) {
       var leitor = new FileReader();
       leitor.onload = function () {
         var img = new Image();
@@ -154,14 +189,51 @@ EC.reembolso = (function () {
             base64: dataUrl.split(',')[1],
             mime: 'image/jpeg'
           });
-          render();
-          status.textContent = '✅ Foto adicionada (' + arquivos.length + '/' + MAX_ANEXOS + ').';
-          inFoto.value = '';
+          pronto(true);
         };
-        img.onerror = function () { status.textContent = '⚠️ Não foi possível ler a imagem.'; };
+        img.onerror = function () { pronto(false); };
         img.src = leitor.result;
       };
+      leitor.onerror = function () { pronto(false); };
       leitor.readAsDataURL(arq);
+    }
+
+    btnFoto.addEventListener('click', function () { inFoto.click(); });
+    btnGaleria.addEventListener('click', function () { inGaleria.click(); });
+    btnPdf.addEventListener('click', function () { inPdf.click(); });
+
+    inFoto.addEventListener('change', function () {
+      var arq = inFoto.files && inFoto.files[0];
+      if (!arq) return;
+      status.textContent = '⏳ Processando a foto…';
+      processarImagem(arq, function (ok) {
+        render();
+        status.textContent = ok ? '✅ Foto adicionada (' + arquivos.length + '/' + MAX_ANEXOS + ').' : '⚠️ Não foi possível ler a imagem.';
+        inFoto.value = '';
+        if (ok) notificar();
+      });
+    });
+
+    // Galeria: fotos já salvas no celular (permite escolher várias)
+    inGaleria.addEventListener('change', function () {
+      var fila = Array.prototype.slice.call(inGaleria.files || []);
+      fila = fila.slice(0, MAX_ANEXOS - arquivos.length);
+      if (!fila.length) return;
+      status.textContent = '⏳ Adicionando ' + fila.length + ' foto(s) da galeria…';
+      var restantes = fila.length, falhas = 0;
+      fila.forEach(function (arq) {
+        processarImagem(arq, function (ok) {
+          if (!ok) falhas++;
+          restantes--;
+          if (restantes === 0) {
+            render();
+            status.textContent = (falhas ? '⚠️ ' + falhas + ' foto(s) não puderam ser lidas. ' : '') +
+              '✅ Anexos: ' + arquivos.length + '/' + MAX_ANEXOS + '.';
+            inGaleria.value = '';
+            notificar();
+          }
+        });
+      });
     });
 
     inPdf.addEventListener('change', function () {
@@ -182,6 +254,7 @@ EC.reembolso = (function () {
         render();
         status.textContent = '✅ PDF anexado (' + arquivos.length + '/' + MAX_ANEXOS + ').';
         inPdf.value = '';
+        notificar();
       };
       leitor.readAsDataURL(arq);
     });
@@ -190,12 +263,13 @@ EC.reembolso = (function () {
     return { obter: function () { return arquivos.slice(); } };
   }
 
-  /* ============ Dados do usuário / distância ============ */
+  /* ============ Dados do solicitante / distância ============ */
 
-  // Categoria (CLT/freelancer) do usuário logado: da campanha selecionada;
+  // Categoria (CLT/freelancer) do SOLICITANTE (campo): da campanha selecionada;
   // se não estiver lá, procura o nome em qualquer OS do contexto; senão, CLT.
-  function tipoDoUsuario() {
-    var alvo = sessionNome().toLowerCase();
+  function tipoDoSolicitante(nome) {
+    var alvo = String(nome || '').trim().toLowerCase();
+    if (!alvo) return 'clt';
     if (campSel) {
       var t = campSel.tecnicos.filter(function (x) { return x.nome.trim().toLowerCase() === alvo; })[0];
       if (t) return t.tipo;
@@ -295,6 +369,7 @@ EC.reembolso = (function () {
     if (!ctx || !osSel || !tecSel) return null;
     var v = ctx.valores;
     var diasServico = diasServicoVal(), diasDeslocamento = diasDeslocVal(), diasViagem = diasViagemVal();
+    var diarias = diariasVal();
     var preco = parseFloat($('rb-preco-litro').value) || 0;
     var consumo = Number(v.consumo_padrao_kml) || 0;
     var dist = distanciaAtual();
@@ -302,7 +377,8 @@ EC.reembolso = (function () {
 
     var combustivel = (preco > 0 && dist > 0 && consumo > 0) ? r2((dist / consumo) * preco) : 0;
     var aluguel = veiculo() === 'proprio' ? r2(Number(v.aluguel_veiculo_dia) * diasViagem) : 0;
-    var hospedagem = r2(Number(v.hospedagem_dia) * diasServico);
+    // Hospedagem: R$/diária × noites fora (chegada − saída). Mesmo dia → 0.
+    var hospedagem = r2(Number(v.hospedagem_dia) * diarias);
     var maoObra = tecSel.tipo === 'freelancer'
       ? r2(Number(v.diaria_freelancer) * (diasDeslocamento + diasServico))
       : (diasViagem >= 2 ? r2(Number(v.diaria_clt) * diasViagem) : 0);
@@ -315,8 +391,39 @@ EC.reembolso = (function () {
     return {
       transporte: combustivel, aluguel: aluguel, pedagio: pedagio, hospedagem: hospedagem,
       mao_obra: maoObra, alimentacao: alimentacao, almoco: almoco, jantar: jantar, lanche: lanche,
+      diarias: diarias,
       total: r2(combustivel + aluguel + pedagio + hospedagem + maoObra + alimentacao)
     };
+  }
+
+  // Decisão de um item: 'concordo' | 'ajuste'
+  function decisao(chave) {
+    var m = document.querySelector('input[name="rb-dec-' + chave + '"]:checked');
+    return m ? m.value : 'concordo';
+  }
+
+  // Novo valor proposto no ajuste (ou null se não é ajuste / vazio)
+  function valorProposto(chave) {
+    if (decisao(chave) !== 'ajuste') return null;
+    var v = parseFloat($('rb-novoval-' + chave).value);
+    return v >= 0 && !isNaN(v) ? Math.round(v * 100) / 100 : null;
+  }
+
+  // Total da logística: calculado, substituindo pelos novos valores propostos
+  function totalComAjustes(calc) {
+    var total = calc.total;
+    ITENS.forEach(function (it) {
+      if ($('rb-item-' + it.chave).classList.contains('oculto')) return;
+      var novo = valorProposto(it.chave);
+      if (novo != null) total += novo - calc[it.chave];
+    });
+    return Math.round(total * 100) / 100;
+  }
+
+  function percentualVal() {
+    var p = parseFloat($('rb-percentual').value);
+    if (!(p > 0)) return 100;
+    return Math.min(100, p);
   }
 
   function tetoDoCombustivel() {
@@ -364,7 +471,7 @@ EC.reembolso = (function () {
     alvo.querySelectorAll('.os-item[data-id]').forEach(function (item) {
       item.addEventListener('click', function () {
         var o = lista.filter(function (x) { return x.osId === item.dataset.id; })[0];
-        if (o) escolherOs(o);
+        if (o) { escolherOs(o); salvarRascunhoLogo(); }
       });
     });
   }
@@ -407,19 +514,25 @@ EC.reembolso = (function () {
     var n = parseInt($('rb-campanha').value, 10);
     if (osSel) campSel = (osSel.campanhas || []).filter(function (c) { return c.numero === n; })[0] || null;
 
-    // solicitante é SEMPRE o usuário logado
-    $('rb-solicitante').value = sessionNome();
-    tecSel = osSel ? { nome: sessionNome(), tipo: tipoDoUsuario() } : null;
+    // solicitante padrão = usuário logado (Logística/admin pode trocar)
+    var sol = $('rb-solicitante');
+    if (!sol.value.trim() || sol.readOnly) sol.value = sessionNome();
+    atualizarTecSel();
 
     fillViagem(campSel);
     pintarResumoAuto();
     aoMudarVeiculo();
   }
 
-  /* ============ Dados da viagem (da Agenda ou à mão) ============ */
+  function atualizarTecSel() {
+    var nome = $('rb-solicitante').value.trim();
+    tecSel = osSel && nome ? { nome: nome, tipo: tipoDoSolicitante(nome) } : null;
+  }
 
-  // Preenche datas e dias. Com campanha da Agenda: campos travados. Sem
-  // campanha (OS sem viagem na Agenda): campos vazios e editáveis pelo técnico.
+  /* ============ Dados da viagem (da Agenda ou pelas datas) ============ */
+
+  function modoManual() { return !!osSel && osSel.campanhas.length === 0; }
+
   function fillViagem(campanha) {
     var ida = $('rb-ida'), si = $('rb-servico-inicio'), sf = $('rb-servico-fim'), volta = $('rb-volta');
     var ds = $('rb-dias-servico'), dd = $('rb-dias-desloc');
@@ -453,7 +566,7 @@ EC.reembolso = (function () {
 
   // No modo manual, calcula dias de serviço e de deslocamento a partir das 4 datas.
   //   serviço      = (término − início) + 1
-  //   deslocamento = (início serviço − ida) + (volta − término serviço)
+  //   deslocamento = (início serviço − ida) + (chegada − término serviço)
   function recalcularDiasManual() {
     if (!modoManual()) return;
     var ida = $('rb-ida').value, si = $('rb-servico-inicio').value, sf = $('rb-servico-fim').value, volta = $('rb-volta').value;
@@ -479,7 +592,8 @@ EC.reembolso = (function () {
 
   /* ============ Valores calculados ============ */
 
-  function montarValores() {
+  function montarValores(anexosIniciais) {
+    anexosIniciais = anexosIniciais || {};
     $('rb-valores').innerHTML = ITENS.map(function (it) {
       return (
         '<div class="rb-item" id="rb-item-' + it.chave + '">' +
@@ -490,6 +604,7 @@ EC.reembolso = (function () {
         '    <label class="linha-check"><input type="radio" name="rb-dec-' + it.chave + '" value="ajuste"><span>Solicitar ajuste</span></label>' +
         '  </div>' +
         '  <div class="rb-ajuste oculto" id="rb-ajuste-' + it.chave + '">' +
+        '    <label>Novo valor proposto (R$)<input type="number" id="rb-novoval-' + it.chave + '" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>' +
         '    <label>Justificativa do ajuste<textarea id="rb-just-' + it.chave + '" rows="2" placeholder="Explique o que precisa ser ajustado"></textarea></label>' +
         '    <p class="rb-sub">Evidências do ajuste <span class="rotulo-apoio">(fotos ou PDF)</span></p>' +
         '    <div id="rb-anexos-ajuste_' + it.chave + '"></div>' +
@@ -499,16 +614,19 @@ EC.reembolso = (function () {
     }).join('');
 
     anexos = {
-      combustivel: criarAnexos($('rb-anexos-combustivel')),
-      pedagio: criarAnexos($('rb-anexos-pedagio'))
+      combustivel: criarAnexos($('rb-anexos-combustivel'), { iniciais: anexosIniciais.combustivel, aoMudar: salvarRascunhoLogo }),
+      pedagio: criarAnexos($('rb-anexos-pedagio'), { iniciais: anexosIniciais.pedagio, aoMudar: salvarRascunhoLogo })
     };
     ITENS.forEach(function (it) {
-      anexos['ajuste_' + it.chave] = criarAnexos($('rb-anexos-ajuste_' + it.chave));
+      anexos['ajuste_' + it.chave] = criarAnexos($('rb-anexos-ajuste_' + it.chave),
+        { iniciais: anexosIniciais['ajuste_' + it.chave], aoMudar: salvarRascunhoLogo });
       document.querySelectorAll('input[name="rb-dec-' + it.chave + '"]').forEach(function (r) {
         r.addEventListener('change', function () {
           $('rb-ajuste-' + it.chave).classList.toggle('oculto', r.value !== 'ajuste' || !r.checked);
+          pintarValores();
         });
       });
+      $('rb-novoval-' + it.chave).addEventListener('input', pintarValores);
     });
   }
 
@@ -516,34 +634,45 @@ EC.reembolso = (function () {
     var calc = calcular();
     var pronto = !!calc;
     $('rb-total').classList.toggle('oculto', !pronto);
+    $('rb-pct-bloco').classList.toggle('oculto', !pronto);
     if (!pronto) return;
 
     var v = ctx.valores;
-    var dViagem = diasViagemVal(), dServico = diasServicoVal(), dDesloc = diasDeslocVal();
+    var dServico = diasServicoVal(), dDesloc = diasDeslocVal(), dViagem = diasViagemVal();
     var sub = {
       transporte: (distanciaAtual() > 0
         ? distanciaAtual() + ' km ÷ ' + v.consumo_padrao_kml + ' km/L × preço do litro'
         : 'informe a distância e o preço do litro'),
       aluguel: moedaBR(v.aluguel_veiculo_dia) + '/dia × ' + dViagem + ' dia(s) de viagem',
-      hospedagem: moedaBR(v.hospedagem_dia) + '/dia × ' + dServico + ' dia(s) de serviço',
+      hospedagem: moedaBR(v.hospedagem_dia) + '/diária × ' + calc.diarias + ' diária(s) — da saída à chegada' +
+        (calc.diarias === 0 ? ' (foi e voltou no mesmo dia: sem hospedagem)' : ''),
       mao_obra: tecSel.tipo === 'freelancer'
         ? moedaBR(v.diaria_freelancer) + '/dia × ' + (dDesloc + dServico) + ' dia(s) (deslocamento + serviço)'
         : (dViagem >= 2
             ? moedaBR(v.diaria_clt) + '/dia × ' + dViagem + ' dia(s) de viagem'
             : 'CLT com 1 dia de viagem não recebe diária'),
-      alimentacao: 'Almoço ' + moedaBR(calc.almoco) + ' · Jantar ' + moedaBR(calc.jantar) + ' · Lanche ' + moedaBR(calc.lanche)
+      alimentacao:
+        'Almoço: ' + moedaBR(v.almoco) + '/dia × ' + dServico + ' dia(s) de serviço = ' + moedaBR(calc.almoco) + '<br>' +
+        'Jantar: ' + moedaBR(v.jantar) + '/dia × ' + dServico + ' dia(s) de serviço = ' + moedaBR(calc.jantar) + '<br>' +
+        'Lanche: ' + moedaBR(v.lanche) + '/dia × ' + dDesloc + ' dia(s) de deslocamento = ' + moedaBR(calc.lanche)
     };
 
     ITENS.forEach(function (it) {
       $('rb-val-' + it.chave).textContent = moedaBR(calc[it.chave]);
-      $('rb-sub-' + it.chave).textContent = sub[it.chave] || '';
+      $('rb-sub-' + it.chave).innerHTML = sub[it.chave] || '';
       var esconder = (it.chave === 'aluguel' && veiculo() !== 'proprio') ||
                      (it.chave === 'transporte' && calc.transporte <= 0);
       $('rb-item-' + it.chave).classList.toggle('oculto', esconder);
     });
 
-    $('rb-total').innerHTML = 'Valor total da solicitação: <strong>' + moedaBR(calc.total) + '</strong>' +
-      '<span class="rb-total-sub">inclui pedágio de ' + moedaBR(calc.pedagio) + '</span>';
+    var totalFinal = totalComAjustes(calc);
+    $('rb-total').innerHTML = 'Valor total da logística: <strong>' + moedaBR(totalFinal) + '</strong>' +
+      '<span class="rb-total-sub">inclui pedágio de ' + moedaBR(calc.pedagio) +
+      (totalFinal !== calc.total ? ' · com os valores propostos nos ajustes' : '') + '</span>';
+
+    var pct = percentualVal();
+    var solicitado = Math.round(totalFinal * pct) / 100;
+    $('rb-solicitado').innerHTML = 'Você está solicitando <strong>' + pct + '% = ' + moedaBR(solicitado) + '</strong>';
   }
 
   function pintarTeto() {
@@ -572,11 +701,124 @@ EC.reembolso = (function () {
     pintarValores();
   }
 
+  /* ============ Rascunho (salva o preenchimento no aparelho) ============ */
+
+  function chaveRascunho() { return 'logistica:' + ((sessao().email || sessionNome() || 'anon').toLowerCase()); }
+
+  function coletarRascunho() {
+    if (!osSel) return null;
+    var decisoes = {}, justs = {}, novos = {};
+    ITENS.forEach(function (it) {
+      decisoes[it.chave] = decisao(it.chave);
+      justs[it.chave] = $('rb-just-' + it.chave) ? $('rb-just-' + it.chave).value : '';
+      novos[it.chave] = $('rb-novoval-' + it.chave) ? $('rb-novoval-' + it.chave).value : '';
+    });
+    var anx = {};
+    Object.keys(anexos).forEach(function (b) { anx[b] = anexos[b].obter(); });
+    return {
+      osId: osSel.osId,
+      campanha: $('rb-campanha').value,
+      solicitante: $('rb-solicitante').value,
+      ida: $('rb-ida').value, servicoInicio: $('rb-servico-inicio').value,
+      servicoFim: $('rb-servico-fim').value, volta: $('rb-volta').value,
+      veiculo: veiculo(),
+      origemCidade: $('rb-origem-cidade').value, origemUf: $('rb-origem-uf').value,
+      destinoCidade: $('rb-destino-cidade').value, destinoUf: $('rb-destino-uf').value,
+      distancia: $('rb-distancia').value,
+      tipoCombustivel: $('rb-combustivel').value,
+      precoLitro: $('rb-preco-litro').value,
+      combJustificativa: $('rb-comb-justificativa').value,
+      pedagio: $('rb-pedagio').value,
+      decisoes: decisoes, justificativas: justs, novosValores: novos,
+      percentual: $('rb-percentual').value,
+      anexos: anx,
+      salvoEm: new Date().toISOString()
+    };
+  }
+
+  var rascunhoTimer = null;
+  function salvarRascunhoLogo() {
+    if (restaurando) return;
+    clearTimeout(rascunhoTimer);
+    rascunhoTimer = setTimeout(async function () {
+      var r = coletarRascunho();
+      if (!r) return;
+      try { await EC.db.set(LOJA_RASCUNHO, chaveRascunho(), r); } catch (e) { /* ok */ }
+    }, 800);
+  }
+
+  async function lerRascunho() {
+    try { return await EC.db.get(LOJA_RASCUNHO, chaveRascunho()); } catch (e) { return null; }
+  }
+
+  async function limparRascunho() {
+    clearTimeout(rascunhoTimer);
+    try { await EC.db.remove(LOJA_RASCUNHO, chaveRascunho()); } catch (e) { /* ok */ }
+    $('rb-rascunho-aviso').classList.add('oculto');
+  }
+
+  function aplicarRascunho(r) {
+    restaurando = true;
+    try {
+      var o = (ctx.os || []).filter(function (x) { return x.osId === r.osId; })[0];
+      if (!o) return false;
+      escolherOs(o);
+      if (r.campanha && $('rb-campanha').value !== r.campanha) {
+        $('rb-campanha').value = r.campanha;
+        aoEscolherCampanha();
+      }
+      if (r.solicitante && !$('rb-solicitante').readOnly) {
+        $('rb-solicitante').value = r.solicitante;
+        atualizarTecSel();
+      }
+      if (modoManual()) {
+        $('rb-ida').value = r.ida || '';
+        $('rb-servico-inicio').value = r.servicoInicio || '';
+        $('rb-servico-fim').value = r.servicoFim || '';
+        $('rb-volta').value = r.volta || '';
+        recalcularDiasManual();
+      }
+      if (r.veiculo) {
+        var radio = document.querySelector('input[name="rb-veiculo"][value="' + r.veiculo + '"]');
+        if (radio) { radio.checked = true; }
+      }
+      if (r.origemCidade) $('rb-origem-cidade').value = r.origemCidade;
+      if (r.origemUf) setUF('rb-origem-uf', r.origemUf);
+      if (r.destinoCidade) $('rb-destino-cidade').value = r.destinoCidade;
+      if (r.destinoUf) setUF('rb-destino-uf', r.destinoUf);
+      if (r.distancia && !$('rb-distancia').readOnly) $('rb-distancia').value = r.distancia;
+      $('rb-combustivel').value = r.tipoCombustivel || '';
+      $('rb-preco-litro').value = r.precoLitro || '';
+      $('rb-comb-justificativa').value = r.combJustificativa || '';
+      $('rb-pedagio').value = r.pedagio || '';
+      $('rb-percentual').value = r.percentual || '100';
+
+      montarValores(r.anexos || {}); // recria os itens + anexos com as evidências salvas
+      ITENS.forEach(function (it) {
+        var dec = (r.decisoes || {})[it.chave] || 'concordo';
+        var radio = document.querySelector('input[name="rb-dec-' + it.chave + '"][value="' + dec + '"]');
+        if (radio) radio.checked = true;
+        $('rb-ajuste-' + it.chave).classList.toggle('oculto', dec !== 'ajuste');
+        $('rb-just-' + it.chave).value = (r.justificativas || {})[it.chave] || '';
+        $('rb-novoval-' + it.chave).value = (r.novosValores || {})[it.chave] || '';
+      });
+
+      pintarTeto();
+      aoMudarVeiculo();
+      pintarResumoAuto();
+      pintarValores();
+      return true;
+    } finally {
+      restaurando = false;
+    }
+  }
+
   /* ============ Nova solicitação ============ */
 
-  async function abrirNovo() {
+  async function abrirNovo(ignorarRascunho) {
     EC.app.mostrarTela('tela-reembolso-novo');
     $('rb-erro').classList.add('oculto');
+    $('rb-rascunho-aviso').classList.add('oculto');
 
     var temCtx = await atualizarContexto();
     $('rb-offline').classList.toggle('oculto', temCtx);
@@ -593,7 +835,10 @@ EC.reembolso = (function () {
     $('rb-distancia').value = '';
     $('rb-distancia-hint').textContent = '';
     $('rb-campanha-bloco').classList.add('oculto');
-    $('rb-solicitante').value = sessionNome();
+    var sol = $('rb-solicitante');
+    sol.value = sessionNome();
+    sol.readOnly = !podePreencherPorOutro();
+    sol.placeholder = sol.readOnly ? '' : 'Nome do técnico solicitante';
     $('rb-viagem').classList.add('oculto');
     $('rb-auto').classList.add('oculto');
     $('rb-ida').value = ''; $('rb-servico-inicio').value = ''; $('rb-servico-fim').value = ''; $('rb-volta').value = '';
@@ -606,9 +851,18 @@ EC.reembolso = (function () {
     $('rb-teto-alerta').classList.add('oculto');
     $('rb-teto-just').classList.add('oculto');
     $('rb-pedagio').value = '';
+    $('rb-percentual').value = '100';
     montarValores();
     pintarResumoAuto();
     pintarValores();
+
+    // rascunho: retoma de onde parou (a menos que a pessoa peça "do zero")
+    if (!ignorarRascunho) {
+      var r = await lerRascunho();
+      if (r && r.osId && aplicarRascunho(r)) {
+        $('rb-rascunho-aviso').classList.remove('oculto');
+      }
+    }
   }
 
   function mostrarErro(msg) {
@@ -631,6 +885,7 @@ EC.reembolso = (function () {
       dataInicio: pedido.dataInicio, dataRetorno: pedido.dataRetorno,
       servicoInicio: pedido.servicoInicio, servicoFim: pedido.servicoFim,
       diasServico: pedido.diasServico, diasDeslocamento: pedido.diasDeslocamento,
+      percentualSolicitado: pedido.percentualSolicitado,
       ajustes: pedido.ajustes
     });
     var lista = pedido.anexos || [];
@@ -644,17 +899,16 @@ EC.reembolso = (function () {
     return resp;
   }
 
-  function modoManual() { return !!osSel && osSel.campanhas.length === 0; }
-
   async function enviarFormulario() {
     if (!osSel) return mostrarErro('Busque e escolha a Ordem de Serviço.');
     if (osSel.campanhas.length && !campSel) return mostrarErro('Escolha a campanha.');
-    if (!sessionNome()) return mostrarErro('Sua sessão expirou — entre de novo no app.');
+    var solicitante = $('rb-solicitante').value.trim();
+    if (!solicitante) return mostrarErro('Informe o solicitante.');
     if (modoManual()) {
       var ida = $('rb-ida').value, si = $('rb-servico-inicio').value, sf = $('rb-servico-fim').value, volta = $('rb-volta').value;
-      if (!ida || !si || !sf || !volta) return mostrarErro('Preencha as 4 datas: ida, início e término do serviço, e volta.');
+      if (!ida || !si || !sf || !volta) return mostrarErro('Preencha as 4 datas: ida, início e término do serviço, e chegada.');
       if (diffDias(ida, si) < 0 || diffDias(si, sf) < 0 || diffDias(sf, volta) < 0) {
-        return mostrarErro('As datas precisam ficar em ordem: ida ≤ início do serviço ≤ término do serviço ≤ volta.');
+        return mostrarErro('As datas precisam ficar em ordem: ida ≤ início do serviço ≤ término do serviço ≤ chegada.');
       }
       if (diasViagemVal() < 1) return mostrarErro('A viagem precisa ter ao menos 1 dia.');
     }
@@ -681,13 +935,17 @@ EC.reembolso = (function () {
     for (var i = 0; i < ITENS.length; i++) {
       var it = ITENS[i];
       if ($('rb-item-' + it.chave).classList.contains('oculto')) continue;
-      var dec = document.querySelector('input[name="rb-dec-' + it.chave + '"]:checked');
-      if (dec && dec.value === 'ajuste') {
+      if (decisao(it.chave) === 'ajuste') {
+        var rotulo = it.rotulo.replace(/^\S+\s/, '');
         var just = $('rb-just-' + it.chave).value.trim();
-        if (!just) return mostrarErro('Você pediu ajuste em "' + it.rotulo.replace(/^\S+\s/, '') + '" — escreva a justificativa.');
-        ajustes.push({ item: it.chave, justificativa: just });
+        var novo = valorProposto(it.chave);
+        if (novo == null) return mostrarErro('Você pediu ajuste em "' + rotulo + '" — informe o novo valor proposto (R$).');
+        if (!just) return mostrarErro('Você pediu ajuste em "' + rotulo + '" — escreva a justificativa.');
+        ajustes.push({ item: it.chave, justificativa: just, valorProposto: novo });
       }
     }
+    var pct = percentualVal();
+    if (!(pct > 0 && pct <= 100)) return mostrarErro('O percentual solicitado precisa ficar entre 1% e 100%.');
     mostrarErro(null);
 
     var todosAnexos = [];
@@ -697,12 +955,13 @@ EC.reembolso = (function () {
       });
     });
 
+    var totalFinal = calc ? totalComAjustes(calc) : 0;
     var pedido = {
       codigo: 'LG_' + osSel.numero + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
       osId: osSel.osId,
       os: osSel.numero,
       campanha: campSel ? campSel.numero : null,
-      solicitante: sessionNome(),
+      solicitante: solicitante,
       veiculo: veiculo(),
       tipoCombustivel: tipoComb || null,
       precoLitro: preco > 0 ? preco : null,
@@ -716,9 +975,13 @@ EC.reembolso = (function () {
       servicoFim: $('rb-servico-fim').value || null,
       diasServico: diasServicoVal(),
       diasDeslocamento: diasDeslocVal(),
+      percentualSolicitado: pct,
       ajustes: ajustes,
       anexos: todosAnexos,
-      valorTotal: calc ? calc.total : 0,
+      // só para exibir na fila offline:
+      valorTotal: totalFinal,
+      valorSolicitado: Math.round(totalFinal * pct) / 100,
+      percentual: pct,
       cliente: osSel.cliente,
       criadoEm: new Date().toISOString()
     };
@@ -730,6 +993,7 @@ EC.reembolso = (function () {
       await enviarPedido(pedido);
       toast('✅ Solicitação enviada! Agora é aguardar a análise da Logística.');
       atualizarListaDoServidor();
+      limparRascunho();
     } catch (e) {
       if (e.rejeitado) {
         botao.disabled = false;
@@ -738,6 +1002,7 @@ EC.reembolso = (function () {
       }
       try { await EC.db.set(LOJA_PENDENTES, pedido.codigo, pedido); } catch (e2) { /* ok */ }
       toast('📴 Sem conexão. Solicitação guardada — será enviada quando a internet voltar.');
+      limparRascunho();
     }
     botao.disabled = false;
     botao.textContent = 'Enviar solicitação ✓';
@@ -799,6 +1064,12 @@ EC.reembolso = (function () {
       ? { txt: '📴 Aguardando envio', cls: 'rb-aguardando' }
       : (STATUS[p.status] || { txt: p.status, cls: 'rb-aguardando' });
     var retorno = dataBR(p.data_retorno || p.dataRetorno);
+    var total = p.valor_total != null ? p.valor_total : p.valorTotal;
+    var pct = p.percentual_solicitado != null ? Number(p.percentual_solicitado) : (p.percentual || 100);
+    var solicitado = p.valor_solicitado != null ? p.valor_solicitado : p.valorSolicitado;
+    var linhaValor = pct < 100 && solicitado != null
+      ? '<strong>' + moedaBR(solicitado) + '</strong> (' + pct + '% de ' + moedaBR(total) + ')'
+      : '<strong>' + moedaBR(total) + '</strong>';
     var obs = (p.status === 'rejeitado' || p.status === 'correcao') && p.observacao_logistica
       ? '<div class="rb-motivo">Observação da Logística: ' + p.observacao_logistica + '</div>' : '';
     var pagoInfo = p.status === 'pago' && p.pago_em
@@ -807,7 +1078,7 @@ EC.reembolso = (function () {
       '<div class="rb-pedido">' +
       '  <div class="rb-pedido-topo"><span class="os-numero">OS ' + (p.os || '?') + '</span>' +
       '    <span class="rb-status ' + st.cls + '">' + st.txt + '</span></div>' +
-      '  <div class="rb-pedido-linha"><strong>' + moedaBR(p.valor_total != null ? p.valor_total : p.valorTotal) + '</strong>' +
+      '  <div class="rb-pedido-linha">' + linhaValor +
       (retorno !== '—' ? ' · retorno ' + retorno : '') + '</div>' +
       (p.cliente ? '<div class="os-resumo">' + p.cliente + '</div>' : '') +
       obs + pagoInfo +
@@ -851,21 +1122,42 @@ EC.reembolso = (function () {
 
   /* ============ Inicialização / navegação ============ */
 
+  // Sessões antigas (login antes desta versão) não têm os papéis gravados —
+  // busca uma vez e completa a sessão.
+  async function garantirPapeis() {
+    var s = sessao();
+    if (Array.isArray(s.papeis) || !EC.auth || !EC.auth.meusPapeis) return;
+    try {
+      s.papeis = await EC.auth.meusPapeis();
+      EC.storage.salvar('sessao:atual', s);
+    } catch (e) { /* offline: tenta de novo na próxima */ }
+  }
+
   function iniciar() {
     if (iniciado) return;
     iniciado = true;
 
     fillUFselect('rb-origem-uf');
     fillUFselect('rb-destino-uf');
-    $('rb-novo').addEventListener('click', abrirNovo);
+    $('rb-novo').addEventListener('click', function () { abrirNovo(false); });
     $('rb-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-acao'); });
     $('rb-cancelar').addEventListener('click', function () { EC.app.mostrarTela('tela-reembolso'); pintarLista(); });
     $('rb-enviar').addEventListener('click', enviarFormulario);
+    $('rb-rascunho-descartar').addEventListener('click', async function () {
+      await limparRascunho();
+      abrirNovo(true);
+      toast('🧹 Rascunho descartado — formulário zerado.');
+    });
 
     $('rb-os-busca').addEventListener('input', function () { pintarResultadosOs(this.value); });
     $('rb-campanha').addEventListener('change', aoEscolherCampanha);
+    $('rb-solicitante').addEventListener('input', function () {
+      atualizarTecSel();
+      pintarResumoAuto();
+      pintarValores();
+    });
     ['rb-ida', 'rb-servico-inicio', 'rb-servico-fim', 'rb-volta'].forEach(function (id) {
-      $(id).addEventListener('change', recalcularDiasManual);
+      $(id).addEventListener('change', function () { recalcularDiasManual(); pintarValores(); });
     });
     document.querySelectorAll('input[name="rb-veiculo"]').forEach(function (r) {
       r.addEventListener('change', aoMudarVeiculo);
@@ -878,12 +1170,18 @@ EC.reembolso = (function () {
     $('rb-origem-uf').addEventListener('change', calcularDistancia);
     $('rb-destino-uf').addEventListener('change', calcularDistancia);
     $('rb-pedagio').addEventListener('input', pintarValores);
+    $('rb-percentual').addEventListener('input', pintarValores);
+
+    // qualquer mudança no formulário salva o rascunho (com pausa de digitação)
+    $('rb-form').addEventListener('input', salvarRascunhoLogo);
+    $('rb-form').addEventListener('change', salvarRascunhoLogo);
   }
 
   function abrir() {
     iniciar();
     EC.app.mostrarTela('tela-reembolso');
     pintarLista();
+    garantirPapeis();
     enviarPendentes(true);
     atualizarListaDoServidor();
     atualizarContexto();
