@@ -50,6 +50,7 @@ EC.reembolso = (function () {
   var anexos = {};
   var iniciado = false;
   var restaurando = false; // evita salvar rascunho no meio da restauração
+  var editando = null;     // código da solicitação sendo substituída (modo edição)
 
   function $(id) { return document.getElementById(id); }
   function toast(msg) { if (EC.app && EC.app.mostrarToast) EC.app.mostrarToast(msg); }
@@ -814,12 +815,94 @@ EC.reembolso = (function () {
     }
   }
 
+  /* ============ Apagar / Editar (enquanto aguarda a Logística) ============ */
+
+  // Liga/desliga o visual do modo edição (aviso, título e rótulo do botão).
+  function marcarModoEdicao(on) {
+    var aviso = $('rb-editando-aviso');
+    if (aviso) aviso.classList.toggle('oculto', !on);
+    var h1 = document.querySelector('#tela-reembolso-novo h1');
+    if (h1) h1.textContent = on ? '✏️ Editar solicitação' : '💰 Nova solicitação de reembolso';
+    var botao = $('rb-enviar');
+    if (botao) botao.textContent = on ? 'Salvar alterações ✓' : 'Enviar solicitação ✓';
+    if (!on) editando = null;
+  }
+
+  // Converte uma solicitação enviada (registro do servidor) no formato de
+  // rascunho que aplicarRascunho() entende. As FOTOS não voltam do servidor —
+  // ficam vazias e o técnico anexa de novo se o item exigir evidência.
+  function pedidoParaRascunho(p) {
+    var decis = {}, jus = {}, nov = {};
+    (p.ajustes || []).forEach(function (a) {
+      if (!a || !a.item) return;
+      decis[a.item] = 'ajuste';
+      jus[a.item] = a.justificativa || '';
+      nov[a.item] = a.valor_proposto != null ? String(a.valor_proposto) : '';
+    });
+    return {
+      osId: p.ordem_servico_id,
+      campanha: p.campanha_numero != null ? String(p.campanha_numero) : '',
+      designado: p.designado || '',
+      veiculo: p.veiculo || '',
+      origemCidade: p.origem_cidade || '', origemUf: p.origem_uf || '',
+      destinoCidade: p.destino_cidade || '', destinoUf: p.destino_uf || '',
+      distancia: p.distancia_km != null ? String(p.distancia_km) : '',
+      tipoCombustivel: p.tipo_combustivel || '',
+      precoLitro: p.preco_litro != null ? String(p.preco_litro) : '',
+      combJustificativa: p.combustivel_justificativa || '',
+      pedagio: p.valor_pedagio != null ? String(p.valor_pedagio) : '',
+      decisoes: decis, justificativas: jus, novosValores: nov,
+      percentual: p.percentual_solicitado != null ? String(p.percentual_solicitado) : '100',
+      anexos: {}
+    };
+  }
+
+  // Reabre o formulário preenchido com uma solicitação já enviada. Ao salvar,
+  // a antiga é apagada e uma nova é criada no lugar (ver enviarFormulario).
+  async function abrirEdicao(p) {
+    await abrirNovo(true); // reseta o formulário e ignora o rascunho salvo
+    if ($('rb-form').classList.contains('oculto')) {
+      toast('📴 Editar precisa de internet (os dados vêm da Agenda).');
+      return;
+    }
+    if (!aplicarRascunho(pedidoParaRascunho(p))) {
+      toast('Não consegui abrir para edição — recarregue a lista e tente de novo.');
+      return;
+    }
+    editando = p.codigo;
+    marcarModoEdicao(true);
+    window.scrollTo(0, 0);
+  }
+
+  // Apaga de vez: da fila do aparelho (ainda não enviada) ou do servidor
+  // (enquanto 'aguardando_logistica'). O % volta a ficar livre na campanha.
+  async function apagarSolicitacao(p, aguardandoEnvio) {
+    var msg = aguardandoEnvio
+      ? 'Apagar esta solicitação que ainda não foi enviada? Ela sai da fila do aparelho.'
+      : 'Apagar esta solicitação? Ela sai da análise da Logística e o valor volta a ficar disponível na campanha. Não dá para desfazer.';
+    if (!confirm(msg)) return;
+    try {
+      if (aguardandoEnvio) {
+        try { await EC.db.remove(LOJA_PENDENTES, p.codigo); } catch (e) { /* ok */ }
+      } else {
+        await postJson(BASE + '/cancelar', { codigo: p.codigo, solicitante: sessionNome() });
+      }
+      toast('🗑️ Solicitação apagada.');
+      EC.app.mostrarTela('tela-reembolso');
+      atualizarListaDoServidor();
+      pintarLista();
+    } catch (e) {
+      toast('⚠️ Não consegui apagar agora' + (e && e.message ? ' (' + e.message + ')' : '') + '. Tente de novo com internet.');
+    }
+  }
+
   /* ============ Nova solicitação ============ */
 
   async function abrirNovo(ignorarRascunho) {
     EC.app.mostrarTela('tela-reembolso-novo');
     $('rb-erro').classList.add('oculto');
     $('rb-rascunho-aviso').classList.add('oculto');
+    marcarModoEdicao(false);
 
     var temCtx = await atualizarContexto();
     $('rb-offline').classList.toggle('oculto', temCtx);
@@ -1002,12 +1085,28 @@ EC.reembolso = (function () {
       criadoEm: new Date().toISOString()
     };
 
+    var eraEdicao = !!editando;
     var botao = $('rb-enviar');
     botao.disabled = true;
-    botao.textContent = '⏳ Enviando…';
+    botao.textContent = eraEdicao ? '⏳ Salvando…' : '⏳ Enviando…';
     try {
+      // Edição = substituição: apaga a antiga PRIMEIRO (libera o % da campanha),
+      // depois cria a nova. Precisa de internet — se falhar, não segue.
+      if (editando) {
+        try {
+          await postJson(BASE + '/cancelar', { codigo: editando, solicitante: solicitante });
+        } catch (e0) {
+          botao.disabled = false;
+          botao.textContent = 'Salvar alterações ✓';
+          return mostrarErro('A edição precisa de internet para substituir a solicitação. Tente de novo com conexão.');
+        }
+        editando = null;
+        marcarModoEdicao(false);
+      }
       await enviarPedido(pedido);
-      toast('✅ Solicitação enviada! Agora é aguardar a análise da Logística.');
+      toast(eraEdicao
+        ? '✅ Alterações enviadas! Aguarde a análise da Logística.'
+        : '✅ Solicitação enviada! Agora é aguardar a análise da Logística.');
       atualizarListaDoServidor();
       limparRascunho();
     } catch (e) {
@@ -1203,6 +1302,21 @@ EC.reembolso = (function () {
       '<div class="rb-total" style="margin-top:6px;">Solicitado (' + pct + '%): <strong>' + moedaBR(solicitado) + '</strong>' +
       '<span class="rb-total-sub">Total da logística: ' + moedaBR(total) + '</span></div>' +
       renderResumoPedido(p);
+
+    // Ações só enquanto dá para mexer: apagar (fila do aparelho ou aguardando a
+    // Logística) e editar (só as já enviadas que aguardam a Logística).
+    var podeApagar = aguardandoEnvio || p.status === 'aguardando_logistica';
+    var podeEditar = !aguardandoEnvio && p.status === 'aguardando_logistica';
+    if (podeApagar || podeEditar) {
+      var acoes = document.createElement('div');
+      acoes.className = 'rb-extrato-acoes';
+      acoes.innerHTML =
+        (podeEditar ? '<button type="button" class="botao botao-secundario" id="rb-extrato-editar">✏️ Editar</button>' : '') +
+        (podeApagar ? '<button type="button" class="botao botao-perigo" id="rb-extrato-apagar">🗑️ Apagar solicitação</button>' : '');
+      $('rb-extrato').appendChild(acoes);
+      if (podeEditar) $('rb-extrato-editar').addEventListener('click', function () { abrirEdicao(p); });
+      if (podeApagar) $('rb-extrato-apagar').addEventListener('click', function () { apagarSolicitacao(p, aguardandoEnvio); });
+    }
   }
 
   /* ============ Serviços com saldo pendente ============ */
@@ -1361,7 +1475,7 @@ EC.reembolso = (function () {
     $('rb-saldo-enviar').addEventListener('click', enviarSaldo);
     $('rb-saldo-alterar').addEventListener('click', alterarSaldo);
     $('rb-saldo-pct').addEventListener('input', pintarSaldoValor);
-    $('rb-cancelar').addEventListener('click', function () { EC.app.mostrarTela('tela-reembolso'); pintarLista(); });
+    $('rb-cancelar').addEventListener('click', function () { marcarModoEdicao(false); EC.app.mostrarTela('tela-reembolso'); pintarLista(); });
     $('rb-enviar').addEventListener('click', enviarFormulario);
     $('rb-rascunho-descartar').addEventListener('click', async function () {
       await limparRascunho();
