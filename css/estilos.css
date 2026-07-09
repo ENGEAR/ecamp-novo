@@ -104,6 +104,16 @@ code { background: var(--azul-claro); padding: 1px 5px; border-radius: 4px; font
 }
 #chip-nome { display: none; }
 
+/* Em celulares estreitos (ex.: 360–375px) o logo + os ícones do cabeçalho não
+   cabiam e a página vazava para a direita. Aperta o cabeçalho para caber sem
+   cortar nenhum ícone (o logo encolhe um pouco e os ícones ficam mais juntos). */
+@media (max-width: 400px) {
+  #header { padding: 8px 8px; gap: 4px; }
+  #header-logo { height: 36px; }
+  .header-acoes { gap: 0; }
+  .botao-icone { padding: 6px 4px; font-size: 1.1rem; }
+}
+
 /* ---------- Barra de pendências ---------- */
 #barra-pendencias {
   position: sticky;
