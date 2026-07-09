@@ -23,7 +23,8 @@ EC.biblioteca = (function () {
 
   const TIPOS = [
     { chave: 'norma', titulo: 'Normas', icone: '📘' },
-    { chave: 'procedimento', titulo: 'Procedimentos', icone: '📗' }
+    { chave: 'procedimento', titulo: 'Procedimentos', icone: '📗' },
+    { chave: 'legislacao', titulo: 'Legislação', icone: '📕' }
   ];
   // Nível atual da navegação. Zerado ao abrir.
   let nivel = { tipo: null, escopo: null };
@@ -63,6 +64,13 @@ EC.biblioteca = (function () {
   }
 
   function doTipo(chave) { return docs().filter(function (d) { return (d.tipo || '') === chave; }); }
+
+  // Categorias (escopos) distintas de um tipo.
+  function categoriasDe(chave) {
+    const set = {};
+    doTipo(chave).forEach(function (d) { set[escopoDe(d)] = true; });
+    return Object.keys(set);
+  }
 
   // HTML de um documento (link que abre o PDF). `sub` opcional aparece abaixo do
   // título (usado na busca, para mostrar tipo/escopo/método).
@@ -149,7 +157,14 @@ EC.biblioteca = (function () {
 
     if (q.trim()) area.innerHTML = htmlBusca(q);
     else if (!nivel.tipo) area.innerHTML = htmlRaiz();
-    else if (!nivel.escopo) area.innerHTML = htmlEscopos(nivel.tipo);
+    else if (!nivel.escopo) {
+      // Uma única categoria (ex.: Legislação) → abre direto nos documentos
+      // (sem um nível de categoria com um item só). O "← Voltar" desses
+      // documentos volta ao topo, pois nivel.escopo continua nulo.
+      const cats = categoriasDe(nivel.tipo);
+      if (cats.length <= 1) area.innerHTML = htmlDocumentos(nivel.tipo, cats[0] || '');
+      else area.innerHTML = htmlEscopos(nivel.tipo);
+    }
     else area.innerHTML = htmlDocumentos(nivel.tipo, nivel.escopo);
 
     area.querySelectorAll('.bib-nav-card').forEach(function (b) {
@@ -169,7 +184,6 @@ EC.biblioteca = (function () {
     nivel = { tipo: null, escopo: null };
     const total = docs().length;
     EC.app.abrirOverlay('📚 Biblioteca',
-      '<p class="texto-apoio">📴 Ficam salvos no aparelho — abrem sem internet.</p>' +
       (total ? '<label class="overlay-busca"><input type="search" id="bib-busca" placeholder="🔍 Buscar por título, categoria ou norma…" autocomplete="off"></label>' : '') +
       '<div id="bib-area"></div>');
 

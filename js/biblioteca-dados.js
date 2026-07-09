@@ -53,9 +53,9 @@ self.ECAMP_BIBLIOTECA = [
   /* ===================== NORMAS ===================== */
   { tipo: 'norma', escopo: 'QAR Externo', metodo: 'NBR 13412', titulo: 'NBR 13412:1995 — Material particulado em suspensão na atmosfera', arquivo: 'normas/normas/ABNT NBR 13412-1995_norma_qarext_Material Particulado em suspensao na atmosfera.pdf' },
   { tipo: 'norma', escopo: 'Vibração', metodo: 'CECAV', titulo: 'CECAV — Patrimônio espeleológico', arquivo: 'normas/normas/CECAV_norma_sismografia_Patrimonio Espeleológico.pdf' },
-  { tipo: 'norma', escopo: 'QAR Externo', metodo: 'CONAMA 506', titulo: 'CONAMA 506/2024 — Padrões de qualidade do ar', arquivo: 'normas/normas/CONAMA 506-2024_norma_qarext.pdf' },
+  { tipo: 'legislacao', escopo: 'QAR Externo', metodo: 'CONAMA 506', titulo: 'CONAMA 506/2024 — Padrões de qualidade do ar', arquivo: 'normas/normas/CONAMA 506-2024_legislação_qarext.pdf' },
   { tipo: 'norma', escopo: 'Vibração', metodo: 'CETESB DD 215/2007', titulo: 'CETESB DD 215/2007 — Vibrações em áreas habitadas', arquivo: 'normas/normas/DD CETESB - 215 de 2007_norma_sismografia.pdf' },
-  { tipo: 'norma', escopo: 'QAR Externo', metodo: 'Guia MMA', titulo: 'Guia MMA — Monitoramento da qualidade do ar', arquivo: 'normas/normas/Guia MMA_norma_qarext.pdf' },
+  { tipo: 'legislacao', escopo: 'QAR Externo', metodo: 'Guia MMA', titulo: 'Guia MMA — Monitoramento da qualidade do ar', arquivo: 'normas/normas/Guia MMA_legislação_qarext.pdf' },
   { tipo: 'norma', escopo: 'Ruído', metodo: 'NBR 10052', titulo: 'NBR 10052:2020 — Medições em campo de isolamento acústico', arquivo: 'normas/normas/NBR 10052-2020_norma_ruido_ Medições em campo de isolamento a ruido acust.pdf' },
   { tipo: 'norma', escopo: 'Ruído', metodo: 'NBR 16032', titulo: 'NBR 16032:2020 — Nível de pressão sonora de equipamentos', arquivo: 'normas/normas/NBR 16032-2020_norma_ruido_Medição de nível de pressão sonora de equipa.pdf' },
   { tipo: 'norma', escopo: 'QAR Externo', metodo: 'NBR 9547', titulo: 'NBR 9547:1997 — MP em suspensão no ar ambiente (método AGV)', arquivo: 'normas/normas/NBR 9547-1997_norma_qarext_MP em suspensão no ar ambiente - método AGV.pdf' },
