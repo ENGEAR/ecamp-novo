@@ -102,4 +102,3 @@ Blocos: **Ordem de serviço** (nº, código, emitido por, data emissão) · **Cl
 - App estático (HTML/JS puro, PWA offline), publicado no Vercel (projeto `ecamp`, https://ecamp-omega.vercel.app/). Código-fonte no GitHub (`ENGEAR/ecamp-novo`, branch `main`) só como controle de versão — GitHub Pages não é mais usado como hospedagem.
 - Lista de OS e equipamentos ainda são **mock** (`js/dados-os-mock.js`, `js/equipamentos-mock.js`); a ligação real com o SGE é fase posterior.
 - A correlação escopo→método está em `js/mapa-escopo.js`; os formulários de ruído em `js/campo-ruido.js`.
-- Há um botão de teste **"🧪 [TESTE] Marcar tudo"** no pré-campo, a ser removido antes de produção.
