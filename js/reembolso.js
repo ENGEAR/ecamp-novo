@@ -1007,7 +1007,7 @@ EC.reembolso = (function () {
   /* ============ Envio (2 etapas: dados → anexos) ============ */
 
   async function enviarPedido(pedido) {
-    // Pedido de SALDO: copia a parcela aprovada no servidor e vai direto p/ pagamento.
+    // Pedido de SALDO: copia a parcela aprovada no servidor; passa pela Logística.
     if (pedido._saldo) {
       return await postJson(BASE + '/saldo', {
         codigo: pedido.codigo, origemCodigo: pedido.origemCodigo, percentualSolicitado: pedido.percentualSolicitado
@@ -1476,7 +1476,7 @@ EC.reembolso = (function () {
     botao.disabled = true; botao.textContent = '⏳ Enviando…';
     try {
       await enviarPedido(pedido);
-      toast('✅ Saldo solicitado! Foi direto para pagamento.');
+      toast('✅ Saldo solicitado! Foi para a aprovação da Logística.');
       atualizarListaDoServidor();
     } catch (e) {
       if (e.rejeitado) { botao.disabled = false; botao.textContent = '💰 Solicitar saldo'; return saldoErro(e.message); }
