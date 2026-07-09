@@ -191,6 +191,47 @@ EC.os = (function () {
     }
   }
 
+  /* ======================================================================
+   * "Em andamento por quem" — quem está preenchendo cada OS
+   *
+   * Lê os monitoramentos com status 'rascunho' direto do Supabase (RLS libera
+   * leitura para qualquer logado) e monta um mapa nº da OS → nomes dos técnicos.
+   * Assim o cartão mostra "Em andamento · Fulano", inclusive de rascunhos que
+   * estão sendo preenchidos em OUTRO aparelho da equipe. Cacheia para offline.
+   * ==================================================================== */
+  var CH_AND_POR = 'os:andamentoPor';
+  var andamentoPorMapa = ler(CH_AND_POR, {}) || {};
+
+  // Normaliza o nº da OS para casar as fontes (tira o prefixo "OS ").
+  function normNum(n) { return String(n == null ? '' : n).replace(/^\s*OS\s+/i, '').trim(); }
+
+  // Nomes dos técnicos que estão com a OS em andamento (rascunho no servidor).
+  function andamentoPor(numero) { return andamentoPorMapa[normNum(numero)] || []; }
+
+  async function carregarAndamentoPor() {
+    var cli = EC.auth && EC.auth.cliente ? EC.auth.cliente() : null;
+    if (!cli) return andamentoPorMapa;
+    try {
+      var q = await cli.from('monitoramentos')
+        .select('os, tecnico, updated_at')
+        .eq('status', 'rascunho')
+        .order('updated_at', { ascending: false });
+      var mapa = {};
+      (q.data || []).forEach(function (r) {
+        var num = normNum(r.os);
+        var nome = (r.tecnico || '').trim();
+        if (!num || !nome) return;
+        if (!mapa[num]) mapa[num] = [];
+        if (mapa[num].indexOf(nome) === -1) mapa[num].push(nome); // já em ordem de recência
+      });
+      andamentoPorMapa = mapa;
+      EC.storage.salvar(CH_AND_POR, mapa);
+      return mapa;
+    } catch (e) {
+      return andamentoPorMapa; // offline/erro: mantém o cache
+    }
+  }
+
   // Devolve o cache imediatamente e dispara a atualização em segundo plano.
   function carregar(aoAtualizar) {
     atualizarDoServidor().then(function () {
@@ -211,6 +252,8 @@ EC.os = (function () {
     carregarEscopo: carregarEscopo,
     prepararEscopoDoCache: prepararEscopoDoCache,
     escopoAtual: escopoAtual,
-    dentroEscopo: dentroEscopo
+    dentroEscopo: dentroEscopo,
+    carregarAndamentoPor: carregarAndamentoPor,
+    andamentoPor: andamentoPor
   };
 })();

@@ -249,6 +249,18 @@ EC.fluxo = (function () {
     return { total: os.servicos.length, concluidos: concluidos, andamento: andamento };
   }
 
+  function primeiroNome(n) { return String(n || '').trim().split(/\s+/)[0] || ''; }
+
+  // Tag "Em andamento · Fulano" — quem está preenchendo a OS (do servidor, então
+  // vale para qualquer aparelho da equipe). Vazia se ninguém está com ela.
+  function tagTecnicoOs(os) {
+    const nomes = (EC.os && EC.os.andamentoPor) ? EC.os.andamentoPor(os.numero) : [];
+    if (!nomes.length) return '';
+    const primeiros = nomes.map(primeiroNome).filter(Boolean);
+    const texto = primeiros.slice(0, 2).join(', ') + (primeiros.length > 2 ? ' +' + (primeiros.length - 2) : '');
+    return '<span class="os-tag-tecnico">⏳ Em andamento · ' + texto + '</span>';
+  }
+
   // HTML de um cartão de OS (usado nas três seções). Carrega o número da OS no
   // dataset para localizar o objeto no clique (sem depender de índice de array).
   function cartaoOs(os) {
@@ -262,6 +274,7 @@ EC.fluxo = (function () {
     return (
       '<button type="button" class="os-item" data-numero="' + os.numero + '">' +
       '  <span class="os-numero">OS ' + os.numero + badge + '</span>' +
+      tagTecnicoOs(os) +
       '  <span class="os-cliente">' + os.cliente + '</span>' +
       (os.projeto ? '  <span class="os-projeto">📁 ' + os.projeto + '</span>' : '') +
       (os.resumo ? '  <span class="os-resumo">' + os.resumo + '</span>' : '') +
@@ -1372,6 +1385,13 @@ EC.fluxo = (function () {
     EC.app.mostrarTela('tela-os');
     if (EC.os && EC.os.carregarEscopo) {
       EC.os.carregarEscopo().then(function () {
+        const input = $('os-busca');
+        if (input && !input.value.trim() && !$('tela-os').classList.contains('oculto')) pintarOs('');
+      });
+    }
+    // Quem está preenchendo cada OS (tag "Em andamento · Fulano").
+    if (EC.os && EC.os.carregarAndamentoPor) {
+      EC.os.carregarAndamentoPor().then(function () {
         const input = $('os-busca');
         if (input && !input.value.trim() && !$('tela-os').classList.contains('oculto')) pintarOs('');
       });
