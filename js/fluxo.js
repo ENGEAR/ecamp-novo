@@ -252,11 +252,16 @@ EC.fluxo = (function () {
   function primeiroNome(n) { return String(n || '').trim().split(/\s+/)[0] || ''; }
 
   // Tag "Em andamento · Fulano" — quem está preenchendo a OS (do servidor, então
-  // vale para qualquer aparelho da equipe). Vazia se ninguém está com ela.
+  // vale para qualquer aparelho da equipe). Só mostra OUTRAS pessoas: quando sou
+  // EU que estou com a OS, a tag some (o "em andamento" do meu próprio aparelho
+  // já me avisa). Vazia se ninguém além de mim está com ela.
   function tagTecnicoOs(os) {
     const nomes = (EC.os && EC.os.andamentoPor) ? EC.os.andamentoPor(os.numero) : [];
     if (!nomes.length) return '';
-    const primeiros = nomes.map(primeiroNome).filter(Boolean);
+    const eu = ((EC.storage.ler('sessao:atual') || {}).nome || '').trim().toLowerCase();
+    const outros = nomes.filter(function (n) { return (n || '').trim().toLowerCase() !== eu; });
+    if (!outros.length) return '';
+    const primeiros = outros.map(primeiroNome).filter(Boolean);
     const texto = primeiros.slice(0, 2).join(', ') + (primeiros.length > 2 ? ' +' + (primeiros.length - 2) : '');
     return '<span class="os-tag-tecnico">⏳ Em andamento · ' + texto + '</span>';
   }
