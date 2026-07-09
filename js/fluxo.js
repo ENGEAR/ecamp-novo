@@ -279,9 +279,19 @@ EC.fluxo = (function () {
     });
   }
 
+  // Filtro de escopo: logística vê tudo; os demais só as OS escaladas na agenda.
+  function noEscopo(os) { return !EC.os || !EC.os.dentroEscopo || EC.os.dentroEscopo(os); }
+  function restrito() { return !!(EC.os && EC.os.escopoAtual && !EC.os.escopoAtual().tudo); }
+  // Mensagem de "nada aqui" sensível ao escopo do usuário.
+  function vazioOs() {
+    return restrito()
+      ? '<p class="texto-apoio">Você não tem OS escaladas na agenda. Fale com a logística para ser incluído no serviço.</p>'
+      : '<p class="texto-apoio">Nenhuma OS disponível. Conecte à internet para baixar as OS.</p>';
+  }
+
   // Pinta a tela de OS: com termo de busca, mostra só os resultados; sem termo,
   // mostra "Em andamento" (do servidor, compartilhada) + "Recentes" (deste
-  // aparelho) + "Todas as OS".
+  // aparelho) + "Todas as OS" (ou "Minhas OS", se o usuário for restrito).
   function pintarOs(termo) {
     termo = termo || '';
     const blocoAnd = $('os-andamento-bloco');
@@ -292,7 +302,7 @@ EC.fluxo = (function () {
     if (termo.trim()) {
       if (blocoAnd) blocoAnd.classList.add('oculto');
       if (blocoRec) blocoRec.classList.add('oculto');
-      const resultados = EC.os.buscar(termo);
+      const resultados = EC.os.buscar(termo).filter(noEscopo);
       if (tituloTodas) tituloTodas.textContent = resultados.length + ' resultado(s)';
       listaTodas.innerHTML = resultados.length
         ? resultados.map(cartaoOs).join('')
@@ -301,7 +311,7 @@ EC.fluxo = (function () {
       return;
     }
 
-    const todas = EC.os.lista();
+    const todas = EC.os.lista().filter(noEscopo);
     const numsAndamento = EC.os.andamento();
     const numsRecentes = EC.os.recentes();
 
@@ -319,7 +329,7 @@ EC.fluxo = (function () {
     const recentes = [];
     numsRecentes.forEach(function (n) {
       const os = EC.os.osPorNumero(n);
-      if (os && numsAndamento.indexOf(n) === -1) recentes.push(os);
+      if (os && numsAndamento.indexOf(n) === -1 && noEscopo(os)) recentes.push(os);
     });
     if (blocoRec) {
       if (recentes.length) {
@@ -329,11 +339,11 @@ EC.fluxo = (function () {
       } else { blocoRec.classList.add('oculto'); }
     }
 
-    // Todas
-    if (tituloTodas) tituloTodas.textContent = 'Todas as OS (' + todas.length + ')';
+    // Todas (ou "Minhas OS", para o usuário restrito ao que está na agenda)
+    if (tituloTodas) tituloTodas.textContent = (restrito() ? 'Minhas OS (' : 'Todas as OS (') + todas.length + ')';
     listaTodas.innerHTML = todas.length
       ? todas.map(cartaoOs).join('')
-      : '<p class="texto-apoio">Nenhuma OS disponível. Conecte à internet para baixar as OS.</p>';
+      : vazioOs();
     ligarCliquesOs(listaTodas);
   }
 
@@ -1355,8 +1365,17 @@ EC.fluxo = (function () {
 
   function iniciar() {
     if (!telasIniciadas) { telasIniciadas = true; inicializarTelas(); }
+    // Escopo do usuário: parte do cache (mostra as OS certas já no 1º pintar) e
+    // confirma com o servidor logo em seguida.
+    if (EC.os && EC.os.prepararEscopoDoCache) EC.os.prepararEscopoDoCache();
     renderizarListaOs();
     EC.app.mostrarTela('tela-os');
+    if (EC.os && EC.os.carregarEscopo) {
+      EC.os.carregarEscopo().then(function () {
+        const input = $('os-busca');
+        if (input && !input.value.trim() && !$('tela-os').classList.contains('oculto')) pintarOs('');
+      });
+    }
     // Atualiza a lista com o servidor em segundo plano; repinta se ainda estiver
     // na tela de OS e sem busca ativa (não atrapalha quem já está digitando).
     if (EC.os && EC.os.carregar) {

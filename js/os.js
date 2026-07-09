@@ -98,6 +98,99 @@ EC.os = (function () {
     return corpo;
   }
 
+  /* ======================================================================
+   * Escopo de OS por usuário (quem vê o quê na tela de Serviços)
+   *
+   * Regra: quem tem papel "logistica" (ou "admin") no SGP vê TODAS as OS. Os
+   * demais só veem as OS em que estão escalados na Agenda. O vínculo é:
+   *   e-mail do login → tecnicos.email → nome do técnico → agendamentos.tecnicos[]
+   *   → ordem_servico_id, que casa com o os.osId da lista (UUID × UUID).
+   *
+   * É um filtro de TELA (app-only), não uma barreira de servidor: as OS já
+   * chegam todas ao aparelho (token compartilhado). O escopo é cacheado por
+   * e-mail para continuar valendo offline.
+   * ==================================================================== */
+  var CH_ESCOPO = 'os:escopo';
+
+  function sessaoLogada() { return EC.storage.ler('sessao:atual') || {}; }
+  function ehLogistica(papeis) {
+    papeis = papeis || [];
+    return papeis.indexOf('logistica') !== -1 || papeis.indexOf('admin') !== -1;
+  }
+
+  // Padrão "libera tudo" até o cálculo terminar, para não esconder OS por uma
+  // fração de segundo (logística é o uso mais comum). calculado=false sinaliza
+  // que ainda não confirmamos com o servidor.
+  var escopo = { tudo: true, osIds: [], calculado: false, incerto: false };
+
+  function escopoAtual() { return escopo; }
+
+  function dentroEscopo(os) {
+    if (escopo.tudo) return true;
+    return !!(os && os.osId && escopo.osIds.indexOf(os.osId) !== -1);
+  }
+
+  // Ajusta o escopo em memória a partir do cache, se for do mesmo usuário —
+  // usado no 1º pintar da tela para o usuário restrito já ver as SUAS OS na hora.
+  function prepararEscopoDoCache() {
+    var email = (sessaoLogada().email || '').trim().toLowerCase();
+    var c = EC.storage.ler(CH_ESCOPO);
+    if (c && (c.email || '') === email) {
+      escopo = { tudo: !!c.tudo, osIds: c.osIds || [], calculado: false, incerto: true };
+    } else {
+      escopo = { tudo: true, osIds: [], calculado: false, incerto: true };
+    }
+    return escopo;
+  }
+
+  // Calcula (e cacheia) o escopo do usuário logado. Best-effort: em caso de
+  // falha (offline/erro), mantém o último escopo salvo do mesmo usuário.
+  async function carregarEscopo() {
+    var s = sessaoLogada();
+    var email = (s.email || '').trim().toLowerCase();
+    var papeis = s.papeis || [];
+    // Login offline pode não ter trazido os papéis — tenta de novo.
+    if ((!papeis || !papeis.length) && EC.auth && EC.auth.meusPapeis) {
+      try { papeis = await EC.auth.meusPapeis(); } catch (e) { /* mantém */ }
+    }
+    if (ehLogistica(papeis)) {
+      escopo = { tudo: true, osIds: [], calculado: true, incerto: false };
+      EC.storage.salvar(CH_ESCOPO, { em: new Date().toISOString(), tudo: true, osIds: [], email: email });
+      return escopo;
+    }
+    var cli = EC.auth && EC.auth.cliente ? EC.auth.cliente() : null;
+    try {
+      if (!cli || !email) throw new Error('sem cliente/email');
+      // e-mail do login → nome(s) do técnico (case-insensitive)
+      var tq = await cli.from('tecnicos').select('nome').ilike('email', email);
+      var nomes = (tq.data || []).map(function (t) { return (t.nome || '').trim(); }).filter(Boolean);
+      if (!nomes.length) {
+        escopo = { tudo: false, osIds: [], calculado: true, incerto: false };
+      } else {
+        var aq = await cli.from('agendamentos').select('ordem_servico_id, tecnicos');
+        var ids = {};
+        (aq.data || []).forEach(function (a) {
+          if (!a.ordem_servico_id) return;
+          var meu = (a.tecnicos || []).some(function (t) {
+            return nomes.indexOf((t.nome || '').trim()) !== -1;
+          });
+          if (meu) ids[a.ordem_servico_id] = 1;
+        });
+        escopo = { tudo: false, osIds: Object.keys(ids), calculado: true, incerto: false };
+      }
+      EC.storage.salvar(CH_ESCOPO, { em: new Date().toISOString(), tudo: escopo.tudo, osIds: escopo.osIds, email: email });
+      return escopo;
+    } catch (e) {
+      var cache = EC.storage.ler(CH_ESCOPO);
+      if (cache && (cache.email || '') === email) {
+        escopo = { tudo: !!cache.tudo, osIds: cache.osIds || [], calculado: true, incerto: true };
+      } else {
+        escopo = { tudo: false, osIds: [], calculado: true, incerto: true };
+      }
+      return escopo;
+    }
+  }
+
   // Devolve o cache imediatamente e dispara a atualização em segundo plano.
   function carregar(aoAtualizar) {
     atualizarDoServidor().then(function () {
@@ -114,6 +207,10 @@ EC.os = (function () {
     marcarRecente: marcarRecente,
     esquecerRecente: esquecerRecente,
     buscar: buscar,
-    osPorNumero: osPorNumero
+    osPorNumero: osPorNumero,
+    carregarEscopo: carregarEscopo,
+    prepararEscopoDoCache: prepararEscopoDoCache,
+    escopoAtual: escopoAtual,
+    dentroEscopo: dentroEscopo
   };
 })();
