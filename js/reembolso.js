@@ -274,10 +274,9 @@ EC.reembolso = (function () {
 
   /* ============ Dados do solicitante / distância ============ */
 
-  function distanciaDaOs() { return osSel && osSel.distanciaKm ? Number(osSel.distanciaKm) : 0; }
-
+  // Distância (ida+volta) vem SEMPRE do trajeto origem→destino (cálculo pelo
+  // mapa), nunca da OS. Lê o valor do campo (do cálculo ou digitado à mão).
   function distanciaAtual() {
-    if (distanciaDaOs() > 0) return distanciaDaOs();
     var v = parseFloat(String($('rb-distancia').value).replace(/[^\d.,]/g, '').replace(',', '.'));
     return v > 0 ? v : 0;
   }
@@ -293,20 +292,12 @@ EC.reembolso = (function () {
 
   function pintarDistancia() {
     var inp = $('rb-distancia'), hint = $('rb-distancia-hint'), cidades = $('rb-dist-cidades');
-    if (distanciaDaOs() > 0) {
-      cidades.classList.add('oculto');
-      inp.value = String(osSel.distanciaKm) + ' km';
-      inp.readOnly = true;
-      hint.textContent = '(vem da OS)';
-      $('rb-dist-status').textContent = '';
-      return;
-    }
-    // sem distância na OS: pede origem/destino e calcula (ida e volta).
-    // Origem: a última usada; na 1ª vez, a base da ENGEAR (Mateus Leme/MG).
+    // A distância SEMPRE vem do trajeto origem→destino (calculada pelo mapa),
+    // nunca da OS. Origem pré-preenchida com a base da ENGEAR (Mateus Leme/MG);
+    // destino vem da OS (município/UF do cliente). Ambos ficam editáveis.
     cidades.classList.remove('oculto');
-    var ori = EC.storage.ler('logistica:origem') || { cidade: 'Mateus Leme', uf: 'MG' };
-    $('rb-origem-cidade').value = ori.cidade || '';
-    setUF('rb-origem-uf', ori.uf || '');
+    $('rb-origem-cidade').value = 'Mateus Leme';
+    setUF('rb-origem-uf', 'MG');
     $('rb-destino-cidade').value = (osSel && osSel.municipio) || '';
     setUF('rb-destino-uf', (osSel && osSel.uf) || '');
     inp.value = '';
@@ -320,7 +311,7 @@ EC.reembolso = (function () {
 
   async function calcularDistancia() {
     clearTimeout(distTimer); // cancela um debounce pendente (evita chamada dupla)
-    if (!osSel || distanciaDaOs() > 0) return;
+    if (!osSel) return;
     var oc = $('rb-origem-cidade').value.trim(), ou = $('rb-origem-uf').value;
     var dc = $('rb-destino-cidade').value.trim(), du = $('rb-destino-uf').value;
     var status = $('rb-dist-status'), inp = $('rb-distancia');
@@ -341,7 +332,6 @@ EC.reembolso = (function () {
       inp.value = corpo.totalKm + ' km';
       inp.readOnly = true;
       status.textContent = '✅ ' + corpo.totalKm + ' km no total (ida ' + corpo.idaKm + ' + volta ' + corpo.idaKm + '), calculado pelo mapa.';
-      EC.storage.salvar('logistica:origem', { cidade: oc, uf: ou });
       pintarValores();
     } catch (e) {
       status.textContent = '⚠️ ' + e.message + '. Digite a distância (ida e volta) manualmente.';
@@ -1112,12 +1102,12 @@ EC.reembolso = (function () {
       precoLitro: preco > 0 ? preco : null,
       combustivelJustificativa: $('rb-comb-justificativa').value.trim(),
       valorPedagio: parseFloat($('rb-pedagio').value) || 0,
-      distanciaManual: distanciaDaOs() > 0 ? null : distanciaAtual(),
-      // trajeto (só quando a distância veio das cidades, não da OS)
-      origemCidade: distanciaDaOs() > 0 ? null : ($('rb-origem-cidade').value.trim() || null),
-      origemUf: distanciaDaOs() > 0 ? null : ($('rb-origem-uf').value || null),
-      destinoCidade: distanciaDaOs() > 0 ? null : ($('rb-destino-cidade').value.trim() || null),
-      destinoUf: distanciaDaOs() > 0 ? null : ($('rb-destino-uf').value || null),
+      distanciaManual: distanciaAtual(),
+      // trajeto (a distância vem sempre do cálculo origem→destino, nunca da OS)
+      origemCidade: $('rb-origem-cidade').value.trim() || null,
+      origemUf: $('rb-origem-uf').value || null,
+      destinoCidade: $('rb-destino-cidade').value.trim() || null,
+      destinoUf: $('rb-destino-uf').value || null,
       // dias/datas informados (o servidor usa só quando a OS não tem viagem na Agenda)
       dataInicio: $('rb-ida').value || null,
       dataRetorno: $('rb-volta').value || null,
