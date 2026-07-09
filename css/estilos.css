@@ -332,9 +332,23 @@ textarea { resize: vertical; font-family: inherit; }
 .lista-avisos li { margin-bottom: 3px; }
 
 /* ---------- Fluxo de serviços ---------- */
-.grade-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* minmax(0,1fr): sem o min 0, as colunas não encolhem abaixo do conteúdo e a
+   tela "vaza" para a direita em celulares estreitos. */
+.grade-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
 .rotulo-apoio { font-weight: 400; color: var(--cinza-texto); font-size: 0.82rem; }
 .dg-secao { font-size: 0.95rem; font-weight: 700; color: var(--azul-escuro); border-bottom: 1px solid var(--cinza-borda); padding-bottom: 4px; margin: 20px 0 10px; }
+
+/* Campo de LEITURA da OS: rótulo em cima, valor embaixo que QUEBRA LINHA — nada
+   fica cortado nem empurra a tela para o lado (overflow-wrap: anywhere quebra
+   até links/números longos). */
+.dg-campo { display: flex; flex-direction: column; gap: 1px; margin-bottom: 10px; min-width: 0; }
+.dg-rot { font-size: 0.8rem; color: var(--cinza-texto); }
+.dg-val { font-size: 0.95rem; color: var(--texto); overflow-wrap: anywhere; white-space: pre-wrap; }
+/* Cartão de uma campanha (dentro de "Informações por campanha"). */
+.dg-camp-card { border: 1px solid var(--cinza-borda); border-radius: 10px; padding: 12px; margin-bottom: 10px; background: var(--cinza-fundo); }
+.dg-camp-tit { font-weight: 700; color: var(--azul-escuro); margin-bottom: 8px; }
+.dg-escopo-min { border-left: 3px solid var(--cinza-borda); padding-left: 10px; margin: 8px 0; }
+.dg-escopo-nome { font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; overflow-wrap: anywhere; }
 
 #os-busca { margin-bottom: 14px; }
 .os-bloco { margin-bottom: 6px; }

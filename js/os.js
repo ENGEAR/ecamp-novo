@@ -232,6 +232,35 @@ EC.os = (function () {
     }
   }
 
+  /* ======================================================================
+   * Detalhes completos da OS (ordens_servico.detalhes) — para a tela de
+   * "Dados gerais do serviço" mostrar TUDO da OS (descrição, campanhas,
+   * metodologia, informações relevantes, origem/destino, local).
+   *
+   * O endpoint /api/monitoramento/os manda só um resumo; aqui a gente lê o
+   * jsonb `detalhes` direto do Supabase pela sessão do usuário (RLS de
+   * ordens_servico libera leitura a qualquer logado). App-only, cacheado por
+   * OS para abrir na hora e funcionar offline. (Fotos NÃO vêm aqui: o bucket
+   * é privado ao comercial — ficam para uma etapa com o servidor.)
+   * ==================================================================== */
+  var CH_DET = 'os:detalhes:';
+
+  function detalhesCache(osId) { return osId ? ler(CH_DET + osId, null) : null; }
+
+  async function carregarDetalhes(osId) {
+    if (!osId) return null;
+    var cli = EC.auth && EC.auth.cliente ? EC.auth.cliente() : null;
+    if (!cli) return detalhesCache(osId);
+    try {
+      var q = await cli.from('ordens_servico').select('detalhes').eq('id', osId).single();
+      var det = (q && q.data && q.data.detalhes) ? q.data.detalhes : null;
+      if (det) EC.storage.salvar(CH_DET + osId, det);
+      return det || detalhesCache(osId);
+    } catch (e) {
+      return detalhesCache(osId); // offline/erro: usa o que já baixou
+    }
+  }
+
   // Devolve o cache imediatamente e dispara a atualização em segundo plano.
   function carregar(aoAtualizar) {
     atualizarDoServidor().then(function () {
@@ -254,6 +283,8 @@ EC.os = (function () {
     escopoAtual: escopoAtual,
     dentroEscopo: dentroEscopo,
     carregarAndamentoPor: carregarAndamentoPor,
-    andamentoPor: andamentoPor
+    andamentoPor: andamentoPor,
+    carregarDetalhes: carregarDetalhes,
+    detalhesCache: detalhesCache
   };
 })();

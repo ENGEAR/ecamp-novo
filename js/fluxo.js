@@ -138,6 +138,7 @@ EC.fluxo = (function () {
       rascunhoId: gerarRascunhoId(),
       os: {
         numero: os.numero,
+        osId: os.osId || null,   // uuid da ordens_servico (p/ buscar os detalhes completos)
         codigo: codigoOs(os.numero),
         projeto: os.projeto || '',
         emitidoPor: os.emitidoPor || '',
@@ -562,46 +563,85 @@ EC.fluxo = (function () {
 
   /* ---------- Dados gerais ---------- */
 
+  // Escape de HTML — os valores da OS entram no innerHTML da tela.
+  function escDg(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  // Campo de LEITURA que QUEBRA LINHA (rótulo em cima, valor embaixo). Resolve o
+  // texto grande "indo para a direita": tudo fica visível dentro da tela.
+  function dgCampo(rotulo, valor) {
+    var v = (valor === undefined || valor === null || String(valor).trim() === '') ? '—' : valor;
+    return '<div class="dg-campo"><span class="dg-rot">' + escDg(rotulo) + '</span>' +
+      '<span class="dg-val">' + escDg(String(v)) + '</span></div>';
+  }
+  function dgGrade2(a, b) { return '<div class="grade-2">' + a + b + '</div>'; }
+  function dgSecao(t) { return '<p class="dg-secao">' + escDg(t) + '</p>'; }
+  function juntar(arr, sep) { return (arr || []).filter(Boolean).join(sep || ', '); }
+
   function preencherDadosGerais() {
     const o = estado.os;
-    const traco = function (v) { return (v === undefined || v === null || v === '') ? '—' : v; };
-    // Ordem de serviço
-    $('dg-os').value = o.numero;
-    $('dg-codigo').value = traco(o.codigo);
-    $('dg-projeto').value = traco(o.projeto);
-    $('dg-emitido').value = traco(o.emitidoPor);
-    $('dg-dataEmissao').value = o.dataEmissao ? formatarDataBR(o.dataEmissao) : '—';
-    // Cliente
-    $('dg-cliente').value = traco(o.cliente);
-    $('dg-cnpj').value = traco(o.cnpjCpf);
-    $('dg-endereco').value = traco(o.endereco);
-    $('dg-municipio').value = traco(o.municipioUF);
-    $('dg-contato').value = traco(o.contato);
-    // Local do serviço (mesmo do contratante)
-    $('dg-localEndereco').value = traco(o.endereco);
-    $('dg-localMunicipio').value = traco(o.municipioUF);
-    $('dg-maps').value = o.linkMaps || ''; // editável — sem traço, senão atrapalha colar o link
-    // Serviço
-    $('dg-resumo').value = traco(o.resumo);
-    $('dg-frequencia').value = traco(o.frequencia);
-    $('dg-rota').value = traco(o.rota);
-    $('dg-numCampanhas').value = traco(o.numCampanhas);
-    // Escopo deste serviço
-    $('dg-campanha').value = traco(servicoDetalhe('campanha'));
-    $('dg-escopo').value = servicoDetalhe('escopo');
-    $('dg-pontos').value = estado.dadosGerais.qtdePontos;
-    $('dg-pontos-os').textContent = '(previsto na OS: ' + estado.dadosGerais.qtdePontosOS + ')';
-    $('dg-justificativa').value = estado.dadosGerais.justificativaPontos || '';
-    $('dg-dias').value = traco(estado.servico.dias);
-    $('dg-periodo').value = traco(servicoDetalhe('periodo'));
-    $('dg-metodo').value = traco(servicoDetalhe('metodo'));
-    $('dg-observacao').value = traco(servicoDetalhe('observacao'));
-    // Observações da OS + Preenchimento
-    $('dg-obsOS').value = traco(o.observacao);
-    $('dg-data').value = formatarDataBR(estado.dadosGerais.dataInicio);
-    $('dg-hora').value = estado.dadosGerais.horaInicio;
-    atualizarJustificativaPontos();
+    const dg = estado.dadosGerais;
+    const dataEmissao = o.dataEmissao ? formatarDataBR(o.dataEmissao) : '—';
 
+    // Campos de LEITURA quebram linha (dgCampo); os EDITÁVEIS (link do Maps,
+    // pontos, justificativa) seguem como <input>/<textarea> com os MESMOS ids —
+    // coletarDadosGerais continua lendo por id. Placeholders (<div id=…>) recebem
+    // as seções ricas quando os detalhes completos da OS chegam.
+    var html =
+      dgSecao('Ordem de serviço') +
+      dgGrade2(dgCampo('Nº da OS', o.numero), dgCampo('Código', o.codigo)) +
+      dgCampo('Nome do projeto', o.projeto) +
+      dgGrade2(dgCampo('Emitido por', o.emitidoPor), dgCampo('Data de emissão', dataEmissao)) +
+
+      dgSecao('Cliente (contratante)') +
+      dgCampo('Razão social', o.cliente) +
+      dgGrade2(dgCampo('CNPJ / CPF', o.cnpjCpf), dgCampo('Contato', o.contato)) +
+      dgCampo('Endereço', o.endereco) +
+      dgCampo('Município / UF', o.municipioUF) +
+
+      dgSecao('Local do serviço') +
+      '<div id="dg-local-extra">' + dgCampo('Endereço', o.endereco) + dgCampo('Município / UF', o.municipioUF) + '</div>' +
+      '<label>Local do monitoramento — link do Google Maps' +
+        '<input type="text" id="dg-maps" placeholder="Cole o link do Google Maps" value="' + escDg(o.linkMaps || '') + '"></label>' +
+
+      dgSecao('Serviço') +
+      dgCampo('Serviço', o.resumo) +
+      '<div id="dg-descricao"></div>' +
+      dgGrade2(dgCampo('Frequência', o.frequencia), dgCampo('Rota', o.rota)) +
+      dgCampo('Nº de campanhas', o.numCampanhas) +
+      '<div id="dg-origem-destino"></div>' +
+
+      dgSecao('Escopo deste serviço') +
+      dgCampo('Campanha', servicoDetalhe('campanha')) +
+      dgCampo('Escopo', servicoDetalhe('escopo')) +
+      '<div class="grade-2">' +
+        '<label>Pontos <span class="rotulo-apoio">(previsto na OS: ' + escDg(dg.qtdePontosOS) + ')</span>' +
+          '<input type="number" id="dg-pontos" min="1" max="50" inputmode="numeric" value="' + escDg(dg.qtdePontos) + '"></label>' +
+        dgCampo('Dias de medição', estado.servico.dias) +
+      '</div>' +
+      '<div id="dg-justificativa-bloco" class="' + (pontosAlterados() ? '' : 'oculto') + '">' +
+        '<label>Justificativa da alteração do nº de pontos' +
+          '<textarea id="dg-justificativa" rows="2" placeholder="Explique por que o nº de pontos ficou diferente do previsto na OS">' + escDg(dg.justificativaPontos || '') + '</textarea>' +
+        '</label>' +
+      '</div>' +
+      dgCampo('Período', servicoDetalhe('periodo')) +
+      dgCampo('Método', servicoDetalhe('metodo')) +
+      dgCampo('Observação do escopo', servicoDetalhe('observacao')) +
+
+      '<div id="dg-metodologia"></div>' +
+      '<div id="dg-campanhas"></div>' +
+
+      dgSecao('Informações relevantes') +
+      dgCampo('Informações relevantes', o.observacao) +
+
+      dgSecao('Preenchimento') +
+      dgGrade2(dgCampo('Data de início', formatarDataBR(dg.dataInicio)), dgCampo('Hora de início', dg.horaInicio));
+
+    $('dg-corpo').innerHTML = html;
+
+    // Eventos dos campos editáveis (mesmos ids → coletarDadosGerais segue igual).
     $('dg-pontos').oninput = function () {
       estado.dadosGerais.qtdePontos = parseInt($('dg-pontos').value, 10) || estado.dadosGerais.qtdePontos;
       atualizarJustificativaPontos();
@@ -611,13 +651,86 @@ EC.fluxo = (function () {
       estado.dadosGerais.justificativaPontos = $('dg-justificativa').value;
       salvarEstado();
     };
-    // Local do monitoramento (link do Maps): único campo editável do bloco
-    // "Dados gerais" — os demais vêm fixos da OS. Comum a todos os escopos
-    // (tela roda antes da escolha do tipo).
+    // Link do Maps: único campo editável do bloco (os demais vêm fixos da OS).
     $('dg-maps').oninput = function () {
       estado.os.linkMaps = $('dg-maps').value;
       salvarEstado();
     };
+    atualizarJustificativaPontos();
+
+    // Detalhes completos da OS (descrição, campanhas, metodologia, origem/destino,
+    // local) — do jsonb ordens_servico.detalhes, lido pela sessão (app-only).
+    preencherDetalhesOS(o);
+  }
+
+  // Puxa (do cache na hora e do servidor em seguida) os detalhes completos da OS
+  // e injeta as seções ricas. Só aplica se ainda estamos nesta OS/tela.
+  function preencherDetalhesOS(o) {
+    if (!o.osId || !EC.os) return;
+    var cacheado = EC.os.detalhesCache ? EC.os.detalhesCache(o.osId) : null;
+    if (cacheado) aplicarDetalhesOS(cacheado);
+    if (EC.os.carregarDetalhes) {
+      EC.os.carregarDetalhes(o.osId).then(function (fresh) {
+        if (fresh && telaExibida === 'tela-dados-gerais' && estado && estado.os && estado.os.osId === o.osId) {
+          aplicarDetalhesOS(fresh);
+        }
+      });
+    }
+  }
+
+  function aplicarDetalhesOS(det) {
+    var el;
+    // Descrição (dentro de "Serviço")
+    if ((el = $('dg-descricao'))) el.innerHTML = det.descricao ? dgCampo('Descrição', det.descricao) : '';
+    // Origem / Destino
+    if ((el = $('dg-origem-destino'))) el.innerHTML = (det.origem || det.destino)
+      ? dgGrade2(dgCampo('Origem', det.origem), dgCampo('Destino', det.destino)) : '';
+    // Local do serviço detalhado (quando há mais do que o do contratante)
+    if ((el = $('dg-local-extra')) && det.local && (det.local.endereco || det.local.cidade || det.local.contato || det.local.referencia)) {
+      var L = det.local;
+      el.innerHTML =
+        dgCampo('Endereço', L.endereco) +
+        dgCampo('Município / UF', L.cidade) +
+        (L.contato ? dgCampo('Contato no local', L.contato) : '') +
+        (L.referencia ? dgCampo('Ponto de referência', L.referencia) : '');
+    }
+    // Metodologia / normas de referência
+    if ((el = $('dg-metodologia'))) {
+      var mets = (det.metodologia || []).filter(function (m) { return m && (m.escopo || m.norma || m.matriz); });
+      el.innerHTML = mets.length
+        ? dgSecao('Metodologia / normas de referência') + mets.map(function (m) {
+            return dgCampo(m.escopo || m.matriz || 'Ensaio',
+              juntar([m.norma, m.revisao ? ('Rev. ' + m.revisao) : '', m.pop ? ('POP ' + m.pop) : ''], ' · '));
+          }).join('')
+        : '';
+    }
+    // Informações por campanha
+    if ((el = $('dg-campanhas'))) {
+      var camps = det.campanhas || [];
+      el.innerHTML = camps.length ? dgSecao('Informações por campanha') + camps.map(htmlCampanha).join('') : '';
+    }
+  }
+
+  function htmlCampanha(c) {
+    var fmt = function (d) { return d ? formatarDataBR(d) : ''; };
+    var datas = (c.dataPrev || c.dataFim)
+      ? dgGrade2(dgCampo('Data prevista', fmt(c.dataPrev)), dgCampo('Data fim', fmt(c.dataFim)))
+      : (c.previsaoTexto ? dgCampo('Previsão', c.previsaoTexto) : '');
+    var dias = dgGrade2(dgCampo('Dias de serviço', c.diasServico), dgCampo('Dias de deslocamento', c.deslocDias));
+    var maisDias = dgGrade2(dgCampo('Total de dias', c.totalDias), dgCampo('Nº de técnicos', c.qtdTecnicos));
+    var escopos = (c.escopos || []).map(function (e) {
+      return '<div class="dg-escopo-min">' +
+        '<div class="dg-escopo-nome">' + escDg(e.nome || 'Escopo') + (e.norma ? ' · ' + escDg(e.norma) : '') + '</div>' +
+        (juntar(e.periodos) ? dgCampo('Período', juntar(e.periodos)) : '') +
+        (juntar(e.metodo) ? dgCampo('Método', juntar(e.metodo)) : '') +
+        (juntar(e.detalhes, ' · ') ? dgCampo('Detalhes', juntar(e.detalhes, ' · ')) : '') +
+        (e.obs ? dgCampo('Observação', e.obs) : '') +
+      '</div>';
+    }).join('');
+    return '<div class="dg-camp-card">' +
+      '<div class="dg-camp-tit">Campanha ' + escDg(c.numero) + '</div>' +
+      datas + dias + maisDias + escopos +
+    '</div>';
   }
 
   function pontosAlterados() {

@@ -117,61 +117,7 @@
         <h1>📄 Dados gerais do serviço</h1>
         <p class="texto-apoio">Dados da OS (só leitura). A única exceção é o nº de pontos — que, se mudar, pede justificativa.</p>
 
-        <p class="dg-secao">Ordem de serviço</p>
-        <div class="grade-2">
-          <label>Nº da OS<input type="text" id="dg-os" readonly></label>
-          <label>Código<input type="text" id="dg-codigo" readonly></label>
-        </div>
-        <label>Nome do projeto<input type="text" id="dg-projeto" readonly></label>
-        <div class="grade-2">
-          <label>Emitido por<input type="text" id="dg-emitido" readonly></label>
-          <label>Data de emissão<input type="text" id="dg-dataEmissao" readonly></label>
-        </div>
-
-        <p class="dg-secao">Cliente (contratante)</p>
-        <label>Razão social<input type="text" id="dg-cliente" readonly></label>
-        <label>CNPJ / CPF<input type="text" id="dg-cnpj" readonly></label>
-        <label>Endereço<input type="text" id="dg-endereco" readonly></label>
-        <label>Município / UF<input type="text" id="dg-municipio" readonly></label>
-        <label>Contato<input type="text" id="dg-contato" readonly></label>
-
-        <p class="dg-secao">Local do serviço <span class="rotulo-apoio">(mesmo do contratante)</span></p>
-        <label>Endereço<input type="text" id="dg-localEndereco" readonly></label>
-        <label>Município / UF<input type="text" id="dg-localMunicipio" readonly></label>
-        <label>Local do monitoramento — link do Google Maps<input type="text" id="dg-maps" placeholder="Cole o link do Google Maps"></label>
-
-        <p class="dg-secao">Serviço</p>
-        <label>Serviço<input type="text" id="dg-resumo" readonly></label>
-        <div class="grade-2">
-          <label>Frequência<input type="text" id="dg-frequencia" readonly></label>
-          <label>Rota<input type="text" id="dg-rota" readonly></label>
-        </div>
-        <label>Nº de campanhas<input type="text" id="dg-numCampanhas" readonly></label>
-
-        <p class="dg-secao">Escopo deste serviço</p>
-        <label>Campanha<input type="text" id="dg-campanha" readonly></label>
-        <label>Escopo<input type="text" id="dg-escopo" readonly></label>
-        <div class="grade-2">
-          <label>Pontos <span class="rotulo-apoio" id="dg-pontos-os"></span><input type="number" id="dg-pontos" min="1" max="50" inputmode="numeric"></label>
-          <label>Dias de medição<input type="text" id="dg-dias" readonly></label>
-        </div>
-        <div id="dg-justificativa-bloco" class="oculto">
-          <label>Justificativa da alteração do nº de pontos
-            <textarea id="dg-justificativa" rows="2" placeholder="Explique por que o nº de pontos ficou diferente do previsto na OS"></textarea>
-          </label>
-        </div>
-        <label>Período<input type="text" id="dg-periodo" readonly></label>
-        <label>Método<input type="text" id="dg-metodo" readonly></label>
-        <label>Observação do escopo<textarea id="dg-observacao" rows="2" readonly></textarea></label>
-
-        <p class="dg-secao">Observações da OS</p>
-        <label>Observações<textarea id="dg-obsOS" rows="2" readonly></textarea></label>
-
-        <p class="dg-secao">Preenchimento</p>
-        <div class="grade-2">
-          <label>Data de início<input type="text" id="dg-data" readonly></label>
-          <label>Hora de início<input type="text" id="dg-hora" readonly></label>
-        </div>
+        <div id="dg-corpo"></div>
 
         <div id="dados-gerais-nav"></div>
       </div>
