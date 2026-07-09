@@ -636,6 +636,8 @@ EC.fluxo = (function () {
       dgSecao('Informações relevantes') +
       dgCampo('Informações relevantes', o.observacao) +
 
+      '<div id="dg-fotos"></div>' +
+
       dgSecao('Preenchimento') +
       dgGrade2(dgCampo('Data de início', formatarDataBR(dg.dataInicio)), dgCampo('Hora de início', dg.horaInicio));
 
@@ -661,6 +663,32 @@ EC.fluxo = (function () {
     // Detalhes completos da OS (descrição, campanhas, metodologia, origem/destino,
     // local) — do jsonb ordens_servico.detalhes, lido pela sessão (app-only).
     preencherDetalhesOS(o);
+    // Fotos da OS (Análise Crítica) — URLs assinadas do servidor (online).
+    preencherFotosOS(o);
+  }
+
+  // Busca as fotos da OS no servidor e monta a grade de miniaturas (toque amplia).
+  function preencherFotosOS(o) {
+    var el = $('dg-fotos');
+    if (!el || !o.osId || !EC.os || !EC.os.carregarFotos) return;
+    el.innerHTML = dgSecao('Fotos da OS') + '<p class="texto-apoio">⏳ Carregando fotos…</p>';
+    EC.os.carregarFotos(o.osId).then(function (fotos) {
+      // Só aplica se ainda estamos nesta OS/tela.
+      if (!(telaExibida === 'tela-dados-gerais' && estado && estado.os && estado.os.osId === o.osId)) return;
+      if (!fotos.length) {
+        el.innerHTML = dgSecao('Fotos da OS') + '<p class="texto-apoio">' +
+          (navigator.onLine ? 'Esta OS não tem fotos.' : '📡 Conecte-se para ver as fotos da OS.') + '</p>';
+        return;
+      }
+      el.innerHTML = dgSecao('Fotos da OS') +
+        '<div class="dg-fotos-grade">' +
+        fotos.map(function (f) {
+          return '<a class="dg-foto" href="' + escDg(f.url) + '" target="_blank" rel="noopener">' +
+            '<img loading="lazy" src="' + escDg(f.url) + '" alt="Foto da OS"></a>';
+        }).join('') +
+        '</div>' +
+        '<p class="texto-apoio">Toque numa foto para ver em tamanho cheio.</p>';
+    });
   }
 
   // Puxa (do cache na hora e do servidor em seguida) os detalhes completos da OS

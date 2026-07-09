@@ -30,6 +30,7 @@ EC.os = (function () {
 
   var BASE = 'https://engear-sgp.vercel.app/api/monitoramento';
   var ROTA_OS = BASE + '/os';
+  var ROTA_FOTOS = BASE + '/os-fotos';
   var TOKEN = 'f8b17592b0130d95047d37865a14b31570c6381509ccc066';
 
   var CH_LISTA = 'os:lista';
@@ -261,6 +262,21 @@ EC.os = (function () {
     }
   }
 
+  // Fotos da OS (Análise Crítica): URLs assinadas, geradas pelo servidor (o
+  // bucket é privado ao comercial). Online-only; offline devolve [] e a tela
+  // avisa para conectar. Não cacheia (as URLs assinadas expiram em ~1h).
+  async function carregarFotos(osId) {
+    if (!osId) return [];
+    try {
+      var resp = await fetch(ROTA_FOTOS + '?osId=' + encodeURIComponent(osId), { headers: { 'x-ecamp-token': TOKEN } });
+      var corpo = await resp.json();
+      if (!resp.ok || !corpo.ok) throw new Error(corpo.erro || ('HTTP ' + resp.status));
+      return Array.isArray(corpo.fotos) ? corpo.fotos : [];
+    } catch (e) {
+      return []; // offline/erro: sem fotos (o resto da OS segue offline)
+    }
+  }
+
   // Devolve o cache imediatamente e dispara a atualização em segundo plano.
   function carregar(aoAtualizar) {
     atualizarDoServidor().then(function () {
@@ -285,6 +301,7 @@ EC.os = (function () {
     carregarAndamentoPor: carregarAndamentoPor,
     andamentoPor: andamentoPor,
     carregarDetalhes: carregarDetalhes,
-    detalhesCache: detalhesCache
+    detalhesCache: detalhesCache,
+    carregarFotos: carregarFotos
   };
 })();
