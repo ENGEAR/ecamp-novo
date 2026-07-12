@@ -272,8 +272,12 @@ EC.fluxo = (function () {
   function cartaoOs(os) {
     const r = resumoServicosOs(os);
     let badge = '';
+    // "em andamento" = SÓ quando há rascunho ATIVO. Se tem serviço concluído mas
+    // nenhum rascunho ativo (ex.: desistiu do resto), é "Parcial — X de Y", não
+    // "em andamento" (senão a OS ficava presa em "em andamento" pelos concluídos).
     if (r.total && r.concluidos === r.total) badge = ' <span class="os-andamento status-concluido">✅ concluída</span>';
-    else if (r.andamento > 0 || r.concluidos > 0) badge = ' <span class="os-andamento">⏸️ em andamento</span>';
+    else if (r.andamento > 0) badge = ' <span class="os-andamento">⏸️ em andamento</span>';
+    else if (r.concluidos > 0) badge = ' <span class="os-andamento os-parcial">Parcial — ' + r.concluidos + ' de ' + r.total + '</span>';
     const linhaServicos = r.total > 1
       ? '<span class="os-resumo">' + r.total + ' serviços' + (r.concluidos ? ' · ' + r.concluidos + ' concluído(s)' : '') + '</span>'
       : '';
@@ -294,6 +298,39 @@ EC.fluxo = (function () {
       item.addEventListener('click', function () {
         const os = EC.os.osPorNumero(item.dataset.numero);
         if (os) selecionarOs(os);
+      });
+    });
+  }
+
+  function ehLogisticaOuAdmin() {
+    const p = (EC.storage.ler('sessao:atual') || {}).papeis || [];
+    return p.indexOf('logistica') !== -1 || p.indexOf('admin') !== -1;
+  }
+
+  // Cartão da seção "Em andamento": para logística/admin, acompanha um botão de
+  // LIMPAR — apaga o rascunho preso da OS no servidor (quando um técnico desistiu
+  // sem descartar no aparelho dele e a OS ficou travada em "em andamento").
+  function cartaoOsAndamento(os) {
+    if (!ehLogisticaOuAdmin()) return cartaoOs(os);
+    return '<div class="os-and-wrap">' + cartaoOs(os) +
+      '<button type="button" class="os-limpar" data-limpar="' + os.numero + '">🧹 Limpar “em andamento” (rascunho preso)</button></div>';
+  }
+
+  function ligarLimparAndamento(container) {
+    container.querySelectorAll('.os-limpar[data-limpar]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        const numero = b.getAttribute('data-limpar');
+        if (!confirm('Limpar o “em andamento” da OS ' + numero + '?\n\nApaga o rascunho preso no servidor (de qualquer técnico) dessa OS. Serviços já FINALIZADOS não são afetados. Não dá para desfazer.')) return;
+        b.disabled = true; b.textContent = 'Limpando…';
+        EC.os.limparAndamentoOS(numero).then(function () {
+          EC.app.mostrarToast('🧹 OS ' + numero + ' saiu de “em andamento”.');
+          if (EC.os && EC.os.carregar) EC.os.carregar(function () { pintarOs(''); });
+          if (EC.os && EC.os.carregarAndamentoPor) EC.os.carregarAndamentoPor().then(function () { pintarOs(''); });
+          pintarOs('');
+        }).catch(function (e) {
+          b.disabled = false; b.textContent = '🧹 Limpar “em andamento” (rascunho preso)';
+          EC.app.mostrarToast('Não foi possível limpar: ' + (e.message || e));
+        });
       });
     });
   }
@@ -338,8 +375,9 @@ EC.fluxo = (function () {
     const emAndamento = todas.filter(function (os) { return numsAndamento.indexOf(os.numero) !== -1; });
     if (blocoAnd) {
       if (emAndamento.length) {
-        $('os-andamento').innerHTML = emAndamento.map(cartaoOs).join('');
+        $('os-andamento').innerHTML = emAndamento.map(cartaoOsAndamento).join('');
         ligarCliquesOs($('os-andamento'));
+        ligarLimparAndamento($('os-andamento'));
         blocoAnd.classList.remove('oculto');
       } else { blocoAnd.classList.add('oculto'); }
     }

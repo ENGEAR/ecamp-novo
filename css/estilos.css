@@ -403,6 +403,24 @@ textarea { resize: vertical; font-family: inherit; }
   margin-left: 6px;
   color: #6e5a00;
 }
+/* "Parcial — X de Y": OS com serviços concluídos, mas sem rascunho ativo
+   (azul, distinto do amarelo "em andamento" e do verde "concluída"). */
+.os-parcial { background: var(--azul-claro); border: 1px solid var(--azul); color: var(--azul-escuro); }
+/* Botão de logística/admin para limpar rascunho preso (seção "Em andamento"). */
+.os-and-wrap { margin-bottom: 10px; }
+.os-and-wrap .os-item { margin-bottom: 4px; }
+.os-limpar {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--vermelho-claro);
+  color: #8f1f1f;
+  border: 1px solid var(--vermelho);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.os-limpar:disabled { opacity: 0.6; cursor: default; }
 .os-cliente { font-size: 0.95rem; }
 .os-projeto { font-size: 0.85rem; font-weight: 600; color: var(--azul-escuro); }
 .os-resumo { font-size: 0.83rem; color: var(--cinza-texto); }

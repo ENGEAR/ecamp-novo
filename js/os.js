@@ -31,6 +31,7 @@ EC.os = (function () {
   var BASE = 'https://engear-sgp.vercel.app/api/monitoramento';
   var ROTA_OS = BASE + '/os';
   var ROTA_FOTOS = BASE + '/os-fotos';
+  var ROTA_DESCARTAR_OS = BASE + '/descartar-os';
   var TOKEN = 'f8b17592b0130d95047d37865a14b31570c6381509ccc066';
 
   var CH_LISTA = 'os:lista';
@@ -221,6 +222,22 @@ EC.os = (function () {
     if (filtrada.length !== lista.length) EC.storage.salvar(CH_ANDAMENTO, filtrada);
   }
 
+  // Logística/admin: limpa TODOS os rascunhos presos de uma OS no servidor
+  // (quando o técnico desistiu e não descartou no aparelho dele). Depois tira a
+  // OS de "em andamento" localmente (seção + tag). Requer internet.
+  async function limparAndamentoOS(numero) {
+    var n = normNum(numero);
+    var resp = await fetch(ROTA_DESCARTAR_OS, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-ecamp-token': TOKEN },
+      body: JSON.stringify({ os: n })
+    });
+    var corpo = await resp.json();
+    if (!resp.ok || !corpo.ok) throw new Error(corpo.erro || ('HTTP ' + resp.status));
+    esquecerAndamento(n);
+    return corpo;
+  }
+
   async function carregarAndamentoPor() {
     var cli = EC.auth && EC.auth.cliente ? EC.auth.cliente() : null;
     if (!cli) return andamentoPorMapa;
@@ -313,6 +330,7 @@ EC.os = (function () {
     carregarAndamentoPor: carregarAndamentoPor,
     andamentoPor: andamentoPor,
     esquecerAndamento: esquecerAndamento,
+    limparAndamentoOS: limparAndamentoOS,
     carregarDetalhes: carregarDetalhes,
     detalhesCache: detalhesCache,
     carregarFotos: carregarFotos
