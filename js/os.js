@@ -209,6 +209,18 @@ EC.os = (function () {
   // Nomes dos técnicos que estão com a OS em andamento (rascunho no servidor).
   function andamentoPor(numero) { return andamentoPorMapa[normNum(numero)] || []; }
 
+  // Ao DESCARTAR um serviço, tira a OS de "em andamento" na hora (sem esperar o
+  // servidor): remove do mapa da tag (os:andamentoPor) E da lista da seção
+  // (os:andamento). Offline-safe; o re-sync do servidor depois reconcilia (se
+  // outro técnico ainda estiver com ela, volta a aparecer).
+  function esquecerAndamento(numero) {
+    var n = normNum(numero);
+    if (andamentoPorMapa[n]) { delete andamentoPorMapa[n]; EC.storage.salvar(CH_AND_POR, andamentoPorMapa); }
+    var lista = ler(CH_ANDAMENTO, []) || [];
+    var filtrada = lista.filter(function (x) { return normNum(x) !== n; });
+    if (filtrada.length !== lista.length) EC.storage.salvar(CH_ANDAMENTO, filtrada);
+  }
+
   async function carregarAndamentoPor() {
     var cli = EC.auth && EC.auth.cliente ? EC.auth.cliente() : null;
     if (!cli) return andamentoPorMapa;
@@ -300,6 +312,7 @@ EC.os = (function () {
     dentroEscopo: dentroEscopo,
     carregarAndamentoPor: carregarAndamentoPor,
     andamentoPor: andamentoPor,
+    esquecerAndamento: esquecerAndamento,
     carregarDetalhes: carregarDetalhes,
     detalhesCache: detalhesCache,
     carregarFotos: carregarFotos

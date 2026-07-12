@@ -521,15 +521,21 @@ EC.fluxo = (function () {
     EC.storage.remover(chave);
     if (EC.db) EC.db.remove('rascunhos', chave).catch(function () { /* ok */ });
     if (EC.os && EC.os.esquecerRecente) EC.os.esquecerRecente(os.numero);
+    // Tira a OS de "em andamento" JÁ (seção + tag "Em andamento · Fulano"), sem
+    // esperar o servidor — assim a tag some na hora, inclusive offline.
+    if (EC.os && EC.os.esquecerAndamento) EC.os.esquecerAndamento(os.numero);
+
+    function repintarOs() {
+      const input = $('os-busca');
+      if (input && !input.value.trim() && !$('tela-os').classList.contains('oculto')) pintarOs('');
+    }
 
     const rid = rascunho && rascunho.rascunhoId;
     if (rid && EC.sync && EC.sync.descartarRascunho) {
       EC.sync.descartarRascunho(rid).then(function () {
-        // servidor atualizado → recarrega a lista compartilhada de "em andamento"
-        if (EC.os && EC.os.carregar) EC.os.carregar(function () {
-          const input = $('os-busca');
-          if (input && !input.value.trim() && !$('tela-os').classList.contains('oculto')) pintarOs('');
-        });
+        // servidor atualizado → re-sincroniza a lista/seção E a tag de "em andamento"
+        if (EC.os && EC.os.carregar) EC.os.carregar(repintarOs);
+        if (EC.os && EC.os.carregarAndamentoPor) EC.os.carregarAndamentoPor().then(repintarOs);
       });
     }
 
