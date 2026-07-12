@@ -1113,3 +1113,19 @@ textarea { resize: vertical; font-family: inherit; }
   font-weight: 700;
   color: var(--azul-escuro);
 }
+
+/* Lembrete de serviço agendado (tela inicial) — só aparece p/ quem é técnico */
+.ecagd-lembrete {
+  background: var(--azul-claro); border: 1px solid var(--azul); border-radius: var(--raio);
+  padding: 12px 14px; margin-bottom: 14px;
+}
+.ecagd-lembrete-topo { font-size: 0.95rem; color: var(--azul-escuro); margin-bottom: 8px; }
+.ecagd-lembrete-item {
+  background: #fff; border-radius: 8px; padding: 8px 10px; margin-bottom: 6px;
+}
+.ecagd-lembrete-item:last-of-type { margin-bottom: 8px; }
+.ecagd-lembrete-linha1 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 0.9rem; }
+.ecagd-lembrete-linha1 b { color: var(--texto); }
+.ecagd-lembrete-linha1 span { color: var(--azul-escuro); font-weight: 700; white-space: nowrap; }
+.ecagd-lembrete-sub { color: var(--cinza-texto); font-size: 0.82rem; margin-top: 2px; }
+.ecagd-lembrete-offline { color: #8a6d00; font-size: 0.78rem; margin-bottom: 6px; }

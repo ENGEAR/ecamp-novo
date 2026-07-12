@@ -27,6 +27,8 @@
   'use strict';
 
   var CHAVE_CACHE = 'agenda:cache';
+  var CHAVE_MEU_TEC = 'agenda:meuTecnico';
+  var CHAVE_LEMBRETES_CACHE = 'agenda:lembretes:cache';
 
   var STATUS = {
     prog: { label: 'Programado', cor: '#1976d2', fundo: 'rgba(25,118,210,0.10)' },
@@ -101,6 +103,16 @@
     } catch (e) { return vazio; }
   }
 
+  // Número da OS: da OS vinculada; senão, do codigo_origem da proposta (número
+  // real, ex.: 26249). Só cai no ano+seq se não houver codigo_origem.
+  // (mesma lógica em toda a Agenda — usada aqui e no lembrete, p/ não divergir)
+  function resolverNumeroOS(ordemServico, proposta) {
+    if (ordemServico && ordemServico.numero) return ordemServico.numero;
+    if (proposta && proposta.codigo_origem) return 'OS ' + String(proposta.codigo_origem).split('_')[1];
+    if (proposta && proposta.ano != null && proposta.seq != null) return 'OS ' + proposta.ano + String(proposta.seq).padStart(3, '0');
+    return null;
+  }
+
   /* ============ Carga dos dados (mesma consulta do SGP) ============ */
   async function carregarDados() {
     var cli = sb();
@@ -110,12 +122,7 @@
       .order('data');
     if (q.error) throw new Error(q.error.message);
     eventos = (q.data || []).map(function (a) {
-      // Número da OS: da OS vinculada; senão, do codigo_origem da proposta (número
-      // real, ex.: 26249). Só cai no ano+seq se não houver codigo_origem.
-      var os = null;
-      if (a.ordem_servico && a.ordem_servico.numero) os = a.ordem_servico.numero;
-      else if (a.proposta && a.proposta.codigo_origem) os = 'OS ' + String(a.proposta.codigo_origem).split('_')[1];
-      else if (a.proposta && a.proposta.ano != null && a.proposta.seq != null) os = 'OS ' + a.proposta.ano + String(a.proposta.seq).padStart(3, '0');
+      var os = resolverNumeroOS(a.ordem_servico, a.proposta);
       return {
         id: a.id, proposta_id: a.proposta_id || null, ordem_servico_id: a.ordem_servico_id || null,
         os: os, empresa: a.empresa || '—', cidade: a.cidade || '', uf: a.uf || '',
@@ -761,6 +768,121 @@
     }
   }
 
+  /* ============ Lembrete de serviço agendado (tela inicial) ============ */
+  // Descobre qual técnico da Agenda corresponde à conta logada (vínculo
+  // definido pelo admin em Usuários → coluna "Técnico (e-CAMP)").
+  async function obterMeuTecnico() {
+    var cli = sb();
+    if (!cli) return EC.storage.ler(CHAVE_MEU_TEC) || null;
+    try {
+      var s = await cli.auth.getSession();
+      var user = s && s.data && s.data.session ? s.data.session.user : null;
+      if (!user) return null;
+      var q = await cli.from('usuarios').select('tecnico:tecnico_id(nome)').eq('id', user.id).single();
+      var nome = q.data && q.data.tecnico ? q.data.tecnico.nome : null;
+      EC.storage.salvar(CHAVE_MEU_TEC, nome);
+      return nome;
+    } catch (e) {
+      return EC.storage.ler(CHAVE_MEU_TEC) || null;
+    }
+  }
+
+  function diffDias(aISO, bISO) { return Math.round((parseISO(bISO) - parseISO(aISO)) / 86400000); }
+
+  // Agrupa os dias de um mesmo "serviço": pela OS ou proposta+campanha quando
+  // existe; sem vínculo (agendamento manual), agrupa por empresa+serviço+tipo
+  // em dias consecutivos — evita juntar 2 idas diferentes à mesma empresa.
+  function agruparEmTrabalhos(lista) {
+    var porChave = {}, semChave = [];
+    lista.forEach(function (e) {
+      var chave = e.ordem_servico_id ? ('os:' + e.ordem_servico_id)
+        : (e.proposta_id && e.campanha_numero != null) ? ('camp:' + e.proposta_id + ':' + e.campanha_numero)
+        : null;
+      if (chave) { (porChave[chave] = porChave[chave] || []).push(e); }
+      else semChave.push(e);
+    });
+    var grupos = Object.keys(porChave).map(function (k) {
+      var evs = porChave[k], datas = evs.map(function (e) { return e.data; }).sort();
+      return { empresa: evs[0].empresa, cidade: evs[0].cidade, servico: evs[0].servico, tipo: evs[0].tipo, os: evs[0].os, min: datas[0], max: datas[datas.length - 1] };
+    });
+    var porGrupoSemChave = {};
+    semChave.forEach(function (e) {
+      var k2 = e.empresa + '|' + e.servico + '|' + e.tipo;
+      (porGrupoSemChave[k2] = porGrupoSemChave[k2] || []).push(e);
+    });
+    Object.keys(porGrupoSemChave).forEach(function (k2) {
+      var evs = porGrupoSemChave[k2].slice().sort(function (a, b) { return a.data < b.data ? -1 : a.data > b.data ? 1 : 0; });
+      var atual = null;
+      evs.forEach(function (e) {
+        if (atual && diffDias(atual.max, e.data) <= 1) { atual.max = e.data; }
+        else { atual = { empresa: e.empresa, cidade: e.cidade, servico: e.servico, tipo: e.tipo, os: e.os, min: e.data, max: e.data }; grupos.push(atual); }
+      });
+    });
+    return grupos;
+  }
+
+  function periodoCurto(min, max) {
+    if (min === max) return isoParaBR(min);
+    var a = isoParaBR(min).split('/'), b = isoParaBR(max).split('/');
+    if (a[1] === b[1] && a[2] === b[2]) return a[0] + ' a ' + b[0] + '/' + b[1]; // mesmo mês
+    return isoParaBR(min) + ' a ' + isoParaBR(max);
+  }
+
+  function renderLembretes(grupos, offline) {
+    var area = $('lembrete-area');
+    if (!area) return;
+    if (!grupos.length) { area.innerHTML = ''; return; }
+    var html = grupos.map(function (g) {
+      var ferias = g.tipo === 'ferias';
+      return '<div class="ecagd-lembrete-item">' +
+        '<div class="ecagd-lembrete-linha1"><b>' + (ferias ? '🏖 Férias' : esc(g.empresa)) + '</b><span>' + periodoCurto(g.min, g.max) + '</span></div>' +
+        (!ferias ? '<div class="ecagd-lembrete-sub">' + esc([g.cidade, g.tipo === 'deslocamento' ? '🚗 Deslocamento' : g.servico].filter(Boolean).join(' · ')) + (g.os ? ' · ' + esc(g.os) : '') + '</div>' : '') +
+      '</div>';
+    }).join('');
+    area.innerHTML = '<div class="ecagd-lembrete">' +
+      '<div class="ecagd-lembrete-topo">📅 <b>Você tem serviço agendado</b></div>' +
+      html +
+      (offline ? '<div class="ecagd-lembrete-offline">📡 Sem conexão — mostrando o último carregado.</div>' : '') +
+      '<button type="button" class="link-discreto" id="lembrete-ver-agenda">Ver na Agenda →</button>' +
+    '</div>';
+    var btn = $('lembrete-ver-agenda');
+    if (btn) btn.addEventListener('click', abrir);
+  }
+
+  async function carregarLembretes() {
+    var nome = await obterMeuTecnico();
+    if (!nome) { var area = $('lembrete-area'); if (area) area.innerHTML = ''; return; }
+    var hoje = iso(new Date());
+    var cli = sb();
+    if (!cli) {
+      var cache = EC.storage.ler(CHAVE_LEMBRETES_CACHE);
+      renderLembretes(cache ? cache.grupos.filter(function (g) { return g.max >= hoje; }) : [], true);
+      return;
+    }
+    try {
+      var q = await cli.from('agendamentos')
+        .select('empresa, cidade, servico, data, tipo, campanha_numero, proposta_id, ordem_servico_id, proposta:proposta_id(ano, seq, codigo_origem), ordem_servico:ordem_servico_id(numero)')
+        .contains('tecnicos', [{ nome: nome }])
+        .neq('status', 'canc')
+        .order('data');
+      if (q.error) throw new Error(q.error.message);
+      var eventosLembrete = (q.data || []).map(function (a) {
+        return {
+          empresa: a.empresa || '—', cidade: a.cidade || '', servico: a.servico || '', data: a.data, tipo: a.tipo || 'servico',
+          campanha_numero: a.campanha_numero || null, proposta_id: a.proposta_id || null, ordem_servico_id: a.ordem_servico_id || null,
+          os: resolverNumeroOS(a.ordem_servico, a.proposta)
+        };
+      });
+      var grupos = agruparEmTrabalhos(eventosLembrete);
+      grupos.sort(function (a, b) { return a.min < b.min ? -1 : a.min > b.min ? 1 : 0; });
+      EC.storage.salvar(CHAVE_LEMBRETES_CACHE, { em: new Date().toISOString(), grupos: grupos });
+      renderLembretes(grupos.filter(function (g) { return g.max >= hoje; }), false);
+    } catch (e) {
+      var cache2 = EC.storage.ler(CHAVE_LEMBRETES_CACHE);
+      renderLembretes(cache2 ? cache2.grupos.filter(function (g) { return g.max >= hoje; }) : [], true);
+    }
+  }
+
   /* ============ Abertura / recarga ============ */
   async function recarregar() {
     if (carregando) return;
@@ -823,7 +945,7 @@
     $('agd-busca').addEventListener('input', render);
     $('agd-f-status').addEventListener('change', render);
     $('agd-f-tec').addEventListener('change', render);
-    $('agd-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-acao'); });
+    $('agd-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-acao'); carregarLembretes(); });
     $('agd-novo').addEventListener('click', function () {
       abrirModal({
         empresa: '', cidade: '', uf: '', servico: '', projeto: null,
@@ -838,5 +960,5 @@
   }
 
   window.EC = window.EC || {};
-  EC.agenda = { abrir: abrir, _ligar: ligar };
+  EC.agenda = { abrir: abrir, _ligar: ligar, carregarLembretes: carregarLembretes };
 })();
