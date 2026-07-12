@@ -74,13 +74,27 @@ EC.reembolso = (function () {
   function diasViagemVal() { return diasServicoVal() + diasDeslocVal(); }
 
   // Caso especial de alimentação: 1 dia de serviço e 0 de deslocamento (foi e
-  // voltou no mesmo dia) — 1 almoço fixo e o jantar só entra se chegou depois
-  // das 18h em casa (senão jantou em casa).
+  // voltou no mesmo dia) — 1 almoço, jantar só se chegou em casa a partir das
+  // 23h, e lanche só se a distância do dia (ida+volta) passar de 200 km.
   function casoDiaUnico() { return diasServicoVal() === 1 && diasDeslocVal() === 0; }
-  function chegouDepoisDas18() {
+  function chegouAPartirDas23() {
     var el = $('rb-chegada-casa');
     var m = /^(\d{1,2}):(\d{2})$/.exec(((el && el.value) || '').trim());
-    return m ? (Number(m[1]) * 60 + Number(m[2])) > 18 * 60 : false;
+    return m ? (Number(m[1]) * 60 + Number(m[2])) >= 23 * 60 : false;
+  }
+  // Sábado/domingo? Data "AAAA-MM-DD" avaliada em UTC ao meio-dia (sem fuso).
+  function ehFimDeSemana(dataISO) {
+    if (!dataISO) return false;
+    var d = new Date(String(dataISO).slice(0, 10) + 'T12:00:00Z');
+    var dia = d.getUTCDay();
+    return dia === 0 || dia === 6;
+  }
+  // Dias distintos de refeição (serviço ∪ deslocamento) da campanha escolhida.
+  function datasRefeicao() {
+    var s = (campSel && campSel.datasServico) || [];
+    var d = (campSel && campSel.datasDeslocamento) || [];
+    var todas = s.concat(d);
+    return todas.filter(function (x, i) { return todas.indexOf(x) === i; });
   }
 
   // Nº de diárias de hospedagem = noites fora = data da chegada − data da saída
@@ -367,17 +381,30 @@ EC.reembolso = (function () {
     var maoObra = tecSel.tipo === 'freelancer'
       ? r2(Number(v.diaria_freelancer) * (diasDeslocamento + diasServico))
       : (diasViagem >= 2 ? r2(Number(v.diaria_clt) * diasViagem) : 0);
-    // Alimentação. Geral: almoço/jantar por dia de serviço + lanche por
-    // deslocamento. EXCEÇÃO (1 serviço / 0 deslocamento): 1 almoço fixo e o
-    // jantar só se chegou em casa depois das 18h.
+    // Alimentação (espelho do servidor). Jantar por dia (freela e CLT). Almoço:
+    // freelancer sempre padrão; CLT = dia útil (13) / fim de semana (padrão).
+    // Lanche por dia de deslocamento. EXCEÇÃO (1 serviço / 0 deslocamento): 1
+    // almoço, jantar só se chegada ≥ 23h, lanche só se ida+volta > 200 km.
+    var ehFreela = tecSel.tipo === 'freelancer';
+    var almocoPadrao = Number(v.almoco);
+    var almocoCltUtil = Number(v.almoco_clt_util) || 13;
+    var almocoDoDia = function (dataISO) {
+      return (ehFreela || ehFimDeSemana(dataISO)) ? almocoPadrao : almocoCltUtil;
+    };
+    var diasRef = datasRefeicao();
     var almoco, jantar, lanche;
     if (diasServico === 1 && diasDeslocamento === 0) {
-      almoco = r2(Number(v.almoco));
-      jantar = chegouDepoisDas18() ? r2(Number(v.jantar)) : 0;
-      lanche = 0;
+      almoco = r2(almocoDoDia(diasRef[0] || $('rb-ida').value));
+      jantar = chegouAPartirDas23() ? r2(Number(v.jantar)) : 0;
+      lanche = dist > 200 ? r2(Number(v.lanche)) : 0;
+    } else if (diasRef.length) {
+      almoco = r2(diasRef.reduce(function (s, d) { return s + almocoDoDia(d); }, 0));
+      jantar = r2(Number(v.jantar) * diasRef.length);
+      lanche = r2(Number(v.lanche) * diasDeslocamento);
     } else {
-      almoco = r2(Number(v.almoco) * diasServico);
-      jantar = r2(Number(v.jantar) * diasServico);
+      // sem as datas da Agenda: estimativa por contagem (almoço padrão)
+      almoco = r2(almocoPadrao * (diasServico + diasDeslocamento));
+      jantar = r2(Number(v.jantar) * (diasServico + diasDeslocamento));
       lanche = r2(Number(v.lanche) * diasDeslocamento);
     }
     var pedagio = r2(parseFloat($('rb-pedagio').value) || 0);
@@ -658,14 +685,22 @@ EC.reembolso = (function () {
     var v = ctx.valores;
     var dServico = diasServicoVal(), dDesloc = diasDeslocVal(), dViagem = diasViagemVal();
     var kmExtra = 5 * dServico, distTot = distanciaAtual() + kmExtra;
+    var ehFreelaSub = tecSel && tecSel.tipo === 'freelancer';
+    var nRef = datasRefeicao().length || (dServico + dDesloc);
+    var regraAlmoco = ehFreelaSub
+      ? '(' + moedaBR(v.almoco) + '/dia)'
+      : '(seg–sex ' + moedaBR(v.almoco_clt_util || 13) + ' · fim de semana ' + moedaBR(v.almoco) + ', por dia)';
     var alimSub = (dServico === 1 && dDesloc === 0)
       ? 'Foi e voltou no mesmo dia:<br>' +
         'Almoço: ' + moedaBR(calc.almoco) + '<br>' +
         'Jantar: ' + (calc.jantar > 0
-          ? moedaBR(calc.jantar) + ' (chegou depois das 18h)'
-          : 'não incluído (chegada até 18h ou em branco)')
-      : 'Almoço: ' + moedaBR(v.almoco) + '/dia × ' + dServico + ' dia(s) de serviço = ' + moedaBR(calc.almoco) + '<br>' +
-        'Jantar: ' + moedaBR(v.jantar) + '/dia × ' + dServico + ' dia(s) de serviço = ' + moedaBR(calc.jantar) + '<br>' +
+          ? moedaBR(calc.jantar) + ' (chegou a partir das 23h)'
+          : 'não incluído (chegada antes das 23h ou em branco)') + '<br>' +
+        'Lanche: ' + (calc.lanche > 0
+          ? moedaBR(calc.lanche) + ' (ida+volta acima de 200 km)'
+          : 'não incluído (200 km ou menos)')
+      : 'Almoço: ' + moedaBR(calc.almoco) + ' ' + regraAlmoco + '<br>' +
+        'Jantar: ' + moedaBR(v.jantar) + '/dia × ' + nRef + ' dia(s) = ' + moedaBR(calc.jantar) + '<br>' +
         'Lanche: ' + moedaBR(v.lanche) + '/dia × ' + dDesloc + ' dia(s) de deslocamento = ' + moedaBR(calc.lanche);
     var sub = {
       transporte: (distTot > 0
@@ -873,7 +908,7 @@ EC.reembolso = (function () {
     // Horário de chegada não é gravado no banco; reconstrói pelo caso 1 serviço/
     // 0 deslocamento a partir do jantar computado (só interessa se foi >18h).
     var ehDiaUnico = Number(p.dias_servico) === 1 && Number(p.dias_deslocamento) === 0;
-    var chegada = ehDiaUnico ? (Number(p.valor_jantar) > 0 ? '19:00' : '17:00') : '';
+    var chegada = ehDiaUnico ? (Number(p.valor_jantar) > 0 ? '23:30' : '18:00') : '';
     return {
       osId: p.ordem_servico_id,
       campanha: p.campanha_numero != null ? String(p.campanha_numero) : '',
