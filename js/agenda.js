@@ -135,7 +135,7 @@
     try {
       var t = await cli.from('tecnicos').select('id, nome, vinculo, ativo').order('nome');
       catTecnicos = (t.data || []).filter(function (x) { return x.ativo; }).map(function (x) {
-        return { id: x.id, nome: x.nome, tipo: String(x.vinculo || 'clt').toLowerCase().indexOf('free') !== -1 ? 'freelancer' : 'clt' };
+        return { id: x.id, nome: x.nome, vinculo: x.vinculo || 'CLT', tipo: String(x.vinculo || 'clt').toLowerCase().indexOf('free') !== -1 ? 'freelancer' : 'clt' };
       });
     } catch (e) { catTecnicos = []; }
     // OS (mesma consulta do SGP): para vincular no agendamento e para o alerta.
@@ -542,7 +542,7 @@
       : '<div class="ecagd-tecs">' + catTecnicos.map(function (c) {
           var on = mTecs.some(function (t) { return t.nome === c.nome; });
           return '<button type="button" class="ecagd-tec' + (on ? ' on' : '') + '" data-nome="' + esc(c.nome) + '" data-tipo="' + esc(c.tipo) + '">' +
-            (on ? '✓ ' : '') + esc(nomeCurto(c.nome)) + ' <small>' + (c.tipo === 'freelancer' ? 'Freelancer' : 'CLT') + '</small></button>';
+            (on ? '✓ ' : '') + esc(nomeCurto(c.nome)) + ' <small>' + esc(c.vinculo || (c.tipo === 'freelancer' ? 'Freelancer' : 'CLT')) + '</small></button>';
         }).join('') + '</div>';
 
     var statusOpts = Object.keys(STATUS).map(function (k) {
