@@ -334,8 +334,37 @@ EC.aprovacoes = (function () {
         }).join('')
       : '';
 
-    return (
+    // Título: OS + empresa + projeto (logística e financeiro).
+    var titulo =
       '<div class="apr-cab"><span class="os-numero">OS ' + esc(s.os) + '</span>' + (s.cliente ? ' · ' + esc(s.cliente) : '') + '</div>' +
+      (s.projeto ? '<div class="os-resumo" style="margin:-2px 0 8px;">📁 ' + esc(s.projeto) + '</div>' : '');
+
+    // Tela do FINANCEIRO (aguardando pagamento): só título, designado, valores e
+    // valor a pagar. O formulário "Registrar pagamento" vem do bloco de ações.
+    if (s.status === 'aguardando_pagamento') {
+      var adiantP = Number(s.adiantamento_valor) || 0;
+      var aPagar = Math.round((solicitado - adiantP) * 100) / 100;
+      return (
+        titulo +
+        '<p class="dg-secao">Designado</p>' +
+        '<div class="rb-resumo-auto">' +
+          linhaInfo('Designado (viagem)', s.designado || '—') +
+          linhaInfo('Categoria', tipo) +
+        '</div>' +
+        '<p class="dg-secao">Valores</p>' +
+        '<div class="apr-valores">' + valoresHtml + '</div>' +
+        '<div class="apr-hero apr-hero-forte"><div class="apr-hero-icone">👛</div>' +
+          '<div class="apr-hero-corpo">' +
+            '<div class="apr-hero-titulo">Valor a pagar</div>' +
+            '<div class="apr-hero-valor">' + moeda(aPagar) + '</div>' +
+            (adiantP > 0 ? '<div class="apr-hero-sub">Solicitado ' + moeda(solicitado) + ' − adiantamento ' + moeda(adiantP) + (s.adiantamento_data ? ' (' + dataBR(s.adiantamento_data) + ')' : '') + '</div>' : '') +
+            '<div class="apr-hero-desig">' + esc(s.designado || '') + '</div>' +
+          '</div></div>'
+      );
+    }
+
+    return (
+      titulo +
       // Resumo orçamentário só para a Logística (o Financeiro não vê).
       (ehLogistica() ? renderOrcamento(orcAtual) : '') +
       '<p class="dg-secao">Quem</p>' +
@@ -442,7 +471,11 @@ EC.aprovacoes = (function () {
       ]);
       orcAtual = res[2];
       area.innerHTML = renderDetalhe(s, (res[0].data) || []);
-      renderAnexos(cli, (res[1].data) || []);
+      // No pagamento (Financeiro) a tela é enxuta: sem evidências do técnico.
+      var ehPag = s.status === 'aguardando_pagamento';
+      $('apr-evidencias-titulo').classList.toggle('oculto', ehPag);
+      $('apr-anexos').classList.toggle('oculto', ehPag);
+      if (!ehPag) renderAnexos(cli, (res[1].data) || []);
       mostrarAcoes(s);
     } catch (e) {
       area.innerHTML = '<p class="texto-apoio">⚠️ Não consegui carregar: ' + esc(e.message || 'erro') + '</p>';
@@ -517,6 +550,7 @@ EC.aprovacoes = (function () {
     } else if (s.status === 'aguardando_pagamento' && ehFinanceiro()) {
       $('pag-data').value = hojeISO();
       $('pag-forma').value = '';
+      $('pag-banco').value = '';
       pagUploader = criarUploadComprovante($('pag-anexos'));
       bPag.classList.remove('oculto');
     }
@@ -623,9 +657,11 @@ EC.aprovacoes = (function () {
     if (!s) return;
     var data = $('pag-data').value;
     var forma = $('pag-forma').value;
+    var banco = $('pag-banco').value;
     var comprovantes = pagUploader ? pagUploader.obter() : [];
     if (!data) return mostrarErro('Informe a data do pagamento.');
     if (!forma) return mostrarErro('Escolha a forma de pagamento.');
+    if (!banco) return mostrarErro('Escolha o banco de saída.');
     if (!comprovantes.length) return mostrarErro('Anexe o comprovante do pagamento (foto ou PDF).');
     var cli = sb();
     if (!cli) return mostrarErro('Sem conexão — abra com internet para registrar o pagamento.');
@@ -645,13 +681,13 @@ EC.aprovacoes = (function () {
       }
       // 2) marca como pago (só se ainda estiver aguardando pagamento)
       var upd = await cli.from('logistica_solicitacoes')
-        .update({ status: 'pago', pago_em: data, forma_pagamento: forma, pago_por: user ? user.id : null })
+        .update({ status: 'pago', pago_em: data, forma_pagamento: forma, banco_saida: banco, pago_por: user ? user.id : null })
         .eq('id', s.id).eq('status', 'aguardando_pagamento').select('id');
       if (upd.error) throw upd.error;
       if (!upd.data || !upd.data.length) {
         toast('Este pagamento já foi registrado por outra pessoa.');
       } else {
-        try { await cli.from('logistica_eventos').insert({ solicitacao_id: s.id, acao: 'pagou', detalhe: forma + ' em ' + data, por_nome: sessao().nome || null }); } catch (e) { /* best-effort */ }
+        try { await cli.from('logistica_eventos').insert({ solicitacao_id: s.id, acao: 'pagou', detalhe: forma + ' (' + banco + ') em ' + data, por_nome: sessao().nome || null }); } catch (e) { /* best-effort */ }
         toast('💰 Pagamento registrado! Solicitação concluída.');
       }
       EC.app.mostrarTela('tela-aprovacoes');

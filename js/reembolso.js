@@ -1537,7 +1537,7 @@ EC.reembolso = (function () {
     var obs = (p.status === 'rejeitado' || p.status === 'correcao') && p.observacao_logistica
       ? '<div class="rb-motivo">Observação da Logística: ' + p.observacao_logistica + '</div>' : '';
     var pago = p.status === 'pago'
-      ? '<div class="apr-orc apr-orc-verde"><strong>💰 Pago</strong> em ' + dataBR(p.pago_em) + (p.forma_pagamento ? ' · ' + p.forma_pagamento : '') + '</div>' : '';
+      ? '<div class="apr-orc apr-orc-verde"><strong>💰 Pago</strong> em ' + dataBR(p.pago_em) + (p.forma_pagamento ? ' · ' + p.forma_pagamento : '') + (p.banco_saida ? ' · ' + p.banco_saida : '') + '</div>' : '';
 
     var adiant = Number(p.adiantamento_valor || p.adiantamentoValor || 0);
     var adiantHtml = adiant > 0
@@ -1548,7 +1548,8 @@ EC.reembolso = (function () {
     $('rb-extrato').innerHTML =
       '<div class="rb-pedido-topo" style="margin-bottom:10px;"><span class="os-numero">OS ' + (p.os || '?') + '</span>' +
       '<span class="rb-status ' + st.cls + '">' + st.txt + '</span></div>' +
-      (p.cliente ? '<div class="os-resumo" style="margin-bottom:8px;">' + p.cliente + '</div>' : '') +
+      (p.cliente ? '<div class="os-resumo" style="margin-bottom:4px;">' + p.cliente + '</div>' : '') +
+      (p.projeto ? '<div class="os-resumo" style="margin-bottom:8px;">📁 ' + p.projeto + '</div>' : '') +
       pago + obs +
       '<div class="rb-total" style="margin-top:6px;">Solicitado (' + pct + '%): <strong>' + moedaBR(solicitado) + '</strong>' +
       '<span class="rb-total-sub">Total da logística: ' + moedaBR(total) + '</span></div>' +

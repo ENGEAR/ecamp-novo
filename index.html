@@ -422,7 +422,7 @@
         <h1>📋 Analisar solicitação</h1>
         <div id="apr-detalhe"></div>
 
-        <p class="dg-secao">Evidências</p>
+        <p class="dg-secao" id="apr-evidencias-titulo">Evidências</p>
         <div id="apr-anexos"></div>
 
         <!-- Ação da LOGÍSTICA (quando aguardando aprovação) -->
@@ -451,6 +451,13 @@
                 <option value="Dinheiro">Dinheiro</option>
                 <option value="Cartão">Cartão</option>
                 <option value="Outro">Outro</option>
+              </select>
+            </label>
+            <label>Banco de saída
+              <select id="pag-banco">
+                <option value="">Selecione…</option>
+                <option value="Nubank">Nubank</option>
+                <option value="Inter">Inter</option>
               </select>
             </label>
           </div>
