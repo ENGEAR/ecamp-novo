@@ -90,9 +90,12 @@ EC.reembolso = (function () {
     if (!(ida <= sI && sI <= sF && sF <= volta)) return null; // ISO compara direto
     var servico = intervaloDatas(sI, sF), total = intervaloDatas(ida, volta);
     var setS = {}; servico.forEach(function (d) { setS[d] = 1; });
-    var desloc = total.filter(function (d) { return !setS[d]; });
+    var deslocRaw = total.filter(function (d) { return !setS[d]; }).length;
+    // Deslocamento sempre PAR (ida e volta): serviço >2 dias e deu 1 → vira 2.
+    // Muda só o lanche (por dia de deslocamento); refeições/mão de obra usam total.
+    var desloc = (servico.length > 2 && deslocRaw === 1) ? 2 : deslocRaw;
     return {
-      total: total.length, servicoPuro: servico.length, desloc: desloc.length,
+      total: total.length, servicoPuro: servico.length, desloc: desloc,
       noites: diffDias(ida, volta), datasTotal: total
     };
   }
@@ -472,6 +475,19 @@ EC.reembolso = (function () {
     return Math.min(100, p);
   }
 
+  // Data de hoje AAAA-MM-DD (local = Brasil).
+  function hojeISO() {
+    var d = new Date(); function pz(n) { return (n < 10 ? '0' : '') + n; }
+    return d.getFullYear() + '-' + pz(d.getMonth() + 1) + '-' + pz(d.getDate());
+  }
+  // Serviço já terminou pela AGENDA (usa a data da Agenda, não a editável).
+  function servicoTerminou() {
+    var sf = campSel && campSel.servicoFim ? String(campSel.servicoFim).slice(0, 10) : '';
+    return !sf || sf < hojeISO();
+  }
+  // Teto do percentual: 50% enquanto o serviço não terminou; 100% depois.
+  function tetoPercentual() { return servicoTerminou() ? 100 : 50; }
+
   // Adiantamento de pagamento (opcional): descontado do valor solicitado.
   function adiantamentoAtivo() {
     var m = document.querySelector('input[name="rb-adiant"]:checked');
@@ -636,7 +652,9 @@ EC.reembolso = (function () {
       var t = campSel.tecnicos.filter(function (x) { return x.nome === tecSel.nome; })[0];
       ja = t ? (Number(t.jaSolicitado) || 0) : 0;
     }
-    dispCampanha = tecSel ? Math.round((100 - ja) * 100) / 100 : 100;
+    // Teto = 50% enquanto o serviço não terminou (pela Agenda); 100% depois.
+    var teto = tetoPercentual();
+    dispCampanha = tecSel ? Math.max(0, Math.round((teto - ja) * 100) / 100) : 100;
     var pctInp = $('rb-percentual');
     pctInp.max = Math.max(1, dispCampanha);
     if (tecSel && dispCampanha < 100) pctInp.value = dispCampanha > 0 ? dispCampanha : 0;
@@ -812,16 +830,23 @@ EC.reembolso = (function () {
       '<span class="rb-total-sub">' + comps.join('<br>') +
       (totalFinal !== calc.total ? '<br><em>(com os valores propostos nos ajustes)</em>' : '') + '</span>';
 
-    // Nota de disponível — POR DESIGNADO (cada técnico tem seu próprio 100%).
+    // Nota de disponível — POR DESIGNADO + teto de 50% enquanto o serviço não terminou.
     var info = $('rb-pct-info');
     var quem = (tecSel && tecSel.nome) ? tecSel.nome : 'este designado';
+    var semServico = !!tecSel && !servicoTerminou();
     if (dispCampanha <= 0) {
       info.className = 'alerta alerta-vermelho';
-      info.textContent = '🚫 ' + quem + ' já teve 100% da logística desta campanha solicitado/pago — não é possível novo reembolso para ele.';
+      info.textContent = semServico
+        ? '🚫 O serviço ainda não terminou (pela Agenda) — o teto é 50% da logística, e ' + quem + ' já o atingiu. Peça o restante quando o serviço acabar.'
+        : '🚫 ' + quem + ' já teve 100% da logística desta campanha solicitado/pago — não é possível novo reembolso para ele.';
+      info.classList.remove('oculto');
+    } else if (semServico) {
+      info.className = 'alerta alerta-info';
+      info.textContent = '⏳ O serviço ainda não terminou (pela Agenda): o teto agora é 50% da logística. Disponível para ' + quem + ': ' + dispCampanha + '%.';
       info.classList.remove('oculto');
     } else if (dispCampanha < 100) {
       info.className = 'alerta alerta-info';
-      info.textContent = 'ℹ️ ' + quem + ' já solicitou ' + (Math.round((100 - dispCampanha) * 100) / 100) + '% nesta campanha. Disponível: ' + dispCampanha + '% (você pode pedir até isso).';
+      info.textContent = 'ℹ️ Disponível para ' + quem + ': ' + dispCampanha + '% (o resto desta campanha já foi solicitado/pago).';
       info.classList.remove('oculto');
     } else {
       info.classList.add('oculto');
@@ -1237,8 +1262,12 @@ EC.reembolso = (function () {
     }
     var pct = percentualVal();
     if (!(pct > 0 && pct <= 100)) return mostrarErro('O percentual solicitado precisa ficar entre 1% e 100%.');
-    if (dispCampanha <= 0) return mostrarErro('Este designado já teve 100% da logística desta campanha solicitado/pago — não é possível novo reembolso para ele.');
-    if (pct > dispCampanha + 0.01) return mostrarErro('Você pode solicitar no máximo ' + dispCampanha + '% para este designado (o resto já foi solicitado/pago).');
+    if (dispCampanha <= 0) return mostrarErro(!servicoTerminou()
+      ? 'O serviço ainda não terminou (pela Agenda) — o teto é 50% e já foi atingido. Peça o restante quando o serviço acabar.'
+      : 'Este designado já teve 100% da logística desta campanha solicitado/pago — não é possível novo reembolso para ele.');
+    if (pct > dispCampanha + 0.01) return mostrarErro(!servicoTerminou()
+      ? 'O serviço ainda não terminou (pela Agenda): você pode solicitar no máximo ' + dispCampanha + '% agora (teto de 50%).'
+      : 'Você pode solicitar no máximo ' + dispCampanha + '% para este designado (o resto já foi solicitado/pago).');
     mostrarErro(null);
 
     var todosAnexos = [];
