@@ -409,14 +409,16 @@ EC.reembolso = (function () {
     var aluguel = veiculo() === 'proprio' ? r2(Number(v.aluguel_veiculo_dia) * diasViagem) : 0;
     // Hospedagem: R$/diária × noites fora (chegada − saída). Mesmo dia → 0.
     var hospedagem = r2(Number(v.hospedagem_dia) * diarias);
-    // Mão de obra: R$/dia × dias de serviço (total). CLT só se a viagem tem ≥ 2 dias.
+    // Mão de obra (CLT e freelancer) = diária × (deslocamento + serviço). CLT só
+    // recebe quando a viagem tem ≥ 2 dias; freelancer sempre.
     // Diária de exceção do designado (tecSel.diaria) substitui a padrão do vínculo.
     var diariaExc = (tecSel && Number(tecSel.diaria) > 0) ? Number(tecSel.diaria) : 0;
     var diariaFree = diariaExc || Number(v.diaria_freelancer);
     var diariaClt = diariaExc || Number(v.diaria_clt);
-    var maoObra = tecSel.tipo === 'freelancer'
-      ? r2(diariaFree * diasViagem)
-      : (diasViagem >= 2 ? r2(diariaClt * diasViagem) : 0);
+    var diasMaoObra = diasDeslocamento + servicoPuro;
+    var maoObra = (tecSel.tipo === 'freelancer' || diasViagem >= 2)
+      ? r2((tecSel.tipo === 'freelancer' ? diariaFree : diariaClt) * diasMaoObra)
+      : 0;
     // Alimentação (espelho do servidor). Jantar por dia (freela e CLT). Almoço:
     // freelancer sempre padrão; CLT = dia útil (13) / fim de semana (padrão).
     // Lanche por dia de deslocamento. EXCEÇÃO (1 serviço / 0 deslocamento): 1
@@ -681,11 +683,11 @@ EC.reembolso = (function () {
     $('rb-viagem').classList.remove('oculto');
   }
 
-  // Recalcula os campos de dias (serviço = total, deslocamento) a partir das
-  // datas editáveis; mostra aviso se as datas estiverem incoerentes.
+  // Recalcula os campos de dias (serviço PURO, deslocamento) a partir das datas
+  // editáveis; mostra aviso se as datas estiverem incoerentes.
   function recalcularDias() {
     var d = diasInfo();
-    $('rb-dias-servico').value = d ? d.total : '';
+    $('rb-dias-servico').value = d ? d.servicoPuro : '';
     $('rb-dias-desloc').value = d ? d.desloc : '';
     var aviso = $('rb-viagem-erro');
     if (aviso) {
@@ -800,10 +802,12 @@ EC.reembolso = (function () {
       mao_obra: (function () {
         var dExc = (tecSel && Number(tecSel.diaria) > 0) ? Number(tecSel.diaria) : 0;
         var sufixo = dExc ? ' (diária própria do ' + tecSel.nome + ')' : '';
+        var nDias = dDesloc + dPuro; // deslocamento + serviço
+        var base = '/dia × ' + nDias + ' dia(s) (' + dDesloc + ' deslocamento + ' + dPuro + ' serviço)';
         return tecSel.tipo === 'freelancer'
-          ? moedaBR(dExc || v.diaria_freelancer) + '/dia × ' + dViagem + ' dia(s) de serviço' + sufixo
+          ? moedaBR(dExc || v.diaria_freelancer) + base + sufixo
           : (dViagem >= 2
-              ? moedaBR(dExc || v.diaria_clt) + '/dia × ' + dViagem + ' dia(s) de serviço' + sufixo
+              ? moedaBR(dExc || v.diaria_clt) + base + sufixo
               : 'CLT com 1 dia de viagem não recebe diária');
       })(),
       alimentacao: alimSub
