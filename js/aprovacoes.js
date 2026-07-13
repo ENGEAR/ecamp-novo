@@ -207,7 +207,7 @@ EC.aprovacoes = (function () {
       '  <div class="apr-orc-linha">Prevista: ' + moeda(o.previsto) + '</div>' +
       linhasPorDesignado(o) +
       '  <div class="apr-orc-linha">' + estaLabel + ': ' + moeda(o.esta) + ' · Total após: ' + moeda(totalApos) + '</div>' +
-      '  <div class="apr-orc-linha">Saldo após aprovar: ' + moeda(saldo) + '</div>' +
+      '  <div class="apr-orc-linha" style="margin-top:8px"><strong>Saldo após aprovar: ' + moeda(saldo) + '</strong></div>' +
       '</div>'
     );
   }
