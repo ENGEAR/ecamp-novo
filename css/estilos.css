@@ -1099,6 +1099,102 @@ textarea { resize: vertical; font-family: inherit; }
 .apr-orc-amarelo { background: var(--amarelo-claro); border: 1px solid var(--amarelo); color: #7a6200; }
 .apr-orc-vermelho { background: var(--vermelho-claro); border: 1px solid var(--vermelho); color: #8f1f1f; }
 .apr-orc-cinza { background: var(--cinza-fundo); border: 1px solid var(--cinza-borda); color: var(--cinza-texto); }
+/* ---- Analisar solicitação: layout em cards (modelo do reembolso) ---- */
+/* Badge da categoria do designado (CLT / Freelancer) */
+.apr-cat {
+  background: var(--azul-claro);
+  border: 1px solid var(--cinza-borda);
+  border-radius: var(--raio);
+  padding: 12px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--azul-escuro);
+  margin: 10px 0;
+}
+/* Card branco que envolve as linhas de Valores */
+.apr-valores {
+  background: #fff;
+  border: 1px solid var(--cinza-borda);
+  border-radius: var(--raio);
+  padding: 2px 14px;
+  margin: 10px 0;
+}
+.apr-valores .apr-vlinha:last-child { border-bottom: none; }
+.apr-vlinha {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--cinza-borda);
+}
+.apr-vlinha .apr-vic {
+  flex-shrink: 0;
+  width: 34px; height: 34px;
+  border-radius: 9px;
+  background: var(--cinza-fundo);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+}
+.apr-vlinha .apr-vmeio { flex: 1; min-width: 0; }
+.apr-vlinha .apr-vrot { color: var(--texto); font-weight: 600; }
+.apr-vlinha .apr-vsub { font-size: 0.78rem; color: var(--cinza-texto); margin-top: 1px; }
+.apr-vlinha .apr-vval { color: var(--azul-escuro); font-weight: 700; white-space: nowrap; }
+/* Caixas de destaque (verde) com ícone circular */
+.apr-hero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: var(--raio);
+  padding: 14px;
+  margin: 12px 0;
+}
+.apr-hero-icone {
+  flex-shrink: 0;
+  width: 46px; height: 46px;
+  border-radius: 50%;
+  background: var(--verde);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.35rem;
+}
+.apr-hero-corpo { flex: 1; min-width: 0; }
+.apr-hero-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.apr-hero-titulo { font-size: 0.82rem; font-weight: 600; color: #145c33; }
+.apr-hero-valor { font-size: 1.5rem; font-weight: 800; color: var(--azul-escuro); line-height: 1.15; }
+.apr-hero-sub { font-size: 0.78rem; color: var(--cinza-texto); margin-top: 2px; }
+.apr-hero-tag {
+  flex-shrink: 0;
+  font-size: 0.72rem; font-weight: 700;
+  background: #fff; color: var(--verde);
+  border: 1px solid var(--verde); border-radius: 999px;
+  padding: 3px 9px;
+}
+.apr-hero-claro { background: var(--verde-claro); border: 1px solid var(--verde); }
+.apr-hero-forte { background: #cdeed8; border: 1px solid var(--verde); }
+/* Card "Detalhamento do cálculo" */
+.apr-detalhe {
+  display: flex;
+  gap: 12px;
+  background: #fff;
+  border: 1px solid var(--cinza-borda);
+  border-radius: var(--raio);
+  padding: 14px;
+  margin: 12px 0;
+}
+.apr-detalhe-icone {
+  flex-shrink: 0;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: var(--azul-claro);
+  color: var(--azul-escuro);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem;
+}
+.apr-detalhe-corpo { flex: 1; min-width: 0; }
+.apr-detalhe-titulo { font-weight: 700; color: var(--azul-escuro); margin-bottom: 6px; }
+.apr-detalhe ul { margin: 0; padding-left: 18px; }
+.apr-detalhe li { font-size: 0.85rem; color: var(--cinza-texto); margin: 3px 0; }
 /* Evidências */
 .apr-anexos-lista { display: flex; flex-wrap: wrap; gap: 8px; }
 .apr-anexo img {

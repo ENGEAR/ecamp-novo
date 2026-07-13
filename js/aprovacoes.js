@@ -227,53 +227,27 @@ EC.aprovacoes = (function () {
 
     // Cada linha de valor mostra o valor final; se houve ajuste, mostra
     // "calculado → novo" (riscado o antigo). Item-chave casa com os ajustes.
+    // Linhas de Valores (card com ícone). Se houve ajuste, mostra o valor final
+    // e uma sub-linha "calculado → proposto (ajuste)".
     var linhas = [
-      ['⛽ Transporte (combustível)', s.valor_combustivel, 'transporte'],
-      ['🚗 Aluguel de veículo', s.valor_aluguel, 'aluguel'],
-      ['🛣️ Pedágio', s.valor_pedagio, 'pedagio'],
-      ['🏨 Hospedagem', s.valor_hospedagem, 'hospedagem'],
-      ['👷 Mão de obra', s.valor_mao_obra, 'mao_obra'],
-      ['🍽️ Alimentação', alimentacao, 'alimentacao']
+      ['⛽', 'Transporte (combustível)', s.valor_combustivel, 'transporte'],
+      ['🚗', 'Aluguel de veículo', s.valor_aluguel, 'aluguel'],
+      ['🛣️', 'Pedágio', s.valor_pedagio, 'pedagio'],
+      ['🏨', 'Hospedagem', s.valor_hospedagem, 'hospedagem'],
+      ['👷', 'Mão de obra', s.valor_mao_obra, 'mao_obra'],
+      ['🍽️', 'Alimentação', alimentacao, 'alimentacao']
     ];
-    var valoresHtml = linhas.filter(function (l) { return Number(l[1]) > 0 || ajPorItem[l[2]]; }).map(function (l) {
-      var aj = ajPorItem[l[2]];
-      var valHtml = aj
-        ? '<s style="color:var(--cinza-texto);font-weight:400">' + moeda(aj.valor_calculado) + '</s> → <strong>' + moeda(aj.valor_proposto) + '</strong> <span class="rotulo-apoio">(ajuste)</span>'
-        : '<strong>' + moeda(l[1]) + '</strong>';
-      var sub = l[2] === 'alimentacao'
-        ? '<div class="os-resumo">almoço ' + moeda(s.valor_almoco) + ' · jantar ' + moeda(s.valor_jantar) + ' · lanche ' + moeda(s.valor_lanche) + '</div>'
-        : '';
-      return '<div class="apr-linha"><span>' + l[0] + '</span>' + valHtml + '</div>' + sub;
+    var valoresHtml = linhas.filter(function (l) { return Number(l[2]) > 0 || ajPorItem[l[3]]; }).map(function (l) {
+      var aj = ajPorItem[l[3]];
+      var valFinal = aj ? aj.valor_proposto : l[2];
+      var sub = '';
+      if (aj) sub = moeda(aj.valor_calculado) + ' → ' + moeda(aj.valor_proposto) + ' (ajuste)';
+      else if (l[3] === 'alimentacao') sub = 'almoço ' + moeda(s.valor_almoco) + ' · jantar ' + moeda(s.valor_jantar) + ' · lanche ' + moeda(s.valor_lanche);
+      return '<div class="apr-vlinha"><span class="apr-vic">' + l[0] + '</span>' +
+        '<div class="apr-vmeio"><div class="apr-vrot">' + l[1] + '</div>' +
+        (sub ? '<div class="apr-vsub">' + sub + '</div>' : '') + '</div>' +
+        '<span class="apr-vval">' + moeda(valFinal) + '</span></div>';
     }).join('');
-
-    // Resumo do cálculo (as bases) — pra Logística conferir de bater o olho.
-    var vu = s.valores_usados || {};
-    // Transporte: a distância do trajeto (ida+volta) MAIS 5 km por dia efetivo
-    // de serviço — é assim que o combustível é calculado (calculo.ts).
-    var distKm = Number(s.distancia_km) || 0;
-    var diasServ = Number(s.dias_servico) || 0;
-    var kmServico = 5 * diasServ;
-    var distEfetiva = distKm + kmServico;
-    var baseHtml = '<div class="os-resumo" style="margin-top:6px;">🧮 Base: ' +
-      (s.dias_servico != null ? s.dias_servico + ' dia(s) de serviço · ' : '') +
-      (s.dias_deslocamento != null ? s.dias_deslocamento + ' de deslocamento' : '') +
-      '</div>' +
-      (distKm
-        ? '<div class="os-resumo" style="margin-top:2px;">⛽ Transporte: ' +
-            distKm + ' km' +
-            (kmServico ? ' + 5 km/dia × ' + diasServ + ' dia(s) de serviço = <b>' + distEfetiva + ' km</b>' : '') +
-            (s.consumo_kml ? ' ÷ ' + s.consumo_kml + ' km/L' : '') +
-            (s.preco_litro ? ' × ' + moeda(s.preco_litro) + '/L' : '') +
-          '</div>'
-        : '');
-
-    var ajHtml = ajustes.length
-      ? '<p class="dg-secao">Justificativas dos ajustes</p>' + ajustes.map(function (a) {
-          return '<div class="apr-ajuste"><strong>' + esc(ITENS_ROTULO[a.item] || a.item) + '</strong>: ' +
-            moeda(a.valor_calculado) + ' → <b>' + moeda(a.valor_proposto) + '</b>' +
-            '<div class="apr-just">' + esc(a.justificativa) + '</div></div>';
-        }).join('')
-      : '';
 
     var pct = s.percentual_solicitado != null ? Number(s.percentual_solicitado) : 100;
     var solicitado = s.valor_solicitado != null ? s.valor_solicitado : s.valor_total;
@@ -286,6 +260,53 @@ EC.aprovacoes = (function () {
       ? comb + (s.preco_litro ? ' · ' + moeda(s.preco_litro) + '/L' : '')
       : 'não informado';
 
+    // Caixa verde: valor final solicitado.
+    var heroSolic = '<div class="apr-hero apr-hero-claro"><div class="apr-hero-icone">💰</div>' +
+      '<div class="apr-hero-corpo">' +
+        '<div class="apr-hero-titulo">Valor final solicitado (' + pct + '%' + (ajustes.length ? ', já com os ajustes' : '') + ')</div>' +
+        '<div class="apr-hero-valor">' + moeda(solicitado) + '</div>' +
+        '<div class="apr-hero-sub">Total da logística: ' + moeda(s.valor_total) + (ajustes.length ? ' · inclui os ajustes solicitados pelo técnico' : '') + '</div>' +
+      '</div></div>';
+
+    // Caixa verde forte: a pagar após adiantamento (só quando houve adiantamento).
+    var adiant = Number(s.adiantamento_valor) || 0;
+    var heroPagar = adiant > 0
+      ? '<div class="apr-hero apr-hero-forte"><div class="apr-hero-icone">👛</div>' +
+        '<div class="apr-hero-corpo">' +
+          '<div class="apr-hero-cab"><div class="apr-hero-titulo">A pagar (após adiantamento)</div><span class="apr-hero-tag">⭐ Valor a receber</span></div>' +
+          '<div class="apr-hero-valor">' + moeda(Math.round((solicitado - adiant) * 100) / 100) + '</div>' +
+          '<div class="apr-hero-sub">Solicitado ' + moeda(solicitado) + ' − adiantamento ' + moeda(adiant) + (s.adiantamento_data ? ' (' + dataBR(s.adiantamento_data) + ')' : '') + '</div>' +
+        '</div></div>'
+      : '';
+
+    // Card "Detalhamento do cálculo": base, transporte (com +5 km/dia) e consumo.
+    var distKm = Number(s.distancia_km) || 0;
+    var diasServ = Number(s.dias_servico) || 0;
+    var kmServico = 5 * diasServ;
+    var distEfetiva = distKm + kmServico;
+    var bullets = [];
+    bullets.push('Base: ' + (s.dias_servico != null ? s.dias_servico + ' dia(s) de serviço' : '') +
+      (s.dias_deslocamento != null ? ' · ' + s.dias_deslocamento + ' de deslocamento' : ''));
+    if (distKm) {
+      bullets.push('Transporte: ' + distKm + ' km' +
+        (kmServico ? ' + 5 km/dia × ' + diasServ + ' dia(s) de serviço = <b>' + distEfetiva + ' km</b>' : ''));
+    }
+    if (s.consumo_kml || s.preco_litro) {
+      bullets.push('Consumo: ' + (s.consumo_kml ? s.consumo_kml + ' km/L' : '—') +
+        (comb ? ' · ' + comb : '') + (s.preco_litro ? ' ' + moeda(s.preco_litro) + '/L' : ''));
+    }
+    var detalheHtml = '<div class="apr-detalhe"><div class="apr-detalhe-icone">🧮</div>' +
+      '<div class="apr-detalhe-corpo"><div class="apr-detalhe-titulo">Detalhamento do cálculo</div>' +
+      '<ul>' + bullets.map(function (b) { return '<li>' + b + '</li>'; }).join('') + '</ul></div></div>';
+
+    var ajHtml = ajustes.length
+      ? '<p class="dg-secao">Justificativas dos ajustes</p>' + ajustes.map(function (a) {
+          return '<div class="apr-ajuste"><strong>' + esc(ITENS_ROTULO[a.item] || a.item) + '</strong>: ' +
+            moeda(a.valor_calculado) + ' → <b>' + moeda(a.valor_proposto) + '</b>' +
+            '<div class="apr-just">' + esc(a.justificativa) + '</div></div>';
+        }).join('')
+      : '';
+
     return (
       '<div class="apr-cab"><span class="os-numero">OS ' + esc(s.os) + '</span>' + (s.cliente ? ' · ' + esc(s.cliente) : '') + '</div>' +
       // Resumo orçamentário só para a Logística (o Financeiro não vê).
@@ -293,8 +314,9 @@ EC.aprovacoes = (function () {
       '<p class="dg-secao">Quem</p>' +
       '<div class="rb-resumo-auto">' +
         linhaInfo('Solicitante (preencheu)', s.solicitante || '—') +
-        linhaInfo('Designado (viagem)', (s.designado || '—') + ' · ' + tipo) +
+        linhaInfo('Designado (viagem)', s.designado || '—') +
       '</div>' +
+      '<div class="apr-cat">' + tipo + '</div>' +
       '<p class="dg-secao">Datas da viagem</p>' +
       '<div class="rb-resumo-auto">' +
         linhaInfo('Ida', dataBR(s.data_inicio)) +
@@ -312,13 +334,11 @@ EC.aprovacoes = (function () {
         linhaInfo('Combustível', combTxt) +
       '</div>' +
       (s.combustivel_justificativa ? '<div class="apr-just">⛽ Justificativa do combustível acima do teto: ' + esc(s.combustivel_justificativa) + '</div>' : '') +
-      '<p class="dg-secao">Valores</p>' + valoresHtml + baseHtml +
-      '<div class="rb-total" style="margin-top:10px;">Valor final solicitado (' + pct + '%' + (ajustes.length ? ', já com os ajustes' : '') + '): <strong>' + moeda(solicitado) + '</strong>' +
-      '<span class="rb-total-sub">Total da logística: ' + moeda(s.valor_total) + (ajustes.length ? ' · inclui os ajustes solicitados pelo técnico' : '') + '</span></div>' +
-      (Number(s.adiantamento_valor) > 0
-        ? '<div class="rb-total" style="margin-top:6px;">A pagar (após adiantamento): <strong>' + moeda(Math.round((solicitado - Number(s.adiantamento_valor)) * 100) / 100) + '</strong>' +
-          '<span class="rb-total-sub">solicitado ' + moeda(solicitado) + ' − adiantamento ' + moeda(s.adiantamento_valor) + (s.adiantamento_data ? ' (' + dataBR(s.adiantamento_data) + ')' : '') + '</span></div>'
-        : '') +
+      '<p class="dg-secao">Valores</p>' +
+      '<div class="apr-valores">' + valoresHtml + '</div>' +
+      heroSolic +
+      heroPagar +
+      detalheHtml +
       ajHtml
     );
   }
