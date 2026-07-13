@@ -296,6 +296,27 @@ EC.aprovacoes = (function () {
       bullets.push('Consumo: ' + (s.consumo_kml ? s.consumo_kml + ' km/L' : '—') +
         (comb ? ' · ' + comb : '') + (s.preco_litro ? ' ' + moeda(s.preco_litro) + '/L' : ''));
     }
+    // Preços unitários usados (do snapshot valores_usados) — só dos itens cobrados.
+    var vu = s.valores_usados || {};
+    var ehFreela = s.solicitante_tipo === 'freelancer';
+    var diasViagem = (Number(s.dias_servico) || 0) + (Number(s.dias_deslocamento) || 0);
+    if (Number(s.valor_mao_obra) > 0 && diasViagem > 0) {
+      bullets.push('Mão de obra: ' + moeda(Math.round(Number(s.valor_mao_obra) / diasViagem * 100) / 100) + '/dia');
+    }
+    if (Number(s.valor_hospedagem) > 0 && vu.hospedagem_dia != null) {
+      bullets.push('Hospedagem: ' + moeda(vu.hospedagem_dia) + '/diária');
+    }
+    if (Number(s.valor_almoco) > 0 && vu.almoco != null) {
+      bullets.push('Almoço: ' + (ehFreela
+        ? moeda(vu.almoco) + '/dia'
+        : moeda(vu.almoco_clt_util) + '/dia útil · ' + moeda(vu.almoco) + '/dia no fim de semana'));
+    }
+    if (Number(s.valor_jantar) > 0 && vu.jantar != null) {
+      bullets.push('Jantar: ' + moeda(vu.jantar) + '/dia');
+    }
+    if (Number(s.valor_lanche) > 0 && vu.lanche != null) {
+      bullets.push('Lanche: ' + moeda(vu.lanche) + '/dia de deslocamento');
+    }
     var detalheHtml = '<div class="apr-detalhe"><div class="apr-detalhe-icone">🧮</div>' +
       '<div class="apr-detalhe-corpo"><div class="apr-detalhe-titulo">Detalhamento do cálculo</div>' +
       '<ul>' + bullets.map(function (b) { return '<li>' + b + '</li>'; }).join('') + '</ul></div></div>';
