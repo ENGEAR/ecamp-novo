@@ -20,7 +20,30 @@ EC.sync = (function () {
   var TOKEN = 'f8b17592b0130d95047d37865a14b31570c6381509ccc066';
 
   function toast(msg) { if (EC.app && EC.app.mostrarToast) EC.app.mostrarToast(msg); }
-  function atualizarBarra() { if (EC.app && EC.app.atualizarBarraPendencias) EC.app.atualizarBarraPendencias(); }
+  // Atualiza a barra de pendências. Usa a função do app.js quando exposta; senão
+  // (não está exposta em EC.app) atualiza a barra DIRETO — mesma lógica do app.js.
+  // Sem isso, o sync nunca conseguia esconder um badge "N pendente(s)" preso.
+  async function atualizarBarra() {
+    if (EC.app && EC.app.atualizarBarraPendencias) { EC.app.atualizarBarraPendencias(); return; }
+    try {
+      var barra = document.getElementById('barra-pendencias');
+      if (!barra) return;
+      var temSessao = !!(EC.storage && EC.storage.ler && EC.storage.ler('sessao:atual'));
+      if (!temSessao) { barra.classList.add('oculto'); return; }
+      var n = 0;
+      try { n = (await EC.db.keys('pending')).length; } catch (e) { /* ok */ }
+      var semConexao = !navigator.onLine;
+      var txt = document.getElementById('pendencias-texto');
+      if (semConexao || n > 0) {
+        var t = semConexao ? '📡 Sem conexão' : '';
+        if (n > 0) t += (t ? ' · ' : '') + '⏳ ' + n + ' registro(s) pendente(s)';
+        if (txt) txt.textContent = t;
+        barra.classList.remove('oculto');
+      } else {
+        barra.classList.add('oculto');
+      }
+    } catch (e) { /* ok */ }
+  }
 
   // POST JSON com o token. Lança erro em falha (err.naoSuportado=true se 422).
   async function postJson(url, dados) {
@@ -219,7 +242,9 @@ EC.sync = (function () {
     // assim entradas ilegíveis/presas são detectadas e limpas (auto-cura).
     var chaves = [];
     try { chaves = await EC.db.keys('pending'); } catch (e) { /* ok */ }
-    if (!chaves.length) { if (!silencioso) toast('Nada pendente para sincronizar.'); return; }
+    // Fila vazia: atualiza a barra ANTES de sair — senão um badge "N pendente(s)"
+    // que ficou preso (corrida ao voltar online) não some ao tocar em Sincronizar.
+    if (!chaves.length) { atualizarBarra(); if (!silencioso) toast('Nada pendente para sincronizar.'); return; }
     var ok = 0, pendente = 0, limpos = 0;
     for (var i = 0; i < chaves.length; i++) {
       var chave = chaves[i];
