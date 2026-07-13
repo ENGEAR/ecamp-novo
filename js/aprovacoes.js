@@ -210,13 +210,24 @@ EC.aprovacoes = (function () {
 
     // Resumo do cálculo (as bases) — pra Logística conferir de bater o olho.
     var vu = s.valores_usados || {};
+    // Transporte: a distância do trajeto (ida+volta) MAIS 5 km por dia efetivo
+    // de serviço — é assim que o combustível é calculado (calculo.ts).
+    var distKm = Number(s.distancia_km) || 0;
+    var diasServ = Number(s.dias_servico) || 0;
+    var kmServico = 5 * diasServ;
+    var distEfetiva = distKm + kmServico;
     var baseHtml = '<div class="os-resumo" style="margin-top:6px;">🧮 Base: ' +
       (s.dias_servico != null ? s.dias_servico + ' dia(s) de serviço · ' : '') +
-      (s.dias_deslocamento != null ? s.dias_deslocamento + ' de deslocamento · ' : '') +
-      (s.distancia_km ? s.distancia_km + ' km' : '') +
-      (s.consumo_kml ? ' ÷ ' + s.consumo_kml + ' km/L' : '') +
-      (s.preco_litro ? ' × ' + moeda(s.preco_litro) + '/L' : '') +
-      '</div>';
+      (s.dias_deslocamento != null ? s.dias_deslocamento + ' de deslocamento' : '') +
+      '</div>' +
+      (distKm
+        ? '<div class="os-resumo" style="margin-top:2px;">⛽ Transporte: ' +
+            distKm + ' km' +
+            (kmServico ? ' + 5 km/dia × ' + diasServ + ' dia(s) de serviço = <b>' + distEfetiva + ' km</b>' : '') +
+            (s.consumo_kml ? ' ÷ ' + s.consumo_kml + ' km/L' : '') +
+            (s.preco_litro ? ' × ' + moeda(s.preco_litro) + '/L' : '') +
+          '</div>'
+        : '');
 
     var ajHtml = ajustes.length
       ? '<p class="dg-secao">Justificativas dos ajustes</p>' + ajustes.map(function (a) {
