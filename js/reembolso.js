@@ -592,7 +592,8 @@ EC.reembolso = (function () {
       semAgenda.classList.add('oculto');
       var nomeSessao = sessionNome().toLowerCase();
       sel.innerHTML = opcao('', 'Selecione…') + campSel.tecnicos.map(function (t) {
-        return opcao(t.nome, t.nome + (t.tipo === 'freelancer' ? ' (Freelancer)' : ' (CLT)'));
+        var rotulo = t.vinculo || (t.tipo === 'freelancer' ? 'Freelancer' : 'CLT');
+        return opcao(t.nome, t.nome + ' (' + rotulo + ')');
       }).join('');
       // pré-seleciona o usuário logado, se ele estiver entre os técnicos da OS
       var meu = campSel.tecnicos.filter(function (t) { return t.nome.trim().toLowerCase() === nomeSessao; })[0];
@@ -725,10 +726,16 @@ EC.reembolso = (function () {
     var dPuro = servicoPuroVal();
     var kmExtra = 5 * dPuro, distTot = distanciaAtual() + kmExtra;
     var ehFreelaSub = tecSel && tecSel.tipo === 'freelancer';
-    var nRef = datasRefeicao().length;
-    var regraAlmoco = ehFreelaSub
-      ? '(' + moedaBR(v.almoco) + '/dia)'
-      : '(seg–sex ' + moedaBR(v.almoco_clt_util || 13) + ' · fim de semana ' + moedaBR(v.almoco) + ', por dia)';
+    var datasRef = datasRefeicao();
+    var nRef = datasRef.length;
+    var nFds = datasRef.filter(ehFimDeSemana).length, nUtil = nRef - nFds;
+    // Linha do almoço com a quantidade de dias (freelancer = 1 valor; CLT quebra
+    // útil × fim de semana, que têm valores diferentes).
+    var almocoSub = ehFreelaSub
+      ? moedaBR(v.almoco) + '/dia × ' + nRef + ' dia(s) = ' + moedaBR(calc.almoco)
+      : moedaBR(v.almoco_clt_util || 13) + ' × ' + nUtil + ' dia(s) útil' +
+        (nFds ? ' + ' + moedaBR(v.almoco) + ' × ' + nFds + ' fim de semana' : '') +
+        ' = ' + moedaBR(calc.almoco);
     var alimSub = casoDiaUnico()
       ? 'Foi e voltou no mesmo dia:<br>' +
         'Almoço: ' + moedaBR(calc.almoco) + '<br>' +
@@ -738,7 +745,7 @@ EC.reembolso = (function () {
         'Lanche: ' + (calc.lanche > 0
           ? moedaBR(calc.lanche) + ' (ida+volta acima de 200 km)'
           : 'não incluído (200 km ou menos)')
-      : 'Almoço: ' + moedaBR(calc.almoco) + ' ' + regraAlmoco + '<br>' +
+      : 'Almoço: ' + almocoSub + '<br>' +
         'Jantar: ' + moedaBR(v.jantar) + '/dia × ' + nRef + ' dia(s) = ' + moedaBR(calc.jantar) + '<br>' +
         'Lanche: ' + moedaBR(v.lanche) + '/dia × ' + dDesloc + ' dia(s) de deslocamento = ' + moedaBR(calc.lanche);
     var sub = {
@@ -1624,7 +1631,13 @@ EC.reembolso = (function () {
     document.querySelectorAll('input[name="rb-veiculo"]').forEach(function (r) {
       r.addEventListener('change', aoMudarVeiculo);
     });
-    $('rb-combustivel').addEventListener('change', function () { pintarTeto(); pintarValores(); });
+    $('rb-combustivel').addEventListener('change', function () {
+      // Preço por litro vem da config da Logística (o R$/litro configurado por
+      // combustível). Auto-preenche ao escolher o tipo; segue editável.
+      var t = tetoDoCombustivel();
+      $('rb-preco-litro').value = ($('rb-combustivel').value && t > 0) ? String(t) : '';
+      pintarTeto(); pintarValores();
+    });
     $('rb-preco-litro').addEventListener('input', function () { pintarTeto(); pintarValores(); });
     $('rb-distancia').addEventListener('input', pintarValores);
     $('rb-origem-cidade').addEventListener('input', agendarCalculo);
