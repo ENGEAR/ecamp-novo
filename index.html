@@ -20,6 +20,7 @@
     <img src="public/logo-recortada.png" id="header-logo" alt="eCamp — voltar à tela inicial" title="Voltar à tela inicial">
     <div class="header-acoes">
       <button type="button" class="botao-icone botao-sino oculto" id="btn-aprovacoes" title="Aprovações de logística">🔔<span id="sino-badge" class="sino-badge oculto">0</span></button>
+      <button type="button" class="botao-icone botao-sino oculto" id="btn-lembretes" title="Lembretes de serviço (ciente)">📌<span id="lembrete-badge" class="sino-badge oculto">0</span></button>
       <button type="button" class="botao-icone" id="btn-historico" title="Histórico de monitoramentos">🕐</button>
       <button type="button" class="botao-icone" id="btn-rascunhos" title="Rascunhos — OS iniciadas e não finalizadas (últimos 30 dias)">📝</button>
       <button type="button" class="botao-icone" id="btn-agenda" title="Agenda">📅</button>
@@ -280,6 +281,7 @@
               <label>Dias de serviço<input type="number" id="rb-dias-servico" readonly></label>
               <label>Dias de deslocamento<input type="number" id="rb-dias-desloc" readonly></label>
             </div>
+            <div id="rb-viagem-erro" class="alerta alerta-vermelho oculto">🛑 Confira as datas: a ida deve ser antes (ou igual) ao início do serviço, o início antes do término, e o término antes (ou igual) da chegada.</div>
             <div id="rb-chegada-bloco" class="oculto">
               <label>Horário de chegada em casa
                 <input type="time" id="rb-chegada-casa">

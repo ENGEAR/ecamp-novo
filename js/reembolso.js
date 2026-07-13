@@ -68,15 +68,43 @@ EC.reembolso = (function () {
   }
   function opcao(valor, texto) { return '<option value="' + valor + '">' + texto + '</option>'; }
 
-  // Dias da viagem lidos dos campos (preenchidos pela Agenda ou pelas datas)
-  function diasServicoVal() { return Math.max(0, parseInt($('rb-dias-servico').value, 10) || 0); }
-  function diasDeslocVal() { return Math.max(0, parseInt($('rb-dias-desloc').value, 10) || 0); }
-  function diasViagemVal() { return diasServicoVal() + diasDeslocVal(); }
+  // Todas as datas "AAAA-MM-DD" de a até b (inclusive); vazio se a>b/inválida.
+  function intervaloDatas(a, b) {
+    var out = [];
+    var ini = String(a || '').slice(0, 10), fim = String(b || '').slice(0, 10);
+    if (!ini || !fim) return out;
+    var t = new Date(ini + 'T12:00:00Z').getTime(), end = new Date(fim + 'T12:00:00Z').getTime();
+    if (isNaN(t) || isNaN(end) || t > end) return out;
+    while (t <= end) { out.push(new Date(t).toISOString().slice(0, 10)); t += 86400000; }
+    return out;
+  }
 
-  // Caso especial de alimentação: 1 dia de serviço e 0 de deslocamento (foi e
-  // voltou no mesmo dia) — 1 almoço, jantar só se chegou em casa a partir das
-  // 23h, e lanche só se a distância do dia (ida+volta) passar de 200 km.
-  function casoDiaUnico() { return diasServicoVal() === 1 && diasDeslocVal() === 0; }
+  // Dias da viagem derivados das 4 DATAS editáveis (ou null se incoerentes):
+  //   total       = dias de serviço mostrado (ida→chegada, inclui deslocamento)
+  //   servicoPuro = só do início ao término do serviço (usado no combustível)
+  //   desloc      = dias da viagem que não são de serviço
+  function diasInfo() {
+    var ida = $('rb-ida').value, sI = $('rb-servico-inicio').value,
+        sF = $('rb-servico-fim').value, volta = $('rb-volta').value;
+    if (!ida || !sI || !sF || !volta) return null;
+    if (!(ida <= sI && sI <= sF && sF <= volta)) return null; // ISO compara direto
+    var servico = intervaloDatas(sI, sF), total = intervaloDatas(ida, volta);
+    var setS = {}; servico.forEach(function (d) { setS[d] = 1; });
+    var desloc = total.filter(function (d) { return !setS[d]; });
+    return {
+      total: total.length, servicoPuro: servico.length, desloc: desloc.length,
+      noites: diffDias(ida, volta), datasTotal: total
+    };
+  }
+  function diasServicoVal() { var d = diasInfo(); return d ? d.total : 0; }   // TOTAL (campo)
+  function diasDeslocVal() { var d = diasInfo(); return d ? d.desloc : 0; }
+  function diasViagemVal() { var d = diasInfo(); return d ? d.total : 0; }    // = total
+  function servicoPuroVal() { var d = diasInfo(); return d ? d.servicoPuro : 0; }
+
+  // Caso especial de alimentação: vai e volta no mesmo dia (1 dia total, 0
+  // deslocamento) — 1 almoço, jantar só se chegou a partir das 23h, e lanche só
+  // se a distância do dia (ida+volta) passar de 200 km.
+  function casoDiaUnico() { var d = diasInfo(); return !!d && d.total === 1 && d.desloc === 0; }
   function chegouAPartirDas23() {
     var el = $('rb-chegada-casa');
     var m = /^(\d{1,2}):(\d{2})$/.exec(((el && el.value) || '').trim());
@@ -89,13 +117,8 @@ EC.reembolso = (function () {
     var dia = d.getUTCDay();
     return dia === 0 || dia === 6;
   }
-  // Dias distintos de refeição (serviço ∪ deslocamento) da campanha escolhida.
-  function datasRefeicao() {
-    var s = (campSel && campSel.datasServico) || [];
-    var d = (campSel && campSel.datasDeslocamento) || [];
-    var todas = s.concat(d);
-    return todas.filter(function (x, i) { return todas.indexOf(x) === i; });
-  }
+  // Datas de refeição = todas as datas da viagem (cada dia tem almoço/jantar).
+  function datasRefeicao() { var d = diasInfo(); return d ? d.datasTotal : []; }
 
   // Nº de diárias de hospedagem = noites fora = data da chegada − data da saída
   function diariasVal() {
@@ -297,7 +320,7 @@ EC.reembolso = (function () {
 
   // Distância do combustível = ida+volta + 5 km por dia de serviço (deslocamento
   // entre os pontos durante o serviço).
-  function distanciaCombustivel() { return distanciaAtual() + 5 * diasServicoVal(); }
+  function distanciaCombustivel() { return distanciaAtual() + 5 * servicoPuroVal(); }
 
   var UFS = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG',
     'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
@@ -365,21 +388,27 @@ EC.reembolso = (function () {
   function calcular() {
     if (!ctx || !osSel || !tecSel) return null;
     var v = ctx.valores;
-    var diasServico = diasServicoVal(), diasDeslocamento = diasDeslocVal(), diasViagem = diasViagemVal();
+    // diasServico (campo) = TOTAL da viagem (ida→chegada); diasDeslocamento =
+    // dias que não são de serviço; servicoPuro = só os dias de serviço (usado no
+    // combustível). Tudo derivado das 4 datas (editáveis).
+    var diasViagem = diasViagemVal();       // = total
+    var diasDeslocamento = diasDeslocVal();
+    var servicoPuro = servicoPuroVal();
     var diarias = diariasVal();
     var preco = parseFloat($('rb-preco-litro').value) || 0;
     var consumo = consumoAtual();
     var dist = distanciaAtual();
     var r2 = function (x) { return Math.round(x * 100) / 100; };
 
-    // Combustível: (ida+volta + 5 km/dia de serviço) ÷ consumo × preço do litro.
-    var distComb = dist + 5 * diasServico;
+    // Combustível: (ida+volta + 5 km/dia PURO de serviço) ÷ consumo × preço/L.
+    var distComb = dist + 5 * servicoPuro;
     var combustivel = (preco > 0 && distComb > 0 && consumo > 0) ? r2((distComb / consumo) * preco) : 0;
     var aluguel = veiculo() === 'proprio' ? r2(Number(v.aluguel_veiculo_dia) * diasViagem) : 0;
     // Hospedagem: R$/diária × noites fora (chegada − saída). Mesmo dia → 0.
     var hospedagem = r2(Number(v.hospedagem_dia) * diarias);
+    // Mão de obra: R$/dia × dias de serviço (total). CLT só se a viagem tem ≥ 2 dias.
     var maoObra = tecSel.tipo === 'freelancer'
-      ? r2(Number(v.diaria_freelancer) * (diasDeslocamento + diasServico))
+      ? r2(Number(v.diaria_freelancer) * diasViagem)
       : (diasViagem >= 2 ? r2(Number(v.diaria_clt) * diasViagem) : 0);
     // Alimentação (espelho do servidor). Jantar por dia (freela e CLT). Almoço:
     // freelancer sempre padrão; CLT = dia útil (13) / fim de semana (padrão).
@@ -391,20 +420,15 @@ EC.reembolso = (function () {
     var almocoDoDia = function (dataISO) {
       return (ehFreela || ehFimDeSemana(dataISO)) ? almocoPadrao : almocoCltUtil;
     };
-    var diasRef = datasRefeicao();
-    var almoco, jantar, lanche;
-    if (diasServico === 1 && diasDeslocamento === 0) {
+    var diasRef = datasRefeicao(); // todas as datas da viagem (ida→chegada)
+    var almoco = 0, jantar = 0, lanche = 0;
+    if (casoDiaUnico()) {
       almoco = r2(almocoDoDia(diasRef[0] || $('rb-ida').value));
       jantar = chegouAPartirDas23() ? r2(Number(v.jantar)) : 0;
       lanche = dist > 200 ? r2(Number(v.lanche)) : 0;
     } else if (diasRef.length) {
       almoco = r2(diasRef.reduce(function (s, d) { return s + almocoDoDia(d); }, 0));
       jantar = r2(Number(v.jantar) * diasRef.length);
-      lanche = r2(Number(v.lanche) * diasDeslocamento);
-    } else {
-      // sem as datas da Agenda: estimativa por contagem (almoço padrão)
-      almoco = r2(almocoPadrao * (diasServico + diasDeslocamento));
-      jantar = r2(Number(v.jantar) * (diasServico + diasDeslocamento));
       lanche = r2(Number(v.lanche) * diasDeslocamento);
     }
     var pedagio = r2(parseFloat($('rb-pedagio').value) || 0);
@@ -606,12 +630,26 @@ EC.reembolso = (function () {
     $('rb-volta').value = (campanha.dataRetorno || '').slice(0, 10);
     $('rb-servico-inicio').value = (campanha.servicoInicio || '').slice(0, 10);
     $('rb-servico-fim').value = (campanha.servicoFim || '').slice(0, 10);
-    $('rb-dias-servico').value = campanha.diasServico;
-    $('rb-dias-desloc').value = campanha.diasDeslocamento;
-    $('rb-viagem-fonte').textContent = '📅 Datas e dias preenchidos pela Agenda.';
-    ['rb-ida', 'rb-servico-inicio', 'rb-servico-fim', 'rb-volta', 'rb-dias-servico', 'rb-dias-desloc']
-      .forEach(function (id) { $(id).readOnly = true; });
+    // As DATAS vêm da Agenda mas ficam editáveis; os DIAS são calculados sozinhos.
+    ['rb-ida', 'rb-servico-inicio', 'rb-servico-fim', 'rb-volta']
+      .forEach(function (id) { $(id).readOnly = false; });
+    ['rb-dias-servico', 'rb-dias-desloc'].forEach(function (id) { $(id).readOnly = true; });
+    $('rb-viagem-fonte').textContent = '📅 Datas pré-preenchidas pela Agenda — edite se precisar; os dias se ajustam sozinhos.';
+    recalcularDias();
     $('rb-viagem').classList.remove('oculto');
+  }
+
+  // Recalcula os campos de dias (serviço = total, deslocamento) a partir das
+  // datas editáveis; mostra aviso se as datas estiverem incoerentes.
+  function recalcularDias() {
+    var d = diasInfo();
+    $('rb-dias-servico').value = d ? d.total : '';
+    $('rb-dias-desloc').value = d ? d.desloc : '';
+    var aviso = $('rb-viagem-erro');
+    if (aviso) {
+      var temTodas = $('rb-ida').value && $('rb-servico-inicio').value && $('rb-servico-fim').value && $('rb-volta').value;
+      aviso.classList.toggle('oculto', !!d || !temTodas);
+    }
   }
 
   // Dias inteiros entre duas datas ISO (b − a); null se faltar/for inválida.
@@ -684,13 +722,14 @@ EC.reembolso = (function () {
 
     var v = ctx.valores;
     var dServico = diasServicoVal(), dDesloc = diasDeslocVal(), dViagem = diasViagemVal();
-    var kmExtra = 5 * dServico, distTot = distanciaAtual() + kmExtra;
+    var dPuro = servicoPuroVal();
+    var kmExtra = 5 * dPuro, distTot = distanciaAtual() + kmExtra;
     var ehFreelaSub = tecSel && tecSel.tipo === 'freelancer';
-    var nRef = datasRefeicao().length || (dServico + dDesloc);
+    var nRef = datasRefeicao().length;
     var regraAlmoco = ehFreelaSub
       ? '(' + moedaBR(v.almoco) + '/dia)'
       : '(seg–sex ' + moedaBR(v.almoco_clt_util || 13) + ' · fim de semana ' + moedaBR(v.almoco) + ', por dia)';
-    var alimSub = (dServico === 1 && dDesloc === 0)
+    var alimSub = casoDiaUnico()
       ? 'Foi e voltou no mesmo dia:<br>' +
         'Almoço: ' + moedaBR(calc.almoco) + '<br>' +
         'Jantar: ' + (calc.jantar > 0
@@ -704,16 +743,16 @@ EC.reembolso = (function () {
         'Lanche: ' + moedaBR(v.lanche) + '/dia × ' + dDesloc + ' dia(s) de deslocamento = ' + moedaBR(calc.lanche);
     var sub = {
       transporte: (distTot > 0
-        ? distTot + ' km (' + distanciaAtual() + ' ida+volta + ' + kmExtra + ' km entre pontos: 5 km × ' + dServico + ' serviço) ÷ ' +
+        ? distTot + ' km (' + distanciaAtual() + ' ida+volta + ' + kmExtra + ' km entre pontos: 5 km × ' + dPuro + ' dia(s) de serviço) ÷ ' +
           consumoAtual() + ' km/L (' + ($('rb-combustivel').value === 'diesel' ? 'diesel' : 'gasolina') + ') × preço do litro'
         : 'informe a distância e o preço do litro'),
       aluguel: moedaBR(v.aluguel_veiculo_dia) + '/dia × ' + dViagem + ' dia(s) de viagem',
       hospedagem: moedaBR(v.hospedagem_dia) + '/diária × ' + calc.diarias + ' diária(s) — da saída à chegada' +
         (calc.diarias === 0 ? ' (foi e voltou no mesmo dia: sem hospedagem)' : ''),
       mao_obra: tecSel.tipo === 'freelancer'
-        ? moedaBR(v.diaria_freelancer) + '/dia × ' + (dDesloc + dServico) + ' dia(s) (deslocamento + serviço)'
+        ? moedaBR(v.diaria_freelancer) + '/dia × ' + dViagem + ' dia(s) de serviço'
         : (dViagem >= 2
-            ? moedaBR(v.diaria_clt) + '/dia × ' + dViagem + ' dia(s) de viagem'
+            ? moedaBR(v.diaria_clt) + '/dia × ' + dViagem + ' dia(s) de serviço'
             : 'CLT com 1 dia de viagem não recebe diária'),
       alimentacao: alimSub
     };
@@ -798,6 +837,9 @@ EC.reembolso = (function () {
       origemCidade: $('rb-origem-cidade').value, origemUf: $('rb-origem-uf').value,
       destinoCidade: $('rb-destino-cidade').value, destinoUf: $('rb-destino-uf').value,
       distancia: $('rb-distancia').value,
+      // datas da viagem (podem ter sido editadas)
+      ida: $('rb-ida').value, servicoInicio: $('rb-servico-inicio').value,
+      servicoFim: $('rb-servico-fim').value, volta: $('rb-volta').value,
       chegada: $('rb-chegada-casa') ? $('rb-chegada-casa').value : '',
       tipoCombustivel: $('rb-combustivel').value,
       precoLitro: $('rb-preco-litro').value,
@@ -854,6 +896,12 @@ EC.reembolso = (function () {
       if (r.destinoCidade) $('rb-destino-cidade').value = r.destinoCidade;
       if (r.destinoUf) setUF('rb-destino-uf', r.destinoUf);
       if (r.distancia && !$('rb-distancia').readOnly) $('rb-distancia').value = r.distancia;
+      // datas da viagem (se editadas) — sobrescreve o que veio da Agenda
+      if (r.ida) $('rb-ida').value = r.ida;
+      if (r.servicoInicio) $('rb-servico-inicio').value = r.servicoInicio;
+      if (r.servicoFim) $('rb-servico-fim').value = r.servicoFim;
+      if (r.volta) $('rb-volta').value = r.volta;
+      recalcularDias();
       if (r.chegada && $('rb-chegada-casa')) $('rb-chegada-casa').value = r.chegada;
       $('rb-combustivel').value = r.tipoCombustivel || '';
       $('rb-preco-litro').value = r.precoLitro || '';
@@ -917,6 +965,8 @@ EC.reembolso = (function () {
       origemCidade: p.origem_cidade || '', origemUf: p.origem_uf || '',
       destinoCidade: p.destino_cidade || '', destinoUf: p.destino_uf || '',
       distancia: p.distancia_km != null ? String(p.distancia_km) : '',
+      ida: (p.data_inicio || '').slice(0, 10), servicoInicio: (p.servico_inicio || '').slice(0, 10),
+      servicoFim: (p.servico_fim || '').slice(0, 10), volta: (p.data_retorno || '').slice(0, 10),
       chegada: chegada,
       tipoCombustivel: p.tipo_combustivel || '',
       precoLitro: p.preco_litro != null ? String(p.preco_litro) : '',
@@ -1074,6 +1124,9 @@ EC.reembolso = (function () {
       return mostrarErro('Esta OS está na Agenda sem técnicos vinculados — peça para incluir os técnicos nos dias primeiro.');
     }
     if (!tecSel) return mostrarErro('Escolha o designado (o técnico da viagem).');
+    if (!diasInfo()) {
+      return mostrarErro('Confira as datas da viagem: ida ≤ início do serviço ≤ término ≤ chegada (e todas preenchidas).');
+    }
     var solicitante = sessionNome();
     if (!solicitante) return mostrarErro('Sua sessão expirou — entre de novo no app.');
     if (!veiculo()) return mostrarErro('Responda: o veículo é da ENGEAR ou do colaborador?');
@@ -1581,6 +1634,10 @@ EC.reembolso = (function () {
     $('rb-pedagio').addEventListener('input', pintarValores);
     $('rb-percentual').addEventListener('input', pintarValores);
     $('rb-chegada-casa').addEventListener('input', pintarValores);
+    // Datas da viagem editáveis: ao mudar, recalcula os dias e o resumo/valores.
+    ['rb-ida', 'rb-servico-inicio', 'rb-servico-fim', 'rb-volta'].forEach(function (id) {
+      $(id).addEventListener('change', function () { recalcularDias(); pintarResumoAuto(); pintarValores(); });
+    });
 
     // qualquer mudança no formulário salva o rascunho (com pausa de digitação)
     $('rb-form').addEventListener('input', salvarRascunhoLogo);
