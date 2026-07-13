@@ -860,8 +860,11 @@ textarea { resize: vertical; font-family: inherit; }
 .ecagd-evt:active { background: var(--cinza-fundo); }
 .ecagd-evt.conflito { box-shadow: inset 0 0 0 2px var(--vermelho); background: var(--vermelho-claro); }
 .ecagd-evt-linha1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.ecagd-evt-emp { font-weight: 700; font-size: 0.95rem; color: var(--texto); }
-.ecagd-chip { font-size: 0.68rem; font-weight: 700; padding: 3px 9px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; }
+/* min-width:0 + reticências: nome de empresa longo NÃO empurra o chip de status
+   ("Reagendamento pendente" etc.) para fora da tela — trunca o nome. */
+.ecagd-evt-emp { font-weight: 700; font-size: 0.95rem; color: var(--texto); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* flex-shrink:0: o chip mantém o tamanho e fica sempre visível. */
+.ecagd-chip { flex-shrink: 0; font-size: 0.68rem; font-weight: 700; padding: 3px 9px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; }
 .ecagd-evt-os { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.78rem; font-weight: 600; color: var(--azul-escuro); margin-top: 3px; }
 .ecagd-evt-sub { font-size: 0.85rem; color: var(--cinza-texto); margin-top: 2px; }
 
