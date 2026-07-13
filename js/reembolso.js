@@ -601,15 +601,8 @@ EC.reembolso = (function () {
       blocoDesig.classList.remove('oculto');
     }
 
-    // Percentual já solicitado desta campanha (parcial) → disponível
-    dispCampanha = campSel ? Math.round((100 - (Number(campSel.jaSolicitado) || 0)) * 100) / 100 : 100;
-    var pctInp = $('rb-percentual');
-    pctInp.max = Math.max(1, dispCampanha);
-    // Se a campanha já teve parcelas, sugere pedir o que falta (não passa do disponível)
-    if (campSel && dispCampanha < 100) pctInp.value = dispCampanha > 0 ? dispCampanha : 0;
-    else pctInp.value = 100;
-
     atualizarTecSel();
+    atualizarDisponivel();
     if (campSel) fillViagem(campSel);
     pintarResumoAuto();
     aoMudarVeiculo();
@@ -622,6 +615,21 @@ EC.reembolso = (function () {
     var nome = $('rb-designado').value;
     var t = campSel.tecnicos.filter(function (x) { return x.nome === nome; })[0];
     if (t) tecSel = { nome: t.nome, tipo: t.tipo };
+  }
+
+  // Disponível = 100% − o que ESTE designado já solicitou na campanha (cada
+  // técnico tem seu próprio 100%; um não trava o outro).
+  function atualizarDisponivel() {
+    var ja = 0;
+    if (campSel && tecSel) {
+      var t = campSel.tecnicos.filter(function (x) { return x.nome === tecSel.nome; })[0];
+      ja = t ? (Number(t.jaSolicitado) || 0) : 0;
+    }
+    dispCampanha = tecSel ? Math.round((100 - ja) * 100) / 100 : 100;
+    var pctInp = $('rb-percentual');
+    pctInp.max = Math.max(1, dispCampanha);
+    if (tecSel && dispCampanha < 100) pctInp.value = dispCampanha > 0 ? dispCampanha : 0;
+    else pctInp.value = 100;
   }
 
   /* ============ Dados da viagem (sempre da Agenda) ============ */
@@ -793,15 +801,16 @@ EC.reembolso = (function () {
       '<span class="rb-total-sub">' + comps.join('<br>') +
       (totalFinal !== calc.total ? '<br><em>(com os valores propostos nos ajustes)</em>' : '') + '</span>';
 
-    // Nota de disponível (quando a campanha já teve parcelas)
+    // Nota de disponível — POR DESIGNADO (cada técnico tem seu próprio 100%).
     var info = $('rb-pct-info');
+    var quem = (tecSel && tecSel.nome) ? tecSel.nome : 'este designado';
     if (dispCampanha <= 0) {
       info.className = 'alerta alerta-vermelho';
-      info.textContent = '🚫 Esta campanha já teve 100% da logística solicitado/pago — não é possível novo reembolso.';
+      info.textContent = '🚫 ' + quem + ' já teve 100% da logística desta campanha solicitado/pago — não é possível novo reembolso para ele.';
       info.classList.remove('oculto');
     } else if (dispCampanha < 100) {
       info.className = 'alerta alerta-info';
-      info.textContent = 'ℹ️ Já solicitado nesta campanha: ' + (Math.round((100 - dispCampanha) * 100) / 100) + '%. Disponível: ' + dispCampanha + '% (você pode pedir até isso).';
+      info.textContent = 'ℹ️ ' + quem + ' já solicitou ' + (Math.round((100 - dispCampanha) * 100) / 100) + '% nesta campanha. Disponível: ' + dispCampanha + '% (você pode pedir até isso).';
       info.classList.remove('oculto');
     } else {
       info.classList.add('oculto');
@@ -1190,8 +1199,8 @@ EC.reembolso = (function () {
     }
     var pct = percentualVal();
     if (!(pct > 0 && pct <= 100)) return mostrarErro('O percentual solicitado precisa ficar entre 1% e 100%.');
-    if (dispCampanha <= 0) return mostrarErro('Esta campanha já teve 100% da logística solicitado/pago — não é possível novo reembolso.');
-    if (pct > dispCampanha + 0.01) return mostrarErro('Você pode solicitar no máximo ' + dispCampanha + '% (o resto desta campanha já foi solicitado/pago).');
+    if (dispCampanha <= 0) return mostrarErro('Este designado já teve 100% da logística desta campanha solicitado/pago — não é possível novo reembolso para ele.');
+    if (pct > dispCampanha + 0.01) return mostrarErro('Você pode solicitar no máximo ' + dispCampanha + '% para este designado (o resto já foi solicitado/pago).');
     mostrarErro(null);
 
     var todosAnexos = [];
@@ -1482,7 +1491,8 @@ EC.reembolso = (function () {
   function saldosDisponiveis() {
     var grupos = {};
     listaEmCache().forEach(function (p) {
-      var chave = p.os + '|' + p.campanha_numero;
+      // saldo é por OS+campanha+DESIGNADO (cada técnico tem seu próprio 100%)
+      var chave = p.os + '|' + p.campanha_numero + '|' + (p.designado || '');
       if (!grupos[chave]) grupos[chave] = { os: p.os, campanha: p.campanha_numero, cliente: p.cliente, jaConsumido: Number(p.jaConsumido || 0), aprovada: null };
       grupos[chave].jaConsumido = Math.max(grupos[chave].jaConsumido, Number(p.jaConsumido || 0));
       // template = parcela já aprovada mais recente (a lista vem por created_at desc)
@@ -1642,6 +1652,7 @@ EC.reembolso = (function () {
     $('rb-campanha').addEventListener('change', aoEscolherCampanha);
     $('rb-designado').addEventListener('change', function () {
       atualizarTecSel();
+      atualizarDisponivel();
       pintarResumoAuto();
       pintarValores();
     });
