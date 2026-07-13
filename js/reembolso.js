@@ -472,6 +472,17 @@ EC.reembolso = (function () {
     return Math.min(100, p);
   }
 
+  // Adiantamento de pagamento (opcional): descontado do valor solicitado.
+  function adiantamentoAtivo() {
+    var m = document.querySelector('input[name="rb-adiant"]:checked');
+    return !!m && m.value === 'sim';
+  }
+  function adiantamentoVal() {
+    if (!adiantamentoAtivo()) return 0;
+    var v = parseFloat($('rb-adiant-valor').value);
+    return v > 0 ? Math.round(v * 100) / 100 : 0;
+  }
+
   function tetoDoCombustivel() {
     if (!ctx) return 0;
     return $('rb-combustivel').value === 'diesel'
@@ -820,6 +831,19 @@ EC.reembolso = (function () {
     var solicitado = Math.round(totalFinal * pct) / 100;
     var paraDesig = (tecSel && tecSel.nome) ? ' para <strong>' + tecSel.nome + '</strong>' : '';
     $('rb-solicitado').innerHTML = 'Você está solicitando <strong>' + pct + '% = ' + moedaBR(solicitado) + '</strong>' + paraDesig;
+
+    // Adiantamento: mostra os campos e o "valor a pagar" (solicitado − adiantamento).
+    $('rb-adiant-campos').classList.toggle('oculto', !adiantamentoAtivo());
+    var adiant = adiantamentoVal();
+    var pagar = $('rb-pagar');
+    if (adiant > 0) {
+      var liquido = Math.round((solicitado - adiant) * 100) / 100;
+      pagar.innerHTML = 'Valor a pagar (após adiantamento): <strong>' + moedaBR(liquido) + '</strong>' +
+        '<span class="rb-total-sub">solicitado ' + moedaBR(solicitado) + ' − adiantamento ' + moedaBR(adiant) + '</span>';
+      pagar.classList.remove('oculto');
+    } else {
+      pagar.classList.add('oculto');
+    }
   }
 
   function pintarTeto() {
@@ -874,6 +898,7 @@ EC.reembolso = (function () {
       ida: $('rb-ida').value, servicoInicio: $('rb-servico-inicio').value,
       servicoFim: $('rb-servico-fim').value, volta: $('rb-volta').value,
       chegada: $('rb-chegada-casa') ? $('rb-chegada-casa').value : '',
+      adiantAtivo: adiantamentoAtivo(), adiantData: $('rb-adiant-data').value, adiantValor: $('rb-adiant-valor').value,
       tipoCombustivel: $('rb-combustivel').value,
       precoLitro: $('rb-preco-litro').value,
       combJustificativa: $('rb-comb-justificativa').value,
@@ -936,6 +961,11 @@ EC.reembolso = (function () {
       if (r.volta) $('rb-volta').value = r.volta;
       recalcularDias();
       if (r.chegada && $('rb-chegada-casa')) $('rb-chegada-casa').value = r.chegada;
+      // adiantamento
+      var radAd = document.querySelector('input[name="rb-adiant"][value="' + (r.adiantAtivo ? 'sim' : 'nao') + '"]');
+      if (radAd) radAd.checked = true;
+      $('rb-adiant-data').value = r.adiantData || '';
+      $('rb-adiant-valor').value = r.adiantValor || '';
       $('rb-combustivel').value = r.tipoCombustivel || '';
       $('rb-preco-litro').value = r.precoLitro || '';
       $('rb-comb-justificativa').value = r.combJustificativa || '';
@@ -1001,6 +1031,9 @@ EC.reembolso = (function () {
       ida: (p.data_inicio || '').slice(0, 10), servicoInicio: (p.servico_inicio || '').slice(0, 10),
       servicoFim: (p.servico_fim || '').slice(0, 10), volta: (p.data_retorno || '').slice(0, 10),
       chegada: chegada,
+      adiantAtivo: Number(p.adiantamento_valor) > 0,
+      adiantData: (p.adiantamento_data || '').slice(0, 10),
+      adiantValor: p.adiantamento_valor != null && Number(p.adiantamento_valor) > 0 ? String(p.adiantamento_valor) : '',
       tipoCombustivel: p.tipo_combustivel || '',
       precoLitro: p.preco_litro != null ? String(p.preco_litro) : '',
       combJustificativa: p.combustivel_justificativa || '',
@@ -1091,6 +1124,10 @@ EC.reembolso = (function () {
     $('rb-teto-just').classList.add('oculto');
     $('rb-pedagio').value = '';
     $('rb-percentual').value = '100';
+    var radAdNao = document.querySelector('input[name="rb-adiant"][value="nao"]');
+    if (radAdNao) radAdNao.checked = true;
+    $('rb-adiant-data').value = ''; $('rb-adiant-valor').value = '';
+    $('rb-adiant-campos').classList.add('oculto'); $('rb-pagar').classList.add('oculto');
     montarValores();
     pintarResumoAuto();
     pintarValores();
@@ -1134,6 +1171,7 @@ EC.reembolso = (function () {
       origemCidade: pedido.origemCidade, origemUf: pedido.origemUf,
       destinoCidade: pedido.destinoCidade, destinoUf: pedido.destinoUf,
       percentualSolicitado: pedido.percentualSolicitado,
+      adiantamentoValor: pedido.adiantamentoValor, adiantamentoData: pedido.adiantamentoData,
       ajustes: pedido.ajustes
     });
     var lista = pedido.anexos || [];
@@ -1239,6 +1277,8 @@ EC.reembolso = (function () {
       // horário de chegada em casa — só no caso 1 serviço/0 deslocamento (decide o jantar)
       horaChegadaCasa: casoDiaUnico() ? ($('rb-chegada-casa').value || null) : null,
       percentualSolicitado: pct,
+      adiantamentoValor: adiantamentoVal(),
+      adiantamentoData: (adiantamentoAtivo() && $('rb-adiant-data').value) ? $('rb-adiant-data').value : null,
       ajustes: ajustes,
       anexos: todosAnexos,
       // só para exibir na fila offline:
@@ -1458,6 +1498,12 @@ EC.reembolso = (function () {
     var pago = p.status === 'pago'
       ? '<div class="apr-orc apr-orc-verde"><strong>💰 Pago</strong> em ' + dataBR(p.pago_em) + (p.forma_pagamento ? ' · ' + p.forma_pagamento : '') + '</div>' : '';
 
+    var adiant = Number(p.adiantamento_valor || p.adiantamentoValor || 0);
+    var adiantHtml = adiant > 0
+      ? '<div class="rb-total" style="margin-top:6px;">A pagar (após adiantamento): <strong>' + moedaBR(Math.round((solicitado - adiant) * 100) / 100) + '</strong>' +
+        '<span class="rb-total-sub">solicitado ' + moedaBR(solicitado) + ' − adiantamento ' + moedaBR(adiant) +
+        ((p.adiantamento_data || p.adiantamentoData) ? ' (em ' + dataBR(p.adiantamento_data || p.adiantamentoData) + ')' : '') + '</span></div>'
+      : '';
     $('rb-extrato').innerHTML =
       '<div class="rb-pedido-topo" style="margin-bottom:10px;"><span class="os-numero">OS ' + (p.os || '?') + '</span>' +
       '<span class="rb-status ' + st.cls + '">' + st.txt + '</span></div>' +
@@ -1465,6 +1511,7 @@ EC.reembolso = (function () {
       pago + obs +
       '<div class="rb-total" style="margin-top:6px;">Solicitado (' + pct + '%): <strong>' + moedaBR(solicitado) + '</strong>' +
       '<span class="rb-total-sub">Total da logística: ' + moedaBR(total) + '</span></div>' +
+      adiantHtml +
       renderResumoPedido(p);
 
     // Ações só enquanto dá para mexer: apagar (fila do aparelho ou aguardando a
@@ -1675,6 +1722,8 @@ EC.reembolso = (function () {
     $('rb-pedagio').addEventListener('input', pintarValores);
     $('rb-percentual').addEventListener('input', pintarValores);
     $('rb-chegada-casa').addEventListener('input', pintarValores);
+    document.querySelectorAll('input[name="rb-adiant"]').forEach(function (r) { r.addEventListener('change', pintarValores); });
+    $('rb-adiant-valor').addEventListener('input', pintarValores);
     // Datas da viagem editáveis: ao mudar, recalcula os dias e o resumo/valores.
     ['rb-ida', 'rb-servico-inicio', 'rb-servico-fim', 'rb-volta'].forEach(function (id) {
       $(id).addEventListener('change', function () { recalcularDias(); pintarResumoAuto(); pintarValores(); });

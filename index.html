@@ -19,8 +19,7 @@
   <header id="header" class="oculto">
     <img src="public/logo-recortada.png" id="header-logo" alt="eCamp — voltar à tela inicial" title="Voltar à tela inicial">
     <div class="header-acoes">
-      <button type="button" class="botao-icone botao-sino oculto" id="btn-aprovacoes" title="Aprovações de logística">🔔<span id="sino-badge" class="sino-badge oculto">0</span></button>
-      <button type="button" class="botao-icone botao-sino oculto" id="btn-lembretes" title="Lembretes de serviço (ciente)">📌<span id="lembrete-badge" class="sino-badge oculto">0</span></button>
+      <button type="button" class="botao-icone botao-sino oculto" id="btn-aprovacoes" title="Pendências">🔔<span id="sino-badge" class="sino-badge oculto">0</span></button>
       <button type="button" class="botao-icone" id="btn-historico" title="Histórico de monitoramentos">🕐</button>
       <button type="button" class="botao-icone" id="btn-rascunhos" title="Rascunhos — OS iniciadas e não finalizadas (últimos 30 dias)">📝</button>
       <button type="button" class="botao-icone" id="btn-agenda" title="Agenda">📅</button>
@@ -345,6 +344,19 @@
               <input type="number" id="rb-percentual" min="1" max="100" step="1" inputmode="numeric" value="100">
             </label>
             <div id="rb-solicitado" class="rb-total"></div>
+
+            <p class="rb-pergunta">Houve adiantamento de pagamento?</p>
+            <div class="rb-radios">
+              <label class="linha-check"><input type="radio" name="rb-adiant" value="nao" checked><span>Não</span></label>
+              <label class="linha-check"><input type="radio" name="rb-adiant" value="sim"><span>Sim</span></label>
+            </div>
+            <div id="rb-adiant-campos" class="oculto">
+              <div class="grade-2">
+                <label>Data do adiantamento<input type="date" id="rb-adiant-data"></label>
+                <label>Valor do adiantamento (R$)<input type="number" id="rb-adiant-valor" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+              </div>
+            </div>
+            <div id="rb-pagar" class="rb-total oculto"></div>
           </div>
 
           <div id="rb-erro" class="alerta alerta-vermelho oculto"></div>
