@@ -1172,6 +1172,8 @@ textarea { resize: vertical; font-family: inherit; }
 }
 .apr-hero-claro { background: var(--verde-claro); border: 1px solid var(--verde); }
 .apr-hero-forte { background: #cdeed8; border: 1px solid var(--verde); }
+/* Valor final solicitado: valor no tamanho normal (só "A pagar" fica grande). */
+.apr-hero-claro .apr-hero-valor { font-size: 1rem; font-weight: 700; }
 /* Card "Detalhamento do cálculo" */
 .apr-detalhe {
   display: flex;
