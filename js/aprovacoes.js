@@ -299,9 +299,12 @@ EC.aprovacoes = (function () {
     // Preços unitários usados (do snapshot valores_usados) — só dos itens cobrados.
     var vu = s.valores_usados || {};
     var ehFreela = s.solicitante_tipo === 'freelancer';
-    var diasViagem = (Number(s.dias_servico) || 0) + (Number(s.dias_deslocamento) || 0);
-    if (Number(s.valor_mao_obra) > 0 && diasViagem > 0) {
-      bullets.push('Mão de obra: ' + moeda(Math.round(Number(s.valor_mao_obra) / diasViagem * 100) / 100) + '/dia');
+    // Mão de obra/dia = valor ÷ dias de viagem (dias distintos totais) — é o
+    // mesmo multiplicador que o servidor usa na diária (reflete a exceção do
+    // técnico). dias_servico gravado == dias_viagem; somar deslocamento inflava.
+    var diasMaoObra = Number(s.dias_viagem) || Number(s.dias_servico) || 0;
+    if (Number(s.valor_mao_obra) > 0 && diasMaoObra > 0) {
+      bullets.push('Mão de obra: ' + moeda(Math.round(Number(s.valor_mao_obra) / diasMaoObra * 100) / 100) + '/dia');
     }
     if (Number(s.valor_hospedagem) > 0 && vu.hospedagem_dia != null) {
       bullets.push('Hospedagem: ' + moeda(vu.hospedagem_dia) + '/diária');
