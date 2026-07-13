@@ -764,18 +764,34 @@ EC.reembolso = (function () {
       alimentacao: alimSub
     };
 
+    // Valor final de cada item = o proposto no ajuste (se pediu) OU o calculado.
+    function valorFinalItem(chave) {
+      var novo = valorProposto(chave);
+      return novo != null ? novo : calc[chave];
+    }
+
     ITENS.forEach(function (it) {
-      $('rb-val-' + it.chave).textContent = moedaBR(calc[it.chave]);
-      $('rb-sub-' + it.chave).innerHTML = sub[it.chave] || '';
+      var novo = valorProposto(it.chave);
+      // Ao pedir ajuste, a linha já mostra o NOVO valor (o calculado é ignorado).
+      $('rb-val-' + it.chave).textContent = moedaBR(novo != null ? novo : calc[it.chave]);
+      $('rb-sub-' + it.chave).innerHTML = (novo != null ? '↺ valor do ajuste (substitui ' + moedaBR(calc[it.chave]) + ')<br>' : '') + (sub[it.chave] || '');
       var esconder = (it.chave === 'aluguel' && veiculo() !== 'proprio') ||
                      (it.chave === 'transporte' && calc.transporte <= 0);
       $('rb-item-' + it.chave).classList.toggle('oculto', esconder);
     });
 
     var totalFinal = totalComAjustes(calc);
+    // Resumo (pequeno) dos componentes que somam o total — inclui pedágio.
+    var comps = [];
+    ITENS.forEach(function (it) {
+      if ($('rb-item-' + it.chave).classList.contains('oculto')) return;
+      var val = valorFinalItem(it.chave);
+      if (val > 0) comps.push(it.rotulo + ': ' + moedaBR(val));
+    });
+    if (calc.pedagio > 0) comps.push('🛣️ Pedágio: ' + moedaBR(calc.pedagio));
     $('rb-total').innerHTML = 'Valor total da logística: <strong>' + moedaBR(totalFinal) + '</strong>' +
-      '<span class="rb-total-sub">inclui pedágio de ' + moedaBR(calc.pedagio) +
-      (totalFinal !== calc.total ? ' · com os valores propostos nos ajustes' : '') + '</span>';
+      '<span class="rb-total-sub">' + comps.join('<br>') +
+      (totalFinal !== calc.total ? '<br><em>(com os valores propostos nos ajustes)</em>' : '') + '</span>';
 
     // Nota de disponível (quando a campanha já teve parcelas)
     var info = $('rb-pct-info');
@@ -793,7 +809,8 @@ EC.reembolso = (function () {
 
     var pct = percentualVal();
     var solicitado = Math.round(totalFinal * pct) / 100;
-    $('rb-solicitado').innerHTML = 'Você está solicitando <strong>' + pct + '% = ' + moedaBR(solicitado) + '</strong>';
+    var paraDesig = (tecSel && tecSel.nome) ? ' para <strong>' + tecSel.nome + '</strong>' : '';
+    $('rb-solicitado').innerHTML = 'Você está solicitando <strong>' + pct + '% = ' + moedaBR(solicitado) + '</strong>' + paraDesig;
   }
 
   function pintarTeto() {
