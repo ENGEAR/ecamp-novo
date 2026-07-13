@@ -276,6 +276,7 @@ EC.aprovacoes = (function () {
           '<div class="apr-hero-cab"><div class="apr-hero-titulo">A pagar (após adiantamento)</div><span class="apr-hero-tag">⭐ Valor a receber</span></div>' +
           '<div class="apr-hero-valor">' + moeda(Math.round((solicitado - adiant) * 100) / 100) + '</div>' +
           '<div class="apr-hero-sub">Solicitado ' + moeda(solicitado) + ' − adiantamento ' + moeda(adiant) + (s.adiantamento_data ? ' (' + dataBR(s.adiantamento_data) + ')' : '') + '</div>' +
+          (s.designado ? '<div class="apr-hero-desig">' + esc(s.designado) + '</div>' : '') +
         '</div></div>'
       : '';
 

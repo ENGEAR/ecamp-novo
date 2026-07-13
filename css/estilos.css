@@ -1170,10 +1170,15 @@ textarea { resize: vertical; font-family: inherit; }
   border: 1px solid var(--verde); border-radius: 999px;
   padding: 3px 9px;
 }
-.apr-hero-claro { background: var(--verde-claro); border: 1px solid var(--verde); }
-.apr-hero-forte { background: #cdeed8; border: 1px solid var(--verde); }
-/* Valor final solicitado: valor no tamanho normal (só "A pagar" fica grande). */
+/* Valor final solicitado: caixa branca e neutra (só "A pagar" fica verde). */
+.apr-hero-claro { background: #fff; border: 1px solid var(--cinza-borda); }
+.apr-hero-claro .apr-hero-icone { background: var(--azul-claro); color: var(--azul-escuro); }
+.apr-hero-claro .apr-hero-titulo { color: var(--cinza-texto); }
+/* valor no tamanho normal (só "A pagar" fica grande). */
 .apr-hero-claro .apr-hero-valor { font-size: 1rem; font-weight: 700; }
+.apr-hero-forte { background: #cdeed8; border: 1px solid var(--verde); }
+/* Nome do designado dentro da caixa "A pagar", em negrito cinza. */
+.apr-hero-desig { margin-top: 4px; font-weight: 700; color: var(--cinza-texto); font-size: 0.82rem; }
 /* Card "Detalhamento do cálculo" */
 .apr-detalhe {
   display: flex;
