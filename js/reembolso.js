@@ -410,9 +410,13 @@ EC.reembolso = (function () {
     // Hospedagem: R$/diária × noites fora (chegada − saída). Mesmo dia → 0.
     var hospedagem = r2(Number(v.hospedagem_dia) * diarias);
     // Mão de obra: R$/dia × dias de serviço (total). CLT só se a viagem tem ≥ 2 dias.
+    // Diária de exceção do designado (tecSel.diaria) substitui a padrão do vínculo.
+    var diariaExc = (tecSel && Number(tecSel.diaria) > 0) ? Number(tecSel.diaria) : 0;
+    var diariaFree = diariaExc || Number(v.diaria_freelancer);
+    var diariaClt = diariaExc || Number(v.diaria_clt);
     var maoObra = tecSel.tipo === 'freelancer'
-      ? r2(Number(v.diaria_freelancer) * diasViagem)
-      : (diasViagem >= 2 ? r2(Number(v.diaria_clt) * diasViagem) : 0);
+      ? r2(diariaFree * diasViagem)
+      : (diasViagem >= 2 ? r2(diariaClt * diasViagem) : 0);
     // Alimentação (espelho do servidor). Jantar por dia (freela e CLT). Almoço:
     // freelancer sempre padrão; CLT = dia útil (13) / fim de semana (padrão).
     // Lanche por dia de deslocamento. EXCEÇÃO (1 serviço / 0 deslocamento): 1
@@ -641,7 +645,7 @@ EC.reembolso = (function () {
     if (!campSel) return;
     var nome = $('rb-designado').value;
     var t = campSel.tecnicos.filter(function (x) { return x.nome === nome; })[0];
-    if (t) tecSel = { nome: t.nome, tipo: t.tipo };
+    if (t) tecSel = { nome: t.nome, tipo: t.tipo, diaria: Number(t.diaria) > 0 ? Number(t.diaria) : 0 };
   }
 
   // Disponível = 100% − o que ESTE designado já solicitou na campanha (cada
@@ -793,11 +797,15 @@ EC.reembolso = (function () {
       aluguel: moedaBR(v.aluguel_veiculo_dia) + '/dia × ' + dViagem + ' dia(s) de viagem',
       hospedagem: moedaBR(v.hospedagem_dia) + '/diária × ' + calc.diarias + ' diária(s) — da saída à chegada' +
         (calc.diarias === 0 ? ' (foi e voltou no mesmo dia: sem hospedagem)' : ''),
-      mao_obra: tecSel.tipo === 'freelancer'
-        ? moedaBR(v.diaria_freelancer) + '/dia × ' + dViagem + ' dia(s) de serviço'
-        : (dViagem >= 2
-            ? moedaBR(v.diaria_clt) + '/dia × ' + dViagem + ' dia(s) de serviço'
-            : 'CLT com 1 dia de viagem não recebe diária'),
+      mao_obra: (function () {
+        var dExc = (tecSel && Number(tecSel.diaria) > 0) ? Number(tecSel.diaria) : 0;
+        var sufixo = dExc ? ' (diária própria do ' + tecSel.nome + ')' : '';
+        return tecSel.tipo === 'freelancer'
+          ? moedaBR(dExc || v.diaria_freelancer) + '/dia × ' + dViagem + ' dia(s) de serviço' + sufixo
+          : (dViagem >= 2
+              ? moedaBR(dExc || v.diaria_clt) + '/dia × ' + dViagem + ' dia(s) de serviço' + sufixo
+              : 'CLT com 1 dia de viagem não recebe diária');
+      })(),
       alimentacao: alimSub
     };
 
