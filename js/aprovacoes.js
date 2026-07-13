@@ -64,19 +64,20 @@ EC.aprovacoes = (function () {
     } catch (e) { return 0; }
   }
 
+  // Sino ÚNICO (compartilhado com Lembretes de serviço, agenda.js): cada
+  // módulo só reporta a própria contagem; quem desenha/mostra o botão é o app.js.
   async function atualizarBadge() {
-    var botao = $('btn-aprovacoes');
-    if (!botao) return;
+    if (!(EC.app && EC.app.atualizarSino)) return;
     await garantirPapeis();
-    // O sino aparece p/ quem aprova (Logística) OU quem paga (Financeiro).
-    botao.classList.toggle('oculto', !podeAlgumaAcao());
-    if (!podeAlgumaAcao()) return;
+    // O sino aparece p/ quem aprova (Logística) OU quem paga (Financeiro),
+    // mesmo com 0 pendências — é o convite pra checar.
+    var mostrar = podeAlgumaAcao();
     var n = 0;
-    if (ehLogistica()) n += await contarStatus('aguardando_logistica');
-    if (ehFinanceiro()) n += await contarStatus('aguardando_pagamento');
-    var badge = $('sino-badge');
-    if (n > 0) { badge.textContent = n > 99 ? '99+' : String(n); badge.classList.remove('oculto'); }
-    else badge.classList.add('oculto');
+    if (mostrar) {
+      if (ehLogistica()) n += await contarStatus('aguardando_logistica');
+      if (ehFinanceiro()) n += await contarStatus('aguardando_pagamento');
+    }
+    EC.app.atualizarSino('aprovacoes', n, mostrar);
   }
 
   /* ============ Lista de pendentes ============ */
@@ -105,6 +106,23 @@ EC.aprovacoes = (function () {
     if (q.error) throw q.error;
     return q.data || [];
   }
+
+  // Itens pendentes p/ o sino ÚNICO (app.js) mostrar a lista já aberta quando
+  // há mais de uma fonte de pendência (Aprovações + Lembretes) ao mesmo tempo.
+  async function obterPendentesParaSino() {
+    var cli = sb();
+    if (!cli) return [];
+    try {
+      var itens = [];
+      if (ehLogistica()) itens = itens.concat(await buscarStatus(cli, 'aguardando_logistica'));
+      if (ehFinanceiro()) itens = itens.concat(await buscarStatus(cli, 'aguardando_pagamento'));
+      return itens;
+    } catch (e) { return []; }
+  }
+
+  // Pula direto pro detalhe (usado quando se chega a partir do sino combinado,
+  // sem passar pela tela de lista antes).
+  function abrirItemDireto(id) { iniciar(); abrirDetalhe(id); }
 
   async function pintarLista() {
     var area = $('apr-lista');
@@ -142,33 +160,53 @@ EC.aprovacoes = (function () {
         var c = camps.filter(function (x) { return Number(x.numero) === Number(s.campanha_numero); })[0] || camps[Number(s.campanha_numero) - 1];
         previsto = (c && Number(c.logistica)) || 0;
       }
-      // já aprovado/pago nesta OS (não conta a própria solicitação)
+      // já aprovado/pago nesta OS — SOMA todos os designados da mesma OS,
+      // quebrando o total por técnico (não conta a própria solicitação, que
+      // ainda está 'aguardando_logistica').
       var ap = await cli.from('logistica_solicitacoes')
-        .select('valor_solicitado, valor_total, status')
+        .select('designado, valor_solicitado, valor_total, status')
         .eq('os', s.os)
         .in('status', ['aguardando_pagamento', 'pago']);
-      var jaAprovado = (ap.data || []).reduce(function (t, r) {
-        return t + Number(r.valor_solicitado != null ? r.valor_solicitado : (r.valor_total || 0));
-      }, 0);
+      var porDesignado = {};
+      var jaAprovado = 0;
+      (ap.data || []).forEach(function (r) {
+        var val = Number(r.valor_solicitado != null ? r.valor_solicitado : (r.valor_total || 0));
+        var nome = (r.designado || '').trim() || '—';
+        porDesignado[nome] = (porDesignado[nome] || 0) + val;
+        jaAprovado += val;
+      });
       var esta = Number(s.valor_solicitado != null ? s.valor_solicitado : (s.valor_total || 0));
-      return { previsto: previsto, jaAprovado: jaAprovado, esta: esta };
+      return { previsto: previsto, jaAprovado: jaAprovado, esta: esta, porDesignado: porDesignado, designadoAtual: (s.designado || '').trim() };
     } catch (e) { return null; }
+  }
+
+  // Linhas "Já aprovado para <técnico>: R$" — uma por designado da OS.
+  function linhasPorDesignado(o) {
+    var porD = o.porDesignado || {};
+    var nomes = Object.keys(porD).sort();
+    if (!nomes.length) return '  <div class="apr-orc-linha">Já aprovado nesta OS: ' + moeda(0) + ' (nada aprovado ainda).</div>';
+    return nomes.map(function (n) {
+      return '  <div class="apr-orc-linha">Já aprovado para ' + esc(n) + ': ' + moeda(porD[n]) + '</div>';
+    }).join('');
   }
 
   function renderOrcamento(o) {
     if (!o || !(o.previsto > 0)) {
-      return '<div class="apr-orc apr-orc-cinza">💰 Logística prevista da campanha: não informada na OS.<br>Já aprovado nesta OS: ' + moeda(o ? o.jaAprovado : 0) + '.</div>';
+      return '<div class="apr-orc apr-orc-cinza">💰 Logística prevista da campanha: não informada na OS.' +
+        linhasPorDesignado(o || {}) + '</div>';
     }
     var totalApos = o.jaAprovado + o.esta;
     var pct = Math.round((totalApos / o.previsto) * 100);
     var saldo = o.previsto - totalApos;
     var cls = pct <= 80 ? 'apr-orc-verde' : (pct <= 100 ? 'apr-orc-amarelo' : 'apr-orc-vermelho');
     var situacao = pct <= 80 ? 'Dentro do orçamento' : (pct <= 100 ? 'Atenção: perto do limite' : '⚠️ Orçamento excedido');
+    var estaLabel = o.designadoAtual ? 'Esta solicitação (' + esc(o.designadoAtual) + ')' : 'Esta solicitação';
     return (
       '<div class="apr-orc ' + cls + '">' +
       '  <div class="apr-orc-topo"><strong>' + situacao + '</strong><span>' + pct + '%</span></div>' +
-      '  <div class="apr-orc-linha">Prevista: ' + moeda(o.previsto) + ' · Já aprovado: ' + moeda(o.jaAprovado) + '</div>' +
-      '  <div class="apr-orc-linha">Esta solicitação: ' + moeda(o.esta) + ' · Total após: ' + moeda(totalApos) + '</div>' +
+      '  <div class="apr-orc-linha">Prevista: ' + moeda(o.previsto) + '</div>' +
+      linhasPorDesignado(o) +
+      '  <div class="apr-orc-linha">' + estaLabel + ': ' + moeda(o.esta) + ' · Total após: ' + moeda(totalApos) + '</div>' +
       '  <div class="apr-orc-linha">Saldo após aprovar: ' + moeda(saldo) + '</div>' +
       '</div>'
     );
@@ -250,7 +288,8 @@ EC.aprovacoes = (function () {
 
     return (
       '<div class="apr-cab"><span class="os-numero">OS ' + esc(s.os) + '</span>' + (s.cliente ? ' · ' + esc(s.cliente) : '') + '</div>' +
-      renderOrcamento(orcAtual) +
+      // Resumo orçamentário só para a Logística (o Financeiro não vê).
+      (ehLogistica() ? renderOrcamento(orcAtual) : '') +
       '<p class="dg-secao">Quem</p>' +
       '<div class="rb-resumo-auto">' +
         linhaInfo('Solicitante (preencheu)', s.solicitante || '—') +
@@ -597,5 +636,8 @@ EC.aprovacoes = (function () {
     atualizarBadge();
   }
 
-  return { abrir: abrir, atualizarBadge: atualizarBadge };
+  return {
+    abrir: abrir, atualizarBadge: atualizarBadge,
+    obterPendentesParaSino: obterPendentesParaSino, cartaoHtml: cartao, abrirItemDireto: abrirItemDireto
+  };
 })();

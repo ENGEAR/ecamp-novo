@@ -22,7 +22,7 @@
   // lugar nenhum). Opt-in explícito: só grava se a pessoa marcar a caixinha.
   const CHAVE_CREDENCIAIS = 'sessao:credenciais';
   // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
-  const VERSAO_APP = '0.52.1';
+  const VERSAO_APP = '0.57.0';
 
   function $(id) { return document.getElementById(id); }
 
@@ -164,7 +164,7 @@
     atualizarBarraPendencias();
     // Sino de aprovações: aparece só para quem tem papel logística/admin.
     if (EC.aprovacoes && EC.aprovacoes.atualizarBadge) EC.aprovacoes.atualizarBadge();
-    // Lembrete de serviço agendado: aparece só p/ quem é técnico (vínculo em Usuários).
+    // Lembrete de serviço agendado: aparece automaticamente p/ quem é técnico (casado pelo e-mail).
     if (EC.agenda && EC.agenda.carregarLembretes) EC.agenda.carregarLembretes();
     mostrarTela('tela-acao');
   }
@@ -433,9 +433,72 @@
     else abrirOverlay('📚 Biblioteca', '<p class="overlay-vazio">Biblioteca indisponível.</p>');
   });
 
-  $('btn-aprovacoes').addEventListener('click', function () {
-    if (EC.aprovacoes && EC.aprovacoes.abrir) EC.aprovacoes.abrir();
-  });
+  /* ============ Sino único (Aprovações + Lembretes de serviço) ============ */
+  // Cada módulo (aprovacoes.js, agenda.js) reporta sua própria contagem aqui —
+  // um só sino, um só total. Se só UMA fonte tiver conteúdo, vai direto pra ela
+  // (sem etapa no meio, igual sempre foi); com as duas ao mesmo tempo, mostra
+  // as DUAS listas JÁ ABERTAS no mesmo lugar — sem precisar escolher primeiro.
+  const sinoContagens = { aprovacoes: 0, lembretes: 0 };
+  const sinoMostrarSempre = { aprovacoes: false }; // aprovações aparece p/ quem tem o papel, mesmo com 0
+  function atualizarSino(chave, n, mostrarSempre) {
+    sinoContagens[chave] = n;
+    if (mostrarSempre !== undefined) sinoMostrarSempre[chave] = mostrarSempre;
+    const total = sinoContagens.aprovacoes + sinoContagens.lembretes;
+    const algumaFonteRelevante = sinoMostrarSempre.aprovacoes || total > 0;
+    const botao = $('btn-aprovacoes');
+    botao.classList.toggle('oculto', !algumaFonteRelevante);
+    const badge = $('sino-badge');
+    if (total > 0) { badge.textContent = total > 99 ? '99+' : String(total); badge.classList.remove('oculto'); }
+    else badge.classList.add('oculto');
+  }
+
+  async function abrirMenuSino() {
+    const querAprov = sinoMostrarSempre.aprovacoes;
+    const querLemb = sinoContagens.lembretes > 0;
+    const fontes = (querAprov ? 1 : 0) + (querLemb ? 1 : 0);
+    if (fontes === 0) return;
+    if (fontes === 1) {
+      if (querAprov && EC.aprovacoes && EC.aprovacoes.abrir) EC.aprovacoes.abrir();
+      else if (querLemb && EC.agenda && EC.agenda.abrirVistos) EC.agenda.abrirVistos();
+      return;
+    }
+
+    // As duas fontes têm conteúdo ao mesmo tempo: mostra as listas de verdade,
+    // já abertas — sem obrigar a escolher uma categoria antes de ver o quê.
+    abrirOverlay('🔔 Pendências', '<p class="texto-apoio">Carregando…</p>');
+    const partes = [];
+    if (querAprov && EC.aprovacoes && EC.aprovacoes.obterPendentesParaSino) {
+      const pend = await EC.aprovacoes.obterPendentesParaSino();
+      // Separa por status: aprovar (logística) vs pagar (financeiro) — cada um
+      // no seu título, pra não misturar "aguardando pagamento" com aprovação.
+      const aAprovar = pend.filter(function (s) { return s.status === 'aguardando_logistica'; });
+      const aPagar = pend.filter(function (s) { return s.status === 'aguardando_pagamento'; });
+      const listar = function (itens) { return itens.map(function (s) { return EC.aprovacoes.cartaoHtml(s); }).join(''); };
+      if (aAprovar.length) {
+        partes.push('<p class="dg-secao">🔧 Aprovações de logística (' + aAprovar.length + ')</p>' + listar(aAprovar));
+      }
+      if (aPagar.length) {
+        partes.push('<p class="dg-secao">💰 Pendências de Pagamento (' + aPagar.length + ')</p>' + listar(aPagar));
+      }
+      if (!aAprovar.length && !aPagar.length) {
+        partes.push('<p class="dg-secao">🔧 Aprovações de logística (0)</p><p class="texto-apoio">Nada pendente.</p>');
+      }
+    }
+    if (querLemb && EC.agenda && EC.agenda.obterVistosParaSino) {
+      partes.push('<p class="dg-secao">📅 Lembretes de serviço (' + sinoContagens.lembretes + ')</p>' +
+        '<p class="texto-apoio">Você tem os seguintes serviços agendados:</p>' + EC.agenda.obterVistosParaSino());
+    }
+    $('overlay-conteudo').innerHTML = partes.join('');
+    document.querySelectorAll('#overlay-conteudo .apr-cartao[data-id]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        fecharOverlay();
+        if (EC.aprovacoes && EC.aprovacoes.abrirItemDireto) EC.aprovacoes.abrirItemDireto(el.dataset.id);
+      });
+    });
+    if (querLemb && EC.agenda && EC.agenda.ligarCliqueVaiAgenda) EC.agenda.ligarCliqueVaiAgenda();
+  }
+
+  $('btn-aprovacoes').addEventListener('click', abrirMenuSino);
 
   /* ============ Barra de pendências offline ============ */
   async function atualizarBarraPendencias() {
@@ -487,6 +550,7 @@
   EC.app = {
     mostrarTela: mostrarTela,
     mostrarToast: mostrarToast,
+    atualizarSino: atualizarSino,
     abrirOverlay: abrirOverlay,
     fecharOverlay: fecharOverlay
   };

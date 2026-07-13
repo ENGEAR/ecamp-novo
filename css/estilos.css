@@ -1150,3 +1150,9 @@ textarea { resize: vertical; font-family: inherit; }
 .ecagd-lembrete-linha1 span { color: var(--azul-escuro); font-weight: 700; white-space: nowrap; }
 .ecagd-lembrete-sub { color: var(--cinza-texto); font-size: 0.82rem; margin-top: 2px; }
 .ecagd-lembrete-offline { color: #8a6d00; font-size: 0.78rem; margin-bottom: 6px; }
+.ecagd-lembrete-ciente {
+  display: inline-block; margin-top: 8px; border: none; border-radius: 8px;
+  padding: 6px 12px; font-size: 0.8rem; font-weight: 700; color: #fff;
+  background: var(--verde); cursor: pointer;
+}
+.ecagd-lembrete-ciente:active { opacity: 0.85; }

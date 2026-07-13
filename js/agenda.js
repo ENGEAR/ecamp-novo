@@ -29,6 +29,8 @@
   var CHAVE_CACHE = 'agenda:cache';
   var CHAVE_MEU_TEC = 'agenda:meuTecnico';
   var CHAVE_LEMBRETES_CACHE = 'agenda:lembretes:cache';
+  var CHAVE_VISTOS = 'agenda:lembretes:vistos';
+  var lembretesAtivos = []; // último cálculo, p/ marcar "Ciente" e abrir o 🔔 sem refazer a consulta
 
   var STATUS = {
     prog: { label: 'Programado', cor: '#1976d2', fundo: 'rgba(25,118,210,0.10)' },
@@ -769,17 +771,15 @@
   }
 
   /* ============ Lembrete de serviço agendado (tela inicial) ============ */
-  // Descobre qual técnico da Agenda corresponde à conta logada (vínculo
-  // definido pelo admin em Usuários → coluna "Técnico (e-CAMP)").
+  // Descobre qual técnico da Agenda corresponde à conta logada — automático,
+  // pelo e-mail (usuarios.email = rh_colaboradores.email → tecnico_id). Não
+  // exige nenhum passo manual do admin; função no banco: meu_tecnico_nome().
   async function obterMeuTecnico() {
     var cli = sb();
     if (!cli) return EC.storage.ler(CHAVE_MEU_TEC) || null;
     try {
-      var s = await cli.auth.getSession();
-      var user = s && s.data && s.data.session ? s.data.session.user : null;
-      if (!user) return null;
-      var q = await cli.from('usuarios').select('tecnico:tecnico_id(nome)').eq('id', user.id).single();
-      var nome = q.data && q.data.tecnico ? q.data.tecnico.nome : null;
+      var q = await cli.rpc('meu_tecnico_nome');
+      var nome = q.data || null;
       EC.storage.salvar(CHAVE_MEU_TEC, nome);
       return nome;
     } catch (e) {
@@ -801,9 +801,10 @@
       if (chave) { (porChave[chave] = porChave[chave] || []).push(e); }
       else semChave.push(e);
     });
+    // "id" estável por grupo — usado p/ lembrar quais já foram marcados "Ciente".
     var grupos = Object.keys(porChave).map(function (k) {
       var evs = porChave[k], datas = evs.map(function (e) { return e.data; }).sort();
-      return { empresa: evs[0].empresa, cidade: evs[0].cidade, servico: evs[0].servico, tipo: evs[0].tipo, os: evs[0].os, min: datas[0], max: datas[datas.length - 1] };
+      return { id: k, empresa: evs[0].empresa, cidade: evs[0].cidade, servico: evs[0].servico, tipo: evs[0].tipo, os: evs[0].os, min: datas[0], max: datas[datas.length - 1] };
     });
     var porGrupoSemChave = {};
     semChave.forEach(function (e) {
@@ -815,10 +816,83 @@
       var atual = null;
       evs.forEach(function (e) {
         if (atual && diffDias(atual.max, e.data) <= 1) { atual.max = e.data; }
-        else { atual = { empresa: e.empresa, cidade: e.cidade, servico: e.servico, tipo: e.tipo, os: e.os, min: e.data, max: e.data }; grupos.push(atual); }
+        else { atual = { id: 'manual:' + k2 + ':' + e.data, empresa: e.empresa, cidade: e.cidade, servico: e.servico, tipo: e.tipo, os: e.os, min: e.data, max: e.data }; grupos.push(atual); }
       });
     });
     return grupos;
+  }
+
+  /* ============ "Ciente" — move o lembrete p/ o 🔔 no topo ============ */
+  function lerVistos() {
+    var v = EC.storage.ler(CHAVE_VISTOS);
+    return Array.isArray(v) ? v : [];
+  }
+  function salvarVistos(lista) { EC.storage.salvar(CHAVE_VISTOS, lista); }
+  // Descarta "vistos" de grupos que não existem mais (expiraram/foram cancelados)
+  // — evita a lista crescer pra sempre. Devolve os ids ainda válidos.
+  function podarVistos(grupos) {
+    var idsAtuais = {};
+    grupos.forEach(function (g) { idsAtuais[g.id] = true; });
+    var vistos = lerVistos().filter(function (id) { return idsAtuais[id]; });
+    salvarVistos(vistos);
+    return vistos;
+  }
+
+  // Sino ÚNICO (compartilhado com Aprovações, app.js): só reporta a própria
+  // contagem — quem desenha/mostra o botão é o app.js.
+  function atualizarBotaoLembretes(vistosGrupos) {
+    if (EC.app && EC.app.atualizarSino) EC.app.atualizarSino('lembretes', vistosGrupos.length);
+  }
+
+  // Reparte lembretesAtivos em "novos" (tela inicial) e "cientes" (🔔), e redesenha
+  // os dois — sem precisar buscar de novo no banco.
+  function aplicarParticaoLembretes(offline) {
+    var vistosIds = podarVistos(lembretesAtivos);
+    var naoVistos = lembretesAtivos.filter(function (g) { return vistosIds.indexOf(g.id) === -1; });
+    var vistosGrupos = lembretesAtivos.filter(function (g) { return vistosIds.indexOf(g.id) !== -1; });
+    renderLembretes(naoVistos, !!offline);
+    atualizarBotaoLembretes(vistosGrupos);
+  }
+
+  function marcarCiente(id) {
+    var vistos = lerVistos();
+    if (vistos.indexOf(id) === -1) { vistos.push(id); salvarVistos(vistos); }
+    aplicarParticaoLembretes(false);
+    if (EC.app && EC.app.mostrarToast) EC.app.mostrarToast('✅ Ciente — foi para 🔔 no topo.');
+  }
+
+  // HTML dos lembretes já marcados "Ciente" — usado tanto na tela dedicada
+  // (abrirVistos) quanto embutido no sino combinado (app.js, quando há mais de
+  // uma fonte de pendência ao mesmo tempo). Cada item é clicável e leva à Agenda.
+  function htmlVistos() {
+    var vistosIds = lerVistos();
+    var vistosGrupos = lembretesAtivos.filter(function (g) { return vistosIds.indexOf(g.id) !== -1; });
+    return vistosGrupos.length
+      ? vistosGrupos.map(function (g) {
+          var ferias = g.tipo === 'ferias';
+          return '<div class="overlay-item overlay-item-clicavel lembrete-ir-agenda">' +
+            '<b>' + (ferias ? '🏖 Férias' : esc(g.empresa)) + '</b> — ' + periodoCurto(g.min, g.max) +
+            (!ferias ? '<br><small>' + esc([g.cidade, g.tipo === 'deslocamento' ? '🚗 Deslocamento' : g.servico].filter(Boolean).join(' · ')) + (g.os ? ' · ' + esc(g.os) : '') + '</small>' : '') +
+          '</div>';
+        }).join('')
+      : '<p class="overlay-vazio">Nada por aqui.</p>';
+  }
+
+  // Abre a lista dos lembretes já marcados "Ciente" (tocando no 🔔 do topo).
+  // Tocar num item fecha a lista e leva direto à Agenda.
+  function abrirVistos() {
+    EC.app.abrirOverlay('🔔 Lembretes (ciente)',
+      '<p class="texto-apoio"><b>Você tem os seguintes serviços agendados:</b></p>' + htmlVistos() +
+      '<p class="texto-apoio" style="margin-top:8px">Some sozinho no dia seguinte ao fim do serviço.</p>');
+    ligarCliqueVaiAgenda();
+  }
+
+  // Tocar em qualquer item de lembrete (na lista dedicada ou dentro do sino
+  // combinado) fecha o que estiver aberto e leva direto à Agenda.
+  function ligarCliqueVaiAgenda() {
+    document.querySelectorAll('.lembrete-ir-agenda').forEach(function (el) {
+      el.addEventListener('click', function () { EC.app.fecharOverlay(); abrir(); });
+    });
   }
 
   function periodoCurto(min, max) {
@@ -837,6 +911,7 @@
       return '<div class="ecagd-lembrete-item">' +
         '<div class="ecagd-lembrete-linha1"><b>' + (ferias ? '🏖 Férias' : esc(g.empresa)) + '</b><span>' + periodoCurto(g.min, g.max) + '</span></div>' +
         (!ferias ? '<div class="ecagd-lembrete-sub">' + esc([g.cidade, g.tipo === 'deslocamento' ? '🚗 Deslocamento' : g.servico].filter(Boolean).join(' · ')) + (g.os ? ' · ' + esc(g.os) : '') + '</div>' : '') +
+        '<button type="button" class="ecagd-lembrete-ciente" data-id="' + esc(g.id) + '">✓ Ciente</button>' +
       '</div>';
     }).join('');
     area.innerHTML = '<div class="ecagd-lembrete">' +
@@ -847,39 +922,54 @@
     '</div>';
     var btn = $('lembrete-ver-agenda');
     if (btn) btn.addEventListener('click', abrir);
+    Array.prototype.forEach.call(area.querySelectorAll('.ecagd-lembrete-ciente'), function (b) {
+      b.addEventListener('click', function () { marcarCiente(b.getAttribute('data-id')); });
+    });
   }
 
   async function carregarLembretes() {
     var nome = await obterMeuTecnico();
-    if (!nome) { var area = $('lembrete-area'); if (area) area.innerHTML = ''; return; }
+    if (!nome) {
+      var area = $('lembrete-area'); if (area) area.innerHTML = '';
+      if (EC.app && EC.app.atualizarSino) EC.app.atualizarSino('lembretes', 0);
+      return;
+    }
     var hoje = iso(new Date());
     var cli = sb();
     if (!cli) {
       var cache = EC.storage.ler(CHAVE_LEMBRETES_CACHE);
-      renderLembretes(cache ? cache.grupos.filter(function (g) { return g.max >= hoje; }) : [], true);
+      lembretesAtivos = cache ? cache.grupos.filter(function (g) { return g.max >= hoje; }) : [];
+      aplicarParticaoLembretes(true);
       return;
     }
     try {
+      // NÃO usar .contains('tecnicos', [{nome:...}]) aqui: o PostgREST quebra
+      // ("invalid input syntax for type json") quando o nome tem apóstrofo
+      // (ex.: "Sant'Ana") — descoberto 12/07/2026. Filtra em JS, igual ao
+      // resto da Agenda (carregarDados), que nunca usou containment por isso.
       var q = await cli.from('agendamentos')
-        .select('empresa, cidade, servico, data, tipo, campanha_numero, proposta_id, ordem_servico_id, proposta:proposta_id(ano, seq, codigo_origem), ordem_servico:ordem_servico_id(numero)')
-        .contains('tecnicos', [{ nome: nome }])
+        .select('empresa, cidade, servico, data, tipo, status, tecnicos, campanha_numero, proposta_id, ordem_servico_id, proposta:proposta_id(ano, seq, codigo_origem), ordem_servico:ordem_servico_id(numero)')
         .neq('status', 'canc')
         .order('data');
       if (q.error) throw new Error(q.error.message);
-      var eventosLembrete = (q.data || []).map(function (a) {
-        return {
-          empresa: a.empresa || '—', cidade: a.cidade || '', servico: a.servico || '', data: a.data, tipo: a.tipo || 'servico',
-          campanha_numero: a.campanha_numero || null, proposta_id: a.proposta_id || null, ordem_servico_id: a.ordem_servico_id || null,
-          os: resolverNumeroOS(a.ordem_servico, a.proposta)
-        };
-      });
+      var eventosLembrete = (q.data || [])
+        .filter(function (a) { return (a.tecnicos || []).some(function (t) { return t.nome === nome; }); })
+        .map(function (a) {
+          return {
+            empresa: a.empresa || '—', cidade: a.cidade || '', servico: a.servico || '', data: a.data, tipo: a.tipo || 'servico',
+            campanha_numero: a.campanha_numero || null, proposta_id: a.proposta_id || null, ordem_servico_id: a.ordem_servico_id || null,
+            os: resolverNumeroOS(a.ordem_servico, a.proposta)
+          };
+        });
       var grupos = agruparEmTrabalhos(eventosLembrete);
       grupos.sort(function (a, b) { return a.min < b.min ? -1 : a.min > b.min ? 1 : 0; });
       EC.storage.salvar(CHAVE_LEMBRETES_CACHE, { em: new Date().toISOString(), grupos: grupos });
-      renderLembretes(grupos.filter(function (g) { return g.max >= hoje; }), false);
+      lembretesAtivos = grupos.filter(function (g) { return g.max >= hoje; });
+      aplicarParticaoLembretes(false);
     } catch (e) {
       var cache2 = EC.storage.ler(CHAVE_LEMBRETES_CACHE);
-      renderLembretes(cache2 ? cache2.grupos.filter(function (g) { return g.max >= hoje; }) : [], true);
+      lembretesAtivos = cache2 ? cache2.grupos.filter(function (g) { return g.max >= hoje; }) : [];
+      aplicarParticaoLembretes(true);
     }
   }
 
@@ -960,5 +1050,5 @@
   }
 
   window.EC = window.EC || {};
-  EC.agenda = { abrir: abrir, _ligar: ligar, carregarLembretes: carregarLembretes };
+  EC.agenda = { abrir: abrir, _ligar: ligar, carregarLembretes: carregarLembretes, abrirVistos: abrirVistos, obterVistosParaSino: htmlVistos, ligarCliqueVaiAgenda: ligarCliqueVaiAgenda };
 })();
