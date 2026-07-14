@@ -17,6 +17,7 @@ EC.sync = (function () {
   var ROTA_FOTO = BASE + '/foto';
   var ROTA_PDF = BASE + '/pdf';
   var ROTA_DESCARTAR = BASE + '/descartar';
+  var BASE_BIBLIOTECA = 'https://engear-sgp.vercel.app/api/biblioteca';
   var TOKEN = 'f8b17592b0130d95047d37865a14b31570c6381509ccc066';
 
   function toast(msg) { if (EC.app && EC.app.mostrarToast) EC.app.mostrarToast(msg); }
@@ -281,12 +282,40 @@ EC.sync = (function () {
   // Quando a conexão volta, tenta reenviar a fila em silêncio (e auto-limpa fantasmas).
   window.addEventListener('online', function () { sincronizarPendentes(true); });
 
+  /* ===== Biblioteca (normas/procedimentos gerenciados pelo SGP) ===== */
+
+  // Lista de documentos ativos (só metadados). Lança erro se offline/falhar.
+  async function buscarBiblioteca() {
+    var resposta = await fetch(BASE_BIBLIOTECA + '/lista', {
+      headers: { 'x-ecamp-token': TOKEN }
+    });
+    var corpo = {};
+    try { corpo = await resposta.json(); } catch (e) { /* corpo vazio */ }
+    if (!resposta.ok || !corpo.ok) throw new Error(corpo.erro || ('HTTP ' + resposta.status));
+    return corpo.documentos || [];
+  }
+
+  // Bytes do PDF de um documento → Blob. Lança erro se offline/falhar.
+  async function baixarDocumentoBiblioteca(id) {
+    var resposta = await fetch(BASE_BIBLIOTECA + '/arquivo?id=' + encodeURIComponent(id), {
+      headers: { 'x-ecamp-token': TOKEN }
+    });
+    if (!resposta.ok) {
+      var corpo = {};
+      try { corpo = await resposta.json(); } catch (e) { /* não era JSON */ }
+      throw new Error(corpo.erro || ('HTTP ' + resposta.status));
+    }
+    return resposta.blob();
+  }
+
   return {
     enviar: enviar,
     enviarPdf: enviarPdf,
     sincronizarRegistro: sincronizarRegistro,
     sincronizarRascunho: sincronizarRascunho,
     descartarRascunho: descartarRascunho,
-    sincronizarPendentes: sincronizarPendentes
+    sincronizarPendentes: sincronizarPendentes,
+    buscarBiblioteca: buscarBiblioteca,
+    baixarDocumentoBiblioteca: baixarDocumentoBiblioteca
   };
 })();

@@ -1,25 +1,33 @@
 /**
- * biblioteca.js — Biblioteca de normas e procedimentos (offline).
+ * biblioteca.js — Biblioteca de normas e procedimentos (gerenciada pelo SGP).
  *
- * Lista os documentos de `self.ECAMP_BIBLIOTECA` (js/biblioteca-dados.js). A
- * navegação é em NÍVEIS (mais fácil que uma lista comprida):
- *   1) escolhe o TIPO      → 📘 Normas  |  📗 Procedimentos
+ * A LISTA de documentos vem da API do SGP (tabela biblioteca_documentos) — é o
+ * pessoal do escritório que adiciona/troca/remove, sem atualizar o app. A lista
+ * fica guardada (localStorage) para abrir offline; cada PDF é baixado sob
+ * demanda e guardado no IndexedDB (loja 'biblioteca') → abre SEM internet.
+ *
+ * A navegação é em NÍVEIS (mais fácil que uma lista comprida):
+ *   1) escolhe o TIPO      → 📕 Legislação | 📘 Normas | 📗 Procedimentos
  *   2) escolhe a CATEGORIA → Ruído · Vibração · QAR Externo · QAR Interno ·
  *                            Opacidade · Geral
  *   3) vê os DOCUMENTOS daquela categoria (agrupados por método/norma).
  * Um "← Voltar" sobe um nível. A busca no topo, quando preenchida, mostra
  * resultados de todos os níveis de uma vez (atalho para quem já sabe o que quer).
  *
- * Os PDFs são pré-guardados pelo service worker → abrem SEM internet. Tocar num
- * documento abre o PDF numa nova aba.
+ * Tocar num documento: se já baixado, abre na hora (offline inclusive); senão
+ * baixa, guarda e abre. "Baixar todos" deixa a biblioteca inteira offline antes
+ * de ir a campo. O ✕ ao lado de um baixado apaga só a cópia do aparelho.
  *
  * Interface (EC.biblioteca): abrir()
- * Depende de: EC.app (abrirOverlay).
+ * Depende de: EC.app (abrirOverlay, mostrarToast), EC.sync (buscarBiblioteca,
+ * baixarDocumentoBiblioteca), EC.db (loja 'biblioteca'), EC.storage.
  */
 window.EC = window.EC || {};
 
 EC.biblioteca = (function () {
   'use strict';
+
+  var CHAVE_LISTA = 'biblioteca:lista'; // lista de documentos (cache p/ offline)
 
   const TIPOS = [
     { chave: 'legislacao', titulo: 'Legislação', icone: '📕' },
@@ -28,10 +36,18 @@ EC.biblioteca = (function () {
   ];
   // Nível atual da navegação. Zerado ao abrir.
   let nivel = { tipo: null, escopo: null };
+  // Estado dos documentos: lista (metadados), ids baixados e downloads em curso.
+  let lista = [];
+  let baixados = {};   // id → true (tem o PDF no IndexedDB)
+  let baixando = {};   // id → true (download em andamento)
+
+  function toast(msg) { if (EC.app && EC.app.mostrarToast) EC.app.mostrarToast(msg); }
 
   function docs() {
-    const lista = (typeof self !== 'undefined' && self.ECAMP_BIBLIOTECA) || [];
-    return Array.isArray(lista) ? lista.filter(function (d) { return d && d.arquivo && d.titulo; }) : [];
+    return Array.isArray(lista) ? lista.filter(function (d) { return d && d.id && d.titulo; }) : [];
+  }
+  function docPorId(id) {
+    return docs().filter(function (d) { return d.id === id; })[0] || null;
   }
   function escapar(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
@@ -47,6 +63,12 @@ EC.biblioteca = (function () {
     return t ? (t.icone + ' ' + t.titulo) : '';
   }
   function plural(n) { return n + ' ' + (n === 1 ? 'documento' : 'documentos'); }
+  function fmtTamanho(b) {
+    b = Number(b) || 0;
+    if (!b) return '';
+    if (b < 1048576) return Math.round(b / 1024) + ' KB';
+    return (b / 1048576).toFixed(1) + ' MB';
+  }
 
   // Categorias (escopos) em ordem alfabética.
   function ordenarEscopos(escopos) {
@@ -59,8 +81,8 @@ EC.biblioteca = (function () {
     const m = String((d && d.titulo) || '').match(/POP\s*0*(\d+)/i);
     return m ? parseInt(m[1], 10) : Infinity;
   }
-  function menorPop(lista) {
-    return lista.reduce(function (min, d) { return Math.min(min, popDe(d)); }, Infinity);
+  function menorPop(lista2) {
+    return lista2.reduce(function (min, d) { return Math.min(min, popDe(d)); }, Infinity);
   }
 
   function doTipo(chave) { return docs().filter(function (d) { return (d.tipo || '') === chave; }); }
@@ -72,13 +94,151 @@ EC.biblioteca = (function () {
     return Object.keys(set);
   }
 
-  // HTML de um documento (link que abre o PDF). `sub` opcional aparece abaixo do
-  // título (usado na busca, para mostrar tipo/escopo/método).
+  /* ---------- Lista: cache local + atualização pela API ---------- */
+
+  function carregarListaLocal() {
+    try {
+      const guardada = EC.storage && EC.storage.ler && EC.storage.ler(CHAVE_LISTA);
+      if (Array.isArray(guardada)) lista = guardada;
+    } catch (e) { /* segue com a lista vazia */ }
+  }
+
+  // Busca a lista na API e regrava o cache. Silencioso quando offline/falha
+  // (a tela segue com a última lista conhecida).
+  function atualizarLista() {
+    if (!navigator.onLine || !EC.sync || !EC.sync.buscarBiblioteca) return Promise.resolve(false);
+    return EC.sync.buscarBiblioteca().then(function (documentos) {
+      lista = documentos || [];
+      try { EC.storage.salvar(CHAVE_LISTA, lista); } catch (e) { /* cache é best-effort */ }
+      return true;
+    }).catch(function () { return false; });
+  }
+
+  // Ids com PDF já guardado no aparelho.
+  function carregarBaixados() {
+    if (!EC.db || !EC.db.disponivel()) return Promise.resolve();
+    return EC.db.keys('biblioteca').then(function (chaves) {
+      baixados = {};
+      (chaves || []).forEach(function (id) { baixados[id] = true; });
+    }).catch(function () { /* segue sem marcar baixados */ });
+  }
+
+  /* ---------- Abrir / baixar / apagar um documento ---------- */
+
+  // Abre o PDF (Blob). Tenta numa aba; se o navegador bloquear (PWA no iPhone),
+  // cai para a folha de compartilhar/baixar — mesmo caminho dos PDFs de campo.
+  function abrirBlob(blob, titulo) {
+    const nome = String(titulo || 'documento').replace(/[\\/:*?"<>|]+/g, '-') + '.pdf';
+    const url = URL.createObjectURL(blob);
+    let aba = null;
+    try { aba = window.open(url, '_blank'); } catch (e) { aba = null; }
+    if (aba) { setTimeout(function () { URL.revokeObjectURL(url); }, 60000); return; }
+    URL.revokeObjectURL(url);
+    let arquivo = null;
+    try { arquivo = new File([blob], nome, { type: 'application/pdf' }); } catch (e) { arquivo = null; }
+    if (arquivo && navigator.canShare && navigator.canShare({ files: [arquivo] }) && navigator.share) {
+      navigator.share({ files: [arquivo], title: titulo }).catch(function () { baixarComoArquivo(blob, nome); });
+      return;
+    }
+    baixarComoArquivo(blob, nome);
+  }
+  function baixarComoArquivo(blob, nome) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nome;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+
+  // Baixa o PDF de um documento e o guarda no aparelho. Devolve o Blob.
+  function baixarDocumento(d) {
+    baixando[d.id] = true;
+    return EC.sync.baixarDocumentoBiblioteca(d.id).then(function (blob) {
+      delete baixando[d.id];
+      baixados[d.id] = true;
+      return EC.db.set('biblioteca', d.id, blob).catch(function () { /* sem espaço? abre mesmo assim */ })
+        .then(function () { return blob; });
+    }).catch(function (e) {
+      delete baixando[d.id];
+      throw e;
+    });
+  }
+
+  // Toque no documento: abre o que já está no aparelho; senão baixa e abre.
+  function abrirDocumento(id) {
+    const d = docPorId(id);
+    if (!d || baixando[id]) return;
+    EC.db.get('biblioteca', id).catch(function () { return null; }).then(function (blob) {
+      if (blob) { abrirBlob(blob, d.titulo); return; }
+      if (!navigator.onLine) { toast('📡 Sem conexão — este documento ainda não foi baixado.'); return; }
+      pintar();
+      baixarDocumento(d).then(function (novo) {
+        pintar();
+        abrirBlob(novo, d.titulo);
+      }).catch(function () {
+        pintar();
+        toast('Não deu para baixar o documento. Tente de novo.');
+      });
+    });
+  }
+
+  // Apaga só a cópia offline (o documento continua na lista para baixar de novo).
+  function apagarDownload(id) {
+    const d = docPorId(id);
+    EC.db.remove('biblioteca', id).catch(function () { }).then(function () {
+      delete baixados[id];
+      pintar();
+      toast('Cópia offline apagada' + (d ? ' — "' + d.titulo + '"' : '') + '.');
+    });
+  }
+
+  // Baixa em sequência todos os que faltam (para ir a campo com tudo offline).
+  let baixandoTodos = false;
+  function baixarTodos() {
+    if (baixandoTodos) return;
+    if (!navigator.onLine) { toast('📡 Sem conexão.'); return; }
+    const faltam = docs().filter(function (d) { return !baixados[d.id]; });
+    if (!faltam.length) return;
+    baixandoTodos = true;
+    let feitos = 0, erros = 0;
+    toast('📥 Baixando ' + plural(faltam.length) + '…');
+    (function proximo(i) {
+      if (i >= faltam.length) {
+        baixandoTodos = false;
+        pintar();
+        toast(erros ? ('✓ ' + feitos + ' baixado(s), ' + erros + ' com erro — tente de novo.') : ('✓ Biblioteca completa no aparelho (' + feitos + ').'));
+        return;
+      }
+      baixarDocumento(faltam[i]).then(function () { feitos++; }).catch(function () { erros++; })
+        .then(function () { pintar(); proximo(i + 1); });
+    })(0);
+  }
+
+  /* ---------- HTML de um documento ---------- */
+  // Linha do documento: toque abre (baixando antes, se preciso). À direita, o
+  // estado: "📥 · 2.1 MB" (falta baixar) · "⏳" (baixando) · "Abrir ›" (+ ✕ para
+  // apagar a cópia). `sub` opcional aparece abaixo do título (usado na busca).
   function htmlDoc(d, sub) {
-    return '<a class="bib-doc" href="' + encodeURI(d.arquivo) + '" target="_blank" rel="noopener">' +
+    let acao;
+    if (baixando[d.id]) acao = '<span class="bib-doc-abrir">⏳ Baixando…</span>';
+    else if (baixados[d.id]) acao = '<span class="bib-doc-abrir">Abrir ›</span>' +
+      '<button type="button" class="bib-doc-apagar" data-id="' + escapar(d.id) + '" title="Apagar a cópia offline">✕</button>';
+    else acao = '<span class="bib-doc-abrir">📥' + (d.tamanho ? ' ' + fmtTamanho(d.tamanho) : '') + '</span>';
+    return '<div class="bib-doc" data-id="' + escapar(d.id) + '" role="button" tabindex="0">' +
       '<span class="bib-doc-icone">📄</span>' +
       '<span class="bib-doc-titulo">' + escapar(d.titulo) + (sub ? '<small class="bib-doc-sub">' + escapar(sub) + '</small>' : '') + '</span>' +
-      '<span class="bib-doc-abrir">Abrir ›</span></a>';
+      acao + '</div>';
+  }
+
+  /* ---------- Barra "baixar todos" (estado offline da biblioteca) ---------- */
+  function htmlBarraOffline() {
+    const total = docs().length;
+    if (!total) return '';
+    const tem = docs().filter(function (d) { return baixados[d.id]; }).length;
+    if (tem >= total) return '<p class="bib-offline-ok">✓ Biblioteca completa no aparelho — abre sem internet.</p>';
+    let html = '<div class="bib-offline">📥 ' + tem + ' de ' + total + ' no aparelho';
+    if (navigator.onLine) html += '<button type="button" class="bib-baixar-todos">' + (baixandoTodos ? '⏳ Baixando…' : 'Baixar todos') + '</button>';
+    return html + '</div>';
   }
 
   /* ---------- Nível 1: tipos ---------- */
@@ -92,7 +252,12 @@ EC.biblioteca = (function () {
         '<span class="bib-nav-texto"><strong>' + escapar(t.titulo) + '</strong><small>' + plural(n) + '</small></span>' +
         '<span class="bib-nav-seta">›</span></button>';
     });
-    return html || '<p class="overlay-vazio">Nenhum documento na biblioteca ainda.</p>';
+    if (!html) {
+      return navigator.onLine
+        ? '<p class="overlay-vazio">Nenhum documento na biblioteca ainda.</p>'
+        : '<p class="overlay-vazio">📡 Sem conexão — conecte uma vez para carregar a lista da biblioteca.</p>';
+    }
+    return htmlBarraOffline() + html;
   }
 
   /* ---------- Nível 2: categorias (escopos) de um tipo ---------- */
@@ -111,11 +276,11 @@ EC.biblioteca = (function () {
 
   /* ---------- Nível 3: documentos de um tipo + categoria ---------- */
   function htmlDocumentos(tipoChave, escopo) {
-    const lista = doTipo(tipoChave).filter(function (d) { return escopoDe(d) === escopo; });
+    const lista2 = doTipo(tipoChave).filter(function (d) { return escopoDe(d) === escopo; });
     // agrupa por método, na ordem do menor POP (procedimentos em sequência de
     // POP; normas, sem POP, em ordem alfabética).
     const porMetodo = {};
-    lista.forEach(function (d) { const m = (d.metodo || '').trim(); (porMetodo[m] = porMetodo[m] || []).push(d); });
+    lista2.forEach(function (d) { const m = (d.metodo || '').trim(); (porMetodo[m] = porMetodo[m] || []).push(d); });
     let html = '<button type="button" class="bib-voltar">← Voltar</button>' +
       '<p class="bib-crumb">' + escapar(tituloTipo(tipoChave)) + ' › <strong>' + escapar(escopo) + '</strong></p>';
     Object.keys(porMetodo).sort(function (a, b) {
@@ -142,7 +307,8 @@ EC.biblioteca = (function () {
     }).sort(function (a, b) { return String(a.titulo).localeCompare(String(b.titulo), 'pt-BR'); });
     if (!achados.length) return '<p class="overlay-vazio">Nada encontrado para essa busca.</p>';
     return achados.map(function (d) {
-      const rotuloTipo = (d.tipo === 'norma') ? 'Norma' : 'Procedimento';
+      const t = TIPOS.filter(function (x) { return x.chave === d.tipo; })[0];
+      const rotuloTipo = t ? t.titulo.replace(/s$/, '') : 'Documento';
       const sub = rotuloTipo + ' · ' + escopoDe(d) + (d.metodo ? ' · ' + d.metodo : '');
       return htmlDoc(d, sub);
     }).join('');
@@ -173,6 +339,14 @@ EC.biblioteca = (function () {
     area.querySelectorAll('.bib-nav-item').forEach(function (b) {
       b.addEventListener('click', function () { nivel.escopo = b.dataset.escopo; pintar(); });
     });
+    area.querySelectorAll('.bib-doc').forEach(function (el) {
+      el.addEventListener('click', function () { abrirDocumento(el.dataset.id); });
+    });
+    area.querySelectorAll('.bib-doc-apagar').forEach(function (b) {
+      b.addEventListener('click', function (ev) { ev.stopPropagation(); apagarDownload(b.dataset.id); });
+    });
+    const btnTodos = area.querySelector('.bib-baixar-todos');
+    if (btnTodos) btnTodos.addEventListener('click', baixarTodos);
     const voltar = area.querySelector('.bib-voltar');
     if (voltar) voltar.addEventListener('click', function () {
       if (nivel.escopo) nivel.escopo = null; else nivel.tipo = null;
@@ -182,14 +356,18 @@ EC.biblioteca = (function () {
 
   function abrir() {
     nivel = { tipo: null, escopo: null };
-    const total = docs().length;
+    carregarListaLocal();
     EC.app.abrirOverlay('📚 Biblioteca',
-      (total ? '<label class="overlay-busca"><input type="search" id="bib-busca" placeholder="🔍 Buscar por título, categoria ou norma…" autocomplete="off"></label>' : '') +
+      '<label class="overlay-busca"><input type="search" id="bib-busca" placeholder="🔍 Buscar por título, categoria ou norma…" autocomplete="off"></label>' +
       '<div id="bib-area"></div>');
 
     const busca = document.getElementById('bib-busca');
     if (busca) busca.addEventListener('input', pintar);
     pintar();
+
+    // Em paralelo: marca o que já está no aparelho e busca a lista fresca na API.
+    carregarBaixados().then(pintar);
+    atualizarLista().then(function (mudou) { if (mudou) pintar(); });
   }
 
   return { abrir: abrir };

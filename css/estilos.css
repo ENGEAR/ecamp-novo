@@ -650,6 +650,37 @@ textarea { resize: vertical; font-family: inherit; }
 .bib-doc-titulo { flex: 1; }
 .bib-doc-sub { display: block; color: var(--cinza-texto); font-size: 0.78rem; margin-top: 2px; }
 .bib-doc-abrir { color: var(--azul-escuro); font-weight: 600; font-size: 0.82rem; flex-shrink: 0; }
+.bib-doc { cursor: pointer; }
+.bib-doc-apagar {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  color: var(--cinza-texto);
+  font-size: 0.9rem;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+
+/* Estado offline da biblioteca (quantos PDFs já estão no aparelho) */
+.bib-offline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+  color: var(--cinza-texto);
+  margin: 2px 0 10px;
+}
+.bib-offline .bib-baixar-todos {
+  border: 1px solid var(--cinza-borda);
+  background: none;
+  color: var(--azul-escuro);
+  font-weight: 600;
+  font-size: 0.82rem;
+  border-radius: 8px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.bib-offline-ok { font-size: 0.82rem; color: var(--verde, #2e7d32); margin: 2px 0 10px; }
 
 /* Navegação em níveis */
 .bib-nav-card {

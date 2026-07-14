@@ -8,7 +8,9 @@
  *   • 'pendingReembolso' — fila de pedidos de reembolso (com fotos) esperando enviar;
  *   • 'pdfs'             — PDFs gerados (Blob + metadados) guardados no aparelho;
  *   • 'registros'        — registros FINALIZADOS completos (com fotos), últimos
- *                          30 dias, para regerar o PDF pelo Histórico recente.
+ *                          30 dias, para regerar o PDF pelo Histórico recente;
+ *   • 'biblioteca'       — PDFs de normas/procedimentos baixados para offline
+ *                          (Blob por id do documento; a lista vem da API do SGP).
  *
  * API (todas devolvem Promise):
  *   EC.db.set(loja, chave, valor) · EC.db.get(loja, chave)
@@ -21,8 +23,8 @@ EC.db = (function () {
   'use strict';
 
   var NOME = 'ecamp';
-  var VERSAO = 4; // v4: + loja 'registros'
-  var LOJAS = ['pending', 'rascunhos', 'pendingReembolso', 'pdfs', 'registros'];
+  var VERSAO = 5; // v5: + loja 'biblioteca'
+  var LOJAS = ['pending', 'rascunhos', 'pendingReembolso', 'pdfs', 'registros', 'biblioteca'];
   var bancoP = null;
 
   function abrir() {
