@@ -1823,28 +1823,44 @@ EC.reembolso = (function () {
     }
   }
 
-  // Gestor (Financeiro/Logística) anexa o comprovante do adiantamento na
-  // solicitação (via cliente Supabase, respeitando as permissões).
+  var MAX_ADIANT = 10; // comprovantes de adiantamento por solicitação
+
+  // Gestor (Financeiro/Logística) anexa comprovante(s) do adiantamento (até 10)
+  // na solicitação — via cliente Supabase, respeitando as permissões.
   function anexarComprovanteAdiantamento(p, botao) {
     var input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*,application/pdf';
+    input.multiple = true;
     input.style.display = 'none';
     input.addEventListener('change', async function () {
-      var file = input.files && input.files[0];
-      if (!file) return;
+      var files = input.files ? Array.prototype.slice.call(input.files) : [];
+      if (!files.length) return;
       var cli = (EC.auth && EC.auth.cliente) ? EC.auth.cliente() : null;
       if (!cli) { EC.app.mostrarToast('Sem conexão — abra com internet.'); return; }
       var txt = botao.textContent;
       botao.disabled = true; botao.textContent = '⏳ Enviando…';
       try {
-        var nome = (file.name || ('adiantamento_' + new Date().getTime() + '.jpg')).replace(/[^\w.\-()À-ſ ]+/g, '_');
-        var caminho = p.os + '/' + p.codigo + '/adiantamento/' + nome;
-        var up = await cli.storage.from('logistica').upload(caminho, file, { contentType: file.type || 'application/octet-stream', upsert: true });
-        if (up.error) throw up.error;
-        var ins = await cli.from('logistica_anexos').insert({ solicitacao_id: p.id, bloco: 'adiantamento', arquivo: nome, url: caminho, mime: file.type || null });
-        if (ins.error) throw ins.error;
-        EC.app.mostrarToast('✅ Comprovante do adiantamento anexado.');
+        // quantos já existem — o total não pode passar de 10
+        var cnt = await cli.from('logistica_anexos').select('id', { count: 'exact', head: true })
+          .eq('solicitacao_id', p.id).eq('bloco', 'adiantamento');
+        var jaTem = cnt.count || 0;
+        var vagas = MAX_ADIANT - jaTem;
+        if (vagas <= 0) { EC.app.mostrarToast('Limite de ' + MAX_ADIANT + ' comprovantes de adiantamento atingido.'); return; }
+        var aEnviar = files.slice(0, vagas);
+        var enviados = 0;
+        for (var i = 0; i < aEnviar.length; i++) {
+          var file = aEnviar[i];
+          var nome = (file.name || ('adiantamento_' + new Date().getTime() + '_' + i + '.jpg')).replace(/[^\w.\-()À-ſ ]+/g, '_');
+          var caminho = p.os + '/' + p.codigo + '/adiantamento/' + new Date().getTime() + '_' + i + '_' + nome;
+          var up = await cli.storage.from('logistica').upload(caminho, file, { contentType: file.type || 'application/octet-stream', upsert: true });
+          if (up.error) throw up.error;
+          var ins = await cli.from('logistica_anexos').insert({ solicitacao_id: p.id, bloco: 'adiantamento', arquivo: nome, url: caminho, mime: file.type || null });
+          if (ins.error) throw ins.error;
+          enviados++;
+        }
+        var sobraram = files.length - aEnviar.length;
+        EC.app.mostrarToast('✅ ' + enviados + ' comprovante(s) anexado(s)' + (sobraram > 0 ? ' — ' + sobraram + ' ignorado(s) (limite ' + MAX_ADIANT + ')' : '') + '.');
       } catch (e) {
         EC.app.mostrarToast('Não consegui anexar: ' + (e.message || 'erro'));
       } finally {
@@ -1853,7 +1869,7 @@ EC.reembolso = (function () {
     });
     document.body.appendChild(input);
     input.click();
-    setTimeout(function () { input.remove(); }, 60000);
+    setTimeout(function () { input.remove(); }, 120000);
   }
 
   /* ============ Serviços com saldo pendente ============ */
