@@ -1558,7 +1558,7 @@ EC.reembolso = (function () {
     }
     if (Number(p.valor_jantar) > 0 && vu.jantar != null) b.push('Jantar: ' + moedaBR(vu.jantar) + '/dia');
     if (Number(p.valor_lanche) > 0 && vu.lanche != null) b.push('Lanche: ' + moedaBR(vu.lanche) + '/dia de deslocamento');
-    return '<div class="apr-detalhe"><div class="apr-detalhe-icone">🧮</div>' +
+    return '<div class="apr-detalhe">' +
       '<div class="apr-detalhe-corpo"><div class="apr-detalhe-titulo">Base de cálculo</div>' +
       '<ul>' + b.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul></div></div>';
   }
