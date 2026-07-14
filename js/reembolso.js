@@ -1759,20 +1759,20 @@ EC.reembolso = (function () {
         var bVerAdi = document.createElement('button');
         bVerAdi.type = 'button'; bVerAdi.className = 'botao botao-secundario';
         bVerAdi.style.marginBottom = '8px'; bVerAdi.style.display = 'block';
-        bVerAdi.textContent = '📄 Ver comprovante do adiantamento';
+        bVerAdi.textContent = '📄 Comprovante do adiantamento';
         bVerAdi.addEventListener('click', function () { verComprovante(p.id, bVerAdi, null, 'adiantamento'); });
         secComp.appendChild(bVerAdi);
         if (ehGestor()) {
           var bAddAdi = document.createElement('button');
           bAddAdi.type = 'button'; bAddAdi.className = 'botao botao-secundario';
-          bAddAdi.style.marginBottom = '8px'; bAddAdi.style.display = 'block';
+          bAddAdi.style.display = 'block'; bAddAdi.style.marginTop = '16px'; bAddAdi.style.marginBottom = '6px';
           bAddAdi.textContent = '➕ Anexar comprovante do adiantamento';
           bAddAdi.addEventListener('click', function () { anexarComprovanteAdiantamento(p, bAddAdi); });
           secComp.appendChild(bAddAdi);
           var bDelAdi = document.createElement('button');
-          bDelAdi.type = 'button'; bDelAdi.className = 'botao botao-perigo';
-          bDelAdi.style.display = 'block';
-          bDelAdi.textContent = '🗑️ Apagar comprovante do adiantamento';
+          bDelAdi.type = 'button';
+          bDelAdi.style.cssText = 'display:inline-block;background:none;border:none;color:var(--vermelho);font-size:0.82rem;text-decoration:underline;padding:2px 0;cursor:pointer;';
+          bDelAdi.textContent = '🗑️ apagar comprovante do adiantamento';
           bDelAdi.addEventListener('click', function () { apagarComprovantesAdiantamento(p); });
           secComp.appendChild(bDelAdi);
         }
