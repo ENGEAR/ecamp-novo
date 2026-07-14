@@ -1582,7 +1582,7 @@ EC.reembolso = (function () {
         ['aguardando_logistica', 'aguardando_pagamento', 'pago'].indexOf(x.status) !== -1;
     }).sort(function (a, b) { return String(a.created_at || a.criadoEm || '').localeCompare(String(b.created_at || b.criadoEm || '')); });
     if (!parcelas.length) parcelas = [p];
-    var parcelasHtml = parcelas.map(function (x) {
+    var parcelasHtml = parcelas.map(function (x, i) {
       var xpct = x.percentual_solicitado != null ? Number(x.percentual_solicitado) : 100;
       var xsol = x.valor_solicitado != null ? x.valor_solicitado : Math.round(Number(x.valor_total || 0) * xpct) / 100;
       var quando = x.created_at || x.criadoEm;
@@ -1590,7 +1590,7 @@ EC.reembolso = (function () {
       var xstatus = x.status === 'pago'
         ? '<br><span style="color:var(--verde);">💰 pago em ' + (x.pago_em ? dataBR(x.pago_em) : '—') + '</span>'
         : (STATUS[x.status] ? '<br><span class="rotulo-apoio">' + STATUS[x.status].txt + '</span>' : '');
-      return '<div class="apr-orc-linha">• ' + xpct + '% em ' + xdata + ' = <strong>' + moedaBR(xsol) + '</strong>' + xstatus + '</div>';
+      return '<div class="apr-orc-linha"><strong>' + (i + 1) + 'ª parcela:</strong> ' + xpct + '% em ' + xdata + ' = <strong>' + moedaBR(xsol) + '</strong>' + xstatus + '</div>';
     }).join('');
 
     $('rb-extrato').innerHTML =
@@ -1609,15 +1609,23 @@ EC.reembolso = (function () {
       '<div class="apr-orc apr-orc-cinza">' + (parcelasHtml || '<div class="apr-orc-linha">—</div>') + '</div>' +
       renderResumoPedido(p);
 
-    // Comprovante de pagamento (abre em overlay) — só quando já foi pago.
-    if (p.status === 'pago' && p.id) {
-      var bComp = document.createElement('button');
-      bComp.type = 'button';
-      bComp.className = 'botao botao-secundario';
-      bComp.style.marginTop = '12px';
-      bComp.textContent = '📄 Ver comprovante de pagamento';
-      bComp.addEventListener('click', function () { verComprovante(p.id, bComp); });
-      $('rb-extrato').appendChild(bComp);
+    // Comprovantes: um por parcela paga, rotulado pela parcela (abre em overlay).
+    var pagas = parcelas.map(function (x, i) { return { x: x, n: i + 1 }; })
+      .filter(function (o) { return o.x.status === 'pago' && o.x.id; });
+    if (pagas.length) {
+      var secComp = document.createElement('div');
+      secComp.innerHTML = '<p class="dg-secao">Comprovantes</p>';
+      $('rb-extrato').appendChild(secComp);
+      pagas.forEach(function (o) {
+        var bComp = document.createElement('button');
+        bComp.type = 'button';
+        bComp.className = 'botao botao-secundario';
+        bComp.style.marginBottom = '8px';
+        bComp.style.display = 'block';
+        bComp.textContent = '📄 Comprovante da ' + o.n + 'ª parcela';
+        bComp.addEventListener('click', function () { verComprovante(o.x.id, bComp, o.n); });
+        secComp.appendChild(bComp);
+      });
     }
 
     // Ações só enquanto dá para mexer: apagar (fila do aparelho ou aguardando a
@@ -1638,7 +1646,7 @@ EC.reembolso = (function () {
 
   // Abre o(s) comprovante(s) de pagamento (URLs assinadas vindas da API) num
   // overlay: imagem inline; PDF vira link "Abrir".
-  async function verComprovante(id, botao) {
+  async function verComprovante(id, botao, parcelaN) {
     var txt = botao.textContent;
     botao.disabled = true; botao.textContent = '⏳ Abrindo…';
     try {
@@ -1653,7 +1661,7 @@ EC.reembolso = (function () {
           ? '<p style="margin:8px 0;"><a class="botao botao-secundario" href="' + c.url + '" target="_blank" rel="noopener">📄 Abrir ' + (c.nome || 'comprovante') + '</a></p>'
           : '<img src="' + c.url + '" alt="comprovante" style="max-width:100%;border-radius:8px;margin-bottom:8px;">';
       }).join('');
-      EC.app.abrirOverlay('📄 Comprovante de pagamento', html);
+      EC.app.abrirOverlay('📄 Comprovante' + (parcelaN ? ' da ' + parcelaN + 'ª parcela' : ' de pagamento'), html);
     } catch (e) {
       EC.app.mostrarToast('Não consegui abrir o comprovante.');
     } finally {
