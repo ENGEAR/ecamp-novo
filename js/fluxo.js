@@ -1214,7 +1214,8 @@ EC.fluxo = (function () {
         const extra = estado.tipo === 'qar'
           ? ('📷 ' + (EC.foto.tem(p.fotoPonto) ? '✓' : '—') + ' · 🧪 ' + (p.qtdeColetas ? p.qtdeColetas + ' coleta(s)' : '—'))
           : (EC.foto.tem(p.fotoPonto) ? '📷 ✓' : '📷 —');
-        corpoCampo += linhaResumo('P' + (i + 1) + (p.nome ? ' — ' + p.nome : ''),
+        // No QAR externo os pontos são chamados de "locais de amostragem" (L1, L2…).
+        corpoCampo += linhaResumo((estado.tipo === 'qar' ? 'L' : 'P') + (i + 1) + (p.nome ? ' — ' + p.nome : ''),
           (p.gps ? '📍GPS ✓' : '📍GPS —') + ' · ' + extra);
       }
       if (!corpoCampo) corpoCampo = '<p class="texto-apoio">Monitoramento em campo não iniciado.</p>';

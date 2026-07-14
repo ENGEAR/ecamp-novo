@@ -4,8 +4,9 @@
     {
       "name": "ecamp-static",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["--yes", "http-server", ".", "-p", "8123", "-c-1", "--silent"],
-      "port": 8123
+      "runtimeArgs": ["--yes", "http-server", ".", "-c-1", "--silent"],
+      "port": 8123,
+      "autoPort": true
     },
     {
       "name": "sge",

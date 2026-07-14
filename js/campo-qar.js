@@ -12,7 +12,7 @@
  *
  * Interface (namespace global EC.campoQar):
  *   EC.campoQar.renderizar(container, ctx)
- *   EC.campoQar.itensFaltando(estado) → ['P1: ...', ...]
+ *   EC.campoQar.itensFaltando(estado) → ['L1: ...', ...]
  *   EC.campoQar.TIPO_CARIMBO
  *
  * Depende de: EC.gps, EC.paginacao.
@@ -90,7 +90,8 @@ EC.campoQar = (function () {
       os: ctx.estado.os.numero,
       projeto: ctx.estado.os.projeto,
       tipo: TIPO_CARIMBO,
-      ponto: 'P' + String(numeroPonto).padStart(2, '0'),
+      ponto: 'L' + String(numeroPonto).padStart(2, '0'),
+      rotuloPonto: 'Local',
       rotulo: rotulo,
       fotoInicial: alvo[chave] || null,
       obterUtm: function () {
@@ -198,7 +199,7 @@ EC.campoQar = (function () {
       '<label>Objetivo<select data-campo="objetivo">' +
       '<option value="">Selecione…</option><option>Operações da Empresa</option><option>Background</option>' +
       '</select></label>' +
-      '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>';
+      '<label>Qtd de locais de amostragens (pontos) (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>';
     if (g.qtdePontos === undefined) g.qtdePontos = ctx.estado.dadosGerais.qtdePontos;
     vincular(area, g);
     area.querySelector('[data-campo="qtdePontos"]').addEventListener('input', renderizarPontos);
@@ -215,9 +216,10 @@ EC.campoQar = (function () {
     pontoExibido = Math.min(pontoExibido, total);
     EC.paginacao.criar($('#cq-paginacao'), {
       total: total,
+      rotulo: 'L',
       aoSair: function (numero) {
         if (!EC.foto.tem(campo().pontos[numero - 1].fotoPonto)) {
-          EC.app.mostrarToast('Tire a foto do ponto P' + numero + ' antes de sair.');
+          EC.app.mostrarToast('Tire a foto do local L' + numero + ' antes de sair.');
           return false;
         }
         return true;
@@ -271,9 +273,9 @@ EC.campoQar = (function () {
     if (!ponto) { area.innerHTML = ''; return; }
 
     const html =
-      '<div class="cartao-ponto"><h2>Ponto P' + n + '</h2>' +
+      '<div class="cartao-ponto"><h2>Local L' + n + '</h2>' +
       // Identificação
-      '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
+      '<label>Nome / identificação do local<input type="text" data-campo="nome"></label>' +
       '<label>Característica do ambiente<input type="text" placeholder="ex.: fluxo intenso de veículos, próximo estrada não pavimentada" data-campo="caracteristicaAmbiente"></label>' +
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       htmlEquipamentosQar() +
@@ -301,7 +303,7 @@ EC.campoQar = (function () {
       htmlChecks(['Calibração aprovada'], 'calib') +
       '<label>Validade da calibração (em meses)<input type="number" min="0" step="1" inputmode="numeric" data-campo="validadeCalib"></label>' +
       // Coletas
-      '<label>Quantas coletas neste ponto?<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdeColetas"></label>' +
+      '<label>Quantas coletas neste local?<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdeColetas"></label>' +
       '<div id="cq-coletas"></div>' +
       // Finalização
       '<label>Hora final<input type="time" data-campo="horaFinal"></label>' +
@@ -310,7 +312,7 @@ EC.campoQar = (function () {
 
     vincular(area, ponto);
     const gpsInstancia = montarGps(area, ponto);
-    montarFoto(area, '.cq-foto-ponto', ponto, 'fotoPonto', '📷 Foto do ponto (obrigatória)', gpsInstancia, n);
+    montarFoto(area, '.cq-foto-ponto', ponto, 'fotoPonto', '📷 Foto do local (obrigatória)', gpsInstancia, n);
     area.querySelectorAll('.cq-crono').forEach(montarCronometro);
     renderColetas(area, ponto);
     area.querySelector('[data-campo="qtdeColetas"]').addEventListener('input', function () {
@@ -339,13 +341,13 @@ EC.campoQar = (function () {
       if (nn) falta.push(nn + ' confirmação(ões) de ' + rotulo);
     };
 
-    reqVal('nome', 'nome do ponto');
+    reqVal('nome', 'nome do local');
     reqVal('horaInicial', 'hora inicial');
     // Amostrador de Grande Volume é obrigatório; o Separador inercial é opcional
     // (PTS não usa separador). Aceita o campo antigo tipoEquip por compatibilidade.
     if (!(String(ponto.equipAGV || '').trim() || String(ponto.tipoEquip || '').trim())) falta.push('amostrador de grande volume');
     if (!ponto.gps) falta.push('GPS');
-    if (!EC.foto.tem(ponto.fotoPonto)) falta.push('foto do ponto');
+    if (!EC.foto.tem(ponto.fotoPonto)) falta.push('foto do local');
     grupoChecks('aquec', 1, 'aquecimento do motor');
     grupoChecks('zerar', 2, 'zerar manômetro');
     grupoChecks('vaz', 2, 'teste de vazamento');
@@ -380,9 +382,9 @@ EC.campoQar = (function () {
     const total = Math.min(20, Math.max(1, parseInt(c.geral.qtdePontos, 10) || 0));
     const out = [];
     if (!c.geral.objetivo) out.push('objetivo do monitoramento');
-    if (!total) { out.push('a quantidade de pontos do campo não foi definida'); return out; }
+    if (!total) { out.push('a quantidade de locais de amostragem não foi definida'); return out; }
     for (let i = 0; i < total; i++) {
-      itensFaltandoDoPonto(c.pontos[i], i).forEach(function (x) { out.push('P' + (i + 1) + ': ' + x); });
+      itensFaltandoDoPonto(c.pontos[i], i).forEach(function (x) { out.push('L' + (i + 1) + ': ' + x); });
     }
     return out;
   }
