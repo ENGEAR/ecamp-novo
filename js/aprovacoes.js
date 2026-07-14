@@ -355,7 +355,7 @@ EC.aprovacoes = (function () {
         '<div class="apr-valores">' + valoresHtml + '</div>' +
         '<div class="apr-hero apr-hero-forte"><div class="apr-hero-icone">👛</div>' +
           '<div class="apr-hero-corpo">' +
-            '<div class="apr-hero-titulo">Valor a pagar</div>' +
+            '<div class="apr-hero-titulo">Valor a pagar (' + pct + '% da logística)</div>' +
             '<div class="apr-hero-valor">' + moeda(aPagar) + '</div>' +
             (adiantP > 0 ? '<div class="apr-hero-sub">Solicitado ' + moeda(solicitado) + ' − adiantamento ' + moeda(adiantP) + (s.adiantamento_data ? ' (' + dataBR(s.adiantamento_data) + ')' : '') + '</div>' : '') +
             '<div class="apr-hero-desig">' + esc(s.designado || '') + '</div>' +
