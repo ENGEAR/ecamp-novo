@@ -1426,9 +1426,16 @@ EC.reembolso = (function () {
     var total = p.valor_total != null ? p.valor_total : p.valorTotal;
     var pct = p.percentual_solicitado != null ? Number(p.percentual_solicitado) : (p.percentual || 100);
     var solicitado = p.valor_solicitado != null ? p.valor_solicitado : p.valorSolicitado;
-    var valorTxt = (pct < 100 && solicitado != null)
-      ? '<strong>' + moedaBR(solicitado) + '</strong> (' + pct + '% de ' + moedaBR(total) + ')'
-      : '<strong>' + moedaBR(total) + '</strong>';
+    // Valor mostrado = o LÍQUIDO que o técnico recebe (parcela − a fração do
+    // adiantamento que cabe a ela). Sem adiantamento, é o próprio valor da parcela.
+    var adiantC = Number(p.adiantamento_valor) || 0;
+    var solC = solicitado != null ? Number(solicitado) : Number(total || 0);
+    var liquidoC = Math.round(solC * 100 - adiantC * pct) / 100;
+    var valorTxt = adiantC > 0
+      ? '<strong>' + moedaBR(liquidoC) + '</strong> <span class="rotulo-apoio">(' + pct + '%, já com o adiantamento)</span>'
+      : (pct < 100 && solicitado != null)
+        ? '<strong>' + moedaBR(solicitado) + '</strong> (' + pct + '% de ' + moedaBR(total) + ')'
+        : '<strong>' + moedaBR(total) + '</strong>';
     var projeto = p.projeto ? '<div class="os-resumo">📁 ' + p.projeto + '</div>'
       : (p.cliente ? '<div class="os-resumo">' + p.cliente + '</div>' : '');
     var obs = (p.status === 'rejeitado' || p.status === 'correcao') && p.observacao_logistica
@@ -1697,6 +1704,12 @@ EC.reembolso = (function () {
     var parcelasHtml = parcelas.map(function (x, i) {
       var xpct = x.percentual_solicitado != null ? Number(x.percentual_solicitado) : 100;
       var xsol = x.valor_solicitado != null ? x.valor_solicitado : Math.round(Number(x.valor_total || 0) * xpct) / 100;
+      // Líquido = parcela − a fração do adiantamento que cabe a ela (adiant × %).
+      var xadiant = Number(x.adiantamento_valor) || 0;
+      var xliq = Math.round(Number(xsol) * 100 - xadiant * xpct) / 100;
+      var xnota = xadiant > 0
+        ? '<br><span class="rotulo-apoio">' + moedaBR(xsol) + ' − ' + moedaBR(Math.round(xadiant * xpct) / 100) + ' (parte do adiantamento)</span>'
+        : '';
       var quando = x.created_at || x.criadoEm;
       var xdata = quando ? dataBR(quando) : '—';
       var pagoP = x.status === 'pago';
@@ -1704,7 +1717,7 @@ EC.reembolso = (function () {
         ? '<br>💰 pago em ' + (x.pago_em ? dataBR(x.pago_em) : '—')
         : (STATUS[x.status] ? '<br><span class="rotulo-apoio">' + STATUS[x.status].txt + '</span>' : '');
       return '<div class="apr-orc ' + (pagoP ? 'apr-orc-verde' : 'apr-orc-cinza') + '" style="margin:6px 0;">' +
-        '<strong>' + (i + 1) + 'ª parcela:</strong> ' + xpct + '% em ' + xdata + ' = <strong>' + moedaBR(xsol) + '</strong>' + xstatus + '</div>';
+        '<strong>' + (i + 1) + 'ª parcela:</strong> ' + xpct + '% em ' + xdata + ' = <strong>' + moedaBR(xliq) + '</strong>' + xnota + xstatus + '</div>';
     }).join('');
 
     $('rb-extrato').innerHTML =
