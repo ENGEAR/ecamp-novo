@@ -410,15 +410,14 @@ EC.reembolso = (function () {
     var aluguel = veiculo() === 'proprio' ? r2(Number(v.aluguel_veiculo_dia) * diasViagem) : 0;
     // Hospedagem: R$/diária × noites fora (chegada − saída). Mesmo dia → 0.
     var hospedagem = r2(Number(v.hospedagem_dia) * diarias);
-    // Mão de obra (CLT e freelancer) = diária × (deslocamento + serviço). CLT só
-    // recebe quando a viagem tem ≥ 2 dias; freelancer sempre.
+    // Mão de obra (CLT e freelancer) = diária × dias TOTAIS da viagem (cada dia
+    // uma vez). CLT só recebe quando a viagem tem ≥ 2 dias; freelancer sempre.
     // Diária de exceção do designado (tecSel.diaria) substitui a padrão do vínculo.
     var diariaExc = (tecSel && Number(tecSel.diaria) > 0) ? Number(tecSel.diaria) : 0;
     var diariaFree = diariaExc || Number(v.diaria_freelancer);
     var diariaClt = diariaExc || Number(v.diaria_clt);
-    var diasMaoObra = diasDeslocamento + servicoPuro;
     var maoObra = (tecSel.tipo === 'freelancer' || diasViagem >= 2)
-      ? r2((tecSel.tipo === 'freelancer' ? diariaFree : diariaClt) * diasMaoObra)
+      ? r2((tecSel.tipo === 'freelancer' ? diariaFree : diariaClt) * diasViagem)
       : 0;
     // Alimentação (espelho do servidor). Jantar por dia (freela e CLT). Almoço:
     // freelancer sempre padrão; CLT = dia útil (13) / fim de semana (padrão).
@@ -803,8 +802,7 @@ EC.reembolso = (function () {
       mao_obra: (function () {
         var dExc = (tecSel && Number(tecSel.diaria) > 0) ? Number(tecSel.diaria) : 0;
         var sufixo = dExc ? ' (diária própria do ' + tecSel.nome + ')' : '';
-        var nDias = dDesloc + dPuro; // deslocamento + serviço
-        var base = '/dia × ' + nDias + ' dia(s) (' + dDesloc + ' deslocamento + ' + dPuro + ' serviço)';
+        var base = '/dia × ' + dViagem + ' dia(s) da viagem (saída → chegada)';
         return tecSel.tipo === 'freelancer'
           ? moedaBR(dExc || v.diaria_freelancer) + base + sufixo
           : (dViagem >= 2
@@ -1609,9 +1607,7 @@ EC.reembolso = (function () {
       (kmServico ? ' + 5×' + diasServ + ' = ' + (distKm + kmServico) + ' km' : '')]);
     if (p.consumo_kml || p.preco_litro) itens.push(['Consumo', (p.consumo_kml ? p.consumo_kml + ' km/L' : '—') +
       (comb ? ' · ' + comb : '') + (p.preco_litro ? ' ' + moedaBR(p.preco_litro) + '/L' : '')]);
-    var diasMO = (Number(p.dias_servico) === Number(p.dias_viagem))
-      ? (Number(p.dias_viagem) || 0)
-      : ((Number(p.dias_servico) || 0) + (Number(p.dias_deslocamento) || 0));
+    var diasMO = Number(p.dias_viagem) || 0;
     if (Number(p.valor_mao_obra) > 0 && diasMO > 0) itens.push(['Mão de obra', moedaBR(Math.round(Number(p.valor_mao_obra) / diasMO * 100) / 100) + '/dia']);
     if (Number(p.valor_hospedagem) > 0 && vu.hospedagem_dia != null) itens.push(['Hospedagem', moedaBR(vu.hospedagem_dia) + '/diária']);
     if (Number(p.valor_almoco) > 0 && vu.almoco != null) itens.push(['Almoço', ehFreela ? moedaBR(vu.almoco) + '/dia'

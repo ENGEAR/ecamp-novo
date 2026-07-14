@@ -299,12 +299,8 @@ EC.aprovacoes = (function () {
     // Preços unitários usados (do snapshot valores_usados) — só dos itens cobrados.
     var vu = s.valores_usados || {};
     var ehFreela = s.solicitante_tipo === 'freelancer';
-    // Mão de obra/dia = valor ÷ dias da diária (deslocamento + serviço). Nas
-    // linhas novas dias_servico é o serviço PURO (soma com deslocamento dá o
-    // multiplicador). Nas antigas dias_servico == dias_viagem (total): usa esse.
-    var diasMaoObra = (Number(s.dias_servico) === Number(s.dias_viagem))
-      ? (Number(s.dias_viagem) || 0)
-      : ((Number(s.dias_servico) || 0) + (Number(s.dias_deslocamento) || 0));
+    // Mão de obra/dia = valor ÷ dias totais da viagem (é como a diária é aplicada).
+    var diasMaoObra = Number(s.dias_viagem) || 0;
     if (Number(s.valor_mao_obra) > 0 && diasMaoObra > 0) {
       bullets.push('Mão de obra: ' + moeda(Math.round(Number(s.valor_mao_obra) / diasMaoObra * 100) / 100) + '/dia');
     }
