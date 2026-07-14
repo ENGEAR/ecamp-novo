@@ -1467,17 +1467,7 @@ EC.reembolso = (function () {
       return;
     }
     // Numera as parcelas por OS+campanha+designado (a 1ª solicitação = 1ª parcela).
-    var grupos = {};
-    enviados.forEach(function (p) {
-      var k = p.os + '|' + p.campanha_numero + '|' + (p.designado || '');
-      (grupos[k] = grupos[k] || []).push(p);
-    });
-    listaNumParcela = {};
-    Object.keys(grupos).forEach(function (k) {
-      grupos[k].slice().sort(function (a, b) {
-        return String(a.created_at || a.criadoEm || '').localeCompare(String(b.created_at || b.criadoEm || ''));
-      }).forEach(function (p, i) { listaNumParcela[p.codigo] = i + 1; });
-    });
+    listaNumParcela = numeraParcelas(enviados);
     listaTodos = fila.map(function (p) { return { p: p, aguardandoEnvio: true }; })
       .concat(enviados.map(function (p) { return { p: p, aguardandoEnvio: false }; }));
     listaPorCodigo = {};
@@ -1505,19 +1495,35 @@ EC.reembolso = (function () {
     inp.addEventListener('input', renderListaFiltrada);
   }
 
-  function renderListaFiltrada() {
-    var area = $('rb-lista');
+  // Numera as parcelas por OS+campanha+designado (a 1ª solicitação = 1ª parcela).
+  function numeraParcelas(pedidos) {
+    var grupos = {};
+    (pedidos || []).forEach(function (p) {
+      var k = p.os + '|' + p.campanha_numero + '|' + (p.designado || '');
+      (grupos[k] = grupos[k] || []).push(p);
+    });
+    var num = {};
+    Object.keys(grupos).forEach(function (k) {
+      grupos[k].slice().sort(function (a, b) {
+        return String(a.created_at || a.criadoEm || '').localeCompare(String(b.created_at || b.criadoEm || ''));
+      }).forEach(function (p, i) { num[p.codigo] = i + 1; });
+    });
+    return num;
+  }
+
+  // Renderiza a lista tipo extrato de banco (ano → mês) num container, com busca.
+  // dados = [{p, aguardandoEnvio}]; onAbrir(item) ao clicar num card.
+  function renderBancoLista(area, buscaEl, dados, numParcela, porCodigo, onAbrir) {
     if (!area) return;
-    var termo = (($('rb-busca') && $('rb-busca').value) || '').toLowerCase().trim();
-    var itens = listaTodos.filter(function (it) {
+    var termo = ((buscaEl && buscaEl.value) || '').toLowerCase().trim();
+    var itens = (dados || []).filter(function (it) {
       if (!termo) return true;
       var p = it.p;
       var ida = p.data_inicio || p.dataInicio || '';
-      var alvo = ('os ' + (p.os || '') + ' ' + (p.cliente || '') + ' ' + (p.projeto || '') + ' ' + mesAnoBusca(ida) + ' ' + ida).toLowerCase();
+      var alvo = ('os ' + (p.os || '') + ' ' + (p.designado || '') + ' ' + (p.cliente || '') + ' ' + (p.projeto || '') + ' ' + mesAnoBusca(ida) + ' ' + ida).toLowerCase();
       return alvo.indexOf(termo) !== -1;
     });
     if (!itens.length) { area.innerHTML = '<p class="texto-apoio">Nada encontrado.</p>'; return; }
-    // Agrupa por ano → mês (da data de ida da OS).
     var porAno = {};
     itens.forEach(function (it) {
       var ida = String(it.p.data_inicio || it.p.dataInicio || '');
@@ -1533,7 +1539,7 @@ EC.reembolso = (function () {
         var lista = porAno[ano][mk].slice().sort(function (a, b) {
           return String(b.p.data_inicio || b.p.dataInicio || '').localeCompare(String(a.p.data_inicio || a.p.dataInicio || ''));
         });
-        var cards = lista.map(function (it) { return cartaoPedido(it.p, it.aguardandoEnvio, listaNumParcela[it.p.codigo]); }).join('');
+        var cards = lista.map(function (it) { return cartaoPedido(it.p, it.aguardandoEnvio, numParcela[it.p.codigo]); }).join('');
         var nomeM = mk === '00' ? 'Sem data' : (MESES_PT[parseInt(mk, 10) - 1] || mk);
         return '<details class="rb-mes" open><summary><span>' + nomeM + ' <span class="rotulo-apoio">(' + lista.length + ')</span></span></summary>' +
           '<div class="rb-mes-conteudo">' + cards + '</div></details>';
@@ -1542,10 +1548,49 @@ EC.reembolso = (function () {
     }).join('');
     area.querySelectorAll('.rb-pedido-click[data-codigo]').forEach(function (el) {
       el.addEventListener('click', function () {
-        var item = listaPorCodigo[el.dataset.codigo];
-        if (item) abrirExtrato(item.p, item.aguardandoEnvio);
+        var item = porCodigo[el.dataset.codigo];
+        if (item) onAbrir(item);
       });
     });
+  }
+
+  function renderListaFiltrada() {
+    renderBancoLista($('rb-lista'), $('rb-busca'), listaTodos, listaNumParcela, listaPorCodigo,
+      function (item) { abrirExtrato(item.p, item.aguardandoEnvio); });
+  }
+
+  // ---- Extrato geral (Financeiro/Logística): TODAS as solicitações ----
+  var egDados = [], egNumParcela = {}, egPorCodigo = {}, egBuscaLigada = false;
+  var extratoOrigem = 'tela-reembolso';
+  function ehGestor() {
+    var p = (sessao().papeis) || [];
+    return p.indexOf('financeiro') !== -1 || p.indexOf('logistica') !== -1 || p.indexOf('admin') !== -1;
+  }
+  function renderExtratoGeral() {
+    renderBancoLista($('eg-lista'), $('eg-busca'), egDados, egNumParcela, egPorCodigo,
+      function (item) { abrirExtrato(item.p, false, true); });
+  }
+  async function extratoGeral() {
+    EC.app.mostrarTela('tela-extrato-geral');
+    window.scrollTo(0, 0);
+    var area = $('eg-lista');
+    if (area) area.innerHTML = '<p class="texto-apoio">Carregando…</p>';
+    var cli = (EC.auth && EC.auth.cliente) ? EC.auth.cliente() : null;
+    if (!cli) { if (area) area.innerHTML = '<p class="texto-apoio">📡 Sem conexão. Abra com internet para ver o extrato geral.</p>'; return; }
+    try {
+      var q = await cli.from('logistica_solicitacoes').select('*').order('created_at', { ascending: false });
+      if (q.error) throw q.error;
+      var rows = q.data || [];
+      egDados = rows.map(function (p) { return { p: p, aguardandoEnvio: false }; });
+      egNumParcela = numeraParcelas(rows);
+      egPorCodigo = {};
+      egDados.forEach(function (it) { egPorCodigo[it.p.codigo] = it; });
+      renderExtratoGeral();
+      var inp = $('eg-busca');
+      if (inp && !egBuscaLigada) { egBuscaLigada = true; inp.addEventListener('input', renderExtratoGeral); }
+    } catch (e) {
+      if (area) area.innerHTML = '<p class="texto-apoio">⚠️ Não consegui carregar: ' + (e.message || 'erro') + '</p>';
+    }
   }
 
   /* ============ Extrato da solicitação (read-only) ============ */
@@ -1618,9 +1663,11 @@ EC.reembolso = (function () {
       itens.map(function (i) { return linha(i[0], i[1]); }).join('') + '</div>';
   }
 
-  function abrirExtrato(p, aguardandoEnvio) {
+  function abrirExtrato(p, aguardandoEnvio, soLeitura) {
     EC.app.mostrarTela('tela-reembolso-extrato');
     window.scrollTo(0, 0);
+    // De onde veio (para o botão Voltar): extrato geral (gestor) ou minhas solicitações.
+    extratoOrigem = soLeitura ? 'tela-extrato-geral' : 'tela-reembolso';
     var total = p.valor_total != null ? p.valor_total : p.valorTotal;
     var pct = p.percentual_solicitado != null ? Number(p.percentual_solicitado) : (p.percentual || 100);
     var solicitado = p.valor_solicitado != null ? p.valor_solicitado : p.valorSolicitado;
@@ -1695,8 +1742,9 @@ EC.reembolso = (function () {
 
     // Ações só enquanto dá para mexer: apagar (fila do aparelho ou aguardando a
     // Logística) e editar (só as já enviadas que aguardam a Logística).
-    var podeApagar = aguardandoEnvio || p.status === 'aguardando_logistica';
-    var podeEditar = !aguardandoEnvio && p.status === 'aguardando_logistica';
+    // No extrato geral (só leitura) o gestor não edita/apaga solicitação de outro.
+    var podeApagar = !soLeitura && (aguardandoEnvio || p.status === 'aguardando_logistica');
+    var podeEditar = !soLeitura && !aguardandoEnvio && p.status === 'aguardando_logistica';
     if (podeApagar || podeEditar) {
       var acoes = document.createElement('div');
       acoes.className = 'rb-extrato-acoes';
@@ -1884,7 +1932,12 @@ EC.reembolso = (function () {
     fillUFselect('rb-destino-uf');
     $('rb-novo').addEventListener('click', function () { abrirNovo(false); });
     $('rb-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-acao'); });
-    $('rb-extrato-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-reembolso'); });
+    $('rb-extrato-voltar').addEventListener('click', function () { EC.app.mostrarTela(extratoOrigem || 'tela-reembolso'); });
+    // Extrato geral (todas as solicitações) — só para Financeiro/Logística/admin.
+    var bGeral = $('rb-extrato-geral');
+    if (bGeral) { bGeral.classList.toggle('oculto', !ehGestor()); bGeral.addEventListener('click', extratoGeral); }
+    var egV = $('eg-voltar');
+    if (egV) egV.addEventListener('click', function () { EC.app.mostrarTela('tela-reembolso'); });
     $('rb-saldo-btn').addEventListener('click', abrirSaldos);
     $('rb-saldo-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-reembolso'); });
     $('rb-saldo-det-voltar').addEventListener('click', abrirSaldos);
