@@ -166,6 +166,10 @@
     if (EC.aprovacoes && EC.aprovacoes.atualizarBadge) EC.aprovacoes.atualizarBadge();
     // Lembrete de serviço agendado: aparece automaticamente p/ quem é técnico (casado pelo e-mail).
     if (EC.agenda && EC.agenda.carregarLembretes) EC.agenda.carregarLembretes();
+    // Extrato geral (todas as solicitações): só Financeiro/Logística/admin.
+    var pap = sessao.papeis || [];
+    var ehGestor = pap.indexOf('financeiro') !== -1 || pap.indexOf('logistica') !== -1 || pap.indexOf('admin') !== -1;
+    $('btn-extrato-geral').classList.toggle('oculto', !ehGestor);
     mostrarTela('tela-acao');
   }
 
@@ -256,6 +260,9 @@
   });
   $('btn-agenda-acao').addEventListener('click', function () {
     EC.agenda.abrir();
+  });
+  $('btn-extrato-geral').addEventListener('click', function () {
+    if (EC.reembolso && EC.reembolso.extratoGeral) EC.reembolso.extratoGeral();
   });
 
   /* ============ Overlays-placeholder do header ============ */

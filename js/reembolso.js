@@ -1571,6 +1571,7 @@ EC.reembolso = (function () {
       function (item) { abrirExtrato(item.p, false, true); });
   }
   async function extratoGeral() {
+    iniciar(); // garante a fiação (voltar do extrato/tela geral) mesmo abrindo direto da home
     EC.app.mostrarTela('tela-extrato-geral');
     window.scrollTo(0, 0);
     var area = $('eg-lista');
@@ -1933,11 +1934,9 @@ EC.reembolso = (function () {
     $('rb-novo').addEventListener('click', function () { abrirNovo(false); });
     $('rb-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-acao'); });
     $('rb-extrato-voltar').addEventListener('click', function () { EC.app.mostrarTela(extratoOrigem || 'tela-reembolso'); });
-    // Extrato geral (todas as solicitações) — só para Financeiro/Logística/admin.
-    var bGeral = $('rb-extrato-geral');
-    if (bGeral) { bGeral.classList.toggle('oculto', !ehGestor()); bGeral.addEventListener('click', extratoGeral); }
+    // Extrato geral: voltar da tela geral vai para a home (aberto pela home).
     var egV = $('eg-voltar');
-    if (egV) egV.addEventListener('click', function () { EC.app.mostrarTela('tela-reembolso'); });
+    if (egV) egV.addEventListener('click', function () { EC.app.mostrarTela('tela-acao'); });
     $('rb-saldo-btn').addEventListener('click', abrirSaldos);
     $('rb-saldo-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-reembolso'); });
     $('rb-saldo-det-voltar').addEventListener('click', abrirSaldos);
@@ -2002,5 +2001,5 @@ EC.reembolso = (function () {
 
   window.addEventListener('online', function () { enviarPendentes(true); });
 
-  return { abrir: abrir };
+  return { abrir: abrir, extratoGeral: extratoGeral };
 })();
