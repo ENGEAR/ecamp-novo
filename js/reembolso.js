@@ -1419,30 +1419,29 @@ EC.reembolso = (function () {
     pago:                  { txt: '💰 Pago',                                cls: 'rb-pago' }
   };
 
-  function cartaoPedido(p, aguardandoEnvio) {
+  // Card compacto: OS, projeto, nº da parcela e valor (% de total).
+  function cartaoPedido(p, aguardandoEnvio, parcelaN) {
     var st = aguardandoEnvio
       ? { txt: '📴 Aguardando envio', cls: 'rb-aguardando' }
       : (STATUS[p.status] || { txt: p.status, cls: 'rb-aguardando' });
-    var retorno = dataBR(p.data_retorno || p.dataRetorno);
     var total = p.valor_total != null ? p.valor_total : p.valorTotal;
     var pct = p.percentual_solicitado != null ? Number(p.percentual_solicitado) : (p.percentual || 100);
     var solicitado = p.valor_solicitado != null ? p.valor_solicitado : p.valorSolicitado;
-    var linhaValor = pct < 100 && solicitado != null
+    var valorTxt = (pct < 100 && solicitado != null)
       ? '<strong>' + moedaBR(solicitado) + '</strong> (' + pct + '% de ' + moedaBR(total) + ')'
       : '<strong>' + moedaBR(total) + '</strong>';
+    var projeto = p.projeto ? '<div class="os-resumo">📁 ' + p.projeto + '</div>'
+      : (p.cliente ? '<div class="os-resumo">' + p.cliente + '</div>' : '');
     var obs = (p.status === 'rejeitado' || p.status === 'correcao') && p.observacao_logistica
       ? '<div class="rb-motivo">Observação da Logística: ' + p.observacao_logistica + '</div>' : '';
-    var pagoInfo = p.status === 'pago' && p.pago_em
-      ? '<div class="os-resumo">Pago em ' + dataBR(p.pago_em) + (p.forma_pagamento ? ' · ' + p.forma_pagamento : '') + '</div>' : '';
+    var parcelaTxt = parcelaN ? '<span class="rotulo-apoio">' + parcelaN + 'ª parcela</span> · ' : '';
     return (
       '<button type="button" class="rb-pedido rb-pedido-click" data-codigo="' + (p.codigo || '') + '">' +
       '  <div class="rb-pedido-topo"><span class="os-numero">OS ' + (p.os || '?') + '</span>' +
       '    <span class="rb-status ' + st.cls + '">' + st.txt + '</span></div>' +
-      '  <div class="rb-pedido-linha">' + linhaValor +
-      (retorno !== '—' ? ' · retorno ' + retorno : '') + '</div>' +
-      (p.designado ? '<div class="os-resumo">👷 Designado: ' + p.designado + '</div>' : '') +
-      (p.cliente ? '<div class="os-resumo">' + p.cliente + '</div>' : '') +
-      obs + pagoInfo +
+      projeto +
+      '  <div class="rb-pedido-linha">' + parcelaTxt + valorTxt + '</div>' +
+      obs +
       '  <div class="rb-ver-extrato">🧾 Ver extrato ›</div>' +
       '</button>'
     );
@@ -1468,9 +1467,21 @@ EC.reembolso = (function () {
       area.innerHTML = '<p class="texto-apoio">Nenhuma solicitação ainda. Toque em "Nova solicitação" para começar.</p>';
       return;
     }
+    // Numera as parcelas por OS+campanha+designado (a 1ª solicitação = 1ª parcela).
+    var grupos = {};
+    enviados.forEach(function (p) {
+      var k = p.os + '|' + p.campanha_numero + '|' + (p.designado || '');
+      (grupos[k] = grupos[k] || []).push(p);
+    });
+    var numParcela = {};
+    Object.keys(grupos).forEach(function (k) {
+      grupos[k].slice().sort(function (a, b) {
+        return String(a.created_at || a.criadoEm || '').localeCompare(String(b.created_at || b.criadoEm || ''));
+      }).forEach(function (p, i) { numParcela[p.codigo] = i + 1; });
+    });
     area.innerHTML =
       fila.map(function (p) { return cartaoPedido(p, true); }).join('') +
-      enviados.map(function (p) { return cartaoPedido(p, false); }).join('');
+      enviados.map(function (p) { return cartaoPedido(p, false, numParcela[p.codigo]); }).join('');
     // clicar num cartão abre o extrato completo
     var porCodigo = {};
     fila.forEach(function (p) { porCodigo[p.codigo] = { pedido: p, aguardandoEnvio: true }; });
@@ -1587,10 +1598,12 @@ EC.reembolso = (function () {
       var xsol = x.valor_solicitado != null ? x.valor_solicitado : Math.round(Number(x.valor_total || 0) * xpct) / 100;
       var quando = x.created_at || x.criadoEm;
       var xdata = quando ? dataBR(quando) : '—';
-      var xstatus = x.status === 'pago'
-        ? '<br><span style="color:var(--verde);">💰 pago em ' + (x.pago_em ? dataBR(x.pago_em) : '—') + '</span>'
+      var pagoP = x.status === 'pago';
+      var xstatus = pagoP
+        ? '<br>💰 pago em ' + (x.pago_em ? dataBR(x.pago_em) : '—')
         : (STATUS[x.status] ? '<br><span class="rotulo-apoio">' + STATUS[x.status].txt + '</span>' : '');
-      return '<div class="apr-orc-linha"><strong>' + (i + 1) + 'ª parcela:</strong> ' + xpct + '% em ' + xdata + ' = <strong>' + moedaBR(xsol) + '</strong>' + xstatus + '</div>';
+      return '<div class="apr-orc ' + (pagoP ? 'apr-orc-verde' : 'apr-orc-cinza') + '" style="margin:6px 0;">' +
+        '<strong>' + (i + 1) + 'ª parcela:</strong> ' + xpct + '% em ' + xdata + ' = <strong>' + moedaBR(xsol) + '</strong>' + xstatus + '</div>';
     }).join('');
 
     $('rb-extrato').innerHTML =
@@ -1598,7 +1611,7 @@ EC.reembolso = (function () {
       '<span class="rb-status ' + st.cls + '">' + st.txt + '</span></div>' +
       (p.cliente ? '<div class="os-resumo" style="margin-bottom:4px;">' + p.cliente + '</div>' : '') +
       (p.projeto ? '<div class="os-resumo" style="margin-bottom:8px;">📁 ' + p.projeto + '</div>' : '') +
-      pago + obs +
+      obs +
       '<p class="dg-secao">Valores da logística</p>' +
       '<div class="rb-resumo-auto">' +
         '<div class="apr-linha"><span>Valor total</span><strong>' + moedaBR(total) + '</strong></div>' +
@@ -1606,7 +1619,7 @@ EC.reembolso = (function () {
         '<div class="apr-linha" style="grid-column:1/-1;"><span>À receber</span><strong style="font-size:1.4rem;">' + moedaBR(aPagar) + '</strong></div>' +
       '</div>' +
       '<p class="dg-secao">Solicitações de reembolso</p>' +
-      '<div class="apr-orc apr-orc-cinza">' + (parcelasHtml || '<div class="apr-orc-linha">—</div>') + '</div>' +
+      (parcelasHtml || '<div class="apr-orc apr-orc-cinza">—</div>') +
       renderResumoPedido(p);
 
     // Comprovantes: um por parcela paga, rotulado pela parcela (abre em overlay).
