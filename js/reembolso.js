@@ -1520,8 +1520,47 @@ EC.reembolso = (function () {
         linha('Distância (ida e volta)', p.distancia_km ? p.distancia_km + ' km' : '—') +
         linha('Combustível', comb ? (comb + (p.preco_litro ? ' · ' + moedaBR(p.preco_litro) + '/L' : '')) : '—') +
       '</div>' +
+      baseCalculoHtml(p) +
       '<p class="dg-secao">Valores</p>' + (valores || '<p class="texto-apoio">—</p>')
     );
+  }
+
+  // Base de cálculo (igual à da Logística): dias, transporte (+5 km/dia), consumo
+  // e os preços unitários usados (mão de obra/dia, hospedagem, refeições).
+  function baseCalculoHtml(p) {
+    var vu = p.valores_usados || {};
+    var ehFreela = p.solicitante_tipo === 'freelancer';
+    var comb = p.tipo_combustivel ? (p.tipo_combustivel === 'diesel' ? 'Diesel' : 'Gasolina') : null;
+    var distKm = Number(p.distancia_km) || 0;
+    var diasServ = Number(p.dias_servico) || 0;
+    var kmServico = 5 * diasServ;
+    var b = [];
+    b.push('Base: ' + (p.dias_servico != null ? p.dias_servico + ' dia(s) de serviço' : '') +
+      (p.dias_deslocamento != null ? ' · ' + p.dias_deslocamento + ' de deslocamento' : ''));
+    if (distKm) {
+      b.push('Transporte: ' + distKm + ' km' +
+        (kmServico ? ' + 5 km/dia × ' + diasServ + ' dia(s) de serviço = <b>' + (distKm + kmServico) + ' km</b>' : ''));
+    }
+    if (p.consumo_kml || p.preco_litro) {
+      b.push('Consumo: ' + (p.consumo_kml ? p.consumo_kml + ' km/L' : '—') +
+        (comb ? ' · ' + comb : '') + (p.preco_litro ? ' ' + moedaBR(p.preco_litro) + '/L' : ''));
+    }
+    var diasMO = (Number(p.dias_servico) === Number(p.dias_viagem))
+      ? (Number(p.dias_viagem) || 0)
+      : ((Number(p.dias_servico) || 0) + (Number(p.dias_deslocamento) || 0));
+    if (Number(p.valor_mao_obra) > 0 && diasMO > 0) {
+      b.push('Mão de obra: ' + moedaBR(Math.round(Number(p.valor_mao_obra) / diasMO * 100) / 100) + '/dia');
+    }
+    if (Number(p.valor_hospedagem) > 0 && vu.hospedagem_dia != null) b.push('Hospedagem: ' + moedaBR(vu.hospedagem_dia) + '/diária');
+    if (Number(p.valor_almoco) > 0 && vu.almoco != null) {
+      b.push('Almoço: ' + (ehFreela ? moedaBR(vu.almoco) + '/dia'
+        : moedaBR(vu.almoco_clt_util) + '/dia útil · ' + moedaBR(vu.almoco) + '/dia no fim de semana'));
+    }
+    if (Number(p.valor_jantar) > 0 && vu.jantar != null) b.push('Jantar: ' + moedaBR(vu.jantar) + '/dia');
+    if (Number(p.valor_lanche) > 0 && vu.lanche != null) b.push('Lanche: ' + moedaBR(vu.lanche) + '/dia de deslocamento');
+    return '<div class="apr-detalhe"><div class="apr-detalhe-icone">🧮</div>' +
+      '<div class="apr-detalhe-corpo"><div class="apr-detalhe-titulo">Base de cálculo</div>' +
+      '<ul>' + b.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul></div></div>';
   }
 
   function abrirExtrato(p, aguardandoEnvio) {
@@ -1540,21 +1579,48 @@ EC.reembolso = (function () {
       ? '<div class="apr-orc apr-orc-verde"><strong>💰 Pago</strong> em ' + dataBR(p.pago_em) + (p.forma_pagamento ? ' · ' + p.forma_pagamento : '') + (p.banco_saida ? ' · ' + p.banco_saida : '') + '</div>' : '';
 
     var adiant = Number(p.adiantamento_valor || p.adiantamentoValor || 0);
-    var adiantHtml = adiant > 0
-      ? '<div class="rb-total" style="margin-top:6px;">A pagar (após adiantamento): <strong>' + moedaBR(Math.round((solicitado - adiant) * 100) / 100) + '</strong>' +
-        '<span class="rb-total-sub">solicitado ' + moedaBR(solicitado) + ' − adiantamento ' + moedaBR(adiant) +
-        ((p.adiantamento_data || p.adiantamentoData) ? ' (em ' + dataBR(p.adiantamento_data || p.adiantamentoData) + ')' : '') + '</span></div>'
-      : '';
+    var adiantData = p.adiantamento_data || p.adiantamentoData || null;
+    var aPagar = Math.round((Number(total || 0) - adiant) * 100) / 100;
+
+    // Solicitações de reembolso (parcelas) desta OS+campanha+designado.
+    var parcelas = listaEmCache().filter(function (x) {
+      return String(x.os) === String(p.os) &&
+        Number(x.campanha_numero) === Number(p.campanha_numero) &&
+        (x.designado || '') === (p.designado || '') &&
+        ['aguardando_logistica', 'aguardando_pagamento', 'pago'].indexOf(x.status) !== -1;
+    }).sort(function (a, b) { return String(a.created_at || '').localeCompare(String(b.created_at || '')); });
+    if (!parcelas.length) parcelas = [p];
+    var parcelasHtml = parcelas.map(function (x) {
+      var xpct = x.percentual_solicitado != null ? Number(x.percentual_solicitado) : 100;
+      var xsol = x.valor_solicitado != null ? x.valor_solicitado : Math.round(Number(x.valor_total || 0) * xpct) / 100;
+      var xdata = x.created_at ? dataBR(String(x.created_at).slice(0, 10)) : '—';
+      return '<div class="apr-orc-linha">• ' + xpct + '% em ' + xdata + ' = <strong>' + moedaBR(xsol) + '</strong></div>';
+    }).join('');
+
     $('rb-extrato').innerHTML =
       '<div class="rb-pedido-topo" style="margin-bottom:10px;"><span class="os-numero">OS ' + (p.os || '?') + '</span>' +
       '<span class="rb-status ' + st.cls + '">' + st.txt + '</span></div>' +
       (p.cliente ? '<div class="os-resumo" style="margin-bottom:4px;">' + p.cliente + '</div>' : '') +
       (p.projeto ? '<div class="os-resumo" style="margin-bottom:8px;">📁 ' + p.projeto + '</div>' : '') +
       pago + obs +
-      '<div class="rb-total" style="margin-top:6px;">Solicitado (' + pct + '%): <strong>' + moedaBR(solicitado) + '</strong>' +
-      '<span class="rb-total-sub">Total da logística: ' + moedaBR(total) + '</span></div>' +
-      adiantHtml +
+      '<div class="rb-total" style="margin-top:6px;">Valor total da logística: <strong>' + moedaBR(total) + '</strong></div>' +
+      (adiant > 0 ? '<div class="os-resumo" style="margin:6px 0;">💵 Adiantamento: ' + (adiantData ? dataBR(adiantData) : '—') + ' — Valor: ' + moedaBR(adiant) + '</div>' : '') +
+      '<div class="rb-total" style="margin-top:6px;">A pagar: <strong>' + moedaBR(aPagar) + '</strong>' +
+        '<span class="rb-total-sub">logística total − adiantamento</span></div>' +
+      '<p class="dg-secao">Solicitações de reembolso</p>' +
+      '<div class="apr-orc apr-orc-cinza">' + (parcelasHtml || '<div class="apr-orc-linha">—</div>') + '</div>' +
       renderResumoPedido(p);
+
+    // Comprovante de pagamento (abre em overlay) — só quando já foi pago.
+    if (p.status === 'pago' && p.id) {
+      var bComp = document.createElement('button');
+      bComp.type = 'button';
+      bComp.className = 'botao botao-secundario';
+      bComp.style.marginTop = '12px';
+      bComp.textContent = '📄 Ver comprovante de pagamento';
+      bComp.addEventListener('click', function () { verComprovante(p.id, bComp); });
+      $('rb-extrato').appendChild(bComp);
+    }
 
     // Ações só enquanto dá para mexer: apagar (fila do aparelho ou aguardando a
     // Logística) e editar (só as já enviadas que aguardam a Logística).
@@ -1569,6 +1635,31 @@ EC.reembolso = (function () {
       $('rb-extrato').appendChild(acoes);
       if (podeEditar) $('rb-extrato-editar').addEventListener('click', function () { abrirEdicao(p); });
       if (podeApagar) $('rb-extrato-apagar').addEventListener('click', function () { apagarSolicitacao(p, aguardandoEnvio); });
+    }
+  }
+
+  // Abre o(s) comprovante(s) de pagamento (URLs assinadas vindas da API) num
+  // overlay: imagem inline; PDF vira link "Abrir".
+  async function verComprovante(id, botao) {
+    var txt = botao.textContent;
+    botao.disabled = true; botao.textContent = '⏳ Abrindo…';
+    try {
+      var r = await getJson(BASE + '/comprovante?id=' + encodeURIComponent(id));
+      if (!r || !r.ok || !r.comprovantes || !r.comprovantes.length) {
+        EC.app.mostrarToast('Comprovante não encontrado.');
+        return;
+      }
+      var html = r.comprovantes.map(function (c) {
+        var isPdf = /\.pdf$/i.test(c.nome || '') || c.mime === 'application/pdf';
+        return isPdf
+          ? '<p style="margin:8px 0;"><a class="botao botao-secundario" href="' + c.url + '" target="_blank" rel="noopener">📄 Abrir ' + (c.nome || 'comprovante') + '</a></p>'
+          : '<img src="' + c.url + '" alt="comprovante" style="max-width:100%;border-radius:8px;margin-bottom:8px;">';
+      }).join('');
+      EC.app.abrirOverlay('📄 Comprovante de pagamento', html);
+    } catch (e) {
+      EC.app.mostrarToast('Não consegui abrir o comprovante.');
+    } finally {
+      botao.disabled = false; botao.textContent = txt;
     }
   }
 
