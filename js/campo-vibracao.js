@@ -2,14 +2,21 @@
  * campo-vibracao.js — Monitoramento em campo: VIBRAÇÃO (Sismografia)
  *
  * Usado nos escopos de Vibração (Sismografia – NBR 9653, Patrimônio
- * Espeleológico – CECAV, Áreas Habitadas – CETESB DD 215/2007). Não há subtipo;
- * os métodos Usual/Online usam o mesmo formulário por enquanto.
+ * Espeleológico – CECAV, Áreas Habitadas – CETESB DD 215/2007). Os métodos
+ * Usual/Online usam o mesmo formulário por enquanto.
  *
- * Conteúdo conforme `ecamp_especificacao.docx` item 8.2:
- *   Campos gerais: Objetivo + Quantidade de pontos.
- *   Por ponto (paginado): identificação, escolha do local, instalação do
- *   geofone (solo / solo rígido), instalação do microfone, fonte de vibração,
- *   auto verificação, foto, durante o monitoramento, intercorrências, hora final.
+ * Dois formulários, decididos pelo ESCOPO da OS (cecav.docx, 2026-07):
+ *   NBR 9653 (padrão) — Campos gerais: Objetivo + Quantidade de pontos.
+ *     Por ponto (paginado): identificação, escolha do local, instalação do
+ *     geofone (solo / solo rígido), instalação do microfone, fonte de vibração,
+ *     auto verificação, foto, durante o monitoramento, intercorrências, hora final.
+ *   CECAV (escopo com "CECAV"/"Espeleológico") — acrescenta nos campos gerais a
+ *     Fonte de vibração (seleção, com avisos por opção) + 2 confirmações de
+ *     configuração (histograma ≥ 15 min, solo contínuo). Por ponto, os checks de
+ *     local variam pela fonte (com/sem os 2 de caverna) e, em Construção Civil e
+ *     Ferrovia ou Rodovia, são 3 MEDIÇÕES por ponto: a 1ª é o formulário
+ *     completo; a 2ª e a 3ª repetem só identificação (herdada da 1ª quando em
+ *     branco), auto verificação, intercorrências e hora final.
  *
  * Interface (namespace global EC.campoVibracao):
  *   EC.campoVibracao.renderizar(container, ctx)
@@ -77,6 +84,64 @@ EC.campoVibracao = (function () {
     'Evento captado',
     'Registro sísmico conferido após evento'
   ];
+
+  /* ===== CECAV (Patrimônio Espeleológico) ===== */
+
+  const CFG_APARELHO = 'Configuração do aparelho em sismograma (trigger) e histograma';
+  const CFG_HISTOGRAMA = 'Configurar o tempo do histograma para, no mínimo, 15 minutos. Esse tempo é o suficiente para avaliar as situações previstas na norma de referência.';
+  const CFG_SOLO_CONTINUO = 'Deve ser escolhido pontos de medição em um local onde o solo entre a fonte e o ponto seja contínuo, sem interferências que possam alterar a propagação da vibração.';
+  // Substituem o "Ponto representa adequadamente o cenário" nas fontes com caverna.
+  const CHECKS_LOCAL_CAVERNA = [
+    'Ponto representa adequadamente o cenário das áreas de cavernas existentes no entorno',
+    'Os pontos de medição deverão estar situados ao longo de uma trajetória em linha reta entre a fonte emissora e a caverna mais próxima, posicionando-se o ponto o mais próximo possível da cavidade'
+  ];
+  // Fonte de vibração (campo geral do CECAV). medicoes=3 → cada ponto tem 3
+  // medições; caverna → os 2 checks de caverna entram na escolha do local;
+  // checksFonte → confirmações extras da medição (bloqueiam o salvamento).
+  const FONTES_CECAV = {
+    'Construção Civil': {
+      medicoes: 3, caverna: true,
+      aviso: 'Se Construção Civil: é necessário, no mínimo, 3 monitoramentos por ponto.',
+      checksFonte: ['Tráfego de veículos de carga em vias internas: o período de medição deverá contemplar, no mínimo, 3 (três) passagens de veículos de carga pela via monitorada.']
+    },
+    'Desmonte Mineração': {
+      medicoes: 1, caverna: false,
+      aviso: 'Se Desmonte Mineração: a definição dos pontos de monitoramento deverá ser formalmente indicada pelo contratante.',
+      checksFonte: []
+    },
+    'Atividades Diversas': {
+      medicoes: 1, caverna: false,
+      aviso: 'Se Atividades Diversas: a definição dos pontos de monitoramento deverá ser formalmente indicada pelo contratante.',
+      checksFonte: []
+    },
+    'Ferrovia ou Rodovia': {
+      medicoes: 3, caverna: true,
+      aviso: '',
+      checksFonte: [
+        'Trens e afins: cada medição deverá contemplar a passagem completa de um comboio ferroviário.',
+        'Veículos: cada medição deverá ter duração mínima de 15 (quinze) minutos, devendo ser realizada em dia útil e em horário de maior fluxo de veículos de carga na via monitorada.'
+      ]
+    }
+  };
+
+  // CECAV é decidido pelo ESCOPO da OS (como o tipo de monitoramento). Recebe o
+  // estado por parâmetro porque a validação roda também sem o módulo renderizado.
+  function ehCecav(estado) {
+    const e = ((estado && estado.servico && estado.servico.escopo) || '').toString().toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '');
+    return /cecav|espeleologic/.test(e);
+  }
+  function cfgFonte(estado) {
+    if (!ehCecav(estado)) return null;
+    const c = estado.campo || {};
+    return FONTES_CECAV[(c.geral || {}).fonteVibracaoGeral] || null;
+  }
+  function checksLocal(estado) {
+    if (!ehCecav(estado)) return CHECKS_LOCAL;
+    const base = CHECKS_LOCAL.slice(1); // sem o "representa o cenário" da NBR
+    const f = cfgFonte(estado);
+    return (f && f.caverna) ? CHECKS_LOCAL_CAVERNA.concat(base) : base;
+  }
 
   let ctx = null;
   let raiz = null;
@@ -150,17 +215,37 @@ EC.campoVibracao = (function () {
     const area = $('#cv-geral');
     const g = campo().geral;
     const previstoPontos = ctx.estado.dadosGerais.qtdePontos;
+    const cecav = ehCecav(ctx.estado);
     area.innerHTML =
       '<label>Objetivo<select data-campo="objetivo">' +
       '<option value="">Selecione…</option><option>Vibrações da Empresa</option><option>Vibrações do Ambiente</option>' +
       '</select></label>' +
+      (cecav
+        ? '<label>Fonte de vibração<select data-campo="fonteVibracaoGeral"><option value="">Selecione…</option>' +
+          Object.keys(FONTES_CECAV).map(function (n) { return '<option>' + n + '</option>'; }).join('') +
+          '</select></label><div id="cv-aviso-fonte"></div>'
+        : '') +
       '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>' +
       (previstoPontos != null && previstoPontos !== '' ? '<p class="texto-apoio">Previsto na OS: ' + previstoPontos + ' ponto(s).</p>' : '') +
       '<div id="cv-just-pontos"></div>' +
       '<p class="grupo-checks-titulo">⚙️ Configuração do aparelho</p>' +
-      htmlChecks(['Configuração do aparelho em sismograma (trigger) e histograma'], 'cfg');
+      htmlChecks(cecav ? [CFG_APARELHO, CFG_HISTOGRAMA] : [CFG_APARELHO], 'cfg') +
+      (cecav ? htmlChecks([CFG_SOLO_CONTINUO], 'solocont') : '');
     if (g.qtdePontos === undefined) g.qtdePontos = previstoPontos;
     vincular(area, g);
+
+    // CECAV: aviso conforme a fonte escolhida; trocar a fonte muda a estrutura
+    // dos pontos (checks de caverna, condições da medição, 3 medições).
+    const selFonte = area.querySelector('[data-campo="fonteVibracaoGeral"]');
+    if (selFonte) {
+      const avisoFonte = function () {
+        const f = FONTES_CECAV[selFonte.value];
+        area.querySelector('#cv-aviso-fonte').innerHTML =
+          (f && f.aviso) ? '<div class="alerta alerta-amarelo">⚠️ ' + f.aviso + '</div>' : '';
+      };
+      selFonte.addEventListener('change', function () { avisoFonte(); renderizarPontos(); });
+      avisoFonte();
+    }
 
     // Justificativa obrigatória quando a qtd de pontos difere da prevista na OS.
     function atualizarJustPontos() {
@@ -227,15 +312,18 @@ EC.campoVibracao = (function () {
     const ponto = campo().pontos[n - 1];
     if (!ponto) { area.innerHTML = ''; return; }
 
+    const fonte = cfgFonte(ctx.estado);
+    const tresMedicoes = !!(fonte && fonte.medicoes === 3);
     const html =
       '<div class="cartao-ponto"><h2>Ponto P' + n + '</h2>' +
+      (tresMedicoes ? '<p class="texto-apoio">⚠️ Esta fonte exige <strong>3 medições</strong> neste ponto: preencha a 1ª medição completa abaixo — a 2ª e a 3ª estão no fim da página.</p><p class="grupo-checks-titulo">1ª medição</p>' : '') +
       // 1. Identificação
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       '<label>Nome do ponto<input type="text" data-campo="nome"></label>' +
       htmlEquipamentoPonto() +
       '<div class="cv-gps"></div>' +
-      // 2. Escolha do local
-      '<p class="grupo-checks-titulo">📍 Escolha do local</p>' + htmlChecks(CHECKS_LOCAL, 'local') +
+      // 2. Escolha do local (checks variam: NBR / CECAV com ou sem caverna)
+      '<p class="grupo-checks-titulo">📍 Escolha do local</p>' + htmlChecks(checksLocal(ctx.estado), 'local') +
       // 3. Instalação do geofone — preencher UMA das três opções
       '<label>Instalação do geofone (preencher uma opção)<select data-campo="instalGeofone"><option value="">Selecione…</option>' +
       '<option>Solo</option><option>Superfície rígida</option><option>Alternativa</option></select></label>' +
@@ -244,6 +332,10 @@ EC.campoVibracao = (function () {
       '<p class="grupo-checks-titulo">🎙️ Instalação do microfone</p>' + htmlChecks(CHECKS_MICROFONE, 'mic') +
       // 6. Fonte de vibração
       '<label>Fonte de vibração<input type="text" data-campo="fonteVibracao"></label>' +
+      // 6b. CECAV: condições da medição conforme a fonte geral escolhida
+      (fonte && fonte.checksFonte.length
+        ? '<p class="grupo-checks-titulo">📋 Condições da medição</p>' + htmlChecks(fonte.checksFonte, 'fonteChk')
+        : '') +
       // 7. Auto verificação
       '<p class="grupo-checks-titulo">🔎 Auto verificação</p>' + htmlChecks(['Auto verificação realizada'], 'autoverif') +
       '<p class="texto-apoio">⚠️ Se não conseguir auto verificação, checar os cabos; se persistir, contatar a ENGEAR.</p>' +
@@ -256,10 +348,14 @@ EC.campoVibracao = (function () {
       '<div id="cv-intercorrencia-desc"></div>' +
       // 11. Finalização
       '<label>Hora final<input type="time" data-campo="horaFinal"></label>' +
+      // CECAV com 3 medições: 2ª e 3ª entram aqui (montadas DEPOIS do vincular
+      // do ponto, para os campos delas serem vinculados só à medição)
+      '<div id="cv-medicoes"></div>' +
       '</div>';
     area.innerHTML = html;
 
     vincular(area, ponto);
+    renderMedicoes(area, ponto);
     const gpsInstancia = montarGps(area, ponto);
     montarFoto(area, '.cv-foto-ponto', ponto, 'fotoPonto', '📷 Foto do ponto (obrigatória)', gpsInstancia, n);
 
@@ -293,9 +389,55 @@ EC.campoVibracao = (function () {
     descricao();
   }
 
+  // 2ª e 3ª medições (CECAV: Construção Civil e Ferrovia ou Rodovia). A 1ª
+  // medição é o próprio formulário do ponto; estas repetem só identificação,
+  // auto verificação, intercorrências e hora final. Nome/equipamento em branco
+  // herdam os da 1ª medição; o GPS vale o da 1ª.
+  function renderMedicoes(area, ponto) {
+    const divTodas = area.querySelector('#cv-medicoes');
+    if (!divTodas) return;
+    const f = cfgFonte(ctx.estado);
+    if (!f || f.medicoes !== 3) { divTodas.innerHTML = ''; return; }
+    ponto.medicoes = ponto.medicoes || [];
+    while (ponto.medicoes.length < 2) ponto.medicoes.push({});
+    const eqs = ctx.estado.equipamentos || [];
+    divTodas.innerHTML = [2, 3].map(function (k) {
+      return '<div class="cartao-coleta cv-medicao"><h3>' + k + 'ª medição</h3>' +
+        '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
+        '<label>Nome do ponto<input type="text" placeholder="(igual à 1ª medição)" data-campo="nome"></label>' +
+        (eqs.length
+          ? '<label>Equipamento utilizado<select data-campo="equipamento"><option value="">(igual à 1ª medição)</option>' +
+            eqs.map(function (c) { return '<option>' + c + '</option>'; }).join('') + '</select></label>'
+          : '') +
+        '<p class="texto-apoio">📍 GPS: valem as coordenadas capturadas na 1ª medição.</p>' +
+        '<p class="grupo-checks-titulo">🔎 Auto verificação</p>' + htmlChecks(['Auto verificação realizada'], 'autoverif') +
+        '<p class="texto-apoio">⚠️ Se não conseguir auto verificação, checar os cabos; se persistir, contatar a ENGEAR.</p>' +
+        '<label>Intercorrências<select data-campo="intercorrencia"><option value="">Selecione…</option><option>Nenhuma</option><option>Sim</option></select></label>' +
+        '<div class="cv-med-desc"></div>' +
+        '<label>Hora final<input type="time" data-campo="horaFinal"></label>' +
+        '</div>';
+    }).join('');
+    divTodas.querySelectorAll('.cv-medicao').forEach(function (card, i) {
+      const med = ponto.medicoes[i];
+      vincular(card, med);
+      const sel = card.querySelector('[data-campo="intercorrencia"]');
+      const divDesc = card.querySelector('.cv-med-desc');
+      function descricao() {
+        if (sel.value === 'Sim') {
+          divDesc.innerHTML = '<label>Descreva a intercorrência<textarea rows="2" data-campo="intercorrenciaDesc"></textarea></label>';
+          vincular(divDesc, med);
+        } else {
+          divDesc.innerHTML = '';
+        }
+      }
+      sel.addEventListener('change', descricao);
+      descricao();
+    });
+  }
+
   /* ===== Validação ===== */
 
-  function itensFaltandoDoPonto(ponto, indice) {
+  function itensFaltandoDoPonto(ponto, estado) {
     ponto = ponto || {};
     const falta = [];
     const reqVal = function (chave, rotulo) {
@@ -311,7 +453,7 @@ EC.campoVibracao = (function () {
 
     reqVal('horaInicial', 'hora inicial');
     reqVal('nome', 'nome do ponto');
-    if ((ctx.estado.equipamentos || []).length) reqVal('equipamento', 'equipamento utilizado');
+    if (((estado && estado.equipamentos) || []).length) reqVal('equipamento', 'equipamento utilizado');
     if (!ponto.gps) falta.push('GPS');
     reqVal('fonteVibracao', 'fonte de vibração');
     reqVal('instalGeofone', 'instalação do geofone');
@@ -322,6 +464,19 @@ EC.campoVibracao = (function () {
     grupoChecks('monit', CHECKS_MONITORAMENTO.length, 'durante o monitoramento');
     reqVal('intercorrencia', 'intercorrências');
     if (ponto.intercorrencia === 'Sim') reqVal('intercorrenciaDesc', 'descrição da intercorrência');
+    // CECAV: condições da medição (bloqueiam) + 2ª/3ª medições quando a fonte exige.
+    const f = cfgFonte(estado);
+    if (f && f.checksFonte.length) grupoChecks('fonteChk', f.checksFonte.length, 'condições da medição');
+    if (f && f.medicoes === 3) {
+      for (let k = 2; k <= 3; k++) {
+        const med = (ponto.medicoes || [])[k - 2] || {};
+        const mch = med.checks || {};
+        if (!String(med.horaInicial || '').trim()) falta.push(k + 'ª medição: hora inicial');
+        if (!mch.autoverif0) falta.push(k + 'ª medição: auto verificação');
+        if (!String(med.intercorrencia || '').trim()) falta.push(k + 'ª medição: intercorrências');
+        if (med.intercorrencia === 'Sim' && !String(med.intercorrenciaDesc || '').trim()) falta.push(k + 'ª medição: descrição da intercorrência');
+      }
+    }
     // Hora final é opcional (como a hora de término no ruído).
     // Checks de local/geofone/microfone são situacionais → não bloqueiam.
     return falta;
@@ -334,6 +489,11 @@ EC.campoVibracao = (function () {
     const out = [];
     if (!c.geral.objetivo) out.push('objetivo do monitoramento');
     if (!(c.geral.checks && c.geral.checks.cfg0)) out.push('configuração do aparelho (sismograma/histograma)');
+    if (ehCecav(estado)) {
+      if (!c.geral.fonteVibracaoGeral) out.push('fonte de vibração');
+      if (!(c.geral.checks && c.geral.checks.cfg1)) out.push('configuração do histograma (mínimo 15 minutos)');
+      if (!(c.geral.checks && c.geral.checks.solocont0)) out.push('confirmação do solo contínuo entre a fonte e o ponto');
+    }
     // Variação no nº de pontos vs. previsto na OS → exige justificativa.
     const previsto = (estado.dadosGerais || {}).qtdePontos;
     if (previsto != null && previsto !== '' && String(c.geral.qtdePontos) !== String(previsto) &&
@@ -342,7 +502,7 @@ EC.campoVibracao = (function () {
     }
     if (!total) { out.push('a quantidade de pontos do campo não foi definida'); return out; }
     for (let i = 0; i < total; i++) {
-      itensFaltandoDoPonto(c.pontos[i], i).forEach(function (x) { out.push('P' + (i + 1) + ': ' + x); });
+      itensFaltandoDoPonto(c.pontos[i], estado).forEach(function (x) { out.push('P' + (i + 1) + ': ' + x); });
     }
     return out;
   }
@@ -355,6 +515,8 @@ EC.campoVibracao = (function () {
     if (!ctx.estado.campo) ctx.estado.campo = { geral: {}, pontos: [] };
     if (!ctx.estado.campo.geral) ctx.estado.campo.geral = {};
     if (!ctx.estado.campo.pontos) ctx.estado.campo.pontos = [];
+    // Marca o subtipo no registro (o SGP distingue CECAV da NBR 9653 por aqui).
+    if (ehCecav(ctx.estado)) ctx.estado.campo.subtipo = 'cecav';
     pontoExibido = 1;
 
     container.innerHTML =
