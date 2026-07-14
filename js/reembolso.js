@@ -91,9 +91,10 @@ EC.reembolso = (function () {
     var servico = intervaloDatas(sI, sF), total = intervaloDatas(ida, volta);
     var setS = {}; servico.forEach(function (d) { setS[d] = 1; });
     var deslocRaw = total.filter(function (d) { return !setS[d]; }).length;
-    // Deslocamento sempre PAR (ida e volta): serviço >2 dias e deu 1 → vira 2.
-    // Muda só o lanche (por dia de deslocamento); refeições/mão de obra usam total.
-    var desloc = (servico.length > 2 && deslocRaw === 1) ? 2 : deslocRaw;
+    // Deslocamento sempre PAR (ida e volta): nunca 1. Serviço 2 dias ou mais e
+    // deu 1 (volta no último dia de serviço) → vira 2 (sempre lanche de ida e de
+    // volta). Afeta o lanche e a mão de obra (diária × (deslocamento + serviço)).
+    var desloc = (servico.length >= 2 && deslocRaw === 1) ? 2 : deslocRaw;
     return {
       total: total.length, servicoPuro: servico.length, desloc: desloc,
       noites: diffDias(ida, volta), datasTotal: total
