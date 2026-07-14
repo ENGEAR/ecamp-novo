@@ -248,6 +248,11 @@ EC.aprovacoes = (function () {
         (sub ? '<div class="apr-vsub">' + sub + '</div>' : '') + '</div>' +
         '<span class="apr-vval">' + moeda(valFinal) + '</span></div>';
     }).join('');
+    // Última linha: TOTAL da logística.
+    valoresHtml += '<div class="apr-vlinha" style="border-top:2px solid var(--cinza-borda);">' +
+      '<span class="apr-vic">🧾</span>' +
+      '<div class="apr-vmeio"><div class="apr-vrot"><strong>TOTAL</strong></div></div>' +
+      '<span class="apr-vval"><strong>' + moeda(s.valor_total) + '</strong></span></div>';
 
     var pct = s.percentual_solicitado != null ? Number(s.percentual_solicitado) : 100;
     var solicitado = s.valor_solicitado != null ? s.valor_solicitado : s.valor_total;

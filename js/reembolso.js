@@ -1634,7 +1634,9 @@ EC.reembolso = (function () {
         linha('Dias de deslocamento', p.dias_deslocamento != null ? p.dias_deslocamento : '—') +
       '</div>' +
       baseCalculoHtml(p) +
-      '<p class="dg-secao">Valores</p>' + (valores || '<p class="texto-apoio">—</p>')
+      '<p class="dg-secao">Valores</p>' + (valores || '<p class="texto-apoio">—</p>') +
+      '<div class="apr-linha" style="border-top:2px solid var(--cinza-borda);border-bottom:none;">' +
+        '<span><strong>TOTAL</strong></span><strong>' + moedaBR(p.valor_total != null ? p.valor_total : (p.valorTotal || 0)) + '</strong></div>'
     );
   }
 
