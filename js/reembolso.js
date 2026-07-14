@@ -1419,7 +1419,7 @@ EC.reembolso = (function () {
   };
 
   // Card compacto: OS, projeto, nº da parcela e valor (% de total).
-  function cartaoPedido(p, aguardandoEnvio, parcelaN) {
+  function cartaoPedido(p, aguardandoEnvio, parcelaN, mostrarDesignado) {
     var st = aguardandoEnvio
       ? { txt: '📴 Aguardando envio', cls: 'rb-aguardando' }
       : (STATUS[p.status] || { txt: p.status, cls: 'rb-aguardando' });
@@ -1439,6 +1439,7 @@ EC.reembolso = (function () {
       '  <div class="rb-pedido-topo"><span class="os-numero">OS ' + (p.os || '?') + '</span>' +
       '    <span class="rb-status ' + st.cls + '">' + st.txt + '</span></div>' +
       projeto +
+      (mostrarDesignado && p.designado ? '<div class="os-resumo">👷 ' + p.designado + '</div>' : '') +
       '  <div class="rb-pedido-linha">' + parcelaTxt + valorTxt + '</div>' +
       obs +
       '</button>'
@@ -1513,7 +1514,7 @@ EC.reembolso = (function () {
 
   // Renderiza a lista tipo extrato de banco (ano → mês) num container, com busca.
   // dados = [{p, aguardandoEnvio}]; onAbrir(item) ao clicar num card.
-  function renderBancoLista(area, buscaEl, dados, numParcela, porCodigo, onAbrir) {
+  function renderBancoLista(area, buscaEl, dados, numParcela, porCodigo, onAbrir, mostrarDesignado) {
     if (!area) return;
     var termo = ((buscaEl && buscaEl.value) || '').toLowerCase().trim();
     var itens = (dados || []).filter(function (it) {
@@ -1539,7 +1540,7 @@ EC.reembolso = (function () {
         var lista = porAno[ano][mk].slice().sort(function (a, b) {
           return String(b.p.data_inicio || b.p.dataInicio || '').localeCompare(String(a.p.data_inicio || a.p.dataInicio || ''));
         });
-        var cards = lista.map(function (it) { return cartaoPedido(it.p, it.aguardandoEnvio, numParcela[it.p.codigo]); }).join('');
+        var cards = lista.map(function (it) { return cartaoPedido(it.p, it.aguardandoEnvio, numParcela[it.p.codigo], mostrarDesignado); }).join('');
         var nomeM = mk === '00' ? 'Sem data' : (MESES_PT[parseInt(mk, 10) - 1] || mk);
         return '<details class="rb-mes" open><summary><span>' + nomeM + ' <span class="rotulo-apoio">(' + lista.length + ')</span></span></summary>' +
           '<div class="rb-mes-conteudo">' + cards + '</div></details>';
@@ -1568,7 +1569,7 @@ EC.reembolso = (function () {
   }
   function renderExtratoGeral() {
     renderBancoLista($('eg-lista'), $('eg-busca'), egDados, egNumParcela, egPorCodigo,
-      function (item) { abrirExtrato(item.p, false, true); });
+      function (item) { abrirExtrato(item.p, false, true); }, true);
   }
   async function extratoGeral() {
     iniciar(); // garante a fiação (voltar do extrato/tela geral) mesmo abrindo direto da home
