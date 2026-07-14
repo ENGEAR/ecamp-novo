@@ -1514,12 +1514,6 @@ EC.reembolso = (function () {
         linha('Dias de serviço', p.dias_servico != null ? p.dias_servico : '—') +
         linha('Dias de deslocamento', p.dias_deslocamento != null ? p.dias_deslocamento : '—') +
       '</div>' +
-      '<p class="dg-secao">Transporte</p><div class="rb-resumo-auto">' +
-        linha('Veículo', p.veiculo === 'proprio' ? 'Próprio' : (p.veiculo === 'engear' ? 'ENGEAR' : '—')) +
-        linha('Origem → Destino', trajeto) +
-        linha('Distância (ida e volta)', p.distancia_km ? p.distancia_km + ' km' : '—') +
-        linha('Combustível', comb ? (comb + (p.preco_litro ? ' · ' + moedaBR(p.preco_litro) + '/L' : '')) : '—') +
-      '</div>' +
       baseCalculoHtml(p) +
       '<p class="dg-secao">Valores</p>' + (valores || '<p class="texto-apoio">—</p>')
     );
@@ -1535,10 +1529,16 @@ EC.reembolso = (function () {
     var distKm = Number(p.distancia_km) || 0;
     var diasServ = Number(p.dias_servico) || 0;
     var kmServico = 5 * diasServ;
+    var trajeto = (p.origem_cidade || p.destino_cidade)
+      ? ((p.origem_cidade || '?') + (p.origem_uf ? '/' + p.origem_uf : '') + ' → ' + (p.destino_cidade || '?') + (p.destino_uf ? '/' + p.destino_uf : ''))
+      : '—';
     var itens = [];
+    itens.push(['Veículo', p.veiculo === 'proprio' ? 'Próprio' : (p.veiculo === 'engear' ? 'ENGEAR' : '—')]);
+    itens.push(['Origem → Destino', trajeto]);
+    itens.push(['Distância (ida e volta)', distKm ? distKm + ' km' : '—']);
     itens.push(['Dias', (p.dias_servico != null ? p.dias_servico + ' serviço' : '—') +
       (p.dias_deslocamento != null ? ' · ' + p.dias_deslocamento + ' deslocamento' : '')]);
-    if (distKm) itens.push(['Transporte', distKm + ' km' +
+    if (distKm) itens.push(['Combustível (km)', distKm + ' km' +
       (kmServico ? ' + 5×' + diasServ + ' = ' + (distKm + kmServico) + ' km' : '')]);
     if (p.consumo_kml || p.preco_litro) itens.push(['Consumo', (p.consumo_kml ? p.consumo_kml + ' km/L' : '—') +
       (comb ? ' · ' + comb : '') + (p.preco_litro ? ' ' + moedaBR(p.preco_litro) + '/L' : '')]);
