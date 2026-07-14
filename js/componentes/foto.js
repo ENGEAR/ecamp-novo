@@ -9,8 +9,7 @@
  * Interface (namespace global EC.foto):
  *   EC.foto.criar(container, opcoes) → instância
  *     opcoes.os/tipo/ponto : compõem o carimbo e o nome do arquivo
- *     opcoes.rotuloPonto   : palavra antes do nº no carimbo (padrão 'Ponto';
- *                            ex.: 'Local' no QAR externo)
+ *     opcoes.rotuloPonto   : palavra antes do nº no carimbo (padrão 'Ponto')
  *     opcoes.obterUtm      : função () → texto UTM para o carimbo
  *     opcoes.rotulo        : texto base do botão (padrão '📷 Tirar foto')
  *     opcoes.fotoInicial   : ARRAY de fotos salvas (ou uma foto única, p/ rascunho
