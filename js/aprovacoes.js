@@ -269,13 +269,15 @@ EC.aprovacoes = (function () {
       '</div></div>';
 
     // Caixa verde forte: a pagar após adiantamento (só quando houve adiantamento).
+    // O adiantamento reduz do TOTAL; a parcela é o percentual disso.
     var adiant = Number(s.adiantamento_valor) || 0;
+    var aPagarPos = Math.round((Number(s.valor_total) - adiant) * pct) / 100;
     var heroPagar = adiant > 0
       ? '<div class="apr-hero apr-hero-forte"><div class="apr-hero-icone">👛</div>' +
         '<div class="apr-hero-corpo">' +
           '<div class="apr-hero-cab"><div class="apr-hero-titulo">A pagar (após adiantamento)</div><span class="apr-hero-tag">⭐ Valor a receber</span></div>' +
-          '<div class="apr-hero-valor">' + moeda(Math.round((solicitado - adiant) * 100) / 100) + '</div>' +
-          '<div class="apr-hero-sub">Solicitado ' + moeda(solicitado) + ' − adiantamento ' + moeda(adiant) + (s.adiantamento_data ? ' (' + dataBR(s.adiantamento_data) + ')' : '') + '</div>' +
+          '<div class="apr-hero-valor">' + moeda(aPagarPos) + '</div>' +
+          '<div class="apr-hero-sub">' + pct + '% de (total ' + moeda(s.valor_total) + ' − adiantamento ' + moeda(adiant) + (s.adiantamento_data ? ' em ' + dataBR(s.adiantamento_data) : '') + ')</div>' +
           (s.designado ? '<div class="apr-hero-desig">' + esc(s.designado) + '</div>' : '') +
         '</div></div>'
       : '';
@@ -338,8 +340,9 @@ EC.aprovacoes = (function () {
     // Tela do FINANCEIRO (aguardando pagamento): só título, designado, valores e
     // valor a pagar. O formulário "Registrar pagamento" vem do bloco de ações.
     if (s.status === 'aguardando_pagamento') {
+      // O adiantamento reduz do TOTAL; a parcela é o percentual disso.
       var adiantP = Number(s.adiantamento_valor) || 0;
-      var aPagar = Math.round((solicitado - adiantP) * 100) / 100;
+      var aPagar = Math.round((Number(s.valor_total) - adiantP) * pct) / 100;
       return (
         titulo +
         '<p class="dg-secao">Designado</p>' +
@@ -353,7 +356,7 @@ EC.aprovacoes = (function () {
           '<div class="apr-hero-corpo">' +
             '<div class="apr-hero-titulo">Valor a pagar (' + pct + '% da logística)</div>' +
             '<div class="apr-hero-valor">' + moeda(aPagar) + '</div>' +
-            (adiantP > 0 ? '<div class="apr-hero-sub">Solicitado ' + moeda(solicitado) + ' − adiantamento ' + moeda(adiantP) + (s.adiantamento_data ? ' (' + dataBR(s.adiantamento_data) + ')' : '') + '</div>' : '') +
+            (adiantP > 0 ? '<div class="apr-hero-sub">' + pct + '% de (total ' + moeda(s.valor_total) + ' − adiantamento ' + moeda(adiantP) + (s.adiantamento_data ? ' em ' + dataBR(s.adiantamento_data) : '') + ')</div>' : '') +
             '<div class="apr-hero-desig">' + esc(s.designado || '') + '</div>' +
           '</div></div>'
       );
