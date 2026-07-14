@@ -1738,50 +1738,44 @@ EC.reembolso = (function () {
       (parcelasHtml || '<div class="apr-orc apr-orc-cinza">—</div>') +
       renderResumoPedido(p);
 
-    // Comprovantes: um por parcela paga, rotulado pela parcela (abre em overlay).
+    // Comprovantes: das parcelas pagas e, abaixo, do adiantamento (mesma seção,
+    // sem título próprio para o adiantamento — os botões já se identificam).
     var pagas = parcelas.map(function (x, i) { return { x: x, n: i + 1 }; })
       .filter(function (o) { return o.x.status === 'pago' && o.x.id; });
-    if (pagas.length) {
+    var temAdiant = adiant > 0 && p.id;
+    if (pagas.length || temAdiant) {
       var secComp = document.createElement('div');
       secComp.innerHTML = '<p class="dg-secao">Comprovantes</p>';
       $('rb-extrato').appendChild(secComp);
       pagas.forEach(function (o) {
         var bComp = document.createElement('button');
-        bComp.type = 'button';
-        bComp.className = 'botao botao-secundario';
-        bComp.style.marginBottom = '8px';
-        bComp.style.display = 'block';
+        bComp.type = 'button'; bComp.className = 'botao botao-secundario';
+        bComp.style.marginBottom = '8px'; bComp.style.display = 'block';
         bComp.textContent = '📄 Comprovante da ' + o.n + 'ª parcela';
         bComp.addEventListener('click', function () { verComprovante(o.x.id, bComp, o.n); });
         secComp.appendChild(bComp);
       });
-    }
-
-    // Comprovante do adiantamento (quando há adiantamento): ver (todos) e
-    // anexar (só Financeiro/Logística/admin) — mesmo que o técnico não tenha posto.
-    if (adiant > 0 && p.id) {
-      var secAdi = document.createElement('div');
-      secAdi.innerHTML = '<p class="dg-secao">Comprovante do adiantamento</p>';
-      $('rb-extrato').appendChild(secAdi);
-      var bVerAdi = document.createElement('button');
-      bVerAdi.type = 'button'; bVerAdi.className = 'botao botao-secundario';
-      bVerAdi.style.marginBottom = '8px'; bVerAdi.style.display = 'block';
-      bVerAdi.textContent = '📄 Ver comprovante do adiantamento';
-      bVerAdi.addEventListener('click', function () { verComprovante(p.id, bVerAdi, null, 'adiantamento'); });
-      secAdi.appendChild(bVerAdi);
-      if (ehGestor()) {
-        var bAddAdi = document.createElement('button');
-        bAddAdi.type = 'button'; bAddAdi.className = 'botao botao-secundario';
-        bAddAdi.style.display = 'block';
-        bAddAdi.textContent = '➕ Anexar comprovante do adiantamento';
-        bAddAdi.addEventListener('click', function () { anexarComprovanteAdiantamento(p, bAddAdi); });
-        secAdi.appendChild(bAddAdi);
-        var bDelAdi = document.createElement('button');
-        bDelAdi.type = 'button'; bDelAdi.className = 'botao botao-perigo';
-        bDelAdi.style.display = 'block'; bDelAdi.style.marginTop = '6px';
-        bDelAdi.textContent = '🗑️ Apagar comprovante do adiantamento';
-        bDelAdi.addEventListener('click', function () { apagarComprovantesAdiantamento(p); });
-        secAdi.appendChild(bDelAdi);
+      if (temAdiant) {
+        var bVerAdi = document.createElement('button');
+        bVerAdi.type = 'button'; bVerAdi.className = 'botao botao-secundario';
+        bVerAdi.style.marginBottom = '8px'; bVerAdi.style.display = 'block';
+        bVerAdi.textContent = '📄 Ver comprovante do adiantamento';
+        bVerAdi.addEventListener('click', function () { verComprovante(p.id, bVerAdi, null, 'adiantamento'); });
+        secComp.appendChild(bVerAdi);
+        if (ehGestor()) {
+          var bAddAdi = document.createElement('button');
+          bAddAdi.type = 'button'; bAddAdi.className = 'botao botao-secundario';
+          bAddAdi.style.marginBottom = '8px'; bAddAdi.style.display = 'block';
+          bAddAdi.textContent = '➕ Anexar comprovante do adiantamento';
+          bAddAdi.addEventListener('click', function () { anexarComprovanteAdiantamento(p, bAddAdi); });
+          secComp.appendChild(bAddAdi);
+          var bDelAdi = document.createElement('button');
+          bDelAdi.type = 'button'; bDelAdi.className = 'botao botao-perigo';
+          bDelAdi.style.display = 'block';
+          bDelAdi.textContent = '🗑️ Apagar comprovante do adiantamento';
+          bDelAdi.addEventListener('click', function () { apagarComprovantesAdiantamento(p); });
+          secComp.appendChild(bDelAdi);
+        }
       }
     }
 
