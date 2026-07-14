@@ -166,6 +166,8 @@
     if (EC.aprovacoes && EC.aprovacoes.atualizarBadge) EC.aprovacoes.atualizarBadge();
     // Lembrete de serviço agendado: aparece automaticamente p/ quem é técnico (casado pelo e-mail).
     if (EC.agenda && EC.agenda.carregarLembretes) EC.agenda.carregarLembretes();
+    // SGQ: avisa no sino se há documento para baixar (ou com versão nova).
+    if (EC.biblioteca && EC.biblioteca.atualizarSino) EC.biblioteca.atualizarSino();
     // Extrato geral (todas as solicitações): só Financeiro/Logística/admin.
     var pap = sessao.papeis || [];
     var ehGestor = pap.indexOf('financeiro') !== -1 || pap.indexOf('logistica') !== -1 || pap.indexOf('admin') !== -1;
@@ -440,17 +442,18 @@
     else abrirOverlay('📚 SGQ', '<p class="overlay-vazio">SGQ indisponível.</p>');
   });
 
-  /* ============ Sino único (Aprovações + Lembretes de serviço) ============ */
-  // Cada módulo (aprovacoes.js, agenda.js) reporta sua própria contagem aqui —
-  // um só sino, um só total. Se só UMA fonte tiver conteúdo, vai direto pra ela
-  // (sem etapa no meio, igual sempre foi); com as duas ao mesmo tempo, mostra
-  // as DUAS listas JÁ ABERTAS no mesmo lugar — sem precisar escolher primeiro.
-  const sinoContagens = { aprovacoes: 0, lembretes: 0 };
+  /* ============ Sino único (Aprovações + Lembretes + SGQ) ============ */
+  // Cada módulo (aprovacoes.js, agenda.js, biblioteca.js) reporta sua própria
+  // contagem aqui — um só sino, um só total. Se só UMA fonte tiver conteúdo,
+  // vai direto pra ela (sem etapa no meio, igual sempre foi); com mais de uma
+  // ao mesmo tempo, mostra as listas JÁ ABERTAS no mesmo lugar — sem precisar
+  // escolher primeiro.
+  const sinoContagens = { aprovacoes: 0, lembretes: 0, sgq: 0 };
   const sinoMostrarSempre = { aprovacoes: false }; // aprovações aparece p/ quem tem o papel, mesmo com 0
   function atualizarSino(chave, n, mostrarSempre) {
     sinoContagens[chave] = n;
     if (mostrarSempre !== undefined) sinoMostrarSempre[chave] = mostrarSempre;
-    const total = sinoContagens.aprovacoes + sinoContagens.lembretes;
+    const total = sinoContagens.aprovacoes + sinoContagens.lembretes + sinoContagens.sgq;
     const algumaFonteRelevante = sinoMostrarSempre.aprovacoes || total > 0;
     const botao = $('btn-aprovacoes');
     botao.classList.toggle('oculto', !algumaFonteRelevante);
@@ -462,11 +465,13 @@
   async function abrirMenuSino() {
     const querAprov = sinoMostrarSempre.aprovacoes;
     const querLemb = sinoContagens.lembretes > 0;
-    const fontes = (querAprov ? 1 : 0) + (querLemb ? 1 : 0);
+    const querSgq = sinoContagens.sgq > 0;
+    const fontes = (querAprov ? 1 : 0) + (querLemb ? 1 : 0) + (querSgq ? 1 : 0);
     if (fontes === 0) return;
     if (fontes === 1) {
       if (querAprov && EC.aprovacoes && EC.aprovacoes.abrir) EC.aprovacoes.abrir();
       else if (querLemb && EC.agenda && EC.agenda.abrirVistos) EC.agenda.abrirVistos();
+      else if (querSgq && EC.biblioteca && EC.biblioteca.abrir) EC.biblioteca.abrir();
       return;
     }
 
@@ -495,7 +500,17 @@
       partes.push('<p class="dg-secao">📅 Lembretes de serviço (' + sinoContagens.lembretes + ')</p>' +
         '<p class="texto-apoio">Você tem os seguintes serviços agendados:</p>' + EC.agenda.obterVistosParaSino());
     }
+    if (querSgq) {
+      const n = sinoContagens.sgq;
+      partes.push('<p class="dg-secao">📚 SGQ (' + n + ')</p>' +
+        '<div class="overlay-item sino-sgq" role="button" tabindex="0">📥 ' + n + ' documento(s) para baixar ou atualizar no aparelho — toque para abrir o SGQ.</div>');
+    }
     $('overlay-conteudo').innerHTML = partes.join('');
+    const itemSgq = document.querySelector('#overlay-conteudo .sino-sgq');
+    if (itemSgq) itemSgq.addEventListener('click', function () {
+      fecharOverlay();
+      if (EC.biblioteca && EC.biblioteca.abrir) EC.biblioteca.abrir();
+    });
     document.querySelectorAll('#overlay-conteudo .apr-cartao[data-id]').forEach(function (el) {
       el.addEventListener('click', function () {
         fecharOverlay();
@@ -531,6 +546,8 @@
 
   window.addEventListener('online', function () {
     atualizarBarraPendencias();
+    // Voltou a internet: reconfere na API se há documento novo do SGQ.
+    if (sessaoAtual() && EC.biblioteca && EC.biblioteca.atualizarSino) EC.biblioteca.atualizarSino();
     mostrarToast('✅ Conexão restabelecida.');
   });
   window.addEventListener('offline', function () {

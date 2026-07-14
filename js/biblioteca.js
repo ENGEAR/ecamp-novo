@@ -18,9 +18,14 @@
  * baixa, guarda e abre. "Baixar todos" deixa a biblioteca inteira offline antes
  * de ir a campo. O ✕ ao lado de um baixado apaga só a cópia do aparelho.
  *
- * Interface (EC.biblioteca): abrir()
- * Depende de: EC.app (abrirOverlay, mostrarToast), EC.sync (buscarBiblioteca,
- * baixarDocumentoBiblioteca), EC.db (loja 'biblioteca'), EC.storage.
+ * O sino do app avisa quando há documento para baixar OU com versão nova no
+ * servidor (o caminho `arquivo` muda a cada troca de PDF no SGP; guardamos o
+ * caminho baixado e comparamos com o da lista).
+ *
+ * Interface (EC.biblioteca): abrir(), atualizarSino()
+ * Depende de: EC.app (abrirOverlay, mostrarToast, atualizarSino), EC.sync
+ * (buscarBiblioteca, baixarDocumentoBiblioteca), EC.db (loja 'biblioteca'),
+ * EC.storage.
  */
 window.EC = window.EC || {};
 
@@ -28,6 +33,7 @@ EC.biblioteca = (function () {
   'use strict';
 
   var CHAVE_LISTA = 'biblioteca:lista'; // lista de documentos (cache p/ offline)
+  var CHAVE_VERSOES = 'biblioteca:versoes'; // id → `arquivo` no momento do download
 
   const TIPOS = [
     { chave: 'legislacao', titulo: 'Legislação', icone: '📕' },
@@ -40,6 +46,7 @@ EC.biblioteca = (function () {
   let lista = [];
   let baixados = {};   // id → true (tem o PDF no IndexedDB)
   let baixando = {};   // id → true (download em andamento)
+  let versoes = {};    // id → `arquivo` que foi baixado (p/ detectar PDF trocado)
 
   function toast(msg) { if (EC.app && EC.app.mostrarToast) EC.app.mostrarToast(msg); }
 
@@ -123,6 +130,46 @@ EC.biblioteca = (function () {
     }).catch(function () { /* segue sem marcar baixados */ });
   }
 
+  /* ---------- Sino: o que falta baixar (ou atualizar) no aparelho ---------- */
+
+  function carregarVersoes() {
+    try {
+      const v = EC.storage && EC.storage.ler && EC.storage.ler(CHAVE_VERSOES);
+      if (v && typeof v === 'object') versoes = v;
+    } catch (e) { /* segue sem versões conhecidas */ }
+  }
+  function salvarVersoes() {
+    try { EC.storage.salvar(CHAVE_VERSOES, versoes); } catch (e) { /* best-effort */ }
+  }
+
+  // PDF trocado no SGP depois que este aparelho baixou? (`arquivo` muda a cada
+  // troca). Download antigo, de antes de guardarmos versões, fica como "em dia"
+  // — sem versão conhecida não dá para afirmar que mudou.
+  function desatualizado(d) {
+    return !!(baixados[d.id] && d.arquivo && versoes[d.id] && versoes[d.id] !== d.arquivo);
+  }
+
+  // Documentos que pedem download: nunca baixados ou com versão nova.
+  function pendentesDownload() {
+    return docs().filter(function (d) { return !baixados[d.id] || desatualizado(d); });
+  }
+
+  // Reporta a contagem ao sino único do app (fonte 'sgq').
+  function reportarSino() {
+    if (EC.app && EC.app.atualizarSino) EC.app.atualizarSino('sgq', pendentesDownload().length);
+  }
+
+  // Chamada no login e ao voltar a ficar online: atualiza a contagem do sino
+  // sem precisar abrir a tela (lista fresca da API quando der; senão, cache).
+  function atualizarSino() {
+    carregarListaLocal();
+    carregarVersoes();
+    carregarBaixados().then(function () {
+      reportarSino();
+      return atualizarLista();
+    }).then(function (mudou) { if (mudou) reportarSino(); });
+  }
+
   /* ---------- Abrir / baixar / apagar um documento ---------- */
 
   // Abre o PDF (Blob). Tenta numa aba; se o navegador bloquear (PWA no iPhone),
@@ -156,6 +203,8 @@ EC.biblioteca = (function () {
     return EC.sync.baixarDocumentoBiblioteca(d.id).then(function (blob) {
       delete baixando[d.id];
       baixados[d.id] = true;
+      if (d.arquivo) { versoes[d.id] = d.arquivo; salvarVersoes(); }
+      reportarSino();
       return EC.db.set('biblioteca', d.id, blob).catch(function () { /* sem espaço? abre mesmo assim */ })
         .then(function () { return blob; });
     }).catch(function (e) {
@@ -165,11 +214,16 @@ EC.biblioteca = (function () {
   }
 
   // Toque no documento: abre o que já está no aparelho; senão baixa e abre.
+  // Com versão nova no servidor e internet, baixa a nova antes de abrir.
   function abrirDocumento(id) {
     const d = docPorId(id);
     if (!d || baixando[id]) return;
     EC.db.get('biblioteca', id).catch(function () { return null; }).then(function (blob) {
-      if (blob) { abrirBlob(blob, d.titulo); return; }
+      if (blob && desatualizado(d) && navigator.onLine) blob = null; // força rebaixar
+      if (blob) {
+        if (desatualizado(d)) toast('📡 Sem conexão — abrindo a versão que está no aparelho.');
+        abrirBlob(blob, d.titulo); return;
+      }
       if (!navigator.onLine) { toast('📡 Sem conexão — este documento ainda não foi baixado.'); return; }
       pintar();
       baixarDocumento(d).then(function (novo) {
@@ -187,6 +241,9 @@ EC.biblioteca = (function () {
     const d = docPorId(id);
     EC.db.remove('biblioteca', id).catch(function () { }).then(function () {
       delete baixados[id];
+      delete versoes[id];
+      salvarVersoes();
+      reportarSino();
       pintar();
       toast('Cópia offline apagada' + (d ? ' — "' + d.titulo + '"' : '') + '.');
     });
@@ -197,7 +254,7 @@ EC.biblioteca = (function () {
   function baixarTodos() {
     if (baixandoTodos) return;
     if (!navigator.onLine) { toast('📡 Sem conexão.'); return; }
-    const faltam = docs().filter(function (d) { return !baixados[d.id]; });
+    const faltam = pendentesDownload();
     if (!faltam.length) return;
     baixandoTodos = true;
     let feitos = 0, erros = 0;
@@ -221,6 +278,8 @@ EC.biblioteca = (function () {
   function htmlDoc(d, sub) {
     let acao;
     if (baixando[d.id]) acao = '<span class="bib-doc-abrir">⏳ Baixando…</span>';
+    else if (desatualizado(d)) acao = '<span class="bib-doc-abrir">🔄 Nova versão</span>' +
+      '<button type="button" class="bib-doc-apagar" data-id="' + escapar(d.id) + '" title="Apagar a cópia offline">✕</button>';
     else if (baixados[d.id]) acao = '<span class="bib-doc-abrir">Abrir ›</span>' +
       '<button type="button" class="bib-doc-apagar" data-id="' + escapar(d.id) + '" title="Apagar a cópia offline">✕</button>';
     else acao = '<span class="bib-doc-abrir">📥' + (d.tamanho ? ' ' + fmtTamanho(d.tamanho) : '') + '</span>';
@@ -234,9 +293,11 @@ EC.biblioteca = (function () {
   function htmlBarraOffline() {
     const total = docs().length;
     if (!total) return '';
-    const tem = docs().filter(function (d) { return baixados[d.id]; }).length;
-    if (tem >= total) return '<p class="bib-offline-ok">✓ Biblioteca completa no aparelho — abre sem internet.</p>';
-    let html = '<div class="bib-offline">📥 ' + tem + ' de ' + total + ' no aparelho';
+    const pend = pendentesDownload();
+    if (!pend.length) return '<p class="bib-offline-ok">✓ Biblioteca completa no aparelho — abre sem internet.</p>';
+    const novas = pend.filter(desatualizado).length;
+    let html = '<div class="bib-offline">📥 ' + (total - pend.length) + ' de ' + total + ' no aparelho' +
+      (novas ? ' · 🔄 ' + novas + ' com versão nova' : '');
     if (navigator.onLine) html += '<button type="button" class="bib-baixar-todos">' + (baixandoTodos ? '⏳ Baixando…' : 'Baixar todos') + '</button>';
     return html + '</div>';
   }
@@ -357,6 +418,7 @@ EC.biblioteca = (function () {
   function abrir() {
     nivel = { tipo: null, escopo: null };
     carregarListaLocal();
+    carregarVersoes();
     EC.app.abrirOverlay('📚 SGQ',
       '<label class="overlay-busca"><input type="search" id="bib-busca" placeholder="🔍 Buscar por título, categoria ou norma…" autocomplete="off"></label>' +
       '<div id="bib-area"></div>');
@@ -366,9 +428,9 @@ EC.biblioteca = (function () {
     pintar();
 
     // Em paralelo: marca o que já está no aparelho e busca a lista fresca na API.
-    carregarBaixados().then(pintar);
-    atualizarLista().then(function (mudou) { if (mudou) pintar(); });
+    carregarBaixados().then(function () { pintar(); reportarSino(); });
+    atualizarLista().then(function (mudou) { if (mudou) { pintar(); reportarSino(); } });
   }
 
-  return { abrir: abrir };
+  return { abrir: abrir, atualizarSino: atualizarSino };
 })();
