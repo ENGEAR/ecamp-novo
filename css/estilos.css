@@ -1202,6 +1202,30 @@ textarea { resize: vertical; font-family: inherit; }
 .apr-detalhe-titulo { font-weight: 700; color: var(--azul-escuro); margin-bottom: 6px; }
 .apr-detalhe ul { margin: 0; padding-left: 18px; }
 .apr-detalhe li { font-size: 0.85rem; color: var(--cinza-texto); margin: 3px 0; }
+/* Busca + extrato tipo banco (Minhas solicitações) */
+.rb-busca-caixa {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--cinza-borda); border-radius: var(--raio);
+  background: #fff; padding: 8px 12px; margin: 8px 0 12px;
+}
+.rb-busca-lupa { font-size: 1rem; flex-shrink: 0; }
+#rb-busca { flex: 1; border: none; outline: none; background: transparent; font-size: 0.95rem; color: var(--texto); }
+.rb-ano { margin-bottom: 10px; }
+.rb-ano > summary, .rb-mes > summary { cursor: pointer; list-style: none; }
+.rb-ano > summary::-webkit-details-marker, .rb-mes > summary::-webkit-details-marker { display: none; }
+.rb-ano > summary {
+  font-size: 1.05rem; font-weight: 700; color: var(--azul-escuro);
+  padding: 8px 2px; border-bottom: 2px solid var(--cinza-borda);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.rb-mes { margin: 6px 0 6px 2px; }
+.rb-mes > summary {
+  font-size: 0.9rem; font-weight: 600; color: var(--cinza-texto); text-transform: capitalize;
+  padding: 6px 2px; display: flex; justify-content: space-between; align-items: center;
+}
+.rb-ano > summary::after, .rb-mes > summary::after { content: '▸'; color: var(--cinza-texto); transition: transform .15s; }
+.rb-ano[open] > summary::after, .rb-mes[open] > summary::after { transform: rotate(90deg); }
+.rb-mes-conteudo { padding-left: 2px; }
 /* Evidências */
 .apr-anexos-lista { display: flex; flex-wrap: wrap; gap: 8px; }
 .apr-anexo img {

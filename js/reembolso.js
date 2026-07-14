@@ -1442,7 +1442,6 @@ EC.reembolso = (function () {
       projeto +
       '  <div class="rb-pedido-linha">' + parcelaTxt + valorTxt + '</div>' +
       obs +
-      '  <div class="rb-ver-extrato">🧾 Ver extrato ›</div>' +
       '</button>'
     );
   }
@@ -1465,6 +1464,7 @@ EC.reembolso = (function () {
 
     if (!fila.length && !enviados.length) {
       area.innerHTML = '<p class="texto-apoio">Nenhuma solicitação ainda. Toque em "Nova solicitação" para começar.</p>';
+      ligarBuscaLista();
       return;
     }
     // Numera as parcelas por OS+campanha+designado (a 1ª solicitação = 1ª parcela).
@@ -1473,23 +1473,78 @@ EC.reembolso = (function () {
       var k = p.os + '|' + p.campanha_numero + '|' + (p.designado || '');
       (grupos[k] = grupos[k] || []).push(p);
     });
-    var numParcela = {};
+    listaNumParcela = {};
     Object.keys(grupos).forEach(function (k) {
       grupos[k].slice().sort(function (a, b) {
         return String(a.created_at || a.criadoEm || '').localeCompare(String(b.created_at || b.criadoEm || ''));
-      }).forEach(function (p, i) { numParcela[p.codigo] = i + 1; });
+      }).forEach(function (p, i) { listaNumParcela[p.codigo] = i + 1; });
     });
-    area.innerHTML =
-      fila.map(function (p) { return cartaoPedido(p, true); }).join('') +
-      enviados.map(function (p) { return cartaoPedido(p, false, numParcela[p.codigo]); }).join('');
-    // clicar num cartão abre o extrato completo
-    var porCodigo = {};
-    fila.forEach(function (p) { porCodigo[p.codigo] = { pedido: p, aguardandoEnvio: true }; });
-    enviados.forEach(function (p) { porCodigo[p.codigo] = { pedido: p, aguardandoEnvio: false }; });
+    listaTodos = fila.map(function (p) { return { p: p, aguardandoEnvio: true }; })
+      .concat(enviados.map(function (p) { return { p: p, aguardandoEnvio: false }; }));
+    listaPorCodigo = {};
+    listaTodos.forEach(function (it) { listaPorCodigo[it.p.codigo] = it; });
+    renderListaFiltrada();
+    ligarBuscaLista();
+  }
+
+  // ---- Minhas solicitações: busca + agrupamento tipo extrato de banco ----
+  var listaTodos = [], listaNumParcela = {}, listaPorCodigo = {}, buscaLigada = false;
+  var MESES_PT = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+  // Texto pesquisável do mês/ano (nome + MM/AAAA) da data de ida.
+  function mesAnoBusca(ida) {
+    var s = String(ida || '');
+    if (s.length < 7) return '';
+    var m = parseInt(s.slice(5, 7), 10);
+    return (MESES_PT[m - 1] || '') + '/' + s.slice(0, 4) + ' ' + s.slice(5, 7) + '/' + s.slice(0, 4);
+  }
+
+  function ligarBuscaLista() {
+    var inp = $('rb-busca');
+    if (!inp || buscaLigada) return;
+    buscaLigada = true;
+    inp.addEventListener('input', renderListaFiltrada);
+  }
+
+  function renderListaFiltrada() {
+    var area = $('rb-lista');
+    if (!area) return;
+    var termo = (($('rb-busca') && $('rb-busca').value) || '').toLowerCase().trim();
+    var itens = listaTodos.filter(function (it) {
+      if (!termo) return true;
+      var p = it.p;
+      var ida = p.data_inicio || p.dataInicio || '';
+      var alvo = ('os ' + (p.os || '') + ' ' + (p.cliente || '') + ' ' + (p.projeto || '') + ' ' + mesAnoBusca(ida) + ' ' + ida).toLowerCase();
+      return alvo.indexOf(termo) !== -1;
+    });
+    if (!itens.length) { area.innerHTML = '<p class="texto-apoio">Nada encontrado.</p>'; return; }
+    // Agrupa por ano → mês (da data de ida da OS).
+    var porAno = {};
+    itens.forEach(function (it) {
+      var ida = String(it.p.data_inicio || it.p.dataInicio || '');
+      var ano = ida.slice(0, 4) || 'Sem data';
+      var mk = ida.length >= 7 ? ida.slice(5, 7) : '00';
+      porAno[ano] = porAno[ano] || {};
+      (porAno[ano][mk] = porAno[ano][mk] || []).push(it);
+    });
+    var anos = Object.keys(porAno).sort(function (a, b) { return b.localeCompare(a); });
+    area.innerHTML = anos.map(function (ano) {
+      var meses = Object.keys(porAno[ano]).sort(function (a, b) { return b.localeCompare(a); });
+      var mesesHtml = meses.map(function (mk) {
+        var lista = porAno[ano][mk].slice().sort(function (a, b) {
+          return String(b.p.data_inicio || b.p.dataInicio || '').localeCompare(String(a.p.data_inicio || a.p.dataInicio || ''));
+        });
+        var cards = lista.map(function (it) { return cartaoPedido(it.p, it.aguardandoEnvio, listaNumParcela[it.p.codigo]); }).join('');
+        var nomeM = mk === '00' ? 'Sem data' : (MESES_PT[parseInt(mk, 10) - 1] || mk);
+        return '<details class="rb-mes" open><summary><span>' + nomeM + ' <span class="rotulo-apoio">(' + lista.length + ')</span></span></summary>' +
+          '<div class="rb-mes-conteudo">' + cards + '</div></details>';
+      }).join('');
+      return '<details class="rb-ano" open><summary><span>' + ano + '</span></summary>' + mesesHtml + '</details>';
+    }).join('');
     area.querySelectorAll('.rb-pedido-click[data-codigo]').forEach(function (el) {
       el.addEventListener('click', function () {
-        var item = porCodigo[el.dataset.codigo];
-        if (item) abrirExtrato(item.pedido, item.aguardandoEnvio);
+        var item = listaPorCodigo[el.dataset.codigo];
+        if (item) abrirExtrato(item.p, item.aguardandoEnvio);
       });
     });
   }
@@ -1615,7 +1670,6 @@ EC.reembolso = (function () {
       '<p class="dg-secao">Valores da logística</p>' +
       '<div class="rb-resumo-auto">' +
         '<div class="apr-linha"><span>Valor total</span><strong>' + moedaBR(total) + '</strong></div>' +
-        '<div class="apr-linha"><span>Adiantamento</span><strong>' + (adiant > 0 ? moedaBR(adiant) + (adiantData ? ' (' + dataBR(adiantData) + ')' : '') : '—') + '</strong></div>' +
         '<div class="apr-linha" style="grid-column:1/-1;"><span>À receber</span><strong style="font-size:1.4rem;">' + moedaBR(aPagar) + '</strong></div>' +
       '</div>' +
       '<p class="dg-secao">Solicitações de reembolso</p>' +
