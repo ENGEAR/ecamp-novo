@@ -214,16 +214,11 @@ EC.campoQar = (function () {
     if (!g.qtdePontos || total < 1) { $('#cq-paginacao').innerHTML = ''; $('#cq-ponto').innerHTML = ''; return; }
     while (campo().pontos.length < total) campo().pontos.push({});
     pontoExibido = Math.min(pontoExibido, total);
+    // Navegação LIVRE entre os locais — a foto obrigatória segue cobrada só na
+    // validação final (itensFaltando), não na troca de página.
     EC.paginacao.criar($('#cq-paginacao'), {
       total: total,
       rotulo: 'L',
-      aoSair: function (numero) {
-        if (!EC.foto.tem(campo().pontos[numero - 1].fotoPonto)) {
-          EC.app.mostrarToast('Tire a foto do local L' + numero + ' antes de sair.');
-          return false;
-        }
-        return true;
-      },
       aoMudar: function (n) { pontoExibido = n; renderizarPonto(n); }
     });
     renderizarPonto(pontoExibido);
