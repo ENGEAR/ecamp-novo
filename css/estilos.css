@@ -223,8 +223,8 @@ textarea { resize: vertical; font-family: inherit; }
   position: relative;
 }
 .botao-acao-fase2 { background: #8a93a8; }
-/* Botão de gestor (Extrato geral) — cor distinta do que o técnico comum vê. */
-.botao-acao-gestor { background: #0f766e; }
+/* Botão de gestor (Extrato geral) — azul claro do logo, distinto dos demais. */
+.botao-acao-gestor { background: var(--azul); }
 .selo-fase {
   position: absolute;
   right: 12px;

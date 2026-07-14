@@ -1776,6 +1776,12 @@ EC.reembolso = (function () {
         bAddAdi.textContent = '➕ Anexar comprovante do adiantamento';
         bAddAdi.addEventListener('click', function () { anexarComprovanteAdiantamento(p, bAddAdi); });
         secAdi.appendChild(bAddAdi);
+        var bDelAdi = document.createElement('button');
+        bDelAdi.type = 'button'; bDelAdi.className = 'botao botao-perigo';
+        bDelAdi.style.display = 'block'; bDelAdi.style.marginTop = '6px';
+        bDelAdi.textContent = '🗑️ Apagar comprovante do adiantamento';
+        bDelAdi.addEventListener('click', function () { apagarComprovantesAdiantamento(p); });
+        secAdi.appendChild(bDelAdi);
       }
     }
 
@@ -1870,6 +1876,53 @@ EC.reembolso = (function () {
     document.body.appendChild(input);
     input.click();
     setTimeout(function () { input.remove(); }, 120000);
+  }
+
+  // Gestor apaga comprovante(s) do adiantamento (caso suba errado). Abre um
+  // overlay com cada anexo e um botão de apagar individual.
+  async function apagarComprovantesAdiantamento(p) {
+    var cli = (EC.auth && EC.auth.cliente) ? EC.auth.cliente() : null;
+    if (!cli) { EC.app.mostrarToast('Sem conexão — abra com internet.'); return; }
+    EC.app.abrirOverlay('🗑️ Comprovantes do adiantamento', '<p class="texto-apoio">Carregando…</p>');
+    await pintarApagarAdiant(cli, p);
+  }
+  async function pintarApagarAdiant(cli, p) {
+    var alvo = $('overlay-conteudo');
+    if (!alvo) return;
+    try {
+      var q = await cli.from('logistica_anexos').select('id, arquivo, url, mime')
+        .eq('solicitacao_id', p.id).eq('bloco', 'adiantamento').order('created_at', { ascending: true });
+      var rows = q.data || [];
+      if (!rows.length) { alvo.innerHTML = '<p class="texto-apoio">Nenhum comprovante de adiantamento anexado.</p>'; return; }
+      var partes = [];
+      for (var i = 0; i < rows.length; i++) {
+        var a = rows[i];
+        var sg = await cli.storage.from('logistica').createSignedUrl(a.url, 3600);
+        var url = sg.data && sg.data.signedUrl;
+        var isPdf = /\.pdf$/i.test(a.arquivo || '') || a.mime === 'application/pdf';
+        var vis = url
+          ? (isPdf
+              ? '<a class="botao botao-secundario" href="' + url + '" target="_blank" rel="noopener">📄 Abrir ' + (a.arquivo || '') + '</a>'
+              : '<img src="' + url + '" alt="comprovante" style="max-width:100%;border-radius:8px;">')
+          : (a.arquivo || '');
+        partes.push('<div style="border:1px solid var(--cinza-borda);border-radius:8px;padding:8px;margin-bottom:10px;">' + vis +
+          '<button type="button" class="botao botao-perigo apagar-adiant" data-id="' + a.id + '" data-url="' + a.url + '" style="margin-top:6px;">🗑️ Apagar este</button></div>');
+      }
+      alvo.innerHTML = partes.join('');
+      alvo.querySelectorAll('.apagar-adiant').forEach(function (b) {
+        b.addEventListener('click', async function () {
+          b.disabled = true; b.textContent = '⏳ Apagando…';
+          try {
+            await cli.storage.from('logistica').remove([b.dataset.url]);
+            var del = await cli.from('logistica_anexos').delete().eq('id', b.dataset.id);
+            if (del.error) throw del.error;
+            await pintarApagarAdiant(cli, p);
+          } catch (e) { EC.app.mostrarToast('Não consegui apagar: ' + (e.message || 'erro')); b.disabled = false; b.textContent = '🗑️ Apagar este'; }
+        });
+      });
+    } catch (e) {
+      alvo.innerHTML = '<p class="texto-apoio">Erro ao carregar: ' + (e.message || '') + '</p>';
+    }
   }
 
   /* ============ Serviços com saldo pendente ============ */
