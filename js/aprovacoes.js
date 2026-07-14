@@ -271,7 +271,8 @@ EC.aprovacoes = (function () {
     // Caixa verde forte: a pagar após adiantamento (só quando houve adiantamento).
     // O adiantamento reduz do TOTAL; a parcela é o percentual disso.
     var adiant = Number(s.adiantamento_valor) || 0;
-    var aPagarPos = Math.round((Number(s.valor_total) - adiant) * pct) / 100;
+    // parcela − a fração do adiantamento que cabe a ela (adiant × %).
+    var aPagarPos = Math.round(Number(solicitado) * 100 - adiant * pct) / 100;
     var heroPagar = adiant > 0
       ? '<div class="apr-hero apr-hero-forte"><div class="apr-hero-icone">👛</div>' +
         '<div class="apr-hero-corpo">' +
@@ -340,9 +341,10 @@ EC.aprovacoes = (function () {
     // Tela do FINANCEIRO (aguardando pagamento): só título, designado, valores e
     // valor a pagar. O formulário "Registrar pagamento" vem do bloco de ações.
     if (s.status === 'aguardando_pagamento') {
-      // O adiantamento reduz do TOTAL; a parcela é o percentual disso.
+      // O adiantamento reduz do TOTAL; a parcela é o percentual disso
+      // (= parcela − a fração do adiantamento que cabe a ela).
       var adiantP = Number(s.adiantamento_valor) || 0;
-      var aPagar = Math.round((Number(s.valor_total) - adiantP) * pct) / 100;
+      var aPagar = Math.round(Number(solicitado) * 100 - adiantP * pct) / 100;
       return (
         titulo +
         '<p class="dg-secao">Designado</p>' +
