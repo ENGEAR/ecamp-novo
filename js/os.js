@@ -169,15 +169,30 @@ EC.os = (function () {
       if (!nomes.length) {
         escopo = { tudo: false, osIds: [], calculado: true, incerto: false };
       } else {
-        var aq = await cli.from('agendamentos').select('ordem_servico_id, tecnicos');
-        var ids = {};
+        var nomesLc = nomes.map(function (n) { return n.toLowerCase(); });
+        // Agendamentos onde este técnico está escalado. O vínculo com a OS vem
+        // por ordem_servico_id OU só por proposta_id (agenda criada a partir da
+        // proposta, antes de a OS ser ligada) — cobrimos os DOIS casos, senão a
+        // OS escalada por proposta some da lista de Serviços do técnico.
+        var aq = await cli.from('agendamentos').select('ordem_servico_id, proposta_id, tecnicos');
+        var ids = {};        // osIds diretos (ordem_servico_id)
+        var propostas = {};  // proposta_ids a resolver -> osId
         (aq.data || []).forEach(function (a) {
-          if (!a.ordem_servico_id) return;
           var meu = (a.tecnicos || []).some(function (t) {
-            return nomes.indexOf((t.nome || '').trim()) !== -1;
+            return nomesLc.indexOf((t.nome || '').trim().toLowerCase()) !== -1;
           });
-          if (meu) ids[a.ordem_servico_id] = 1;
+          if (!meu) return;
+          if (a.ordem_servico_id) ids[a.ordem_servico_id] = 1;
+          else if (a.proposta_id) propostas[a.proposta_id] = 1;
         });
+        // Resolve as propostas escaladas para o osId da OS correspondente.
+        var listaPropostas = Object.keys(propostas);
+        if (listaPropostas.length) {
+          try {
+            var oq = await cli.from('ordens_servico').select('id').in('proposta_id', listaPropostas);
+            (oq.data || []).forEach(function (o) { if (o && o.id) ids[o.id] = 1; });
+          } catch (e) { /* sem internet/erro: fica só com os vínculos diretos */ }
+        }
         escopo = { tudo: false, osIds: Object.keys(ids), calculado: true, incerto: false };
       }
       EC.storage.salvar(CH_ESCOPO, { em: new Date().toISOString(), tudo: escopo.tudo, osIds: escopo.osIds, email: email });
