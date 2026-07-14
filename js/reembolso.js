@@ -1757,6 +1757,28 @@ EC.reembolso = (function () {
       });
     }
 
+    // Comprovante do adiantamento (quando há adiantamento): ver (todos) e
+    // anexar (só Financeiro/Logística/admin) — mesmo que o técnico não tenha posto.
+    if (adiant > 0 && p.id) {
+      var secAdi = document.createElement('div');
+      secAdi.innerHTML = '<p class="dg-secao">Comprovante do adiantamento</p>';
+      $('rb-extrato').appendChild(secAdi);
+      var bVerAdi = document.createElement('button');
+      bVerAdi.type = 'button'; bVerAdi.className = 'botao botao-secundario';
+      bVerAdi.style.marginBottom = '8px'; bVerAdi.style.display = 'block';
+      bVerAdi.textContent = '📄 Ver comprovante do adiantamento';
+      bVerAdi.addEventListener('click', function () { verComprovante(p.id, bVerAdi, null, 'adiantamento'); });
+      secAdi.appendChild(bVerAdi);
+      if (ehGestor()) {
+        var bAddAdi = document.createElement('button');
+        bAddAdi.type = 'button'; bAddAdi.className = 'botao botao-secundario';
+        bAddAdi.style.display = 'block';
+        bAddAdi.textContent = '➕ Anexar comprovante do adiantamento';
+        bAddAdi.addEventListener('click', function () { anexarComprovanteAdiantamento(p, bAddAdi); });
+        secAdi.appendChild(bAddAdi);
+      }
+    }
+
     // Ações só enquanto dá para mexer: apagar (fila do aparelho ou aguardando a
     // Logística) e editar (só as já enviadas que aguardam a Logística).
     // No extrato geral (só leitura) o gestor não edita/apaga solicitação de outro.
@@ -1776,11 +1798,11 @@ EC.reembolso = (function () {
 
   // Abre o(s) comprovante(s) de pagamento (URLs assinadas vindas da API) num
   // overlay: imagem inline; PDF vira link "Abrir".
-  async function verComprovante(id, botao, parcelaN) {
+  async function verComprovante(id, botao, parcelaN, bloco) {
     var txt = botao.textContent;
     botao.disabled = true; botao.textContent = '⏳ Abrindo…';
     try {
-      var r = await getJson(BASE + '/comprovante?id=' + encodeURIComponent(id));
+      var r = await getJson(BASE + '/comprovante?id=' + encodeURIComponent(id) + (bloco ? '&bloco=' + bloco : ''));
       if (!r || !r.ok || !r.comprovantes || !r.comprovantes.length) {
         EC.app.mostrarToast('Comprovante não encontrado.');
         return;
@@ -1791,12 +1813,47 @@ EC.reembolso = (function () {
           ? '<p style="margin:8px 0;"><a class="botao botao-secundario" href="' + c.url + '" target="_blank" rel="noopener">📄 Abrir ' + (c.nome || 'comprovante') + '</a></p>'
           : '<img src="' + c.url + '" alt="comprovante" style="max-width:100%;border-radius:8px;margin-bottom:8px;">';
       }).join('');
-      EC.app.abrirOverlay('📄 Comprovante' + (parcelaN ? ' da ' + parcelaN + 'ª parcela' : ' de pagamento'), html);
+      var titulo = bloco === 'adiantamento' ? '📄 Comprovante do adiantamento'
+        : '📄 Comprovante' + (parcelaN ? ' da ' + parcelaN + 'ª parcela' : ' de pagamento');
+      EC.app.abrirOverlay(titulo, html);
     } catch (e) {
       EC.app.mostrarToast('Não consegui abrir o comprovante.');
     } finally {
       botao.disabled = false; botao.textContent = txt;
     }
+  }
+
+  // Gestor (Financeiro/Logística) anexa o comprovante do adiantamento na
+  // solicitação (via cliente Supabase, respeitando as permissões).
+  function anexarComprovanteAdiantamento(p, botao) {
+    var input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*,application/pdf';
+    input.style.display = 'none';
+    input.addEventListener('change', async function () {
+      var file = input.files && input.files[0];
+      if (!file) return;
+      var cli = (EC.auth && EC.auth.cliente) ? EC.auth.cliente() : null;
+      if (!cli) { EC.app.mostrarToast('Sem conexão — abra com internet.'); return; }
+      var txt = botao.textContent;
+      botao.disabled = true; botao.textContent = '⏳ Enviando…';
+      try {
+        var nome = (file.name || ('adiantamento_' + new Date().getTime() + '.jpg')).replace(/[^\w.\-()À-ſ ]+/g, '_');
+        var caminho = p.os + '/' + p.codigo + '/adiantamento/' + nome;
+        var up = await cli.storage.from('logistica').upload(caminho, file, { contentType: file.type || 'application/octet-stream', upsert: true });
+        if (up.error) throw up.error;
+        var ins = await cli.from('logistica_anexos').insert({ solicitacao_id: p.id, bloco: 'adiantamento', arquivo: nome, url: caminho, mime: file.type || null });
+        if (ins.error) throw ins.error;
+        EC.app.mostrarToast('✅ Comprovante do adiantamento anexado.');
+      } catch (e) {
+        EC.app.mostrarToast('Não consegui anexar: ' + (e.message || 'erro'));
+      } finally {
+        botao.disabled = false; botao.textContent = txt;
+      }
+    });
+    document.body.appendChild(input);
+    input.click();
+    setTimeout(function () { input.remove(); }, 60000);
   }
 
   /* ============ Serviços com saldo pendente ============ */
