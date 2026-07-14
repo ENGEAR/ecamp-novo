@@ -120,6 +120,12 @@ EC.os = (function () {
     return papeis.indexOf('logistica') !== -1 || papeis.indexOf('admin') !== -1;
   }
 
+  // FILTRO DE OS POR AGENDA DESLIGADO (2026-07-14): estava barrando técnicos
+  // (ex.: Edgar) de ver OS em que estavam escalados — o vínculo
+  // e-mail→técnico→agenda não é confiável o bastante. Com isto false, TODOS
+  // veem TODAS as OS. Para religar a restrição, volte para true.
+  var RESTRINGIR_POR_AGENDA = false;
+
   // Padrão "libera tudo" até o cálculo terminar, para não esconder OS por uma
   // fração de segundo (logística é o uso mais comum). calculado=false sinaliza
   // que ainda não confirmamos com o servidor.
@@ -128,13 +134,14 @@ EC.os = (function () {
   function escopoAtual() { return escopo; }
 
   function dentroEscopo(os) {
-    if (escopo.tudo) return true;
+    if (!RESTRINGIR_POR_AGENDA || escopo.tudo) return true;
     return !!(os && os.osId && escopo.osIds.indexOf(os.osId) !== -1);
   }
 
   // Ajusta o escopo em memória a partir do cache, se for do mesmo usuário —
   // usado no 1º pintar da tela para o usuário restrito já ver as SUAS OS na hora.
   function prepararEscopoDoCache() {
+    if (!RESTRINGIR_POR_AGENDA) { escopo = { tudo: true, osIds: [], calculado: true, incerto: false }; return escopo; }
     var email = (sessaoLogada().email || '').trim().toLowerCase();
     var c = EC.storage.ler(CH_ESCOPO);
     if (c && (c.email || '') === email) {
@@ -148,6 +155,7 @@ EC.os = (function () {
   // Calcula (e cacheia) o escopo do usuário logado. Best-effort: em caso de
   // falha (offline/erro), mantém o último escopo salvo do mesmo usuário.
   async function carregarEscopo() {
+    if (!RESTRINGIR_POR_AGENDA) { escopo = { tudo: true, osIds: [], calculado: true, incerto: false }; return escopo; }
     var s = sessaoLogada();
     var email = (s.email || '').trim().toLowerCase();
     var papeis = s.papeis || [];
