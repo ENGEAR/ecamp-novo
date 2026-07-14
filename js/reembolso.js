@@ -1580,12 +1580,13 @@ EC.reembolso = (function () {
         Number(x.campanha_numero) === Number(p.campanha_numero) &&
         (x.designado || '') === (p.designado || '') &&
         ['aguardando_logistica', 'aguardando_pagamento', 'pago'].indexOf(x.status) !== -1;
-    }).sort(function (a, b) { return String(a.created_at || '').localeCompare(String(b.created_at || '')); });
+    }).sort(function (a, b) { return String(a.created_at || a.criadoEm || '').localeCompare(String(b.created_at || b.criadoEm || '')); });
     if (!parcelas.length) parcelas = [p];
     var parcelasHtml = parcelas.map(function (x) {
       var xpct = x.percentual_solicitado != null ? Number(x.percentual_solicitado) : 100;
       var xsol = x.valor_solicitado != null ? x.valor_solicitado : Math.round(Number(x.valor_total || 0) * xpct) / 100;
-      var xdata = x.created_at ? dataBR(String(x.created_at).slice(0, 10)) : '—';
+      var quando = x.created_at || x.criadoEm;
+      var xdata = quando ? dataBR(quando) : '—';
       var xstatus = x.status === 'pago'
         ? '<br><span style="color:var(--verde);">💰 pago em ' + (x.pago_em ? dataBR(x.pago_em) : '—') + '</span>'
         : (STATUS[x.status] ? '<br><span class="rotulo-apoio">' + STATUS[x.status].txt + '</span>' : '');
