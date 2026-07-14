@@ -1586,7 +1586,10 @@ EC.reembolso = (function () {
       var xpct = x.percentual_solicitado != null ? Number(x.percentual_solicitado) : 100;
       var xsol = x.valor_solicitado != null ? x.valor_solicitado : Math.round(Number(x.valor_total || 0) * xpct) / 100;
       var xdata = x.created_at ? dataBR(String(x.created_at).slice(0, 10)) : '—';
-      return '<div class="apr-orc-linha">• ' + xpct + '% em ' + xdata + ' = <strong>' + moedaBR(xsol) + '</strong></div>';
+      var xstatus = x.status === 'pago'
+        ? '<br><span style="color:var(--verde);">💰 pago em ' + (x.pago_em ? dataBR(x.pago_em) : '—') + '</span>'
+        : (STATUS[x.status] ? '<br><span class="rotulo-apoio">' + STATUS[x.status].txt + '</span>' : '');
+      return '<div class="apr-orc-linha">• ' + xpct + '% em ' + xdata + ' = <strong>' + moedaBR(xsol) + '</strong>' + xstatus + '</div>';
     }).join('');
 
     $('rb-extrato').innerHTML =
