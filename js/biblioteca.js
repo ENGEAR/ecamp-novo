@@ -22,9 +22,9 @@ EC.biblioteca = (function () {
   'use strict';
 
   const TIPOS = [
+    { chave: 'legislacao', titulo: 'Legislação', icone: '📕' },
     { chave: 'norma', titulo: 'Normas', icone: '📘' },
-    { chave: 'procedimento', titulo: 'Procedimentos', icone: '📗' },
-    { chave: 'legislacao', titulo: 'Legislação', icone: '📕' }
+    { chave: 'procedimento', titulo: 'Procedimentos', icone: '📗' }
   ];
   // Nível atual da navegação. Zerado ao abrir.
   let nivel = { tipo: null, escopo: null };
