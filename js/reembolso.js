@@ -1525,42 +1525,34 @@ EC.reembolso = (function () {
     );
   }
 
-  // Base de cálculo (igual à da Logística): dias, transporte (+5 km/dia), consumo
-  // e os preços unitários usados (mão de obra/dia, hospedagem, refeições).
+  // Base de cálculo (igual à da Logística): mesmo layout azul das seções Quem/
+  // Datas/Transporte — pares rótulo/valor no rb-resumo-auto.
   function baseCalculoHtml(p) {
+    function linha(rot, val) { return '<div class="apr-linha"><span>' + rot + '</span><strong>' + val + '</strong></div>'; }
     var vu = p.valores_usados || {};
     var ehFreela = p.solicitante_tipo === 'freelancer';
     var comb = p.tipo_combustivel ? (p.tipo_combustivel === 'diesel' ? 'Diesel' : 'Gasolina') : null;
     var distKm = Number(p.distancia_km) || 0;
     var diasServ = Number(p.dias_servico) || 0;
     var kmServico = 5 * diasServ;
-    var b = [];
-    b.push('Base: ' + (p.dias_servico != null ? p.dias_servico + ' dia(s) de serviço' : '') +
-      (p.dias_deslocamento != null ? ' · ' + p.dias_deslocamento + ' de deslocamento' : ''));
-    if (distKm) {
-      b.push('Transporte: ' + distKm + ' km' +
-        (kmServico ? ' + 5 km/dia × ' + diasServ + ' dia(s) de serviço = <b>' + (distKm + kmServico) + ' km</b>' : ''));
-    }
-    if (p.consumo_kml || p.preco_litro) {
-      b.push('Consumo: ' + (p.consumo_kml ? p.consumo_kml + ' km/L' : '—') +
-        (comb ? ' · ' + comb : '') + (p.preco_litro ? ' ' + moedaBR(p.preco_litro) + '/L' : ''));
-    }
+    var itens = [];
+    itens.push(['Dias', (p.dias_servico != null ? p.dias_servico + ' serviço' : '—') +
+      (p.dias_deslocamento != null ? ' · ' + p.dias_deslocamento + ' deslocamento' : '')]);
+    if (distKm) itens.push(['Transporte', distKm + ' km' +
+      (kmServico ? ' + 5×' + diasServ + ' = ' + (distKm + kmServico) + ' km' : '')]);
+    if (p.consumo_kml || p.preco_litro) itens.push(['Consumo', (p.consumo_kml ? p.consumo_kml + ' km/L' : '—') +
+      (comb ? ' · ' + comb : '') + (p.preco_litro ? ' ' + moedaBR(p.preco_litro) + '/L' : '')]);
     var diasMO = (Number(p.dias_servico) === Number(p.dias_viagem))
       ? (Number(p.dias_viagem) || 0)
       : ((Number(p.dias_servico) || 0) + (Number(p.dias_deslocamento) || 0));
-    if (Number(p.valor_mao_obra) > 0 && diasMO > 0) {
-      b.push('Mão de obra: ' + moedaBR(Math.round(Number(p.valor_mao_obra) / diasMO * 100) / 100) + '/dia');
-    }
-    if (Number(p.valor_hospedagem) > 0 && vu.hospedagem_dia != null) b.push('Hospedagem: ' + moedaBR(vu.hospedagem_dia) + '/diária');
-    if (Number(p.valor_almoco) > 0 && vu.almoco != null) {
-      b.push('Almoço: ' + (ehFreela ? moedaBR(vu.almoco) + '/dia'
-        : moedaBR(vu.almoco_clt_util) + '/dia útil · ' + moedaBR(vu.almoco) + '/dia no fim de semana'));
-    }
-    if (Number(p.valor_jantar) > 0 && vu.jantar != null) b.push('Jantar: ' + moedaBR(vu.jantar) + '/dia');
-    if (Number(p.valor_lanche) > 0 && vu.lanche != null) b.push('Lanche: ' + moedaBR(vu.lanche) + '/dia de deslocamento');
-    return '<div class="apr-detalhe">' +
-      '<div class="apr-detalhe-corpo"><div class="apr-detalhe-titulo">Base de cálculo</div>' +
-      '<ul>' + b.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul></div></div>';
+    if (Number(p.valor_mao_obra) > 0 && diasMO > 0) itens.push(['Mão de obra', moedaBR(Math.round(Number(p.valor_mao_obra) / diasMO * 100) / 100) + '/dia']);
+    if (Number(p.valor_hospedagem) > 0 && vu.hospedagem_dia != null) itens.push(['Hospedagem', moedaBR(vu.hospedagem_dia) + '/diária']);
+    if (Number(p.valor_almoco) > 0 && vu.almoco != null) itens.push(['Almoço', ehFreela ? moedaBR(vu.almoco) + '/dia'
+      : moedaBR(vu.almoco_clt_util) + ' útil · ' + moedaBR(vu.almoco) + ' fds']);
+    if (Number(p.valor_jantar) > 0 && vu.jantar != null) itens.push(['Jantar', moedaBR(vu.jantar) + '/dia']);
+    if (Number(p.valor_lanche) > 0 && vu.lanche != null) itens.push(['Lanche', moedaBR(vu.lanche) + '/dia desloc.']);
+    return '<p class="dg-secao">Base de cálculo</p><div class="rb-resumo-auto">' +
+      itens.map(function (i) { return linha(i[0], i[1]); }).join('') + '</div>';
   }
 
   function abrirExtrato(p, aguardandoEnvio) {
@@ -1603,10 +1595,12 @@ EC.reembolso = (function () {
       (p.cliente ? '<div class="os-resumo" style="margin-bottom:4px;">' + p.cliente + '</div>' : '') +
       (p.projeto ? '<div class="os-resumo" style="margin-bottom:8px;">📁 ' + p.projeto + '</div>' : '') +
       pago + obs +
-      '<div class="rb-total" style="margin-top:6px;">Valor total da logística: <strong>' + moedaBR(total) + '</strong></div>' +
-      (adiant > 0 ? '<div class="os-resumo" style="margin:6px 0;">💵 Adiantamento: ' + (adiantData ? dataBR(adiantData) : '—') + ' — Valor: ' + moedaBR(adiant) + '</div>' : '') +
-      '<div class="rb-total" style="margin-top:6px;">A pagar: <strong>' + moedaBR(aPagar) + '</strong>' +
-        '<span class="rb-total-sub">logística total − adiantamento</span></div>' +
+      '<p class="dg-secao">Valores da logística</p>' +
+      '<div class="rb-resumo-auto">' +
+        '<div class="apr-linha"><span>Valor total</span><strong>' + moedaBR(total) + '</strong></div>' +
+        '<div class="apr-linha"><span>Adiantamento</span><strong>' + (adiant > 0 ? moedaBR(adiant) + (adiantData ? ' · ' + dataBR(adiantData) : '') : '—') + '</strong></div>' +
+        '<div class="apr-linha" style="grid-column:1/-1;"><span>À receber</span><strong style="font-size:1.4rem;">' + moedaBR(aPagar) + '</strong></div>' +
+      '</div>' +
       '<p class="dg-secao">Solicitações de reembolso</p>' +
       '<div class="apr-orc apr-orc-cinza">' + (parcelasHtml || '<div class="apr-orc-linha">—</div>') + '</div>' +
       renderResumoPedido(p);
