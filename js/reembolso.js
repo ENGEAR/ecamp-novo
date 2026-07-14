@@ -1598,7 +1598,7 @@ EC.reembolso = (function () {
       '<p class="dg-secao">Valores da logística</p>' +
       '<div class="rb-resumo-auto">' +
         '<div class="apr-linha"><span>Valor total</span><strong>' + moedaBR(total) + '</strong></div>' +
-        '<div class="apr-linha"><span>Adiantamento</span><strong>' + (adiant > 0 ? moedaBR(adiant) + (adiantData ? ' · ' + dataBR(adiantData) : '') : '—') + '</strong></div>' +
+        '<div class="apr-linha"><span>Adiantamento</span><strong>' + (adiant > 0 ? moedaBR(adiant) + (adiantData ? ' (' + dataBR(adiantData) + ')' : '') : '—') + '</strong></div>' +
         '<div class="apr-linha" style="grid-column:1/-1;"><span>À receber</span><strong style="font-size:1.4rem;">' + moedaBR(aPagar) + '</strong></div>' +
       '</div>' +
       '<p class="dg-secao">Solicitações de reembolso</p>' +
