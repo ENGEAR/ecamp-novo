@@ -357,7 +357,7 @@ EC.biblioteca = (function () {
   function abrir() {
     nivel = { tipo: null, escopo: null };
     carregarListaLocal();
-    EC.app.abrirOverlay('📚 Biblioteca',
+    EC.app.abrirOverlay('📚 SGQ',
       '<label class="overlay-busca"><input type="search" id="bib-busca" placeholder="🔍 Buscar por título, categoria ou norma…" autocomplete="off"></label>' +
       '<div id="bib-area"></div>');
 

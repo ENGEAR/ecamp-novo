@@ -437,7 +437,7 @@
 
   $('btn-biblioteca').addEventListener('click', function () {
     if (EC.biblioteca && EC.biblioteca.abrir) EC.biblioteca.abrir();
-    else abrirOverlay('📚 Biblioteca', '<p class="overlay-vazio">Biblioteca indisponível.</p>');
+    else abrirOverlay('📚 SGQ', '<p class="overlay-vazio">SGQ indisponível.</p>');
   });
 
   /* ============ Sino único (Aprovações + Lembretes de serviço) ============ */
