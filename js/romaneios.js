@@ -131,8 +131,7 @@ EC.romaneios = (function () {
             itens: [
               'Sismógrafo com calibração válida',
               'Geofone com calibração válida',
-              'Microfone com calibração válida',
-              'Termohigroanemômetro'
+              'Microfone com calibração válida'
             ]
           },
           {

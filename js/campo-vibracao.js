@@ -391,8 +391,9 @@ EC.campoVibracao = (function () {
 
   // 2ª e 3ª medições (CECAV: Construção Civil e Ferrovia ou Rodovia). A 1ª
   // medição é o próprio formulário do ponto; estas repetem só identificação,
-  // auto verificação, intercorrências e hora final. Nome/equipamento em branco
-  // herdam os da 1ª medição; o GPS vale o da 1ª.
+  // auto verificação, intercorrências e hora final. Nome e equipamento são
+  // espelhos (só leitura) da 1ª medição — preenchem sozinhos e acompanham o que
+  // for digitado lá em cima; o GPS vale o da 1ª.
   function renderMedicoes(area, ponto) {
     const divTodas = area.querySelector('#cv-medicoes');
     if (!divTodas) return;
@@ -404,10 +405,9 @@ EC.campoVibracao = (function () {
     divTodas.innerHTML = [2, 3].map(function (k) {
       return '<div class="cartao-coleta cv-medicao"><h3>' + k + 'ª medição</h3>' +
         '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
-        '<label>Nome do ponto<input type="text" placeholder="(igual à 1ª medição)" data-campo="nome"></label>' +
+        '<label>Nome do ponto<input type="text" class="cv-med-nome" readonly title="Igual à 1ª medição"></label>' +
         (eqs.length
-          ? '<label>Equipamento utilizado<select data-campo="equipamento"><option value="">(igual à 1ª medição)</option>' +
-            eqs.map(function (c) { return '<option>' + c + '</option>'; }).join('') + '</select></label>'
+          ? '<label>Equipamento utilizado<input type="text" class="cv-med-equip" readonly title="Igual à 1ª medição"></label>'
           : '') +
         '<p class="texto-apoio">📍 GPS: valem as coordenadas capturadas na 1ª medição.</p>' +
         '<p class="grupo-checks-titulo">🔎 Auto verificação</p>' + htmlChecks(['Auto verificação realizada'], 'autoverif') +
@@ -433,6 +433,25 @@ EC.campoVibracao = (function () {
       sel.addEventListener('change', descricao);
       descricao();
     });
+
+    // Espelha nome/equipamento da 1ª medição nas 2ª/3ª e grava no registro, para
+    // acompanhar em tempo real o que o técnico digita na identificação do ponto.
+    function sincronizarIdentidade() {
+      divTodas.querySelectorAll('.cv-medicao').forEach(function (card, i) {
+        const med = ponto.medicoes[i];
+        const inpNome = card.querySelector('.cv-med-nome');
+        if (inpNome) { inpNome.value = ponto.nome || ''; med.nome = ponto.nome || ''; }
+        const inpEquip = card.querySelector('.cv-med-equip');
+        if (inpEquip) { inpEquip.value = ponto.equipamento || ''; med.equipamento = ponto.equipamento || ''; }
+      });
+    }
+    sincronizarIdentidade();
+    // Dentro de `area`, os únicos [data-campo="nome"/"equipamento"] são os da 1ª
+    // medição (nas 2ª/3ª viraram espelhos só leitura, sem data-campo).
+    const inpNomePonto = area.querySelector('[data-campo="nome"]');
+    const selEquipPonto = area.querySelector('[data-campo="equipamento"]');
+    if (inpNomePonto) inpNomePonto.addEventListener('input', function () { sincronizarIdentidade(); salvarDevagar(); });
+    if (selEquipPonto) selEquipPonto.addEventListener('change', function () { sincronizarIdentidade(); salvarDevagar(); });
   }
 
   /* ===== Validação ===== */
