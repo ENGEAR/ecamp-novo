@@ -678,12 +678,17 @@ EC.reembolso = (function () {
     $('rb-pedagio-bloco').classList.toggle('oculto', !(ehViagem || ehVeic));
     $('rb-outros-bloco').classList.toggle('oculto', !tipoSel);
     if (ehEvento) {
+      // Só avisa quando a diária de eventos NÃO está configurada no SGP (sem ela
+      // o cálculo fica em zero). Com a diária definida, não mostra nada.
       var d = ctx ? (Number(ctx.valores.diaria_evento) || 0) : 0;
       var info = $('rb-evento-info');
-      info.textContent = d > 0
-        ? 'ℹ️ Cálculo: nº de dias × ' + moedaBR(d) + ' (diária de eventos configurada no SGP).'
-        : '⚠️ A diária de eventos ainda não foi configurada no SGP (Logística → Valores).';
-      info.classList.remove('oculto');
+      if (d > 0) {
+        info.textContent = '';
+        info.classList.add('oculto');
+      } else {
+        info.textContent = '⚠️ A diária de eventos ainda não foi configurada no SGP (Logística → Valores).';
+        info.classList.remove('oculto');
+      }
     }
   }
 
