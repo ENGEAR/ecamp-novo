@@ -184,10 +184,19 @@ EC.sync = (function () {
     }
   }
 
+  // Chave estável do rascunho na fila (por OS+serviço). DETERMINÍSTICA: re-salvar
+  // o mesmo rascunho sobrescreve a mesma entrada (não acumula na fila).
+  function chaveRascPendente(registro) {
+    return 'rasc:' + (registro.rascunhoId || registro.codificacao);
+  }
+
   // Sincroniza UM registro (chamado logo após salvar). Em falha de rede, enfileira.
   // aoRegistrar: chamado com a resposta do servidor (traz `revisao`) ou com null
   // quando o envio falhou (offline) — quem espera a revisão não fica travado.
   async function sincronizarRegistro(registro, aoRegistrar) {
+    // Finalizar SUPERA qualquer rascunho na fila do mesmo serviço: remove-o para
+    // um rascunho atrasado não reenviar "Incompleto" DEPOIS do finalizado.
+    if (registro.rascunhoId) { try { await EC.db.remove('pending', chaveRascPendente(registro)); } catch (e) { /* ok */ } }
     var avisado = false;
     try {
       await enviar(registro, function (resp) {
@@ -210,16 +219,23 @@ EC.sync = (function () {
   }
 
   // Salva o rascunho no servidor (status Incompleto). Reusa o envio em 2 etapas
-  // (dados + fotos). Best-effort: se faltar dado/internet, fica só no aparelho.
+  // (dados + fotos). Em falha de REDE, enfileira (igual ao finalizado) para subir
+  // sozinho quando a conexão voltar — o dado do campo NÃO fica preso no aparelho.
   async function sincronizarRascunho(registro) {
+    var chave = chaveRascPendente(registro);
     try {
       await enviar(registro); // registro vem com finalizar:false + rascunhoId
+      try { await EC.db.remove('pending', chave); } catch (e) { /* ok */ }
       toast('✅ Rascunho salvo no servidor (Incompleto).');
     } catch (e) {
       if (e.naoSuportado) {
+        // 422: faltam dados mínimos p/ o servidor aceitar — só o aparelho por ora.
         toast('💾 Rascunho salvo no aparelho (ainda faltam dados para o servidor).');
       } else {
-        toast('💾 Rascunho salvo no aparelho (sem internet para o servidor agora).');
+        // Offline/erro de rede: guarda na fila (IndexedDB aguenta as fotos) e
+        // reenvia sozinho no próximo "online". Chave estável = sobrescreve.
+        try { await EC.db.set('pending', chave, registro); } catch (e2) { /* ok */ }
+        toast('📤 Rascunho salvo — sincroniza sozinho quando a conexão voltar.');
       }
     }
     atualizarBarra();
