@@ -577,6 +577,28 @@ EC.fluxo = (function () {
     const registro = registroDoServico(os.numero, indice);
     const escopo = os.servicos[indice].escopo;
 
+    // Rascunho da EQUIPE no servidor (colaborativo). Consulta SEMPRE que online —
+    // mesmo havendo rascunho local — para não MASCARAR um rascunho de outro
+    // técnico (um toque anterior pode ter criado um rascunho local vazio aqui).
+    var servidor = null, falhouServidor = false;
+    if (navigator.onLine && EC.sync && EC.sync.buscarRascunho) {
+      try { servidor = await EC.sync.buscarRascunho(os.numero, escopo, servicoId(os.numero, indice)); }
+      catch (e) { falhouServidor = true; }
+    }
+    var rascServidor = (servidor && servidor.rascunho && servidor.rascunho.estado) ? servidor.rascunho : null;
+    if (rascServidor) {
+      var sessao = EC.storage.ler('sessao:atual') || {};
+      var souEu = !!(rascServidor.tecnico && sessao.nome && rascServidor.tecnico === sessao.nome);
+      var tLocal = (rascunho && rascunho.atualizadoEm) ? Date.parse(rascunho.atualizadoEm) : 0;
+      var tServidor = rascServidor.atualizadoEm ? Date.parse(rascServidor.atualizadoEm) : 0;
+      // Prevalece o servidor: se não há local; ou se é de OUTRO técnico e não é
+      // mais antigo que o local. (Meu próprio rascunho já sincronizado não me incomoda.)
+      if (!rascunho || (!souEu && tServidor >= tLocal)) {
+        oferecerContinuarDoServidor(os, indice, servidor);
+        return;
+      }
+    }
+
     if (rascunho) {
       EC.app.abrirOverlay(escopo,
         '<p>Este serviço já tinha começado a ser preenchido' +
@@ -629,19 +651,11 @@ EC.fluxo = (function () {
       return;
     }
 
-    // Sem rascunho nem registro LOCAIS: talvez a EQUIPE tenha começado este
-    // serviço em outro aparelho (rascunho colaborativo). Consulta o servidor.
-    if (navigator.onLine && EC.sync && EC.sync.buscarRascunho) {
-      var servidor = null;
-      try {
-        servidor = await EC.sync.buscarRascunho(os.numero, escopo, servicoId(os.numero, indice));
-      } catch (e) { /* offline/erro: segue como serviço novo */ }
-      if (servidor && servidor.rascunho && servidor.rascunho.estado) {
-        oferecerContinuarDoServidor(os, indice, servidor);
-        return;
-      }
+    // Online mas a checagem do servidor falhou → avisa (não abre calado, senão o
+    // técnico perde o rascunho da equipe sem saber que houve erro de rede).
+    if (falhouServidor) {
+      EC.app.mostrarToast('Não consegui verificar se a equipe já começou este serviço (sinal?). Se for continuar de outro técnico, tente abrir de novo.');
     }
-
     abrirServico(os, indice, null);
   }
 
