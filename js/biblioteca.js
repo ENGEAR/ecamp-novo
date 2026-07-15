@@ -419,7 +419,7 @@ EC.biblioteca = (function () {
     nivel = { tipo: null, escopo: null };
     carregarListaLocal();
     carregarVersoes();
-    EC.app.abrirOverlay('📚 SGQ',
+    EC.app.abrirOverlay('📚 Biblioteca',
       '<label class="overlay-busca"><input type="search" id="bib-busca" placeholder="🔍 Buscar por título, categoria ou norma…" autocomplete="off"></label>' +
       '<div id="bib-area"></div>');
 

@@ -439,7 +439,7 @@
 
   $('btn-biblioteca').addEventListener('click', function () {
     if (EC.biblioteca && EC.biblioteca.abrir) EC.biblioteca.abrir();
-    else abrirOverlay('📚 SGQ', '<p class="overlay-vazio">SGQ indisponível.</p>');
+    else abrirOverlay('📚 Biblioteca', '<p class="overlay-vazio">Biblioteca indisponível.</p>');
   });
 
   /* ============ Sino único (Aprovações + Lembretes + SGQ) ============ */
@@ -502,8 +502,8 @@
     }
     if (querSgq) {
       const n = sinoContagens.sgq;
-      partes.push('<p class="dg-secao">📚 SGQ (' + n + ')</p>' +
-        '<div class="overlay-item sino-sgq" role="button" tabindex="0">📥 ' + n + ' documento(s) para baixar ou atualizar no aparelho — toque para abrir o SGQ.</div>');
+      partes.push('<p class="dg-secao">📚 Biblioteca (' + n + ')</p>' +
+        '<div class="overlay-item sino-sgq" role="button" tabindex="0">📥 ' + n + ' documento(s) para baixar ou atualizar no aparelho — toque para abrir a Biblioteca.</div>');
     }
     $('overlay-conteudo').innerHTML = partes.join('');
     const itemSgq = document.querySelector('#overlay-conteudo .sino-sgq');
