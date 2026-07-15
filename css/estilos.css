@@ -931,6 +931,21 @@ textarea { resize: vertical; font-family: inherit; }
 .ecagd-tec small { font-weight: 400; opacity: 0.8; }
 .ecagd-m-excluir { background: var(--vermelho-claro); border-radius: 10px; padding: 10px 12px; margin-top: 8px; color: var(--vermelho); font-size: 0.92rem; }
 
+/* Campo de data com etiqueta curta "30 dez 2026". O seletor nativo do celular
+   fica por cima (invisível) e recebe o toque; a etiqueta mostra o texto curto,
+   evitando o formato longo do sistema ("30 de dez. de 2026") que cortava. */
+.ecagd-datebox { position: relative; margin-top: 4px; }
+.ecagd-datebox-lbl {
+  display: flex; align-items: center; height: 44px; padding: 0 12px;
+  border: 1px solid var(--cinza-borda); border-radius: 8px; background: #fff;
+  font-size: 1rem; color: var(--texto); white-space: nowrap; overflow: hidden;
+}
+.ecagd-datebox input[type="date"] {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  margin: 0; padding: 0; opacity: 0; border: 0; background: transparent;
+  -webkit-appearance: none; appearance: none;
+}
+
 /* Agenda — seletor de visão (Mês / Semana / Lista) e grade do mês */
 #agd-novo { margin: 0 0 12px; }
 .ecagd-visoes { display: flex; background: var(--cinza-fundo); border: 1px solid var(--cinza-borda); border-radius: 10px; padding: 3px; gap: 3px; margin-bottom: 10px; }

@@ -54,6 +54,13 @@
   function parseISO(s) { var p = s.split('-'); return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])); }
   function isoParaBR(s) { if (!s) return ''; var p = s.split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
   function dataLonga(s) { var d = parseISO(s); return DOW[d.getDay()] + ', ' + d.getDate() + ' de ' + MESES[d.getMonth()] + ' de ' + d.getFullYear(); }
+  // Data curta "30 dez 2026" (dia + mês em 3 letras + ano) — cabe no campo e
+  // evita o formato longo do seletor nativo do celular ("30 de dez. de 2026").
+  function dataCurtaBR(s) {
+    if (!s) return '—';
+    var p = s.split('-');
+    return Number(p[2]) + ' ' + MESES[Number(p[1]) - 1].slice(0, 3).toLowerCase() + ' ' + p[0];
+  }
   // Exibição: primeiro e último nome ("Robson Luiz Pimenta" → "Robson Pimenta").
   function nomeCurto(n) { var p = String(n || '').trim().split(/\s+/); return p.length <= 1 ? n : p[0] + ' ' + p[p.length - 1]; }
   function faixaDias(ini, fim) {
@@ -554,13 +561,21 @@
       return '<option' + (u === mEv.uf ? ' selected' : '') + '>' + u + '</option>';
     }).join('');
 
+    // Campo de data: o seletor nativo do celular fica por cima (invisível) e a
+    // etiqueta mostra a data curta "30 dez 2026" (o formato nativo é longo e corta).
+    function campoData(id, valor) {
+      return '<div class="ecagd-datebox">' +
+        '<span class="ecagd-datebox-lbl" id="' + id + '-lbl">' + esc(dataCurtaBR(valor)) + '</span>' +
+        '<input type="date" id="' + id + '" value="' + esc(valor) + '">' +
+      '</div>';
+    }
     var datas = mNovo
       ? '<div class="grade-2">' +
-          '<label>Data de início<input type="date" id="agdm-data" value="' + esc(mEv.data) + '"></label>' +
-          '<label>Data de término<input type="date" id="agdm-fim" value="' + esc(mDataFim) + '"></label>' +
+          '<label>Data de início' + campoData('agdm-data', mEv.data) + '</label>' +
+          '<label>Data de término' + campoData('agdm-fim', mDataFim) + '</label>' +
         '</div>' +
         '<p class="texto-apoio">Preencha a <b>data inicial e final</b> de saída e retorno do laboratório, <b>incluindo as datas de deslocamento</b>. Cadastre tudo como <b>Serviço</b> ou <b>Deslocamento</b> e depois <b>edite manualmente</b> os demais dias.</p>'
-      : '<label>Data<input type="date" id="agdm-data" value="' + esc(mEv.data) + '"></label>';
+      : '<label>Data' + campoData('agdm-data', mEv.data) + '</label>';
 
     var rodape;
     if (soLeitura) {
@@ -625,6 +640,13 @@
         renderModal();
       });
     }
+    // Mantém a etiqueta "30 dez 2026" em dia quando o seletor de data muda.
+    function sincLabelData(id) {
+      var el = $(id), lbl = $(id + '-lbl');
+      if (el && lbl) lbl.textContent = dataCurtaBR(el.value);
+    }
+    if ($('agdm-data')) $('agdm-data').addEventListener('change', function () { sincLabelData('agdm-data'); });
+    if ($('agdm-fim')) $('agdm-fim').addEventListener('change', function () { sincLabelData('agdm-fim'); });
     // Data de término acompanha a de início: ao escolher/alterar o início, se o
     // término estiver vazio ou for ANTES do novo início, puxa para o mesmo dia
     // (não sobrescreve um término posterior já definido de propósito).
@@ -632,7 +654,7 @@
       $('agdm-data').addEventListener('change', function () {
         var ini = $('agdm-data').value;
         var fim = $('agdm-fim').value;
-        if (ini && (!fim || fim < ini)) { $('agdm-fim').value = ini; mDataFim = ini; }
+        if (ini && (!fim || fim < ini)) { $('agdm-fim').value = ini; mDataFim = ini; sincLabelData('agdm-fim'); }
       });
     }
     $('agdm-fechar').addEventListener('click', fecharModal);
