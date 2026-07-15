@@ -823,18 +823,25 @@ textarea { resize: vertical; font-family: inherit; }
 }
 .rb-pedido-topo {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 4px;
 }
+/* "OS 26040" nunca quebra em duas linhas; quem cede espaço é a tag */
+.rb-pedido-topo .os-numero { flex-shrink: 0; white-space: nowrap; }
 .rb-pedido-linha { font-size: 0.95rem; margin-bottom: 2px; }
 .rb-status {
   font-size: 0.78rem;
   font-weight: 700;
   border-radius: 999px;
   padding: 2px 10px;
-  white-space: nowrap;
+  /* Texto longo (ex.: "Aguardando aprovação da Logística") quebra DENTRO da
+     pílula em vez de vazar para fora do card. */
+  white-space: normal;
+  text-align: center;
+  line-height: 1.35;
+  max-width: 100%;
 }
 .rb-pendente   { background: var(--amarelo-claro);  color: #7a6200; }
 .rb-aprovado   { background: var(--verde-claro);    color: var(--verde); }
