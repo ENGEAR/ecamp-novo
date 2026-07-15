@@ -82,18 +82,25 @@ EC.aprovacoes = (function () {
 
   /* ============ Lista de pendentes ============ */
 
-  var COLS_LISTA = 'id, os, cliente, solicitante, designado, valor_total, percentual_solicitado, valor_solicitado, status, created_at';
+  var COLS_LISTA = 'id, os, cliente, solicitante, designado, valor_total, percentual_solicitado, valor_solicitado, adiantamento_valor, status, created_at';
 
   function cartao(s) {
     var pct = s.percentual_solicitado != null ? Number(s.percentual_solicitado) : 100;
-    var valor = s.valor_solicitado != null ? s.valor_solicitado : s.valor_total;
+    var bruto = Number(s.valor_solicitado != null ? s.valor_solicitado : s.valor_total) || 0;
+    // Valor mostrado = o LÍQUIDO a pagar (parcela − a fração do adiantamento
+    // que cabe a ela, adiant × %) — igual ao card do técnico e ao pagamento.
+    var adiant = Number(s.adiantamento_valor) || 0;
+    var valor = Math.round(bruto * 100 - adiant * pct) / 100;
+    var detalhe = adiant > 0
+      ? ' (' + pct + '% de ' + moeda(s.valor_total) + ', já com o adiantamento)'
+      : (pct < 100 ? ' (' + pct + '% de ' + moeda(s.valor_total) + ')' : '');
     var chip = s.status === 'aguardando_pagamento'
       ? '<span class="rb-status rb-aprovado">✅ Aguardando pagamento</span>'
       : '<span class="rb-status rb-pendente">⏳ Aguardando aprovação</span>';
     return (
       '<button type="button" class="rb-pedido apr-cartao" data-id="' + s.id + '">' +
       '  <div class="rb-pedido-topo"><span class="os-numero">OS ' + esc(s.os) + '</span>' + chip + '</div>' +
-      '  <div class="rb-pedido-linha"><strong>' + moeda(valor) + '</strong>' + (pct < 100 ? ' (' + pct + '% de ' + moeda(s.valor_total) + ')' : '') + '</div>' +
+      '  <div class="rb-pedido-linha"><strong>' + moeda(valor) + '</strong>' + detalhe + '</div>' +
       (s.cliente ? '  <div class="os-resumo">' + esc(s.cliente) + '</div>' : '') +
       '  <div class="os-resumo">👷 ' + esc(s.designado || '—') + ' · ✍️ ' + esc(s.solicitante || '—') + '</div>' +
       '</button>'
