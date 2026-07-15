@@ -872,14 +872,18 @@ EC.reembolso = (function () {
     var paraDesig = (tecSel && tecSel.nome) ? ' para <strong>' + tecSel.nome + '</strong>' : '';
     $('rb-solicitado').innerHTML = 'Você está solicitando <strong>' + pct + '% = ' + moedaBR(solicitado) + '</strong>' + paraDesig;
 
-    // Adiantamento: mostra os campos e o "valor a pagar" (solicitado − adiantamento).
+    // Adiantamento: mostra os campos e o "valor a pagar". O adiantamento reduz
+    // do TOTAL da campanha; ESTA parcela desconta só a fração que cabe a ela
+    // (adiantamento × %) — o resto é descontado na(s) parcela(s) seguinte(s).
     $('rb-adiant-campos').classList.toggle('oculto', !adiantamentoAtivo());
     var adiant = adiantamentoVal();
     var pagar = $('rb-pagar');
     if (adiant > 0) {
-      var liquido = Math.round((solicitado - adiant) * 100) / 100;
+      var fracao = Math.round(adiant * pct) / 100;
+      var liquido = Math.round(solicitado * 100 - adiant * pct) / 100;
       pagar.innerHTML = 'Valor a pagar (após adiantamento): <strong>' + moedaBR(liquido) + '</strong>' +
-        '<span class="rb-total-sub">solicitado ' + moedaBR(solicitado) + ' − adiantamento ' + moedaBR(adiant) + '</span>';
+        '<span class="rb-total-sub">solicitado ' + moedaBR(solicitado) + ' − ' + moedaBR(fracao) +
+        (pct < 100 ? ' (parte do adiantamento de ' + moedaBR(adiant) + ' que cabe a esta parcela de ' + pct + '%)' : ' de adiantamento') + '</span>';
       pagar.classList.remove('oculto');
     } else {
       pagar.classList.add('oculto');
