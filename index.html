@@ -280,10 +280,38 @@
             <label>Campanha<select id="rb-campanha"></select></label>
           </div>
           <label>Solicitante <span class="rotulo-apoio">(quem está preenchendo)</span><input type="text" id="rb-solicitante" readonly></label>
+          <div id="rb-tipo-bloco" class="oculto">
+            <p class="rb-pergunta">Qual o tipo de reembolso?</p>
+            <div class="rb-tipo-botoes">
+              <button type="button" class="rb-tipo-btn" data-tipo="viagem">🧳 Viagem</button>
+              <button type="button" class="rb-tipo-btn" data-tipo="evento">🎪 Eventos</button>
+              <button type="button" class="rb-tipo-btn" data-tipo="veiculo">🚗 Veículos</button>
+            </div>
+          </div>
           <div id="rb-sem-agenda" class="alerta alerta-amarelo oculto">📅 Esta OS ainda não tem o serviço na Agenda. Peça para incluir a programação (dias e técnicos) na Agenda primeiro — depois é só voltar aqui.</div>
           <div id="rb-designado-bloco" class="oculto">
-            <label>Designado <span class="rotulo-apoio">(técnico da viagem, vinculado à OS na Agenda)</span><select id="rb-designado"></select></label>
+            <label>Designado <span class="rotulo-apoio">(técnico do serviço, vinculado à OS na Agenda)</span><select id="rb-designado"></select></label>
           </div>
+
+          <div id="rb-evento-bloco" class="oculto">
+            <p class="dg-secao">Evento</p>
+            <label>Quantos dias de serviço?<input type="number" id="rb-evento-dias" min="1" step="1" inputmode="numeric" placeholder="0"></label>
+            <div id="rb-evento-info" class="alerta alerta-info oculto"></div>
+          </div>
+
+          <div id="rb-veic-bloco" class="oculto">
+            <p class="dg-secao">Gastos do veículo</p>
+            <label>⛽ Abastecimento (R$)<input type="number" id="rb-veic-abastecimento" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+            <p class="rb-sub">Evidências do abastecimento <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
+            <div id="rb-anexos-abastecimento"></div>
+            <label>🔩 Compra de peças (R$)<input type="number" id="rb-veic-pecas" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+            <p class="rb-sub">Evidências das peças <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
+            <div id="rb-anexos-pecas"></div>
+            <label>🛠️ Manutenção (R$)<input type="number" id="rb-veic-manutencao" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+            <p class="rb-sub">Evidências da manutenção <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
+            <div id="rb-anexos-manutencao"></div>
+          </div>
+
           <div id="rb-viagem" class="oculto">
             <p class="texto-apoio" id="rb-viagem-fonte"></p>
             <div class="grade-2">
@@ -307,6 +335,7 @@
             <div id="rb-auto" class="rb-resumo-auto oculto"></div>
           </div>
 
+          <div id="rb-sec-transporte">
           <p class="dg-secao">Transporte</p>
           <p class="rb-pergunta">O veículo utilizado é da ENGEAR ou do colaborador?</p>
           <div class="rb-radios">
@@ -345,23 +374,38 @@
             <p class="rb-sub">Evidências de combustível <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
             <div id="rb-anexos-combustivel"></div>
           </div>
+          </div>
 
+          <div id="rb-pedagio-bloco">
           <p class="dg-secao">Pedágio</p>
           <label>Valor total de pedágio (R$)<input type="number" id="rb-pedagio" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
           <p class="rb-sub">Evidências de pedágio <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
           <div id="rb-anexos-pedagio"></div>
+          </div>
 
+          <div id="rb-outros-bloco" class="oculto">
+          <p class="dg-secao">Outros gastos</p>
+          <label>💠 Outros gastos (R$)<input type="number" id="rb-outros-valor" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+          <label>Justificativa dos outros gastos <span class="rotulo-apoio">(explique o que foi)</span><textarea id="rb-outros-just" rows="2" placeholder="Ex.: estacionamento, material de apoio…"></textarea></label>
+          <p class="rb-sub">Evidências dos outros gastos <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
+          <div id="rb-anexos-outros"></div>
+          </div>
+
+          <div id="rb-sec-valores">
           <p class="dg-secao">Valores calculados</p>
           <p class="texto-apoio">Confira cada valor. Se não concordar, peça o ajuste com uma justificativa.</p>
           <div id="rb-valores"></div>
+          </div>
           <div id="rb-total" class="rb-total oculto"></div>
 
           <div id="rb-pct-bloco" class="oculto">
+            <div id="rb-pct-viagem">
             <div id="rb-pct-info" class="alerta alerta-info oculto"></div>
             <label>Percentual solicitado da logística (%)
               <input type="number" id="rb-percentual" min="1" max="100" step="1" inputmode="numeric" value="100">
             </label>
             <div id="rb-solicitado" class="rb-total"></div>
+            </div>
 
             <p class="rb-pergunta">Houve adiantamento de pagamento?</p>
             <div class="rb-radios">

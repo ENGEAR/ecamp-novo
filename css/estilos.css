@@ -814,6 +814,28 @@ textarea { resize: vertical; font-family: inherit; }
 }
 
 /* ---------- Reembolso ---------- */
+/* Botões de escolha do TIPO de reembolso (Viagem / Eventos / Veículos) */
+.rb-tipo-botoes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.rb-tipo-btn {
+  font: inherit;
+  font-weight: 700;
+  padding: 12px 4px;
+  border-radius: var(--raio);
+  border: 1px solid var(--cinza-borda);
+  background: #fff;
+  color: var(--azul-escuro);
+  cursor: pointer;
+}
+.rb-tipo-btn.ativo {
+  background: var(--azul-escuro);
+  color: #fff;
+  border-color: var(--azul-escuro);
+}
 .rb-pedido {
   background: #fff;
   border: 1px solid var(--cinza-borda);

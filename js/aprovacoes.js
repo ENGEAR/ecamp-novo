@@ -82,7 +82,7 @@ EC.aprovacoes = (function () {
 
   /* ============ Lista de pendentes ============ */
 
-  var COLS_LISTA = 'id, os, cliente, solicitante, designado, valor_total, percentual_solicitado, valor_solicitado, adiantamento_valor, status, created_at';
+  var COLS_LISTA = 'id, os, cliente, solicitante, designado, valor_total, percentual_solicitado, valor_solicitado, adiantamento_valor, tipo, status, created_at';
 
   function cartao(s) {
     var pct = s.percentual_solicitado != null ? Number(s.percentual_solicitado) : 100;
@@ -97,10 +97,13 @@ EC.aprovacoes = (function () {
     var chip = s.status === 'aguardando_pagamento'
       ? '<span class="rb-status rb-aprovado">✅ Aguardando pagamento</span>'
       : '<span class="rb-status rb-pendente">⏳ Aguardando aprovação</span>';
+    var t = s.tipo || 'viagem';
+    var tipoTxt = t === 'evento' ? '<span class="rotulo-apoio">🎪 Evento</span> · '
+      : t === 'veiculo' ? '<span class="rotulo-apoio">🚗 Veículos</span> · ' : '';
     return (
       '<button type="button" class="rb-pedido apr-cartao" data-id="' + s.id + '">' +
       '  <div class="rb-pedido-topo"><span class="os-numero">OS ' + esc(s.os) + '</span>' + chip + '</div>' +
-      '  <div class="rb-pedido-linha"><strong>' + moeda(valor) + '</strong>' + detalhe + '</div>' +
+      '  <div class="rb-pedido-linha">' + tipoTxt + '<strong>' + moeda(valor) + '</strong>' + detalhe + '</div>' +
       (s.cliente ? '  <div class="os-resumo">' + esc(s.cliente) + '</div>' : '') +
       '  <div class="os-resumo">👷 ' + esc(s.designado || '—') + ' · ✍️ ' + esc(s.solicitante || '—') + '</div>' +
       '</button>'
@@ -225,7 +228,62 @@ EC.aprovacoes = (function () {
     return '<div><span>' + rot + '</span><strong>' + esc(val) + '</strong></div>';
   }
 
+  // Detalhe de EVENTOS e VEÍCULOS: pagamento único (100%), sem datas de viagem,
+  // sem base de cálculo automática e sem resumo orçamentário da campanha.
+  function renderDetalheSimples(s) {
+    var t = s.tipo === 'evento' ? 'evento' : 'veiculo';
+    var cat = s.solicitante_tipo === 'freelancer' ? 'Freelancer' : (s.solicitante_tipo === 'clt' ? 'CLT' : '—');
+    var itens = t === 'evento'
+      ? [['🎪', 'Diárias do evento' + (s.dias_servico != null ? ' (' + s.dias_servico + ' dia(s))' : ''), s.valor_mao_obra]]
+      : [
+          ['⛽', 'Abastecimento', s.valor_combustivel],
+          ['🔩', 'Compra de peças', s.valor_pecas],
+          ['🛠️', 'Manutenção', s.valor_manutencao],
+          ['🛣️', 'Pedágio', s.valor_pedagio]
+        ];
+    itens.push(['💠', 'Outros gastos', s.valor_outros]);
+    var valoresHtml = itens.filter(function (l) { return Number(l[2]) > 0; }).map(function (l) {
+      return '<div class="apr-vlinha"><span class="apr-vic">' + l[0] + '</span>' +
+        '<div class="apr-vmeio"><div class="apr-vrot">' + l[1] + '</div></div>' +
+        '<span class="apr-vval">' + moeda(l[2]) + '</span></div>';
+    }).join('');
+    valoresHtml += '<div class="apr-vlinha" style="border-top:2px solid var(--cinza-borda);">' +
+      '<span class="apr-vic">🧾</span>' +
+      '<div class="apr-vmeio"><div class="apr-vrot"><strong>TOTAL</strong></div></div>' +
+      '<span class="apr-vval"><strong>' + moeda(s.valor_total) + '</strong></span></div>';
+
+    var outrosJust = Number(s.valor_outros) > 0 && s.outros_justificativa
+      ? '<div class="apr-just">💠 Justificativa dos outros gastos: ' + esc(s.outros_justificativa) + '</div>' : '';
+
+    // Pagamento único (100%): o adiantamento desconta por inteiro.
+    var adiant = Number(s.adiantamento_valor) || 0;
+    var aPagar = Math.round((Number(s.valor_total) - adiant) * 100) / 100;
+    var hero = '<div class="apr-hero apr-hero-forte"><div class="apr-hero-icone">👛</div>' +
+      '<div class="apr-hero-corpo">' +
+        '<div class="apr-hero-cab"><div class="apr-hero-titulo">' + (adiant > 0 ? 'A pagar (após adiantamento)' : 'Valor a pagar') + '</div><span class="apr-hero-tag">⭐ Valor a receber</span></div>' +
+        '<div class="apr-hero-valor">' + moeda(aPagar) + '</div>' +
+        (adiant > 0 ? '<div class="apr-hero-sub">total ' + moeda(s.valor_total) + ' − adiantamento ' + moeda(adiant) + (s.adiantamento_data ? ' em ' + dataBR(s.adiantamento_data) : '') + '</div>' : '') +
+        (s.designado ? '<div class="apr-hero-desig">' + esc(s.designado) + '</div>' : '') +
+      '</div></div>';
+
+    return (
+      '<div class="apr-cab"><span class="os-numero">OS ' + esc(s.os) + '</span>' + (s.cliente ? ' · ' + esc(s.cliente) : '') + '</div>' +
+      (s.projeto ? '<div class="os-resumo" style="margin:-2px 0 8px;">📁 ' + esc(s.projeto) + '</div>' : '') +
+      '<div class="apr-cat">' + (t === 'evento' ? '🎪 Reembolso de EVENTO' : '🚗 Reembolso de VEÍCULOS') + '</div>' +
+      '<p class="dg-secao">Quem</p>' +
+      '<div class="rb-resumo-auto">' +
+        linhaInfo('Solicitante (preencheu)', s.solicitante || '—') +
+        linhaInfo('Designado', (s.designado || '—') + ' · ' + cat) +
+      '</div>' +
+      '<p class="dg-secao">Valores</p>' +
+      '<div class="apr-valores">' + valoresHtml + '</div>' +
+      outrosJust +
+      hero
+    );
+  }
+
   function renderDetalhe(s, ajustes) {
+    if ((s.tipo || 'viagem') !== 'viagem') return renderDetalheSimples(s);
     var tipo = s.solicitante_tipo === 'freelancer' ? 'Freelancer' : (s.solicitante_tipo === 'clt' ? 'CLT' : '—');
     var alimentacao = Number(s.valor_almoco || 0) + Number(s.valor_jantar || 0) + Number(s.valor_lanche || 0);
     // ajuste por item (traz o valor calculado e o proposto)
@@ -242,7 +300,8 @@ EC.aprovacoes = (function () {
       ['🛣️', 'Pedágio', s.valor_pedagio, 'pedagio'],
       ['🏨', 'Hospedagem', s.valor_hospedagem, 'hospedagem'],
       ['👷', 'Mão de obra', s.valor_mao_obra, 'mao_obra'],
-      ['🍽️', 'Alimentação', alimentacao, 'alimentacao']
+      ['🍽️', 'Alimentação', alimentacao, 'alimentacao'],
+      ['💠', 'Outros gastos', s.valor_outros, 'outros']
     ];
     var valoresHtml = linhas.filter(function (l) { return Number(l[2]) > 0 || ajPorItem[l[3]]; }).map(function (l) {
       var aj = ajPorItem[l[3]];
@@ -405,6 +464,8 @@ EC.aprovacoes = (function () {
       (s.combustivel_justificativa ? '<div class="apr-just">⛽ Justificativa do combustível acima do teto: ' + esc(s.combustivel_justificativa) + '</div>' : '') +
       '<p class="dg-secao">Valores</p>' +
       '<div class="apr-valores">' + valoresHtml + '</div>' +
+      (Number(s.valor_outros) > 0 && s.outros_justificativa
+        ? '<div class="apr-just">💠 Justificativa dos outros gastos: ' + esc(s.outros_justificativa) + '</div>' : '') +
       heroSolic +
       heroPagar +
       detalheHtml +
