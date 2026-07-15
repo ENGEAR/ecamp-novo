@@ -957,7 +957,7 @@ EC.reembolso = (function () {
       var dias = parseInt($('rb-evento-dias').value, 10) || 0;
       var diaria = ctx ? (Number(ctx.valores.diaria_evento) || 0) : 0;
       var diarias = Math.round(dias * diaria * 100) / 100;
-      if (dias > 0 && diaria > 0) comps.push('🎪 Diárias do evento: ' + dias + ' dia(s) × ' + moedaBR(diaria) + ' = ' + moedaBR(diarias));
+      if (dias > 0 && diaria > 0) comps.push('🔊 Diárias do evento: ' + dias + ' dia(s) × ' + moedaBR(diaria) + ' = ' + moedaBR(diarias));
       total = Math.round((diarias + outros) * 100) / 100;
       pronto = !!tecSel && dias > 0 && diaria > 0;
     } else {
@@ -1665,7 +1665,7 @@ EC.reembolso = (function () {
     var obs = (p.status === 'rejeitado' || p.status === 'correcao') && p.observacao_logistica
       ? '<div class="rb-motivo">Observação da Logística: ' + p.observacao_logistica + '</div>' : '';
     var t = p.tipo || 'viagem';
-    var tipoTxt = t === 'evento' ? '<span class="rotulo-apoio">🎪 Evento</span> · '
+    var tipoTxt = t === 'evento' ? '<span class="rotulo-apoio">🔊 Evento</span> · '
       : t === 'veiculo' ? '<span class="rotulo-apoio">🚗 Veículos</span> · ' : '';
     var parcelaTxt = tipoTxt + (parcelaN ? '<span class="rotulo-apoio">' + parcelaN + 'ª parcela</span> · ' : '');
     return (
@@ -1840,7 +1840,7 @@ EC.reembolso = (function () {
     function linha(rot, val) { return '<div class="apr-linha"><span>' + rot + '</span><strong>' + val + '</strong></div>'; }
     var cat = p.solicitante_tipo === 'freelancer' ? 'Freelancer' : (p.solicitante_tipo === 'clt' ? 'CLT' : '—');
     var itens = t === 'evento'
-      ? [['🎪 Diárias do evento' + (p.dias_servico != null ? ' (' + p.dias_servico + ' dia(s))' : ''), p.valor_mao_obra]]
+      ? [['🔊 Diárias do evento' + (p.dias_servico != null ? ' (' + p.dias_servico + ' dia(s))' : ''), p.valor_mao_obra]]
       : [
           ['⛽ Abastecimento', p.valor_combustivel],
           ['🔩 Compra de peças', p.valor_pecas],
@@ -1853,7 +1853,7 @@ EC.reembolso = (function () {
     var outrosJust = Number(p.valor_outros) > 0 && p.outros_justificativa
       ? '<p class="texto-apoio">💠 Outros gastos: ' + p.outros_justificativa + '</p>' : '';
     return (
-      '<div class="apr-cat">' + (t === 'evento' ? '🎪 Reembolso de EVENTO' : '🚗 Reembolso de VEÍCULOS') + '</div>' +
+      '<div class="apr-cat">' + (t === 'evento' ? '🔊 Reembolso de EVENTO' : '🚗 Reembolso de VEÍCULOS') + '</div>' +
       '<p class="dg-secao">Quem</p><div class="rb-resumo-auto">' +
         linha('Solicitante', p.solicitante || '—') + linha('Designado', (p.designado || '—') + ' · ' + cat) +
       '</div>' +

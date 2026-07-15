@@ -98,7 +98,7 @@ EC.aprovacoes = (function () {
       ? '<span class="rb-status rb-aprovado">✅ Aguardando pagamento</span>'
       : '<span class="rb-status rb-pendente">⏳ Aguardando aprovação</span>';
     var t = s.tipo || 'viagem';
-    var tipoTxt = t === 'evento' ? '<span class="rotulo-apoio">🎪 Evento</span> · '
+    var tipoTxt = t === 'evento' ? '<span class="rotulo-apoio">🔊 Evento</span> · '
       : t === 'veiculo' ? '<span class="rotulo-apoio">🚗 Veículos</span> · ' : '';
     return (
       '<button type="button" class="rb-pedido apr-cartao" data-id="' + s.id + '">' +
@@ -234,7 +234,7 @@ EC.aprovacoes = (function () {
     var t = s.tipo === 'evento' ? 'evento' : 'veiculo';
     var cat = s.solicitante_tipo === 'freelancer' ? 'Freelancer' : (s.solicitante_tipo === 'clt' ? 'CLT' : '—');
     var itens = t === 'evento'
-      ? [['🎪', 'Diárias do evento' + (s.dias_servico != null ? ' (' + s.dias_servico + ' dia(s))' : ''), s.valor_mao_obra]]
+      ? [['🔊', 'Diárias do evento' + (s.dias_servico != null ? ' (' + s.dias_servico + ' dia(s))' : ''), s.valor_mao_obra]]
       : [
           ['⛽', 'Abastecimento', s.valor_combustivel],
           ['🔩', 'Compra de peças', s.valor_pecas],
@@ -269,7 +269,7 @@ EC.aprovacoes = (function () {
     return (
       '<div class="apr-cab"><span class="os-numero">OS ' + esc(s.os) + '</span>' + (s.cliente ? ' · ' + esc(s.cliente) : '') + '</div>' +
       (s.projeto ? '<div class="os-resumo" style="margin:-2px 0 8px;">📁 ' + esc(s.projeto) + '</div>' : '') +
-      '<div class="apr-cat">' + (t === 'evento' ? '🎪 Reembolso de EVENTO' : '🚗 Reembolso de VEÍCULOS') + '</div>' +
+      '<div class="apr-cat">' + (t === 'evento' ? '🔊 Reembolso de EVENTO' : '🚗 Reembolso de VEÍCULOS') + '</div>' +
       '<p class="dg-secao">Quem</p>' +
       '<div class="rb-resumo-auto">' +
         linhaInfo('Solicitante (preencheu)', s.solicitante || '—') +
