@@ -17,6 +17,7 @@ EC.sync = (function () {
   var ROTA_FOTO = BASE + '/foto';
   var ROTA_PDF = BASE + '/pdf';
   var ROTA_DESCARTAR = BASE + '/descartar';
+  var ROTA_RASCUNHO = BASE + '/rascunho';
   var BASE_BIBLIOTECA = 'https://engear-sgp.vercel.app/api/biblioteca';
   var TOKEN = 'f8b17592b0130d95047d37865a14b31570c6381509ccc066';
 
@@ -224,6 +225,39 @@ EC.sync = (function () {
     atualizarBarra();
   }
 
+  /* ===== Rascunho colaborativo (continuar serviço de outro técnico) ===== */
+
+  // Busca no servidor o rascunho de um serviço (dados SEM fotos) + estado da
+  // trava. Devolve { rascunho: {rascunhoId, estado, tecnico, atualizadoEm}|null,
+  // lock: {tecnico,email,expiraEm,expirada}|null }. Lança erro se offline/falha.
+  async function buscarRascunho(os, escopo, servico) {
+    var q = '?os=' + encodeURIComponent(os) +
+      '&escopo=' + encodeURIComponent(escopo || '') +
+      '&servico=' + encodeURIComponent(servico || '');
+    var resposta = await fetch(ROTA_RASCUNHO + q, { headers: { 'x-ecamp-token': TOKEN } });
+    var corpo = {};
+    try { corpo = await resposta.json(); } catch (e) { /* vazio */ }
+    if (!resposta.ok || !corpo.ok) throw new Error(corpo.erro || ('HTTP ' + resposta.status));
+    return { rascunho: corpo.rascunho || null, lock: corpo.lock || null };
+  }
+
+  // Ações da trava de edição. acao: 'lock' | 'refresh' | 'unlock'. Best-effort no
+  // unlock/refresh; no lock devolve o corpo ({travada} ou {bloqueada, por}).
+  async function travaRascunho(acao, os, servico, forcar) {
+    var sessao = (EC.storage && EC.storage.ler('sessao:atual')) || {};
+    try {
+      return await postJson(ROTA_RASCUNHO, {
+        acao: acao, os: os, servico: servico,
+        tecnico: sessao.nome || '', email: sessao.email || '', forcar: !!forcar
+      });
+    } catch (e) {
+      return { ok: false, erro: e.message };
+    }
+  }
+  function travar(os, servico, forcar) { return travaRascunho('lock', os, servico, forcar); }
+  function renovarTrava(os, servico) { return travaRascunho('refresh', os, servico); }
+  function liberarTrava(os, servico) { return travaRascunho('unlock', os, servico); }
+
   // Descarta o rascunho no servidor (quando a OS foi aberta por engano). Apaga o
   // monitoramento Incompleto pelo rascunhoId — some da lista compartilhada e da
   // planilha. Best-effort: se não houver internet, o descarte local já basta e
@@ -314,6 +348,10 @@ EC.sync = (function () {
     sincronizarRegistro: sincronizarRegistro,
     sincronizarRascunho: sincronizarRascunho,
     descartarRascunho: descartarRascunho,
+    buscarRascunho: buscarRascunho,
+    travar: travar,
+    renovarTrava: renovarTrava,
+    liberarTrava: liberarTrava,
     sincronizarPendentes: sincronizarPendentes,
     buscarBiblioteca: buscarBiblioteca,
     baixarDocumentoBiblioteca: baixarDocumentoBiblioteca
