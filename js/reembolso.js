@@ -1748,6 +1748,13 @@ EC.reembolso = (function () {
     return num;
   }
 
+  // Data usada para agrupar/ordenar no extrato: a da viagem quando existe;
+  // sem ela (Eventos/Veículos, que não têm datas de viagem), a data em que a
+  // SOLICITAÇÃO foi feita — nunca fica "Sem data".
+  function dataDoExtrato(p) {
+    return String(p.data_inicio || p.dataInicio || p.created_at || p.criadoEm || '').slice(0, 10);
+  }
+
   // Renderiza a lista tipo extrato de banco (ano → mês) num container, com busca.
   // dados = [{p, aguardandoEnvio}]; onAbrir(item) ao clicar num card.
   function renderBancoLista(area, buscaEl, dados, numParcela, porCodigo, onAbrir, mostrarDesignado) {
@@ -1756,14 +1763,14 @@ EC.reembolso = (function () {
     var itens = (dados || []).filter(function (it) {
       if (!termo) return true;
       var p = it.p;
-      var ida = p.data_inicio || p.dataInicio || '';
+      var ida = dataDoExtrato(p);
       var alvo = ('os ' + (p.os || '') + ' ' + (p.designado || '') + ' ' + (p.cliente || '') + ' ' + (p.projeto || '') + ' ' + mesAnoBusca(ida) + ' ' + ida).toLowerCase();
       return alvo.indexOf(termo) !== -1;
     });
     if (!itens.length) { area.innerHTML = '<p class="texto-apoio">Nada encontrado.</p>'; return; }
     var porAno = {};
     itens.forEach(function (it) {
-      var ida = String(it.p.data_inicio || it.p.dataInicio || '');
+      var ida = dataDoExtrato(it.p);
       var ano = ida.slice(0, 4) || 'Sem data';
       var mk = ida.length >= 7 ? ida.slice(5, 7) : '00';
       porAno[ano] = porAno[ano] || {};
@@ -1774,7 +1781,7 @@ EC.reembolso = (function () {
       var meses = Object.keys(porAno[ano]).sort(function (a, b) { return b.localeCompare(a); });
       var mesesHtml = meses.map(function (mk) {
         var lista = porAno[ano][mk].slice().sort(function (a, b) {
-          return String(b.p.data_inicio || b.p.dataInicio || '').localeCompare(String(a.p.data_inicio || a.p.dataInicio || ''));
+          return dataDoExtrato(b.p).localeCompare(dataDoExtrato(a.p));
         });
         var cards = lista.map(function (it) { return cartaoPedido(it.p, it.aguardandoEnvio, numParcela[it.p.codigo], mostrarDesignado); }).join('');
         var nomeM = mk === '00' ? 'Sem data' : (MESES_PT[parseInt(mk, 10) - 1] || mk);
