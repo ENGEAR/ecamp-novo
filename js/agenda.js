@@ -625,6 +625,16 @@
         renderModal();
       });
     }
+    // Data de término acompanha a de início: ao escolher/alterar o início, se o
+    // término estiver vazio ou for ANTES do novo início, puxa para o mesmo dia
+    // (não sobrescreve um término posterior já definido de propósito).
+    if ($('agdm-data') && $('agdm-fim')) {
+      $('agdm-data').addEventListener('change', function () {
+        var ini = $('agdm-data').value;
+        var fim = $('agdm-fim').value;
+        if (ini && (!fim || fim < ini)) { $('agdm-fim').value = ini; mDataFim = ini; }
+      });
+    }
     $('agdm-fechar').addEventListener('click', fecharModal);
     if ($('agdm-fechar2')) $('agdm-fechar2').addEventListener('click', fecharModal);
     if ($('agdm-cancelar')) $('agdm-cancelar').addEventListener('click', fecharModal);
@@ -1037,9 +1047,11 @@
     $('agd-f-tec').addEventListener('change', render);
     $('agd-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-acao'); carregarLembretes(); });
     $('agd-novo').addEventListener('click', function () {
+      // Usa o dia que a pessoa tocou na grade (diaSel); se não houver, cai em hoje.
+      var diaInicial = diaSel || iso(new Date());
       abrirModal({
         empresa: '', cidade: '', uf: '', servico: '', projeto: null,
-        data: iso(new Date()), status: 'prog', observacoes: '', tipo: 'servico',
+        data: diaInicial, status: 'prog', observacoes: '', tipo: 'servico',
         tecnicos: [], manual: true, proposta_id: null, ordem_servico_id: null, campanha_numero: null, os: null
       }, true);
     });
