@@ -626,26 +626,22 @@ EC.fluxo = (function () {
     const registro = registroDoServico(os.numero, indice);
     const escopo = os.servicos[indice].escopo;
 
-    // Rascunho da EQUIPE no servidor (colaborativo). Consulta SEMPRE que online —
-    // mesmo havendo rascunho local — para não MASCARAR um rascunho de outro
-    // técnico (um toque anterior pode ter criado um rascunho local vazio aqui).
+    // Rascunho da EQUIPE no servidor (colaborativo). Consulta se online.
     var servidor = null, falhouServidor = false;
     if (navigator.onLine && EC.sync && EC.sync.buscarRascunho) {
       try { servidor = await EC.sync.buscarRascunho(os.numero, escopo, servicoId(os.numero, indice)); }
       catch (e) { falhouServidor = true; }
     }
     var rascServidor = (servidor && servidor.rascunho && servidor.rascunho.estado) ? servidor.rascunho : null;
-    if (rascServidor) {
-      var sessao = EC.storage.ler('sessao:atual') || {};
-      var souEu = !!(rascServidor.tecnico && sessao.nome && rascServidor.tecnico === sessao.nome);
-      var tLocal = (rascunho && rascunho.atualizadoEm) ? Date.parse(rascunho.atualizadoEm) : 0;
-      var tServidor = rascServidor.atualizadoEm ? Date.parse(rascServidor.atualizadoEm) : 0;
-      // Prevalece o servidor: se não há local; ou se é de OUTRO técnico e não é
-      // mais antigo que o local. (Meu próprio rascunho já sincronizado não me incomoda.)
-      if (!rascunho || (!souEu && tServidor >= tLocal)) {
-        oferecerContinuarDoServidor(os, indice, servidor);
-        return;
-      }
+
+    // SEGURANÇA (incidente 2026-07-15): um rascunho LOCAL NUNCA é substituído
+    // automaticamente pelo do servidor — a versão do servidor pode ser MAIS POBRE
+    // (outro técnico abriu e salvou vazio) e apagaria o trabalho do técnico. Só
+    // puxamos do servidor quando NÃO há rascunho local aqui. Se há local, ele
+    // manda; para trocar pela versão da equipe, o técnico usa "Reiniciar".
+    if (!rascunho && rascServidor) {
+      oferecerContinuarDoServidor(os, indice, servidor);
+      return;
     }
 
     if (rascunho) {
@@ -673,7 +669,9 @@ EC.fluxo = (function () {
         EC.app.fecharOverlay();
         EC.storage.remover(chaveServico(os.numero, indice));
         if (EC.db) EC.db.remove('rascunhos', chaveServico(os.numero, indice)).catch(function () {});
-        abrirServico(os, indice, null);
+        // Re-avalia SEM o local: se a equipe tem rascunho no servidor, oferece
+        // continuar dele (em vez de criar um vazio novo, que duplicaria a linha).
+        aoTocarServico(os, indice);
       });
       $('sv-descartar').addEventListener('click', function () {
         if (!confirm('Descartar este serviço? Isso apaga o que foi preenchido nele e ele sai de "em andamento". Não dá para desfazer.')) return;
