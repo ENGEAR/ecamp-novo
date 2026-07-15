@@ -462,6 +462,8 @@ textarea { resize: vertical; font-family: inherit; }
 .status-andamento { background: var(--amarelo-claro); border: 1px solid var(--amarelo); color: #6e5a00; }
 .status-concluido { background: var(--verde-claro); border: 1px solid var(--verde); color: var(--verde); }
 .status-bloqueado { background: var(--cinza-fundo); border: 1px solid var(--cinza-borda); color: var(--cinza-texto); }
+/* Rascunho colaborativo: a equipe começou este serviço em outro aparelho. */
+.status-continuar { background: #ede7fb; border: 1px solid #b9a6ef; color: #5b3fb0; }
 
 /* Serviço bloqueado (campanha ainda não liberada) */
 .servico-bloqueado { opacity: 0.55; cursor: default; }

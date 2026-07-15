@@ -502,9 +502,12 @@ EC.fluxo = (function () {
           );
         }
         return (
-          '<button type="button" class="os-item servico-item" data-indice="' + o.i + '">' +
+          '<button type="button" class="os-item servico-item" data-indice="' + o.i + '"' +
+          ' data-servicoid="' + escDg(servicoId(os.numero, o.i)) + '" data-escopo="' + escDg(o.s.escopo) + '"' +
+          ' data-situacao="' + st + '">' +
           '  <span class="os-numero">▶️ ' + o.s.escopo + '</span>' + info +
           '  ' + SELO[st] +
+          '  <span class="servico-tag-servidor"></span>' +
           '</button>'
         );
       }).join('');
@@ -513,11 +516,43 @@ EC.fluxo = (function () {
       if (!todasConcluidas) liberada = false; // próximas campanhas ficam travadas
     });
     lista.innerHTML = html;
+    // Marca (tag roxa "Continuar de Fulano") os serviços que a EQUIPE já começou
+    // no servidor — sem esperar o técnico entrar no escopo.
+    pintarRascunhosServidor(os);
 
     lista.querySelectorAll('.servico-item[data-indice]').forEach(function (item) {
       item.addEventListener('click', function () {
         aoTocarServico(os, parseInt(item.dataset.indice, 10));
       });
+    });
+  }
+
+  // Pinta a tag roxa "Continuar de Fulano" nos serviços que a EQUIPE já começou
+  // (rascunho no servidor). Casa por servicoId exato; rascunho antigo sem
+  // servicoId cai no escopo. Não pinta serviço já concluído no aparelho.
+  async function pintarRascunhosServidor(os) {
+    if (!navigator.onLine || !(EC.sync && EC.sync.listarRascunhos)) return;
+    var rascunhos = [];
+    try { rascunhos = await EC.sync.listarRascunhos(os.numero); } catch (e) { return; }
+    if (!rascunhos.length) return;
+    var porServico = {}, porEscopo = {};
+    rascunhos.forEach(function (r) {
+      if (r.servicoId) { if (!porServico[r.servicoId]) porServico[r.servicoId] = r; }
+      else if (r.escopo && !porEscopo[r.escopo]) porEscopo[r.escopo] = r; // só rascunho antigo sem servicoId
+    });
+    var sessao = EC.storage.ler('sessao:atual') || {};
+    var lista = $('lista-servicos');
+    if (!lista) return;
+    lista.querySelectorAll('.servico-item[data-indice]').forEach(function (item) {
+      if (item.dataset.situacao === 'concluido') return; // concluído aqui: não marca
+      var r = porServico[item.dataset.servicoid] || porEscopo[item.dataset.escopo];
+      if (!r) return;
+      var alvo = item.querySelector('.servico-tag-servidor');
+      if (!alvo) return;
+      var souEu = !!(r.tecnico && sessao.nome && r.tecnico === sessao.nome);
+      var primeiro = (r.tecnico || '').trim().split(/\s+/)[0] || 'equipe';
+      alvo.className = 'servico-status status-continuar';
+      alvo.textContent = souEu ? '▶️ Continuar (você)' : '▶️ Continuar de ' + primeiro;
     });
   }
 

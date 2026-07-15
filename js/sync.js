@@ -257,6 +257,17 @@ EC.sync = (function () {
     return { rascunho: corpo.rascunho || null, lock: corpo.lock || null };
   }
 
+  // Lista os rascunhos da equipe para uma OS (leve, sem os snapshots) — usado na
+  // tela de serviços para marcar quais a equipe já começou e por quem. Devolve
+  // [{ rascunhoId, servicoId, escopo, tecnico, atualizadoEm }]. Erro se offline.
+  async function listarRascunhos(os) {
+    var resposta = await fetch(ROTA_RASCUNHO + '?lista=1&os=' + encodeURIComponent(os), { headers: { 'x-ecamp-token': TOKEN } });
+    var corpo = {};
+    try { corpo = await resposta.json(); } catch (e) { /* vazio */ }
+    if (!resposta.ok || !corpo.ok) throw new Error(corpo.erro || ('HTTP ' + resposta.status));
+    return corpo.rascunhos || [];
+  }
+
   // Ações da trava de edição. acao: 'lock' | 'refresh' | 'unlock'. Best-effort no
   // unlock/refresh; no lock devolve o corpo ({travada} ou {bloqueada, por}).
   async function travaRascunho(acao, os, servico, forcar) {
@@ -365,6 +376,7 @@ EC.sync = (function () {
     sincronizarRascunho: sincronizarRascunho,
     descartarRascunho: descartarRascunho,
     buscarRascunho: buscarRascunho,
+    listarRascunhos: listarRascunhos,
     travar: travar,
     renovarTrava: renovarTrava,
     liberarTrava: liberarTrava,
