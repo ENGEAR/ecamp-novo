@@ -255,6 +255,20 @@ EC.fluxo = (function () {
   function anterior(idTela) { return PASSOS[Math.max(0, PASSOS.indexOf(idTela) - 1)]; }
   function proximo(idTela) { return PASSOS[Math.min(PASSOS.length - 1, PASSOS.indexOf(idTela) + 1)]; }
 
+  // Auto-envio LEVE (só os dados, sem fotos) ao AVANÇAR de tela: mantém o
+  // SharePoint em dia com o que já foi preenchido, sem depender do botão "Salvar
+  // rascunho". As fotos sobem no "Salvar rascunho"/Finalizar. Silencioso e
+  // best-effort — se falhar por rede, o rascunho vai para a fila e sobe sozinho
+  // depois (ver EC.sync.sincronizarRascunhoDados). Só dispara com tipo já
+  // escolhido (antes disso o servidor não tem como criar a linha Incompleto).
+  function autoPushDados() {
+    if (!estado || !estado.iniciado || !estado.tipo) return;
+    if (!(EC.sync && EC.sync.sincronizarRascunhoDados)) return;
+    var registro = montarRegistro();
+    registro.finalizar = false;
+    EC.sync.sincronizarRascunhoDados(registro);
+  }
+
   // Sair do primeiro passo do serviço: volta à lista de serviços (OS com vários)
   // ou à lista de OS (OS com um único serviço).
   function voltarDoServico() {
@@ -1610,7 +1624,7 @@ EC.fluxo = (function () {
     const container = $(idTela.replace('tela-', '') + '-nav');
     EC.navegacao.criar(container, Object.assign({
       aoVoltar: function () { irPara(anterior(idTela)); },
-      aoProximo: function () { irPara(proximo(idTela)); },
+      aoProximo: function () { irPara(proximo(idTela)); autoPushDados(); },
       aoSalvarRascunho: aoSalvarRascunho
     }, opcoesExtras || {}));
   }

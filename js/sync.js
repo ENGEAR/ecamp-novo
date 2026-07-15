@@ -241,6 +241,23 @@ EC.sync = (function () {
     atualizarBarra();
   }
 
+  // Auto-push LEVE do rascunho: só os DADOS (sem fotos), a cada avanço de tela.
+  // Mantém o SharePoint atualizado com o que já foi preenchido, SEM depender do
+  // botão "Salvar rascunho" e SEM torrar a internet do campo (as fotos sobem no
+  // "Salvar rascunho"/Finalizar). Silencioso. Falha de rede enfileira o rascunho
+  // COMPLETO (com fotos) na mesma chave estável → o auto-retry do online garante
+  // a entrega (inclusive das fotos) mesmo em sinal ruim.
+  async function sincronizarRascunhoDados(registro) {
+    try {
+      await postJson(ROTA_REGISTRO, semFotos(registro)); // leve: só os dados
+    } catch (e) {
+      if (!e.naoSuportado) {
+        try { await EC.db.set('pending', chaveRascPendente(registro), registro); } catch (e2) { /* ok */ }
+      }
+    }
+    atualizarBarra();
+  }
+
   /* ===== Rascunho colaborativo (continuar serviço de outro técnico) ===== */
 
   // Busca no servidor o rascunho de um serviço (dados SEM fotos) + estado da
@@ -374,6 +391,7 @@ EC.sync = (function () {
     enviarPdf: enviarPdf,
     sincronizarRegistro: sincronizarRegistro,
     sincronizarRascunho: sincronizarRascunho,
+    sincronizarRascunhoDados: sincronizarRascunhoDados,
     descartarRascunho: descartarRascunho,
     buscarRascunho: buscarRascunho,
     listarRascunhos: listarRascunhos,
