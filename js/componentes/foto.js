@@ -138,6 +138,7 @@ EC.foto = (function () {
       '    <button type="button" class="botao botao-secundario foto-botao"></button>' +
       '    <button type="button" class="botao botao-secundario foto-botao-tec">🖼️ Buscar da fototeca</button>' +
       '  </div>' +
+      '  <p class="foto-dica">💡 Opte sempre que possível pela opção de <strong>tirar foto</strong> para ter o registro de coordenada e horário.</p>' +
       // câmera: input com `capture` abre a câmera. fototeca: input SEM `capture`
       // abre a galeria do celular.
       '  <input type="file" accept="image/*" capture="environment" class="foto-entrada" hidden>' +

@@ -293,6 +293,7 @@ textarea { resize: vertical; font-family: inherit; }
 /* Botões de origem da foto (câmera / fototeca) lado a lado */
 .foto-botoes { display: flex; flex-wrap: wrap; gap: 8px; }
 .foto-botoes .foto-botao { flex: 1; min-width: 160px; }
+.foto-dica { margin: 6px 0 0; font-size: 0.8rem; color: var(--cinza-texto); }
 .foto-item { position: relative; width: 88px; height: 88px; border-radius: 8px; overflow: hidden; border: 1px solid var(--cinza-borda); }
 .foto-item img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: pointer; }
 .foto-remover { position: absolute; top: 2px; right: 2px; width: 22px; height: 22px; border: none; border-radius: 50%; background: rgba(0,0,0,0.6); color: #fff; font-size: 0.8rem; line-height: 1; cursor: pointer; padding: 0; }
