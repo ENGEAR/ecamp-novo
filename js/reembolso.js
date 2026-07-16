@@ -1961,11 +1961,17 @@ EC.reembolso = (function () {
         ];
     if (t !== 'complemento') itens.push(['💠 Outros gastos', p.valor_outros]);
     var valores = itens.filter(function (l) { return Number(l[1]) > 0; })
-      .map(function (l) { return linha(l[0], moedaBR(l[1])); }).join('');
+      // No complemento, a justificativa vem logo abaixo do valor — sem a linha
+      // divisória (border-bottom) da linha de valor.
+      .map(function (l) {
+        return t === 'complemento'
+          ? '<div class="apr-linha" style="border-bottom:none;"><span>' + l[0] + '</span><strong>' + moedaBR(l[1]) + '</strong></div>'
+          : linha(l[0], moedaBR(l[1]));
+      }).join('');
     // Km final do veículo (complemento) e justificativa dos gastos.
     var kmLinha = t === 'complemento' && p.km_final != null && p.km_final !== ''
       ? linha('Km final do veículo', p.km_final + ' km') : '';
-    var rotJust = t === 'complemento' ? '➕ Justificativa do complemento' : '💠 Outros gastos';
+    var rotJust = t === 'complemento' ? 'Justificativa do complemento' : '💠 Outros gastos';
     var just = Number(p.valor_outros) > 0 && p.outros_justificativa
       ? '<p class="texto-apoio">' + rotJust + ': ' + p.outros_justificativa + '</p>' : '';
     return (
