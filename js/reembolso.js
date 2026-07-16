@@ -666,16 +666,16 @@ EC.reembolso = (function () {
     pintarValores();
   }
 
-  // A OS+campanha do designado já está 100% PAGA? (habilita o Complemento.)
+  // A OS+campanha desta seleção já está 100% PAGA? (habilita o Complemento.)
   // Fully paga = tem parcela paga, nada pendente, e — se houver viagem — o
   // total pago de viagem fecha 100%. Eventos/veículos pagos também contam.
-  function grupoPago() {
-    if (!osSel || !tecSel) return false;
+  // `rows` = solicitações do designado (cache do próprio usuário OU baixadas
+  // do servidor quando a logística preenche para outro técnico).
+  function calcGrupoPago(rows) {
+    if (!osSel) return false;
     var camp = campSel ? campSel.numero : null;
-    var g = listaEmCache().filter(function (x) {
-      return String(x.os) === String(osSel.numero) &&
-        Number(x.campanha_numero) === Number(camp) &&
-        (x.designado || '') === (tecSel.nome || '');
+    var g = (rows || []).filter(function (x) {
+      return String(x.os) === String(osSel.numero) && Number(x.campanha_numero) === Number(camp);
     });
     if (!g.length) return false;
     if (g.some(function (x) { return x.status === 'aguardando_logistica' || x.status === 'aguardando_pagamento'; })) return false;
@@ -689,11 +689,27 @@ EC.reembolso = (function () {
     return true;
   }
 
+  // Solicitações de um DESIGNADO específico (para a logística conferir a OS de
+  // outro técnico). Usa a lista já em cache quando é o próprio usuário; senão
+  // baixa do servidor e guarda (a rota /lista filtra por designado).
+  var cacheDesignado = {};
+  async function listaDoDesignado(nome) {
+    var chave = String(nome || '').trim().toLowerCase();
+    if (!chave) return [];
+    if (chave === sessionNome().trim().toLowerCase()) return listaEmCache();
+    if (cacheDesignado[chave]) return cacheDesignado[chave];
+    try {
+      var corpo = await getJson(BASE + '/lista?solicitante=' + encodeURIComponent(nome));
+      cacheDesignado[chave] = corpo.pedidos || [];
+      return cacheDesignado[chave];
+    } catch (e) { return []; } // offline: não libera o complemento p/ outro técnico
+  }
+
   // Mostra o botão "Complemento" só quando a OS do designado está 100% paga.
-  function atualizarBotaoComplemento() {
+  async function atualizarBotaoComplemento() {
     var btn = $('rb-tipo-complemento');
     if (!btn) return;
-    var libera = grupoPago();
+    var libera = !!tecSel && calcGrupoPago(await listaDoDesignado(tecSel.nome));
     btn.classList.toggle('oculto', !libera);
     if (!libera && tipoSel === 'complemento') escolherTipo(null);
   }
@@ -1344,6 +1360,7 @@ EC.reembolso = (function () {
     $('rb-teto-just').classList.add('oculto');
     $('rb-pedagio').value = '';
     $('rb-percentual').value = '100';
+    cacheDesignado = {}; // status de "OS paga" por designado é rebaixado a cada nova solicitação
     $('rb-tipo-complemento').classList.add('oculto');
     escolherTipo(null); // volta para "escolha o tipo" (Viagem/Eventos/Veículos)
     $('rb-evento-dias').value = '';
