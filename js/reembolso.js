@@ -57,7 +57,8 @@ EC.reembolso = (function () {
 
   var ctx = null;          // contexto do servidor: { valores, os: [...] }
   var osSel = null, campSel = null, tecSel = null;
-  var tipoSel = null;      // tipo do reembolso: 'viagem' | 'evento' | 'veiculo'
+  var tipoSel = null;      // tipo do reembolso: 'viagem' | 'evento' | 'veiculo' | 'complemento'
+  var compViagem = null;   // viagem PAGA do designado nesta OS (base do complemento por km)
   var dispCampanha = 100; // % da logística ainda disponível na campanha (100 − já solicitado)
   var anexos = {};
   var iniciado = false;
@@ -727,13 +728,57 @@ EC.reembolso = (function () {
     } catch (e) { return []; } // offline: não libera o complemento p/ outro técnico
   }
 
+  // A solicitação de VIAGEM paga do designado nesta OS+campanha (base do
+  // complemento por km — traz a quilometragem inicial, distância, consumo e preço).
+  function viagemDoGrupo(rows) {
+    if (!osSel) return null;
+    var camp = campSel ? campSel.numero : null;
+    var vs = (rows || []).filter(function (x) {
+      return String(x.os) === String(osSel.numero) && Number(x.campanha_numero) === Number(camp) &&
+        (x.tipo || 'viagem') === 'viagem';
+    });
+    return vs.filter(function (x) { return x.status === 'pago' && x.km_atual != null; })[0]
+        || vs.filter(function (x) { return x.km_atual != null; })[0]
+        || vs.filter(function (x) { return x.status === 'pago'; })[0]
+        || vs[0] || null;
+  }
+
+  // Cálculo do COMPLEMENTO por quilometragem (espelho do servidor):
+  //   percorrida = km final − km inicial (inicial = quilometragem atual da viagem)
+  //   efetiva    = distância ida+volta + 5 km/dia de serviço (a que pagou combustível)
+  //   se percorrida > efetiva → valor = (km extra ÷ consumo) × preço do litro da viagem
+  //   se percorrida ≤ efetiva → não há complemento (pagamos o suficiente ou mais).
+  function calcularComplemento() {
+    var v = compViagem;
+    var finalTxt = String($('rb-comp-kmfinal').value).trim();
+    var finalKm = finalTxt === '' ? null : parseFloat(finalTxt.replace(',', '.'));
+    var out = { inicial: null, final: finalKm, percorrida: null, efetiva: null, extra: null, valor: 0, ok: false, msg: '' };
+    if (!v || v.km_atual == null) { out.msg = 'A viagem desta OS não tem a quilometragem inicial registrada — não dá para calcular o complemento.'; return out; }
+    var consumo = Number(v.consumo_kml) || 0, preco = Number(v.preco_litro) || 0;
+    if (!(consumo > 0) || !(preco > 0)) { out.msg = 'A viagem não teve combustível reembolsado — não há como calcular o complemento por km.'; return out; }
+    out.inicial = Number(v.km_atual);
+    out.efetiva = Math.round(((Number(v.distancia_km) || 0) + 5 * (Number(v.dias_servico) || 0)) * 100) / 100;
+    if (finalKm == null || !(finalKm >= 0)) return out; // ainda não digitou o final
+    out.percorrida = Math.round((finalKm - out.inicial) * 100) / 100;
+    if (!(out.percorrida > 0)) { out.msg = 'A quilometragem final deve ser maior que a inicial (' + out.inicial + ' km).'; return out; }
+    out.extra = Math.round((out.percorrida - out.efetiva) * 100) / 100;
+    if (!(out.extra > 0)) { out.msg = 'A quilometragem percorrida (' + out.percorrida + ' km) não passou da já paga na viagem (' + out.efetiva + ' km) — não há complemento a pagar.'; return out; }
+    out.valor = Math.round((out.extra / consumo) * preco * 100) / 100;
+    out.ok = out.valor > 0;
+    return out;
+  }
+
   // Mostra o botão "Complemento" só quando a OS do designado está 100% paga.
+  // Guarda a viagem paga do grupo (base do cálculo por km).
   async function atualizarBotaoComplemento() {
     var btn = $('rb-tipo-complemento');
     if (!btn) return;
-    var libera = !!tecSel && calcGrupoPago(await listaDoDesignado(tecSel.nome));
+    var rows = tecSel ? await listaDoDesignado(tecSel.nome) : [];
+    var libera = !!tecSel && calcGrupoPago(rows);
+    compViagem = libera ? viagemDoGrupo(rows) : null;
     btn.classList.toggle('oculto', !libera);
     if (!libera && tipoSel === 'complemento') escolherTipo(null);
+    if (tipoSel === 'complemento') pintarValores(); // já reflete os dados da viagem baixados
   }
 
   // Mostra/esconde os blocos do formulário conforme o tipo escolhido.
@@ -1043,11 +1088,26 @@ EC.reembolso = (function () {
     // Complemento não usa o bloco "Outros gastos" (o próprio valor já é o gasto).
     var outros = tipoSel === 'complemento' ? 0 : outrosVal();
     if (tipoSel === 'complemento') {
-      // Complemento de gastos (OS já paga): o total é o valor informado.
-      var vc = valMon('rb-comp-valor');
-      if (vc > 0) comps.push('➕ Complemento de gastos: ' + moedaBR(vc));
-      total = vc;
-      pronto = !!tecSel && vc > 0;
+      // Complemento por quilometragem: valor calculado do combustível dos km a mais.
+      var c = calcularComplemento();
+      $('rb-comp-kminicial').value = (c.inicial != null ? c.inicial : '');
+      var info = $('rb-comp-info'), linhas = [];
+      if (c.inicial != null && c.percorrida != null) {
+        linhas.push('Quilometragem percorrida: <strong>' + c.percorrida + ' km</strong> (final ' + c.final + ' − inicial ' + c.inicial + ')');
+        linhas.push('Distância já paga na viagem: ' + c.efetiva + ' km');
+      }
+      if (c.ok) {
+        linhas.push('➡️ Complemento de combustível: ' + c.extra + ' km a mais = <strong>' + moedaBR(c.valor) + '</strong>');
+        info.className = 'alerta alerta-info';
+      } else if (c.msg) {
+        linhas.push('⚠️ ' + c.msg);
+        info.className = 'alerta alerta-amarelo';
+      }
+      if (linhas.length) { info.innerHTML = linhas.join('<br>'); info.classList.remove('oculto'); }
+      else info.classList.add('oculto');
+      if (c.ok) comps.push('➕ Complemento de combustível (' + c.extra + ' km a mais): ' + moedaBR(c.valor));
+      total = c.valor;
+      pronto = !!tecSel && c.ok;
     } else if (tipoSel === 'evento') {
       var dias = parseInt($('rb-evento-dias').value, 10) || 0;
       var diaria = ctx ? (Number(ctx.valores.diaria_evento) || 0) : 0;
@@ -1137,9 +1197,7 @@ EC.reembolso = (function () {
       veicAbastecimento: $('rb-veic-abastecimento').value,
       veicPecas: $('rb-veic-pecas').value,
       veicManutencao: $('rb-veic-manutencao').value,
-      compValor: $('rb-comp-valor').value,
-      compKm: $('rb-comp-km').value,
-      compJust: $('rb-comp-just').value,
+      compKmFinal: $('rb-comp-kmfinal').value,
       outrosValor: $('rb-outros-valor').value,
       outrosJust: $('rb-outros-just').value,
       origemCidade: $('rb-origem-cidade').value, origemUf: $('rb-origem-uf').value,
@@ -1204,9 +1262,7 @@ EC.reembolso = (function () {
       if (r.veicAbastecimento) $('rb-veic-abastecimento').value = r.veicAbastecimento;
       if (r.veicPecas) $('rb-veic-pecas').value = r.veicPecas;
       if (r.veicManutencao) $('rb-veic-manutencao').value = r.veicManutencao;
-      if (r.compValor) $('rb-comp-valor').value = r.compValor;
-      if (r.compKm) $('rb-comp-km').value = r.compKm;
-      if (r.compJust) $('rb-comp-just').value = r.compJust;
+      if (r.compKmFinal) $('rb-comp-kmfinal').value = r.compKmFinal;
       if (r.outrosValor) $('rb-outros-valor').value = r.outrosValor;
       if (r.outrosJust) $('rb-outros-just').value = r.outrosJust;
       if (r.veiculo) {
@@ -1396,7 +1452,9 @@ EC.reembolso = (function () {
     escolherTipo(null); // volta para "escolha o tipo" (Viagem/Eventos/Veículos)
     $('rb-evento-dias').value = '';
     $('rb-veic-abastecimento').value = ''; $('rb-veic-pecas').value = ''; $('rb-veic-manutencao').value = '';
-    $('rb-comp-valor').value = ''; $('rb-comp-km').value = ''; $('rb-comp-just').value = '';
+    $('rb-comp-kmfinal').value = ''; $('rb-comp-kminicial').value = '';
+    if ($('rb-comp-info')) $('rb-comp-info').classList.add('oculto');
+    compViagem = null;
     $('rb-outros-valor').value = ''; $('rb-outros-just').value = '';
     var radAdNao = document.querySelector('input[name="rb-adiant"][value="nao"]');
     if (radAdNao) radAdNao.checked = true;
@@ -1439,8 +1497,7 @@ EC.reembolso = (function () {
       valorOutros: pedido.valorOutros, outrosJustificativa: pedido.outrosJustificativa,
       valorAbastecimento: pedido.valorAbastecimento, valorPecas: pedido.valorPecas,
       valorManutencao: pedido.valorManutencao,
-      valorComplemento: pedido.valorComplemento, kmFinal: pedido.kmFinal,
-      complementoJustificativa: pedido.complementoJustificativa,
+      kmFinal: pedido.kmFinal,
       solicitante: pedido.solicitante, designado: pedido.designado, veiculo: pedido.veiculo,
       tipoCombustivel: pedido.tipoCombustivel, precoLitro: pedido.precoLitro,
       combustivelJustificativa: pedido.combustivelJustificativa, kmAtual: pedido.kmAtual,
@@ -1638,13 +1695,12 @@ EC.reembolso = (function () {
     var outros = tipoSel === 'complemento' ? 0 : outrosVal();
     var extra = {}, total = 0, blocos = ['outros'];
     if (tipoSel === 'complemento') {
-      var vc = valMon('rb-comp-valor');
-      if (!(vc > 0)) return mostrarErro('Informe o valor do complemento (R$).');
-      if (!$('rb-comp-just').value.trim()) return mostrarErro('Escreva a justificativa do complemento.');
-      total = vc;
-      extra.valorComplemento = vc;
-      extra.kmFinal = parseFloat(String($('rb-comp-km').value).replace(',', '.')) || null;
-      extra.complementoJustificativa = $('rb-comp-just').value.trim();
+      var c = calcularComplemento();
+      if (c.final == null) return mostrarErro('Informe a quilometragem final do carro.');
+      if (!c.ok) return mostrarErro(c.msg || 'Não há complemento a pagar.');
+      if (anexos.complemento.obter().length === 0) return mostrarErro('Anexe a foto da quilometragem final (obrigatória).');
+      total = c.valor;
+      extra.kmFinal = c.final; // o servidor puxa a inicial e recalcula o valor
       blocos = ['complemento'];
     } else if (tipoSel === 'evento') {
       var dias = parseInt($('rb-evento-dias').value, 10) || 0;
@@ -1973,7 +2029,7 @@ EC.reembolso = (function () {
     function linha(rot, val) { return '<div class="apr-linha"><span>' + rot + '</span><strong>' + val + '</strong></div>'; }
     var cat = p.solicitante_tipo === 'freelancer' ? 'Freelancer' : (p.solicitante_tipo === 'clt' ? 'CLT' : '—');
     var itens = t === 'complemento'
-      ? [['➕ Complemento de gastos', p.valor_outros]]
+      ? [['➕ Complemento de combustível (km a mais)', p.valor_outros]]
       : t === 'evento'
       ? [['🔊 Diárias do evento' + (p.dias_servico != null ? ' (' + p.dias_servico + ' dia(s))' : ''), p.valor_mao_obra]]
       : [
@@ -1991,10 +2047,16 @@ EC.reembolso = (function () {
           ? '<div class="apr-linha" style="border-bottom:none;"><span>' + l[0] + '</span><strong>' + moedaBR(l[1]) + '</strong></div>'
           : linha(l[0], moedaBR(l[1]));
       }).join('');
-    // Km final do veículo (complemento) e justificativa dos gastos.
-    var kmLinha = t === 'complemento' && p.km_final != null && p.km_final !== ''
-      ? linha('Km final do veículo', p.km_final + ' km') : '';
-    var rotJust = t === 'complemento' ? 'Justificativa do complemento' : '💠 Outros gastos';
+    // Complemento: quilometragem inicial, final e percorrida.
+    var kmLinha = '';
+    if (t === 'complemento') {
+      if (p.km_atual != null && p.km_atual !== '') kmLinha += linha('Quilometragem inicial', p.km_atual + ' km');
+      if (p.km_final != null && p.km_final !== '') kmLinha += linha('Quilometragem final', p.km_final + ' km');
+      if (p.km_atual != null && p.km_final != null && p.km_atual !== '' && p.km_final !== '') {
+        kmLinha += linha('Quilometragem percorrida', (Math.round((Number(p.km_final) - Number(p.km_atual)) * 100) / 100) + ' km');
+      }
+    }
+    var rotJust = t === 'complemento' ? 'Cálculo do complemento' : '💠 Outros gastos';
     var just = Number(p.valor_outros) > 0 && p.outros_justificativa
       ? '<p class="texto-apoio">' + rotJust + ': ' + p.outros_justificativa + '</p>' : '';
     return (
@@ -2599,7 +2661,7 @@ EC.reembolso = (function () {
     document.querySelectorAll('.rb-tipo-btn').forEach(function (b) {
       b.addEventListener('click', function () { escolherTipo(b.dataset.tipo); salvarRascunhoLogo(); });
     });
-    ['rb-evento-dias', 'rb-veic-abastecimento', 'rb-veic-pecas', 'rb-veic-manutencao', 'rb-outros-valor', 'rb-comp-valor']
+    ['rb-evento-dias', 'rb-veic-abastecimento', 'rb-veic-pecas', 'rb-veic-manutencao', 'rb-outros-valor', 'rb-comp-kmfinal']
       .forEach(function (id) { $(id).addEventListener('input', pintarValores); });
     $('rb-chegada-casa').addEventListener('input', pintarValores);
     document.querySelectorAll('input[name="rb-adiant"]').forEach(function (r) { r.addEventListener('change', pintarValores); });

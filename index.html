@@ -316,11 +316,11 @@
 
           <div id="rb-complemento-bloco" class="oculto">
             <p class="dg-secao">Complemento de gastos</p>
-            <p class="texto-apoio">Esta OS já está 100% paga — informe o gasto complementar a reembolsar.</p>
-            <label>💠 Valor do complemento (R$)<input type="number" id="rb-comp-valor" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
-            <label>Km final do veículo<input type="number" id="rb-comp-km" min="0" step="1" inputmode="numeric" placeholder="0"></label>
-            <label>Justificativa<textarea id="rb-comp-just" rows="2" placeholder="Explique o gasto complementar"></textarea></label>
-            <p class="rb-sub">Evidências <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
+            <p class="texto-apoio">Esta OS já está 100% paga — o complemento paga o combustível dos km percorridos a mais.</p>
+            <label>Quilometragem final do carro <span class="rotulo-apoio">(obrigatório o envio da foto)</span><input type="number" id="rb-comp-kmfinal" min="0" step="1" inputmode="numeric" placeholder="km no hodômetro"></label>
+            <label>Quilometragem inicial do carro <span class="rotulo-apoio">(da solicitação de viagem)</span><input type="number" id="rb-comp-kminicial" readonly placeholder="—"></label>
+            <div id="rb-comp-info" class="alerta alerta-info oculto"></div>
+            <p class="rb-sub">Evidência da quilometragem final <span class="rotulo-apoio">(obrigatório)</span></p>
             <div id="rb-anexos-complemento"></div>
           </div>
 

@@ -247,7 +247,7 @@ EC.aprovacoes = (function () {
     var t = s.tipo === 'evento' ? 'evento' : (s.tipo === 'complemento' ? 'complemento' : 'veiculo');
     var cat = s.solicitante_tipo === 'freelancer' ? 'Freelancer' : (s.solicitante_tipo === 'clt' ? 'CLT' : '—');
     var itens = t === 'complemento'
-      ? [['➕', 'Complemento de gastos', s.valor_outros]]
+      ? [['➕', 'Complemento de combustível (km a mais)', s.valor_outros]]
       : t === 'evento'
       ? [['🔊', 'Diárias do evento' + (s.dias_servico != null ? ' (' + s.dias_servico + ' dia(s))' : ''), s.valor_mao_obra]]
       : [
@@ -267,9 +267,15 @@ EC.aprovacoes = (function () {
       '<div class="apr-vmeio"><div class="apr-vrot"><strong>TOTAL</strong></div></div>' +
       '<span class="apr-vval"><strong>' + moeda(s.valor_total) + '</strong></span></div>';
 
-    var kmInfo = t === 'complemento' && s.km_final != null && s.km_final !== ''
-      ? linhaInfo('Km final do veículo', s.km_final + ' km') : '';
-    var rotJust = t === 'complemento' ? '➕ Justificativa do complemento' : '💠 Justificativa dos outros gastos';
+    var kmInfo = '';
+    if (t === 'complemento') {
+      if (s.km_atual != null && s.km_atual !== '') kmInfo += linhaInfo('Quilometragem inicial', s.km_atual + ' km');
+      if (s.km_final != null && s.km_final !== '') kmInfo += linhaInfo('Quilometragem final', s.km_final + ' km');
+      if (s.km_atual != null && s.km_final != null && s.km_atual !== '' && s.km_final !== '') {
+        kmInfo += linhaInfo('Quilometragem percorrida', (Math.round((Number(s.km_final) - Number(s.km_atual)) * 100) / 100) + ' km');
+      }
+    }
+    var rotJust = t === 'complemento' ? '➕ Cálculo do complemento' : '💠 Justificativa dos outros gastos';
     var outrosJust = Number(s.valor_outros) > 0 && s.outros_justificativa
       ? '<div class="apr-just">' + rotJust + ': ' + esc(s.outros_justificativa) + '</div>' : '';
 
