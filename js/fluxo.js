@@ -355,28 +355,29 @@ EC.fluxo = (function () {
   }
 
   // Cartão da seção "Em andamento": para logística/admin, acompanha um botão de
-  // LIMPAR — apaga o rascunho preso da OS no servidor (quando um técnico desistiu
-  // sem descartar no aparelho dele e a OS ficou travada em "em andamento").
+  // ARQUIVAR — tira a OS de "em andamento" SEM APAGAR nada (o rascunho, com
+  // pontos e fotos, vai para o SGP → Obsoletos → Rascunhos de campo, de onde dá
+  // para restaurar). Usado quando um técnico desistiu e a OS ficou travada.
   function cartaoOsAndamento(os) {
     if (!ehLogisticaOuAdmin()) return cartaoOs(os);
     return '<div class="os-and-wrap">' + cartaoOs(os) +
-      '<button type="button" class="os-limpar" data-limpar="' + os.numero + '">🧹 Limpar “em andamento” (rascunho preso)</button></div>';
+      '<button type="button" class="os-limpar" data-limpar="' + os.numero + '">🗄️ Arquivar “em andamento” (rascunho preso)</button></div>';
   }
 
   function ligarLimparAndamento(container) {
     container.querySelectorAll('.os-limpar[data-limpar]').forEach(function (b) {
       b.addEventListener('click', function () {
         const numero = b.getAttribute('data-limpar');
-        if (!confirm('Limpar o “em andamento” da OS ' + numero + '?\n\nApaga o rascunho preso no servidor (de qualquer técnico) dessa OS. Serviços já FINALIZADOS não são afetados. Não dá para desfazer.')) return;
-        b.disabled = true; b.textContent = 'Limpando…';
+        if (!confirm('Arquivar o “em andamento” da OS ' + numero + '?\n\nO rascunho preso (de qualquer técnico) SAI de “em andamento”, mas NÃO é apagado: vai para o SGP → Obsoletos → Rascunhos de campo, de onde dá para restaurar. Serviços já FINALIZADOS não são afetados.')) return;
+        b.disabled = true; b.textContent = 'Arquivando…';
         EC.os.limparAndamentoOS(numero).then(function () {
-          EC.app.mostrarToast('🧹 OS ' + numero + ' saiu de “em andamento”.');
+          EC.app.mostrarToast('🗄️ OS ' + numero + ' arquivada (saiu de “em andamento”).');
           if (EC.os && EC.os.carregar) EC.os.carregar(function () { pintarOs(''); });
           if (EC.os && EC.os.carregarAndamentoPor) EC.os.carregarAndamentoPor().then(function () { pintarOs(''); });
           pintarOs('');
         }).catch(function (e) {
-          b.disabled = false; b.textContent = '🧹 Limpar “em andamento” (rascunho preso)';
-          EC.app.mostrarToast('Não foi possível limpar: ' + (e.message || e));
+          b.disabled = false; b.textContent = '🗄️ Arquivar “em andamento” (rascunho preso)';
+          EC.app.mostrarToast('Não foi possível arquivar: ' + (e.message || e));
         });
       });
     });

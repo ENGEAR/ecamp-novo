@@ -31,7 +31,8 @@ EC.os = (function () {
   var BASE = 'https://engear-sgp.vercel.app/api/monitoramento';
   var ROTA_OS = BASE + '/os';
   var ROTA_FOTOS = BASE + '/os-fotos';
-  var ROTA_DESCARTAR_OS = BASE + '/descartar-os';
+  var ROTA_DESCARTAR_OS = BASE + '/descartar-os';   // legado (DELETE) — não usar mais
+  var ROTA_ARQUIVAR_OS = BASE + '/arquivar-os';     // soft: arquiva sem apagar
   var TOKEN = 'f8b17592b0130d95047d37865a14b31570c6381509ccc066';
 
   var CH_LISTA = 'os:lista';
@@ -245,15 +246,18 @@ EC.os = (function () {
     if (filtrada.length !== lista.length) EC.storage.salvar(CH_ANDAMENTO, filtrada);
   }
 
-  // Logística/admin: limpa TODOS os rascunhos presos de uma OS no servidor
-  // (quando o técnico desistiu e não descartou no aparelho dele). Depois tira a
-  // OS de "em andamento" localmente (seção + tag). Requer internet.
+  // Logística/admin: ARQUIVA (não apaga) TODOS os rascunhos presos de uma OS no
+  // servidor (quando o técnico desistiu e a OS ficou travada em "em andamento").
+  // Nada é apagado: os monitoramentos vão para o SGP → Obsoletos → Rascunhos de
+  // campo (de onde dá para restaurar). Depois tira a OS de "em andamento"
+  // localmente (seção + tag). Requer internet.
   async function limparAndamentoOS(numero) {
     var n = normNum(numero);
-    var resp = await fetch(ROTA_DESCARTAR_OS, {
+    var sessao = (EC.storage && EC.storage.ler('sessao:atual')) || {};
+    var resp = await fetch(ROTA_ARQUIVAR_OS, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-ecamp-token': TOKEN },
-      body: JSON.stringify({ os: n })
+      body: JSON.stringify({ os: n, tecnico: sessao.nome || '' })
     });
     var corpo = await resp.json();
     if (!resp.ok || !corpo.ok) throw new Error(corpo.erro || ('HTTP ' + resp.status));
