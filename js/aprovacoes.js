@@ -30,7 +30,19 @@ EC.aprovacoes = (function () {
   function sessao() { return EC.storage.ler('sessao:atual') || {}; }
   function toast(m) { if (EC.app && EC.app.mostrarToast) EC.app.mostrarToast(m); }
   function moeda(v) { return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
-  function dataBR(iso) { if (!iso) return '—'; var p = String(iso).slice(0, 10).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
+  // Datas puras vão direto; timestamps (created_at) convertem p/ Brasília (UTC−3)
+  // antes de extrair o dia (senão pedido feito à noite mostra o dia seguinte).
+  function dataBR(iso) {
+    if (!iso) return '—';
+    var s = String(iso);
+    function puro(str) { var p = str.slice(0, 10).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : str; }
+    if (s.length <= 10 || s.indexOf('T') === -1) return puro(s);
+    var t = new Date(s).getTime();
+    if (isNaN(t)) return puro(s);
+    var br = new Date(t - 3 * 3600000);
+    function z(n) { return (n < 10 ? '0' : '') + n; }
+    return z(br.getUTCDate()) + '/' + z(br.getUTCMonth() + 1) + '/' + br.getUTCFullYear();
+  }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 
   function ehLogistica() {

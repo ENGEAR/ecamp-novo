@@ -62,10 +62,20 @@ EC.reembolso = (function () {
   function sessionNome() { return (sessao().nome || '').trim(); }
 
   function moedaBR(v) { return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+  // Formata "AAAA-MM-DD" ou um TIMESTAMP (ex.: created_at) em DD/MM/AAAA. Datas
+  // puras (sem hora) vão direto; timestamps são convertidos para o horário de
+  // Brasília (UTC−3) antes de extrair o dia — senão um pedido feito à noite (ex.:
+  // 21h de 15/07 = 00h UTC de 16/07) apareceria com a data do dia seguinte.
   function dataBR(iso) {
     if (!iso) return '—';
-    var p = String(iso).slice(0, 10).split('-');
-    return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : String(iso);
+    var s = String(iso);
+    function puro(str) { var p = str.slice(0, 10).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : str; }
+    if (s.length <= 10 || s.indexOf('T') === -1) return puro(s);
+    var t = new Date(s).getTime();
+    if (isNaN(t)) return puro(s);
+    var br = new Date(t - 3 * 3600000);
+    function z(n) { return (n < 10 ? '0' : '') + n; }
+    return z(br.getUTCDate()) + '/' + z(br.getUTCMonth() + 1) + '/' + br.getUTCFullYear();
   }
   function opcao(valor, texto) { return '<option value="' + valor + '">' + texto + '</option>'; }
 
