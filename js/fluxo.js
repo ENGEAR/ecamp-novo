@@ -1449,6 +1449,9 @@ EC.fluxo = (function () {
       servico: estado.servico,
       tecnico: sessao.nome || '',
       tipo: estado.tipo,
+      // passo em que o técnico estava — sem isso, ao CONTINUAR DO SERVIDOR o app
+      // reabria sempre nos dados gerais (o "início"), perdendo o lugar.
+      passoAtual: estado.passoAtual,
       dadosGerais: estado.dadosGerais,
       equipamentos: estado.equipamentos,
       preCampo: estado.preCampo,
