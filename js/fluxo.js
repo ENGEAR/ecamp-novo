@@ -51,36 +51,6 @@ EC.fluxo = (function () {
   let telaExibida = null;
   let ultimoRegistroPdf = null; // registro recém-finalizado (COM fotos) p/ gerar o PDF
 
-  // Trava de edição do rascunho colaborativo (um técnico por serviço de cada vez).
-  let travaTimer = null;   // heartbeat que renova a trava enquanto edita
-  let travaAtual = null;   // { os, servico } do serviço travado agora
-  const TRAVA_RENOVA_MS = 4 * 60 * 1000; // renova a cada 4 min (servidor expira em 8)
-
-  // Adquire a trava do serviço e liga o heartbeat. Best-effort (offline não trava).
-  function iniciarTravaEdicao(numeroOs, servico) {
-    pararTravaEdicao(); // solta a anterior antes de assumir outra
-    if (!(EC.sync && EC.sync.travar)) return;
-    travaAtual = { os: numeroOs, servico: servico };
-    EC.sync.travar(numeroOs, servico, true); // já entrou no serviço → assume a trava
-    travaTimer = setInterval(function () {
-      if (!travaAtual || !EC.sync.renovarTrava) return;
-      EC.sync.renovarTrava(travaAtual.os, travaAtual.servico).then(function (r) {
-        // Outro técnico assumiu o serviço enquanto eu editava → aviso (sem travar a tela).
-        if (r && r.bloqueada) EC.app.mostrarToast('⚠️ Outro técnico assumiu este serviço. Salve com cuidado — pode haver conflito.');
-      });
-    }, TRAVA_RENOVA_MS);
-  }
-  // Libera a trava do serviço atual e desliga o heartbeat.
-  function pararTravaEdicao() {
-    if (travaTimer) { clearInterval(travaTimer); travaTimer = null; }
-    if (travaAtual && EC.sync && EC.sync.liberarTrava) EC.sync.liberarTrava(travaAtual.os, travaAtual.servico);
-    travaAtual = null;
-  }
-  // Ao fechar/atualizar a aba, solta a trava (keepalive p/ dar tempo de sair).
-  window.addEventListener('pagehide', function () {
-    if (travaAtual && EC.sync && EC.sync.liberarTrava) EC.sync.liberarTrava(travaAtual.os, travaAtual.servico);
-  });
-
   function $(id) { return document.getElementById(id); }
   function doisDigitos(n) { return n < 10 ? '0' + n : '' + n; }
   function carimboDataHora(data) {
@@ -151,13 +121,14 @@ EC.fluxo = (function () {
     return Object.keys(set).length;
   }
 
-  // Id estável do rascunho deste serviço. DETERMINÍSTICO por OS+serviço para que
-  // TODOS os aparelhos da equipe salvem na MESMA linha do servidor (rascunho
-  // colaborativo — continuar o serviço de outro técnico). Rascunhos antigos com
-  // id aleatório seguem funcionando; e ao continuar um do servidor, o app adota
-  // o rascunhoId de lá (ver aoTocarServico).
-  function gerarRascunhoId(numeroOs, indice) {
-    return 'rasc-' + servicoId(numeroOs, indice);
+  // Id estável do rascunho deste serviço, ALEATÓRIO por aparelho (não mais
+  // compartilhado entre técnicos). Assim cada técnico tem a SUA linha no
+  // servidor — se por acaso dois abrirem o mesmo serviço, um NÃO sobrescreve o
+  // outro. (O compartilhamento "continuar de outro" foi removido a pedido da
+  // Raisa: cada técnico é dono do próprio serviço.)
+  function gerarRascunhoId() {
+    if (window.crypto && crypto.randomUUID) return 'rasc-' + crypto.randomUUID();
+    return 'rasc-' + Date.now() + '-' + Math.random().toString(36).slice(2);
   }
 
   function novoEstadoServico(os, indice) {
@@ -167,7 +138,7 @@ EC.fluxo = (function () {
       osNumero: os.numero,
       servicoIndice: indice,
       servicoId: servicoId(os.numero, indice),
-      rascunhoId: gerarRascunhoId(os.numero, indice),
+      rascunhoId: gerarRascunhoId(),
       os: {
         numero: os.numero,
         osId: os.osId || null,   // uuid da ordens_servico (p/ buscar os detalhes completos)
@@ -273,7 +244,6 @@ EC.fluxo = (function () {
   // ou à lista de OS (OS com um único serviço).
   function voltarDoServico() {
     if (estado && telaExibida === 'tela-dados-gerais') { coletarDadosGerais(); salvarEstado(); }
-    pararTravaEdicao(); // saiu do serviço → libera a trava para a equipe
     estado = null;
     telaExibida = null; // evita que o próximo irPara colete da tela antiga
     if (multiServico) {
@@ -499,12 +469,9 @@ EC.fluxo = (function () {
           );
         }
         return (
-          '<button type="button" class="os-item servico-item" data-indice="' + o.i + '"' +
-          ' data-servicoid="' + escDg(servicoId(os.numero, o.i)) + '" data-escopo="' + escDg(o.s.escopo) + '"' +
-          ' data-situacao="' + st + '">' +
+          '<button type="button" class="os-item servico-item" data-indice="' + o.i + '">' +
           '  <span class="os-numero">▶️ ' + o.s.escopo + '</span>' + info +
           '  ' + SELO[st] +
-          '  <span class="servico-tag-servidor"></span>' +
           '</button>'
         );
       }).join('');
@@ -513,9 +480,6 @@ EC.fluxo = (function () {
       if (!todasConcluidas) liberada = false; // próximas campanhas ficam travadas
     });
     lista.innerHTML = html;
-    // Marca (tag roxa "Continuar de Fulano") os serviços que a EQUIPE já começou
-    // no servidor — sem esperar o técnico entrar no escopo.
-    pintarRascunhosServidor(os);
 
     lista.querySelectorAll('.servico-item[data-indice]').forEach(function (item) {
       item.addEventListener('click', function () {
@@ -524,108 +488,16 @@ EC.fluxo = (function () {
     });
   }
 
-  // Pinta a tag roxa "Continuar de Fulano" nos serviços que a EQUIPE já começou
-  // (rascunho no servidor). Casa por servicoId exato; rascunho antigo sem
-  // servicoId cai no escopo. Não pinta serviço já concluído no aparelho.
-  async function pintarRascunhosServidor(os) {
-    if (!navigator.onLine || !(EC.sync && EC.sync.listarRascunhos)) return;
-    var rascunhos = [];
-    try { rascunhos = await EC.sync.listarRascunhos(os.numero); } catch (e) { return; }
-    if (!rascunhos.length) return;
-    var porServico = {}, porEscopo = {};
-    rascunhos.forEach(function (r) {
-      if (r.servicoId) { if (!porServico[r.servicoId]) porServico[r.servicoId] = r; }
-      else if (r.escopo && !porEscopo[r.escopo]) porEscopo[r.escopo] = r; // só rascunho antigo sem servicoId
-    });
-    var sessao = EC.storage.ler('sessao:atual') || {};
-    var lista = $('lista-servicos');
-    if (!lista) return;
-    lista.querySelectorAll('.servico-item[data-indice]').forEach(function (item) {
-      if (item.dataset.situacao === 'concluido') return; // concluído aqui: não marca
-      var r = porServico[item.dataset.servicoid] || porEscopo[item.dataset.escopo];
-      if (!r) return;
-      var alvo = item.querySelector('.servico-tag-servidor');
-      if (!alvo) return;
-      var souEu = !!(r.tecnico && sessao.nome && r.tecnico === sessao.nome);
-      var primeiro = (r.tecnico || '').trim().split(/\s+/)[0] || 'equipe';
-      alvo.className = 'servico-status status-continuar';
-      alvo.textContent = souEu ? '▶️ Continuar (você)' : '▶️ Continuar de ' + primeiro;
-    });
-  }
-
-  // A trava do lock é minha? (comparando pelo e-mail da sessão)
-  function minhaTrava(lock) {
-    var sessao = (EC.storage && EC.storage.ler('sessao:atual')) || {};
-    return !!(lock && lock.email && sessao.email && lock.email === sessao.email);
-  }
-
-  // Overlay "continuar do servidor": este serviço foi começado por outro técnico
-  // em outro aparelho. Puxa os DADOS (sem as fotos dele) e adota o rascunhoId de
-  // lá, para salvar na MESMA linha do servidor.
-  function oferecerContinuarDoServidor(os, indice, servidor) {
-    const escopo = os.servicos[indice].escopo;
-    const r = servidor.rascunho;
-    const lock = servidor.lock;
-    const quem = r.tecnico || 'outro técnico';
-    const quando = r.atualizadoEm ? new Date(r.atualizadoEm).toLocaleString('pt-BR') : '';
-    const travadoPorOutro = !!(lock && !lock.expirada && !minhaTrava(lock));
-
-    var corpo = '<p>Este serviço já foi começado por <strong>' + escDg(quem) + '</strong>' +
-      (quando ? ' (último salvamento: ' + quando + ')' : '') + ', em outro aparelho.</p>' +
-      '<p class="texto-apoio">📷 As fotos que ' + escDg(quem) + ' tirou ficam no aparelho dele — tire as suas normalmente; elas se juntam no servidor ao finalizar.</p>';
-    if (travadoPorOutro) {
-      corpo += '<div class="alerta alerta-amarelo">🔒 ' + escDg(lock.tecnico || quem) + ' está preenchendo agora. Se assumir, o que ele estiver digitando pode se perder.</div>' +
-        '<div class="pilha-botoes">' +
-        '  <button type="button" class="botao botao-perigo" id="sv-assumir">Assumir mesmo assim</button>' +
-        '  <button type="button" class="botao botao-secundario" id="sv-cancelar">Cancelar</button>' +
-        '</div>';
-    } else {
-      corpo += '<div class="pilha-botoes">' +
-        '  <button type="button" class="botao botao-primario" id="sv-continuar-serv">✏️ Continuar preenchimento</button>' +
-        '  <button type="button" class="botao botao-secundario" id="sv-cancelar">Cancelar</button>' +
-        '</div>';
-    }
-    EC.app.abrirOverlay(escopo, corpo);
-
-    function continuar() {
-      EC.app.fecharOverlay();
-      var estadoServidor = r.estado || {};
-      // adota o id do servidor → salva na MESMA linha (upsert)
-      estadoServidor.rascunhoId = r.rascunhoId || estadoServidor.rascunhoId;
-      estadoServidor.continuadoDoServidor = true; // marca: fotos de outro técnico ausentes aqui
-      abrirServico(os, indice, estadoServidor); // já assume a trava (força) e salva local
-      EC.app.mostrarToast('✏️ Continuando o serviço começado por ' + quem + '.');
-    }
-    if (travadoPorOutro) $('sv-assumir').addEventListener('click', continuar);
-    else $('sv-continuar-serv').addEventListener('click', continuar);
-    $('sv-cancelar').addEventListener('click', EC.app.fecharOverlay);
-  }
-
   // Decide se abre direto, ou pergunta (continuar/reiniciar/refazer).
-  async function aoTocarServico(os, indice) {
+  // Cada técnico é dono do PRÓPRIO serviço, no PRÓPRIO aparelho — não há mais
+  // "continuar o serviço de outro técnico" (removido a pedido da Raisa em
+  // 2026-07-16; causava perda de dados/duplicação). Só olha o rascunho LOCAL.
+  function aoTocarServico(os, indice) {
     osAtual = os;
     multiServico = os.servicos.length > 1;
     const rascunho = EC.storage.ler(chaveServico(os.numero, indice));
     const registro = registroDoServico(os.numero, indice);
     const escopo = os.servicos[indice].escopo;
-
-    // Rascunho da EQUIPE no servidor (colaborativo). Consulta se online.
-    var servidor = null, falhouServidor = false;
-    if (navigator.onLine && EC.sync && EC.sync.buscarRascunho) {
-      try { servidor = await EC.sync.buscarRascunho(os.numero, escopo, servicoId(os.numero, indice)); }
-      catch (e) { falhouServidor = true; }
-    }
-    var rascServidor = (servidor && servidor.rascunho && servidor.rascunho.estado) ? servidor.rascunho : null;
-
-    // SEGURANÇA (incidente 2026-07-15): um rascunho LOCAL NUNCA é substituído
-    // automaticamente pelo do servidor — a versão do servidor pode ser MAIS POBRE
-    // (outro técnico abriu e salvou vazio) e apagaria o trabalho do técnico. Só
-    // puxamos do servidor quando NÃO há rascunho local aqui. Se há local, ele
-    // manda; para trocar pela versão da equipe, o técnico usa "Reiniciar".
-    if (!rascunho && rascServidor) {
-      oferecerContinuarDoServidor(os, indice, servidor);
-      return;
-    }
 
     if (rascunho) {
       EC.app.abrirOverlay(escopo,
@@ -652,9 +524,7 @@ EC.fluxo = (function () {
         EC.app.fecharOverlay();
         EC.storage.remover(chaveServico(os.numero, indice));
         if (EC.db) EC.db.remove('rascunhos', chaveServico(os.numero, indice)).catch(function () {});
-        // Re-avalia SEM o local: se a equipe tem rascunho no servidor, oferece
-        // continuar dele (em vez de criar um vazio novo, que duplicaria a linha).
-        aoTocarServico(os, indice);
+        abrirServico(os, indice, null);
       });
       $('sv-descartar').addEventListener('click', function () {
         if (!confirm('Descartar este serviço? Isso apaga o que foi preenchido nele e ele sai de "em andamento". Não dá para desfazer.')) return;
@@ -681,11 +551,6 @@ EC.fluxo = (function () {
       return;
     }
 
-    // Online mas a checagem do servidor falhou → avisa (não abre calado, senão o
-    // técnico perde o rascunho da equipe sem saber que houve erro de rede).
-    if (falhouServidor) {
-      EC.app.mostrarToast('Não consegui verificar se a equipe já começou este serviço (sinal?). Se for continuar de outro técnico, tente abrir de novo.');
-    }
     abrirServico(os, indice, null);
   }
 
@@ -694,7 +559,6 @@ EC.fluxo = (function () {
   // Depois volta e atualiza a lista para a OS sair de "em andamento".
   function descartarServico(os, indice, rascunho) {
     const chave = chaveServico(os.numero, indice);
-    pararTravaEdicao(); // some de "em andamento" → libera a trava do serviço
     EC.storage.remover(chave);
     if (EC.db) EC.db.remove('rascunhos', chave).catch(function () { /* ok */ });
     if (EC.os && EC.os.esquecerRecente) EC.os.esquecerRecente(os.numero);
@@ -741,8 +605,6 @@ EC.fluxo = (function () {
     if (estado.dadosGerais.qtdePontosOS === undefined) estado.dadosGerais.qtdePontosOS = os.servicos[indice].qtdePontos;
     if (estado.dadosGerais.justificativaPontos === undefined) estado.dadosGerais.justificativaPontos = '';
     salvarEstado();
-    // Entrou no serviço → assume a trava de edição (rascunho colaborativo).
-    iniciarTravaEdicao(os.numero, servicoId(os.numero, indice));
     irPara(estado.passoAtual || 'tela-dados-gerais');
   }
 
@@ -1518,7 +1380,6 @@ EC.fluxo = (function () {
 
     EC.storage.remover(chaveServico(estado.osNumero, estado.servicoIndice)); // rascunho do serviço concluído
     if (EC.db) EC.db.remove('rascunhos', chaveServico(estado.osNumero, estado.servicoIndice)).catch(function () {});
-    pararTravaEdicao(); // serviço finalizado → libera a trava de edição
 
     $('finalizar-area').classList.add('oculto');
     const area = $('sucesso-area');
