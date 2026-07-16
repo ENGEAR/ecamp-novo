@@ -280,6 +280,10 @@
             <label>Campanha<select id="rb-campanha"></select></label>
           </div>
           <label>Solicitante <span class="rotulo-apoio">(quem está preenchendo)</span><input type="text" id="rb-solicitante" readonly></label>
+          <div id="rb-sem-agenda" class="alerta alerta-amarelo oculto">📅 Esta OS ainda não tem o serviço na Agenda. Peça para incluir a programação (dias e técnicos) na Agenda primeiro — depois é só voltar aqui.</div>
+          <div id="rb-designado-bloco" class="oculto">
+            <label>Designado <span class="rotulo-apoio">(técnico do serviço, vinculado à OS na Agenda)</span><select id="rb-designado"></select></label>
+          </div>
           <div id="rb-tipo-bloco" class="oculto">
             <p class="rb-pergunta">Qual o tipo de reembolso?</p>
             <div class="rb-tipo-botoes">
@@ -289,10 +293,6 @@
               <button type="button" class="rb-tipo-btn oculto" data-tipo="complemento" id="rb-tipo-complemento">➕ Complemento</button>
             </div>
             <div id="rb-tipo-desc" class="alerta alerta-info oculto"></div>
-          </div>
-          <div id="rb-sem-agenda" class="alerta alerta-amarelo oculto">📅 Esta OS ainda não tem o serviço na Agenda. Peça para incluir a programação (dias e técnicos) na Agenda primeiro — depois é só voltar aqui.</div>
-          <div id="rb-designado-bloco" class="oculto">
-            <label>Designado <span class="rotulo-apoio">(técnico do serviço, vinculado à OS na Agenda)</span><select id="rb-designado"></select></label>
           </div>
 
           <div id="rb-evento-bloco" class="oculto">
