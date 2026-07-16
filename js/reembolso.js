@@ -2146,7 +2146,10 @@ EC.reembolso = (function () {
     var pagas = parcelas.map(function (x, i) { return { x: x, n: i + 1 }; })
       .filter(function (o) { return o.x.status === 'pago' && o.x.id; });
     var temAdiant = adiant > 0 && p.id;
-    if (pagas.length || temAdiant) {
+    // Reembolso de VEÍCULOS: pode anexar/ver a evidência da solicitação a
+    // qualquer momento (inclusive depois de pago) — bloco 'solicitacao'.
+    var ehVeiculo = (p.tipo === 'veiculo') && !!p.id;
+    if (pagas.length || temAdiant || ehVeiculo) {
       var secComp = document.createElement('div');
       secComp.innerHTML = '<p class="dg-secao">Comprovantes</p>';
       $('rb-extrato').appendChild(secComp);
@@ -2178,6 +2181,23 @@ EC.reembolso = (function () {
           bDelAdi.textContent = '🗑️ apagar comprovante do adiantamento';
           bDelAdi.addEventListener('click', function () { apagarComprovantesAdiantamento(p); });
           secComp.appendChild(bDelAdi);
+        }
+      }
+      if (ehVeiculo) {
+        var bVerSol = document.createElement('button');
+        bVerSol.type = 'button'; bVerSol.className = 'botao botao-secundario';
+        bVerSol.style.marginBottom = '8px'; bVerSol.style.display = 'block';
+        bVerSol.textContent = '📄 Comprovante da solicitação';
+        bVerSol.addEventListener('click', function () { verComprovante(p.id, bVerSol, null, 'solicitacao'); });
+        secComp.appendChild(bVerSol);
+        // O próprio designado (extrato dele) ou o gestor pode anexar — vários.
+        if (!soLeitura || ehGestor()) {
+          var bAddSol = document.createElement('button');
+          bAddSol.type = 'button'; bAddSol.className = 'botao botao-secundario';
+          bAddSol.style.display = 'block'; bAddSol.style.marginTop = '6px';
+          bAddSol.textContent = '➕ Anexar comprovante da solicitação';
+          bAddSol.addEventListener('click', function () { anexarComprovanteSolicitacao(p); });
+          secComp.appendChild(bAddSol);
         }
       }
     }
@@ -2217,6 +2237,7 @@ EC.reembolso = (function () {
           : '<img src="' + c.url + '" alt="comprovante" style="max-width:100%;border-radius:8px;margin-bottom:8px;">';
       }).join('');
       var titulo = bloco === 'adiantamento' ? '📄 Comprovante do adiantamento'
+        : bloco === 'solicitacao' ? '📄 Comprovante da solicitação'
         : '📄 Comprovante' + (parcelaN ? ' da ' + parcelaN + 'ª parcela' : ' de pagamento');
       EC.app.abrirOverlay(titulo, html);
     } catch (e) {
@@ -2273,6 +2294,38 @@ EC.reembolso = (function () {
     document.body.appendChild(input);
     input.click();
     setTimeout(function () { input.remove(); }, 120000);
+  }
+
+  // Anexar EVIDÊNCIA da solicitação (bloco 'solicitacao') — reembolso de VEÍCULOS,
+  // disponível a qualquer momento (inclusive depois de pago). Permite VÁRIOS
+  // anexos (câmera/galeria/PDF, via o mesmo componente do formulário). Sobe pelo
+  // SERVIDOR (/anexo, token) — funciona para o técnico e para o gestor. Precisa
+  // de internet.
+  function anexarComprovanteSolicitacao(p) {
+    EC.app.abrirOverlay('➕ Comprovante da solicitação',
+      '<p class="texto-apoio">Anexe as evidências da solicitação (fotos ou PDF). Pode adicionar mais de uma.</p>' +
+      '<div id="cs-anexos"></div>' +
+      '<div id="cs-status" class="texto-apoio" style="min-height:18px;"></div>' +
+      '<button type="button" class="botao botao-primario" id="cs-enviar" style="margin-top:8px;">Enviar comprovante(s) ✓</button>');
+    var comp = criarAnexos($('cs-anexos'), {});
+    var btn = $('cs-enviar');
+    btn.addEventListener('click', async function () {
+      var itens = comp.obter();
+      if (!itens.length) { $('cs-status').textContent = '⚠️ Adicione ao menos uma evidência.'; return; }
+      btn.disabled = true; btn.textContent = '⏳ Enviando…';
+      $('cs-status').textContent = '';
+      try {
+        for (var i = 0; i < itens.length; i++) {
+          var a = itens[i];
+          await postJson(BASE + '/anexo', { solicitacao_id: p.id, bloco: 'solicitacao', nomeArquivo: a.nomeArquivo, base64: a.base64, mime: a.mime });
+        }
+        EC.app.mostrarToast('✅ ' + itens.length + ' comprovante(s) da solicitação anexado(s).');
+        if (EC.app.fecharOverlay) EC.app.fecharOverlay();
+      } catch (e) {
+        btn.disabled = false; btn.textContent = 'Enviar comprovante(s) ✓';
+        $('cs-status').textContent = '🛑 Não consegui enviar: ' + (e.message || 'sem internet');
+      }
+    });
   }
 
   // Gestor apaga comprovante(s) do adiantamento (caso suba errado). Abre um
