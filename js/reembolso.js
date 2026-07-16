@@ -198,19 +198,23 @@ EC.reembolso = (function () {
 
     function render() {
       lista.innerHTML = arquivos.map(function (a, i) {
-        var visual = a.mime === 'application/pdf'
+        var ehPdf = a.mime === 'application/pdf';
+        var visual = ehPdf
           ? '<span class="anx-pdf-icone">📄</span>'
           : '<img src="data:image/jpeg;base64,' + a.base64 + '" alt="anexo" data-ver="' + i + '" title="Toque para ampliar">';
+        // Botão explícito de ampliar (só imagem) — a miniatura sozinha é um
+        // alvo pequeno no celular; o 🔍 é fácil de acertar.
+        var verBtn = ehPdf ? '' : '<button type="button" class="anx-ver" data-ver="' + i + '" title="Ver a foto">🔍</button>';
         return '<div class="anx-item">' + visual +
-          '<span class="anx-nome">' + a.nomeArquivo + '</span>' +
+          '<span class="anx-nome">' + a.nomeArquivo + '</span>' + verBtn +
           '<button type="button" class="anx-remover" data-i="' + i + '" title="Remover">✕</button></div>';
       }).join('');
       lista.querySelectorAll('.anx-remover').forEach(function (b) {
         b.addEventListener('click', function () { arquivos.splice(parseInt(b.dataset.i, 10), 1); render(); notificar(); });
       });
-      // toque na miniatura abre a foto ampliada para conferência
-      lista.querySelectorAll('img[data-ver]').forEach(function (img) {
-        img.addEventListener('click', function () { abrirLightbox(arquivos[parseInt(img.dataset.ver, 10)].base64); });
+      // toque na miniatura OU no botão 🔍 abre a foto ampliada para conferência
+      lista.querySelectorAll('[data-ver]').forEach(function (el) {
+        el.addEventListener('click', function () { abrirLightbox(arquivos[parseInt(el.dataset.ver, 10)].base64); });
       });
       var cheio = arquivos.length >= MAX_ANEXOS;
       btnFoto.disabled = cheio; btnGaleria.disabled = cheio; btnPdf.disabled = cheio;
