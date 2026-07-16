@@ -1152,6 +1152,7 @@ EC.reembolso = (function () {
       adiantAtivo: adiantamentoAtivo(), adiantData: $('rb-adiant-data').value, adiantValor: $('rb-adiant-valor').value,
       tipoCombustivel: $('rb-combustivel').value,
       precoLitro: $('rb-preco-litro').value,
+      kmAtual: $('rb-km-atual').value,
       combJustificativa: $('rb-comb-justificativa').value,
       pedagio: $('rb-pedagio').value,
       decisoes: decisoes, justificativas: justs, novosValores: novos,
@@ -1232,6 +1233,7 @@ EC.reembolso = (function () {
       $('rb-adiant-valor').value = r.adiantValor || '';
       $('rb-combustivel').value = r.tipoCombustivel || '';
       $('rb-preco-litro').value = r.precoLitro || '';
+      $('rb-km-atual').value = r.kmAtual || '';
       $('rb-comb-justificativa').value = r.combJustificativa || '';
       $('rb-pedagio').value = r.pedagio || '';
       $('rb-percentual').value = r.percentual || '100';
@@ -1383,6 +1385,7 @@ EC.reembolso = (function () {
     $('rb-transporte-campos').classList.add('oculto');
     $('rb-combustivel').value = '';
     $('rb-preco-litro').value = '';
+    $('rb-km-atual').value = '';
     $('rb-comb-justificativa').value = '';
     $('rb-teto-alerta').classList.add('oculto');
     $('rb-teto-just').classList.add('oculto');
@@ -1440,7 +1443,7 @@ EC.reembolso = (function () {
       complementoJustificativa: pedido.complementoJustificativa,
       solicitante: pedido.solicitante, designado: pedido.designado, veiculo: pedido.veiculo,
       tipoCombustivel: pedido.tipoCombustivel, precoLitro: pedido.precoLitro,
-      combustivelJustificativa: pedido.combustivelJustificativa,
+      combustivelJustificativa: pedido.combustivelJustificativa, kmAtual: pedido.kmAtual,
       valorPedagio: pedido.valorPedagio, distanciaManual: pedido.distanciaManual,
       dataInicio: pedido.dataInicio, dataRetorno: pedido.dataRetorno,
       servicoInicio: pedido.servicoInicio, servicoFim: pedido.servicoFim,
@@ -1492,12 +1495,17 @@ EC.reembolso = (function () {
     if (casoDiaUnico() && !$('rb-chegada-casa').value) {
       return mostrarErro('Informe o horário de chegada em casa (foi e voltou no mesmo dia).');
     }
+    // Quilometragem atual do carro + foto da quilometragem — obrigatórias na viagem.
+    var kmAtualTxt = String($('rb-km-atual').value).trim();
+    if (!kmAtualTxt || !(parseFloat(kmAtualTxt.replace(',', '.')) >= 0)) {
+      return mostrarErro('Informe a quilometragem atual do carro.');
+    }
+    if (anexos.combustivel.obter().length === 0) {
+      return mostrarErro('Anexe a foto da quilometragem do carro (obrigatória).');
+    }
     if (preco > tetoDoCombustivel() && tipoComb) {
       if (!$('rb-comb-justificativa').value.trim()) {
         return mostrarErro('O preço por litro passou do teto — a justificativa é obrigatória.');
-      }
-      if (anexos.combustivel.obter().length === 0) {
-        return mostrarErro('O preço por litro passou do teto — anexe uma evidência (foto da bomba ou nota).');
       }
     }
 
@@ -1551,6 +1559,7 @@ EC.reembolso = (function () {
       tipoCombustivel: tipoComb || null,
       precoLitro: preco > 0 ? preco : null,
       combustivelJustificativa: $('rb-comb-justificativa').value.trim(),
+      kmAtual: parseFloat(String($('rb-km-atual').value).replace(',', '.')) || null,
       valorPedagio: parseFloat($('rb-pedagio').value) || 0,
       distanciaManual: distanciaAtual(),
       // trajeto (a distância vem sempre do cálculo origem→destino, nunca da OS)
@@ -2056,6 +2065,7 @@ EC.reembolso = (function () {
       : '—';
     var itens = [];
     itens.push(['Veículo', p.veiculo === 'proprio' ? 'Próprio' : (p.veiculo === 'engear' ? 'ENGEAR' : '—')]);
+    if (p.km_atual != null && p.km_atual !== '') itens.push(['Quilometragem atual do carro', p.km_atual + ' km']);
     itens.push(['Origem → Destino', trajeto]);
     itens.push(['Distância (ida e volta)', distKm ? distKm + ' km' : '—']);
     itens.push(['Dias', (p.dias_servico != null ? p.dias_servico + ' serviço' : '—') +

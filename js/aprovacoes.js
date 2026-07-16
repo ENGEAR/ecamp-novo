@@ -476,6 +476,7 @@ EC.aprovacoes = (function () {
       '<p class="dg-secao">Transporte</p>' +
       '<div class="rb-resumo-auto">' +
         linhaInfo('Veículo', s.veiculo === 'proprio' ? 'Próprio' : (s.veiculo === 'engear' ? 'ENGEAR' : '—')) +
+        (s.km_atual != null && s.km_atual !== '' ? linhaInfo('Quilometragem atual do carro', s.km_atual + ' km') : '') +
         linhaInfo('Origem → Destino', trajeto) +
         linhaInfo('Distância (ida e volta)', s.distancia_km ? s.distancia_km + ' km' : '—') +
         linhaInfo('Combustível', combTxt) +
