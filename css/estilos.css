@@ -824,12 +824,20 @@ textarea { resize: vertical; font-family: inherit; }
 .rb-tipo-btn {
   font: inherit;
   font-weight: 700;
-  padding: 12px 4px;
+  padding: 10px 4px;
   border-radius: var(--raio);
   border: 1px solid var(--cinza-borda);
   background: #fff;
   color: var(--azul-escuro);
   cursor: pointer;
+  /* Todos do MESMO tamanho, mesmo quando o rótulo (ex.: "Complemento") quebra
+     em duas linhas — altura mínima uniforme e conteúdo centralizado. */
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.2;
 }
 .rb-tipo-btn.ativo {
   background: var(--azul-escuro);
