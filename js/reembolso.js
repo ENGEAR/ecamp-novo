@@ -49,10 +49,10 @@ EC.reembolso = (function () {
 
   // Explicação de cada tipo de reembolso (mostrada em destaque ao escolher).
   var TIPO_DESC = {
-    viagem: '🧳 Viagem: opção para solicitar previsão de viagem, para serviços de monitoramento.',
-    complemento: '➕ Complemento: opção para solicitar pagamento de valor complementar que não foi previsto na previsão inicial da viagem.',
-    evento: '🔊 Eventos: opção para solicitar o pagamento do valor acordado para monitorar eventos como shows, jogos esportivos, feiras, etc.',
-    veiculo: '🚗 Veículos: opção para solicitar pagamento de gastos com veículos exclusivamente (abastecimento, manutenção, outros).'
+    viagem: '🧳 Viagem: opção para solicitar a previsão de despesas de viagens destinadas à execução de serviços de monitoramento.',
+    complemento: '➕ Complemento: opção para solicitar um valor complementar referente a despesas não previstas na solicitação inicial da viagem.',
+    evento: '🔊 Eventos: opção para solicitar o pagamento do valor acordado para a realização de monitoramentos em eventos, como shows, partidas esportivas, feiras, entre outros.',
+    veiculo: '🚗 Veículos: opção para solicitar o reembolso ou pagamento de despesas relacionadas exclusivamente ao uso de veículos, como abastecimento, manutenção, pedágios e outros custos associados.'
   };
 
   var ctx = null;          // contexto do servidor: { valores, os: [...] }
