@@ -47,6 +47,14 @@ EC.reembolso = (function () {
     { chave: 'alimentacao', rotulo: '🍽️ Alimentação' }
   ];
 
+  // Explicação de cada tipo de reembolso (mostrada em destaque ao escolher).
+  var TIPO_DESC = {
+    viagem: '🧳 Viagem: opção para solicitar previsão de viagem, para serviços de monitoramento.',
+    complemento: '➕ Complemento: opção para solicitar pagamento de valor complementar que não foi previsto na previsão inicial da viagem.',
+    evento: '🔊 Eventos: opção para solicitar o pagamento do valor acordado para monitorar eventos como shows, jogos esportivos, feiras, etc.',
+    veiculo: '🚗 Veículos: opção para solicitar pagamento de gastos com veículos exclusivamente (abastecimento, manutenção, outros).'
+  };
+
   var ctx = null;          // contexto do servidor: { valores, os: [...] }
   var osSel = null, campSel = null, tecSel = null;
   var tipoSel = null;      // tipo do reembolso: 'viagem' | 'evento' | 'veiculo'
@@ -731,6 +739,12 @@ EC.reembolso = (function () {
   // Mostra/esconde os blocos do formulário conforme o tipo escolhido.
   function atualizarTipoUI() {
     $('rb-tipo-bloco').classList.toggle('oculto', !osSel);
+    // Explicação em destaque do tipo escolhido (some quando nenhum está ativo).
+    var desc = $('rb-tipo-desc');
+    if (desc) {
+      desc.textContent = (tipoSel && TIPO_DESC[tipoSel]) || '';
+      desc.classList.toggle('oculto', !(tipoSel && TIPO_DESC[tipoSel]));
+    }
     var ehViagem = tipoSel === 'viagem', ehEvento = tipoSel === 'evento',
         ehVeic = tipoSel === 'veiculo', ehComp = tipoSel === 'complemento';
     $('rb-viagem').classList.toggle('oculto', !(ehViagem && campSel));
