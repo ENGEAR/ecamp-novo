@@ -2184,19 +2184,22 @@ EC.reembolso = (function () {
         }
       }
       if (ehVeiculo) {
+        // O botão "ver" só aparece se JÁ houver evidência anexada (confere no
+        // servidor). Fica oculto até a confirmação; some quando não há nenhuma.
         var bVerSol = document.createElement('button');
         bVerSol.type = 'button'; bVerSol.className = 'botao botao-secundario';
-        bVerSol.style.marginBottom = '8px'; bVerSol.style.display = 'block';
+        bVerSol.style.marginBottom = '8px'; bVerSol.style.display = 'none';
         bVerSol.textContent = '📄 Comprovante da solicitação';
         bVerSol.addEventListener('click', function () { verComprovante(p.id, bVerSol, null, 'solicitacao'); });
         secComp.appendChild(bVerSol);
+        temComprovanteSolicitacao(p.id).then(function (tem) { if (tem) bVerSol.style.display = 'block'; });
         // O próprio designado (extrato dele) ou o gestor pode anexar — vários.
         if (!soLeitura || ehGestor()) {
           var bAddSol = document.createElement('button');
           bAddSol.type = 'button'; bAddSol.className = 'botao botao-secundario';
           bAddSol.style.display = 'block'; bAddSol.style.marginTop = '6px';
           bAddSol.textContent = '➕ Anexar comprovante da solicitação';
-          bAddSol.addEventListener('click', function () { anexarComprovanteSolicitacao(p); });
+          bAddSol.addEventListener('click', function () { anexarComprovanteSolicitacao(p, bVerSol); });
           secComp.appendChild(bAddSol);
         }
       }
@@ -2301,7 +2304,16 @@ EC.reembolso = (function () {
   // anexos (câmera/galeria/PDF, via o mesmo componente do formulário). Sobe pelo
   // SERVIDOR (/anexo, token) — funciona para o técnico e para o gestor. Precisa
   // de internet.
-  function anexarComprovanteSolicitacao(p) {
+  // Há alguma evidência anexada à solicitação? (bloco 'solicitacao', via servidor.)
+  async function temComprovanteSolicitacao(id) {
+    if (!id) return false;
+    try {
+      var r = await getJson(BASE + '/comprovante?id=' + encodeURIComponent(id) + '&bloco=solicitacao');
+      return !!(r && r.ok && r.comprovantes && r.comprovantes.length);
+    } catch (e) { return false; }
+  }
+
+  function anexarComprovanteSolicitacao(p, botaoVer) {
     EC.app.abrirOverlay('➕ Comprovante da solicitação',
       '<p class="texto-apoio">Anexe as evidências da solicitação (fotos ou PDF). Pode adicionar mais de uma.</p>' +
       '<div id="cs-anexos"></div>' +
@@ -2320,6 +2332,7 @@ EC.reembolso = (function () {
           await postJson(BASE + '/anexo', { solicitacao_id: p.id, bloco: 'solicitacao', nomeArquivo: a.nomeArquivo, base64: a.base64, mime: a.mime });
         }
         EC.app.mostrarToast('✅ ' + itens.length + ' comprovante(s) da solicitação anexado(s).');
+        if (botaoVer) botaoVer.style.display = 'block'; // agora há o que ver
         if (EC.app.fecharOverlay) EC.app.fecharOverlay();
       } catch (e) {
         btn.disabled = false; btn.textContent = 'Enviar comprovante(s) ✓';
