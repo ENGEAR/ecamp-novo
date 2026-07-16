@@ -354,34 +354,16 @@ EC.fluxo = (function () {
     return p.indexOf('logistica') !== -1 || p.indexOf('admin') !== -1;
   }
 
-  // Cartão da seção "Em andamento": para logística/admin, acompanha um botão de
-  // ARQUIVAR — tira a OS de "em andamento" SEM APAGAR nada (o rascunho, com
-  // pontos e fotos, vai para o SGP → Obsoletos → Rascunhos de campo, de onde dá
-  // para restaurar). Usado quando um técnico desistiu e a OS ficou travada.
+  // Cartão da seção "Em andamento": SEM botão de arquivar no app. Arquivar um
+  // rascunho preso ficou SÓ no SGP (tela Campo — em andamento, atrás do login),
+  // para ninguém tocar sem querer no celular e tirar de andamento um estudo que
+  // outro técnico está fazendo agora.
   function cartaoOsAndamento(os) {
-    if (!ehLogisticaOuAdmin()) return cartaoOs(os);
-    return '<div class="os-and-wrap">' + cartaoOs(os) +
-      '<button type="button" class="os-limpar" data-limpar="' + os.numero + '">🗄️ Arquivar “em andamento” (rascunho preso)</button></div>';
+    return cartaoOs(os);
   }
 
-  function ligarLimparAndamento(container) {
-    container.querySelectorAll('.os-limpar[data-limpar]').forEach(function (b) {
-      b.addEventListener('click', function () {
-        const numero = b.getAttribute('data-limpar');
-        if (!confirm('Arquivar o “em andamento” da OS ' + numero + '?\n\nO rascunho preso (de qualquer técnico) SAI de “em andamento”, mas NÃO é apagado: vai para o SGP → Obsoletos → Rascunhos de campo, de onde dá para restaurar. Serviços já FINALIZADOS não são afetados.')) return;
-        b.disabled = true; b.textContent = 'Arquivando…';
-        EC.os.limparAndamentoOS(numero).then(function () {
-          EC.app.mostrarToast('🗄️ OS ' + numero + ' arquivada (saiu de “em andamento”).');
-          if (EC.os && EC.os.carregar) EC.os.carregar(function () { pintarOs(''); });
-          if (EC.os && EC.os.carregarAndamentoPor) EC.os.carregarAndamentoPor().then(function () { pintarOs(''); });
-          pintarOs('');
-        }).catch(function (e) {
-          b.disabled = false; b.textContent = '🗄️ Arquivar “em andamento” (rascunho preso)';
-          EC.app.mostrarToast('Não foi possível arquivar: ' + (e.message || e));
-        });
-      });
-    });
-  }
+  // Sem botão no app → nada a ligar. Mantida por compatibilidade (chamadores).
+  function ligarLimparAndamento() { /* arquivar agora é só no SGP */ }
 
   // Filtro de escopo: logística vê tudo; os demais só as OS escaladas na agenda.
   function noEscopo(os) { return !EC.os || !EC.os.dentroEscopo || EC.os.dentroEscopo(os); }
