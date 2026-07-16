@@ -1,10 +1,14 @@
 /**
- * foto.js — Componente de foto: captura MÚLTIPLA + carimbo UTM + base64
+ * foto.js — Componente de foto: câmera OU fototeca + carimbo + base64
  *
- * Permite até 10 fotos por campo. Cada foto: abre a câmera (input file com
- * capture), desenha num canvas e CARIMBA no canto inferior direito (UTM, nº da
- * OS, tipo de escopo e nº do ponto), nomeia o arquivo e converte para base64.
- * Mostra uma galeria de miniaturas com botão de remover em cada uma.
+ * Permite até 10 fotos por campo, de duas origens:
+ *   • 📷 Tirar foto     — abre a CÂMERA (input com capture); carimbo COMPLETO
+ *                         (OS, Projeto, UTM, tipo, ponto, data/hora).
+ *   • 🖼️ Buscar da fototeca — abre a GALERIA (input sem capture); carimbo SEM
+ *                         UTM e SEM data/hora (a foto antiga não tem a coordenada
+ *                         nem o horário do momento) — OS/Projeto/tipo/ponto ficam.
+ * Cada foto é redesenhada num canvas, CARIMBADA no canto inferior direito,
+ * nomeada e convertida para base64. Galeria de miniaturas com remover em cada.
  *
  * Interface (namespace global EC.foto):
  *   EC.foto.criar(container, opcoes) → instância
@@ -130,13 +134,21 @@ EC.foto = (function () {
     container.innerHTML =
       '<div class="comp-foto">' +
       '  <div class="foto-galeria"></div>' +
-      '  <button type="button" class="botao botao-secundario foto-botao"></button>' +
+      '  <div class="foto-botoes">' +
+      '    <button type="button" class="botao botao-secundario foto-botao"></button>' +
+      '    <button type="button" class="botao botao-secundario foto-botao-tec">🖼️ Buscar da fototeca</button>' +
+      '  </div>' +
+      // câmera: input com `capture` abre a câmera. fototeca: input SEM `capture`
+      // abre a galeria do celular.
       '  <input type="file" accept="image/*" capture="environment" class="foto-entrada" hidden>' +
+      '  <input type="file" accept="image/*" class="foto-entrada-tec" hidden>' +
       '  <div class="foto-status"></div>' +
       '</div>';
 
     const botao = container.querySelector('.foto-botao');
+    const botaoTec = container.querySelector('.foto-botao-tec');
     const entrada = container.querySelector('.foto-entrada');
+    const entradaTec = container.querySelector('.foto-entrada-tec');
     const status = container.querySelector('.foto-status');
     const galeria = container.querySelector('.foto-galeria');
 
@@ -144,7 +156,9 @@ EC.foto = (function () {
 
     function atualizarBotao() {
       botao.textContent = rotuloBase + ' (' + fotos.length + '/' + MAX_FOTOS + ')';
-      botao.disabled = fotos.length >= MAX_FOTOS;
+      const cheio = fotos.length >= MAX_FOTOS;
+      botao.disabled = cheio;
+      botaoTec.disabled = cheio;
     }
 
     function renderGaleria() {
@@ -164,9 +178,12 @@ EC.foto = (function () {
     }
 
     botao.addEventListener('click', function () { if (fotos.length < MAX_FOTOS) entrada.click(); });
+    botaoTec.addEventListener('click', function () { if (fotos.length < MAX_FOTOS) entradaTec.click(); });
 
-    entrada.addEventListener('change', function () {
-      const arquivo = entrada.files && entrada.files[0];
+    // Processa UM arquivo (câmera ou fototeca). daFototeca=true → o carimbo sai
+    // SEM UTM e SEM data/hora (a foto da galeria não tem a coordenada nem o
+    // horário do momento da coleta); OS, Projeto, tipo e Ponto seguem no carimbo.
+    function processarArquivo(arquivo, input, daFototeca) {
       if (!arquivo) return;
       status.textContent = '⏳ Processando a foto…';
 
@@ -184,15 +201,17 @@ EC.foto = (function () {
           const ctx = canvas.getContext('2d');
           ctx.drawImage(imagem, 0, 0, largura, altura);
 
-          const textoUtm = (typeof opcoes.obterUtm === 'function' && opcoes.obterUtm()) || 'UTM não capturado';
           const agora = new Date();
           const linhasCarimbo = [];
           linhasCarimbo.push('OS ' + (opcoes.os || '—'));
           if (opcoes.projeto) linhasCarimbo.push('Projeto: ' + opcoes.projeto);
-          linhasCarimbo.push('UTM ' + textoUtm);
+          if (!daFototeca) {
+            const textoUtm = (typeof opcoes.obterUtm === 'function' && opcoes.obterUtm()) || 'UTM não capturado';
+            linhasCarimbo.push('UTM ' + textoUtm);
+          }
           linhasCarimbo.push(opcoes.tipo || '—');
           linhasCarimbo.push((opcoes.rotuloPonto || 'Ponto') + ' ' + (opcoes.ponto || '—'));
-          linhasCarimbo.push(dataHoraBR(agora));
+          if (!daFototeca) linhasCarimbo.push(dataHoraBR(agora));
           desenharCarimbo(ctx, largura, altura, linhasCarimbo);
           desenharMarcaDagua(ctx, largura, altura);
 
@@ -202,13 +221,16 @@ EC.foto = (function () {
               + (opcoes.ponto || 'P0') + '_' + carimboDataHora(agora) + '_F' + doisDigitos(fotos.length + 1) + '.jpg',
             base64: dataUrl.split(',')[1],
             dataUrl: dataUrl,
-            capturadaEm: agora.toISOString()
+            capturadaEm: agora.toISOString(),
+            daFototeca: !!daFototeca
           });
 
           renderGaleria();
           atualizarBotao();
-          status.textContent = '✅ Foto carimbada e adicionada (' + fotos.length + '/' + MAX_FOTOS + ').';
-          entrada.value = '';
+          status.textContent = daFototeca
+            ? '✅ Foto da fototeca adicionada — carimbo sem UTM/horário (' + fotos.length + '/' + MAX_FOTOS + ').'
+            : '✅ Foto carimbada e adicionada (' + fotos.length + '/' + MAX_FOTOS + ').';
+          input.value = '';
           notificar();
         };
         imagem.onerror = function () { status.innerHTML = '<span class="texto-erro">⚠️ Não foi possível ler a imagem.</span>'; };
@@ -216,7 +238,10 @@ EC.foto = (function () {
       };
       leitor.onerror = function () { status.innerHTML = '<span class="texto-erro">⚠️ Falha ao abrir o arquivo da foto.</span>'; };
       leitor.readAsDataURL(arquivo);
-    });
+    }
+
+    entrada.addEventListener('change', function () { processarArquivo(entrada.files && entrada.files[0], entrada, false); });
+    entradaTec.addEventListener('change', function () { processarArquivo(entradaTec.files && entradaTec.files[0], entradaTec, true); });
 
     renderGaleria();
     atualizarBotao();
