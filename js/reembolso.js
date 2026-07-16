@@ -1958,10 +1958,8 @@ EC.reembolso = (function () {
     var rotJust = t === 'complemento' ? '➕ Justificativa do complemento' : '💠 Outros gastos';
     var just = Number(p.valor_outros) > 0 && p.outros_justificativa
       ? '<p class="texto-apoio">' + rotJust + ': ' + p.outros_justificativa + '</p>' : '';
-    var titulo = t === 'complemento' ? '➕ Complemento de gastos (OS paga)'
-      : t === 'evento' ? '🔊 Reembolso de EVENTO' : '🚗 Reembolso de VEÍCULOS';
     return (
-      '<div class="apr-cat">' + titulo + '</div>' +
+      // (o banner azul do tipo foi removido a pedido — o extrato começa em "Quem")
       '<p class="dg-secao">Quem</p><div class="rb-resumo-auto">' +
         linha('Solicitante', p.solicitante || '—') + linha('Designado', (p.designado || '—') + ' · ' + cat) +
         kmLinha +
