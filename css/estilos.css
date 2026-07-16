@@ -290,9 +290,11 @@ textarea { resize: vertical; font-family: inherit; }
 .cartao-coleta h3 { margin: 0 0 6px; font-size: 1rem; color: var(--azul-escuro); }
 /* Galeria de fotos (até 10 por campo) */
 .foto-galeria { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
-/* Botões de origem da foto (câmera / fototeca) lado a lado */
-.foto-botoes { display: flex; flex-wrap: wrap; gap: 8px; }
-.foto-botoes .foto-botao { flex: 1; min-width: 160px; }
+/* Câmera é o botão principal; a fototeca é um link discreto abaixo. */
+.foto-botao { display: block; width: 100%; }
+.foto-botao-tec { display: inline-block; margin-top: 6px; padding: 2px 2px; background: none; border: none;
+  color: var(--azul-escuro); font-size: 0.8rem; text-decoration: underline; cursor: pointer; }
+.foto-botao-tec:disabled { color: var(--cinza-texto); text-decoration: none; cursor: default; }
 .foto-dica { margin: 6px 0 0; font-size: 0.8rem; color: var(--cinza-texto); }
 .foto-item { position: relative; width: 88px; height: 88px; border-radius: 8px; overflow: hidden; border: 1px solid var(--cinza-borda); }
 .foto-item img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: pointer; }
