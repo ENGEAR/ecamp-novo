@@ -99,7 +99,8 @@ EC.aprovacoes = (function () {
       : '<span class="rb-status rb-pendente">⏳ Aguardando aprovação</span>';
     var t = s.tipo || 'viagem';
     var tipoTxt = t === 'evento' ? '<span class="rotulo-apoio">🔊 Evento</span> · '
-      : t === 'veiculo' ? '<span class="rotulo-apoio">🚗 Veículos</span> · ' : '';
+      : t === 'veiculo' ? '<span class="rotulo-apoio">🚗 Veículos</span> · '
+      : t === 'complemento' ? '<span class="rotulo-apoio">➕ Complemento</span> · ' : '';
     return (
       '<button type="button" class="rb-pedido apr-cartao" data-id="' + s.id + '">' +
       '  <div class="rb-pedido-topo"><span class="os-numero">OS ' + esc(s.os) + '</span>' + chip + '</div>' +
@@ -228,12 +229,14 @@ EC.aprovacoes = (function () {
     return '<div><span>' + rot + '</span><strong>' + esc(val) + '</strong></div>';
   }
 
-  // Detalhe de EVENTOS e VEÍCULOS: pagamento único (100%), sem datas de viagem,
-  // sem base de cálculo automática e sem resumo orçamentário da campanha.
+  // Detalhe de EVENTOS, VEÍCULOS e COMPLEMENTO: pagamento único (100%), sem datas
+  // de viagem, sem base de cálculo automática e sem resumo orçamentário da campanha.
   function renderDetalheSimples(s) {
-    var t = s.tipo === 'evento' ? 'evento' : 'veiculo';
+    var t = s.tipo === 'evento' ? 'evento' : (s.tipo === 'complemento' ? 'complemento' : 'veiculo');
     var cat = s.solicitante_tipo === 'freelancer' ? 'Freelancer' : (s.solicitante_tipo === 'clt' ? 'CLT' : '—');
-    var itens = t === 'evento'
+    var itens = t === 'complemento'
+      ? [['➕', 'Complemento de gastos', s.valor_outros]]
+      : t === 'evento'
       ? [['🔊', 'Diárias do evento' + (s.dias_servico != null ? ' (' + s.dias_servico + ' dia(s))' : ''), s.valor_mao_obra]]
       : [
           ['⛽', 'Abastecimento', s.valor_combustivel],
@@ -241,7 +244,7 @@ EC.aprovacoes = (function () {
           ['🛠️', 'Manutenção', s.valor_manutencao],
           ['🛣️', 'Pedágio', s.valor_pedagio]
         ];
-    itens.push(['💠', 'Outros gastos', s.valor_outros]);
+    if (t !== 'complemento') itens.push(['💠', 'Outros gastos', s.valor_outros]);
     var valoresHtml = itens.filter(function (l) { return Number(l[2]) > 0; }).map(function (l) {
       return '<div class="apr-vlinha"><span class="apr-vic">' + l[0] + '</span>' +
         '<div class="apr-vmeio"><div class="apr-vrot">' + l[1] + '</div></div>' +
@@ -252,8 +255,11 @@ EC.aprovacoes = (function () {
       '<div class="apr-vmeio"><div class="apr-vrot"><strong>TOTAL</strong></div></div>' +
       '<span class="apr-vval"><strong>' + moeda(s.valor_total) + '</strong></span></div>';
 
+    var kmInfo = t === 'complemento' && s.km_final != null && s.km_final !== ''
+      ? linhaInfo('Km final do veículo', s.km_final + ' km') : '';
+    var rotJust = t === 'complemento' ? '➕ Justificativa do complemento' : '💠 Justificativa dos outros gastos';
     var outrosJust = Number(s.valor_outros) > 0 && s.outros_justificativa
-      ? '<div class="apr-just">💠 Justificativa dos outros gastos: ' + esc(s.outros_justificativa) + '</div>' : '';
+      ? '<div class="apr-just">' + rotJust + ': ' + esc(s.outros_justificativa) + '</div>' : '';
 
     // Pagamento único (100%): o adiantamento desconta por inteiro.
     var adiant = Number(s.adiantamento_valor) || 0;
@@ -269,11 +275,12 @@ EC.aprovacoes = (function () {
     return (
       '<div class="apr-cab"><span class="os-numero">OS ' + esc(s.os) + '</span>' + (s.cliente ? ' · ' + esc(s.cliente) : '') + '</div>' +
       (s.projeto ? '<div class="os-resumo" style="margin:-2px 0 8px;">📁 ' + esc(s.projeto) + '</div>' : '') +
-      '<div class="apr-cat">' + (t === 'evento' ? '🔊 Reembolso de EVENTO' : '🚗 Reembolso de VEÍCULOS') + '</div>' +
+      '<div class="apr-cat">' + (t === 'complemento' ? '➕ Complemento de gastos (OS paga)' : t === 'evento' ? '🔊 Reembolso de EVENTO' : '🚗 Reembolso de VEÍCULOS') + '</div>' +
       '<p class="dg-secao">Quem</p>' +
       '<div class="rb-resumo-auto">' +
         linhaInfo('Solicitante (preencheu)', s.solicitante || '—') +
         linhaInfo('Designado', (s.designado || '—') + ' · ' + cat) +
+        kmInfo +
       '</div>' +
       '<p class="dg-secao">Valores</p>' +
       '<div class="apr-valores">' + valoresHtml + '</div>' +

@@ -650,6 +650,7 @@ EC.reembolso = (function () {
     if (campSel) fillViagem(campSel); // preenche as datas ANTES do teto (o término define 50%/100%)
     atualizarDisponivel();
     pintarResumoAuto();
+    atualizarBotaoComplemento();
     atualizarTipoUI();
     aoMudarVeiculo();
   }
@@ -665,18 +666,54 @@ EC.reembolso = (function () {
     pintarValores();
   }
 
+  // A OS+campanha do designado já está 100% PAGA? (habilita o Complemento.)
+  // Fully paga = tem parcela paga, nada pendente, e — se houver viagem — o
+  // total pago de viagem fecha 100%. Eventos/veículos pagos também contam.
+  function grupoPago() {
+    if (!osSel || !tecSel) return false;
+    var camp = campSel ? campSel.numero : null;
+    var g = listaEmCache().filter(function (x) {
+      return String(x.os) === String(osSel.numero) &&
+        Number(x.campanha_numero) === Number(camp) &&
+        (x.designado || '') === (tecSel.nome || '');
+    });
+    if (!g.length) return false;
+    if (g.some(function (x) { return x.status === 'aguardando_logistica' || x.status === 'aguardando_pagamento'; })) return false;
+    if (!g.some(function (x) { return x.status === 'pago'; })) return false;
+    var viagens = g.filter(function (x) { return (x.tipo || 'viagem') === 'viagem'; });
+    if (viagens.length) {
+      var pagoPct = viagens.filter(function (x) { return x.status === 'pago'; })
+        .reduce(function (s, x) { return s + Number(x.percentual_solicitado || 0); }, 0);
+      if (pagoPct < 99.99) return false;
+    }
+    return true;
+  }
+
+  // Mostra o botão "Complemento" só quando a OS do designado está 100% paga.
+  function atualizarBotaoComplemento() {
+    var btn = $('rb-tipo-complemento');
+    if (!btn) return;
+    var libera = grupoPago();
+    btn.classList.toggle('oculto', !libera);
+    if (!libera && tipoSel === 'complemento') escolherTipo(null);
+  }
+
   // Mostra/esconde os blocos do formulário conforme o tipo escolhido.
   function atualizarTipoUI() {
     $('rb-tipo-bloco').classList.toggle('oculto', !osSel);
-    var ehViagem = tipoSel === 'viagem', ehEvento = tipoSel === 'evento', ehVeic = tipoSel === 'veiculo';
+    var ehViagem = tipoSel === 'viagem', ehEvento = tipoSel === 'evento',
+        ehVeic = tipoSel === 'veiculo', ehComp = tipoSel === 'complemento';
     $('rb-viagem').classList.toggle('oculto', !(ehViagem && campSel));
     $('rb-sec-transporte').classList.toggle('oculto', !ehViagem);
     $('rb-sec-valores').classList.toggle('oculto', !ehViagem);
     $('rb-pct-viagem').classList.toggle('oculto', !ehViagem);
     $('rb-evento-bloco').classList.toggle('oculto', !ehEvento);
     $('rb-veic-bloco').classList.toggle('oculto', !ehVeic);
+    $('rb-complemento-bloco').classList.toggle('oculto', !ehComp);
     $('rb-pedagio-bloco').classList.toggle('oculto', !(ehViagem || ehVeic));
-    $('rb-outros-bloco').classList.toggle('oculto', !tipoSel);
+    // "Outros gastos" existe nos demais tipos; no complemento o próprio valor
+    // já é o gasto extra (com justificativa), então não repete o bloco.
+    $('rb-outros-bloco').classList.toggle('oculto', !tipoSel || ehComp);
     if (ehEvento) {
       // Só avisa quando a diária de eventos NÃO está configurada no SGP (sem ela
       // o cálculo fica em zero). Com a diária definida, não mostra nada.
@@ -796,7 +833,9 @@ EC.reembolso = (function () {
       outros: criarAnexos($('rb-anexos-outros'), { iniciais: anexosIniciais.outros, aoMudar: salvarRascunhoLogo }),
       abastecimento: criarAnexos($('rb-anexos-abastecimento'), { iniciais: anexosIniciais.abastecimento, aoMudar: salvarRascunhoLogo }),
       pecas: criarAnexos($('rb-anexos-pecas'), { iniciais: anexosIniciais.pecas, aoMudar: salvarRascunhoLogo }),
-      manutencao: criarAnexos($('rb-anexos-manutencao'), { iniciais: anexosIniciais.manutencao, aoMudar: salvarRascunhoLogo })
+      manutencao: criarAnexos($('rb-anexos-manutencao'), { iniciais: anexosIniciais.manutencao, aoMudar: salvarRascunhoLogo }),
+      // Evidências do COMPLEMENTO de gastos (OS já paga)
+      complemento: criarAnexos($('rb-anexos-complemento'), { iniciais: anexosIniciais.complemento, aoMudar: salvarRascunhoLogo })
     };
     ITENS.forEach(function (it) {
       anexos['ajuste_' + it.chave] = criarAnexos($('rb-anexos-ajuste_' + it.chave),
@@ -812,8 +851,8 @@ EC.reembolso = (function () {
   }
 
   function pintarValores() {
-    // Eventos e Veículos têm cálculo próprio (sem os valores automáticos da viagem).
-    if (tipoSel === 'evento' || tipoSel === 'veiculo') return pintarValoresSimples();
+    // Eventos, Veículos e Complemento têm cálculo próprio (sem os valores automáticos da viagem).
+    if (tipoSel === 'evento' || tipoSel === 'veiculo' || tipoSel === 'complemento') return pintarValoresSimples();
     if (!tipoSel) {
       $('rb-total').classList.add('oculto');
       $('rb-pct-bloco').classList.add('oculto');
@@ -957,8 +996,15 @@ EC.reembolso = (function () {
   // único (100%), sem percentual/parcelas; adiantamento desconta por inteiro.
   function pintarValoresSimples() {
     var comps = [], total = 0, pronto = false;
-    var outros = outrosVal();
-    if (tipoSel === 'evento') {
+    // Complemento não usa o bloco "Outros gastos" (o próprio valor já é o gasto).
+    var outros = tipoSel === 'complemento' ? 0 : outrosVal();
+    if (tipoSel === 'complemento') {
+      // Complemento de gastos (OS já paga): o total é o valor informado.
+      var vc = valMon('rb-comp-valor');
+      if (vc > 0) comps.push('➕ Complemento de gastos: ' + moedaBR(vc));
+      total = vc;
+      pronto = !!tecSel && vc > 0;
+    } else if (tipoSel === 'evento') {
       var dias = parseInt($('rb-evento-dias').value, 10) || 0;
       var diaria = ctx ? (Number(ctx.valores.diaria_evento) || 0) : 0;
       var diarias = Math.round(dias * diaria * 100) / 100;
@@ -1047,6 +1093,9 @@ EC.reembolso = (function () {
       veicAbastecimento: $('rb-veic-abastecimento').value,
       veicPecas: $('rb-veic-pecas').value,
       veicManutencao: $('rb-veic-manutencao').value,
+      compValor: $('rb-comp-valor').value,
+      compKm: $('rb-comp-km').value,
+      compJust: $('rb-comp-just').value,
       outrosValor: $('rb-outros-valor').value,
       outrosJust: $('rb-outros-just').value,
       origemCidade: $('rb-origem-cidade').value, origemUf: $('rb-origem-uf').value,
@@ -1103,12 +1152,16 @@ EC.reembolso = (function () {
         $('rb-designado').value = r.designado;
         atualizarTecSel();
       }
-      // tipo do reembolso + campos de Eventos/Veículos/Outros
+      // tipo do reembolso + campos de Eventos/Veículos/Complemento/Outros
+      atualizarBotaoComplemento();
       escolherTipo(r.tipo || 'viagem');
       if (r.eventoDias) $('rb-evento-dias').value = r.eventoDias;
       if (r.veicAbastecimento) $('rb-veic-abastecimento').value = r.veicAbastecimento;
       if (r.veicPecas) $('rb-veic-pecas').value = r.veicPecas;
       if (r.veicManutencao) $('rb-veic-manutencao').value = r.veicManutencao;
+      if (r.compValor) $('rb-comp-valor').value = r.compValor;
+      if (r.compKm) $('rb-comp-km').value = r.compKm;
+      if (r.compJust) $('rb-comp-just').value = r.compJust;
       if (r.outrosValor) $('rb-outros-valor').value = r.outrosValor;
       if (r.outrosJust) $('rb-outros-just').value = r.outrosJust;
       if (r.veiculo) {
@@ -1291,9 +1344,11 @@ EC.reembolso = (function () {
     $('rb-teto-just').classList.add('oculto');
     $('rb-pedagio').value = '';
     $('rb-percentual').value = '100';
+    $('rb-tipo-complemento').classList.add('oculto');
     escolherTipo(null); // volta para "escolha o tipo" (Viagem/Eventos/Veículos)
     $('rb-evento-dias').value = '';
     $('rb-veic-abastecimento').value = ''; $('rb-veic-pecas').value = ''; $('rb-veic-manutencao').value = '';
+    $('rb-comp-valor').value = ''; $('rb-comp-km').value = ''; $('rb-comp-just').value = '';
     $('rb-outros-valor').value = ''; $('rb-outros-just').value = '';
     var radAdNao = document.querySelector('input[name="rb-adiant"][value="nao"]');
     if (radAdNao) radAdNao.checked = true;
@@ -1336,6 +1391,8 @@ EC.reembolso = (function () {
       valorOutros: pedido.valorOutros, outrosJustificativa: pedido.outrosJustificativa,
       valorAbastecimento: pedido.valorAbastecimento, valorPecas: pedido.valorPecas,
       valorManutencao: pedido.valorManutencao,
+      valorComplemento: pedido.valorComplemento, kmFinal: pedido.kmFinal,
+      complementoJustificativa: pedido.complementoJustificativa,
       solicitante: pedido.solicitante, designado: pedido.designado, veiculo: pedido.veiculo,
       tipoCombustivel: pedido.tipoCombustivel, precoLitro: pedido.precoLitro,
       combustivelJustificativa: pedido.combustivelJustificativa,
@@ -1518,15 +1575,24 @@ EC.reembolso = (function () {
     pintarLista();
   }
 
-  // Envio de EVENTOS e VEÍCULOS: pagamento único (100%), sem percentual/parcelas.
-  // O servidor recalcula o total (o app nunca manda valor pronto).
+  // Envio de EVENTOS, VEÍCULOS e COMPLEMENTO: pagamento único (100%), sem
+  // percentual/parcelas. O servidor recalcula o total (o app nunca manda pronto).
   async function enviarFormularioSimples() {
     var solicitante = sessionNome();
     if (!solicitante) return mostrarErro('Sua sessão expirou — entre de novo no app.');
 
-    var outros = outrosVal();
+    var outros = tipoSel === 'complemento' ? 0 : outrosVal();
     var extra = {}, total = 0, blocos = ['outros'];
-    if (tipoSel === 'evento') {
+    if (tipoSel === 'complemento') {
+      var vc = valMon('rb-comp-valor');
+      if (!(vc > 0)) return mostrarErro('Informe o valor do complemento (R$).');
+      if (!$('rb-comp-just').value.trim()) return mostrarErro('Escreva a justificativa do complemento.');
+      total = vc;
+      extra.valorComplemento = vc;
+      extra.kmFinal = parseFloat(String($('rb-comp-km').value).replace(',', '.')) || null;
+      extra.complementoJustificativa = $('rb-comp-just').value.trim();
+      blocos = ['complemento'];
+    } else if (tipoSel === 'evento') {
       var dias = parseInt($('rb-evento-dias').value, 10) || 0;
       if (!(dias >= 1)) return mostrarErro('Informe quantos dias de serviço (1 ou mais).');
       var diaria = ctx ? (Number(ctx.valores.diaria_evento) || 0) : 0;
@@ -1671,7 +1737,8 @@ EC.reembolso = (function () {
       ? '<div class="rb-motivo">Observação da Logística: ' + p.observacao_logistica + '</div>' : '';
     var t = p.tipo || 'viagem';
     var tipoTxt = t === 'evento' ? '<span class="rotulo-apoio">🔊 Evento</span> · '
-      : t === 'veiculo' ? '<span class="rotulo-apoio">🚗 Veículos</span> · ' : '';
+      : t === 'veiculo' ? '<span class="rotulo-apoio">🚗 Veículos</span> · '
+      : t === 'complemento' ? '<span class="rotulo-apoio">➕ Complemento</span> · ' : '';
     var parcelaTxt = tipoTxt + (parcelaN ? '<span class="rotulo-apoio">' + parcelaN + 'ª parcela</span> · ' : '');
     return (
       '<button type="button" class="rb-pedido rb-pedido-click" data-codigo="' + (p.codigo || '') + '">' +
@@ -1851,7 +1918,9 @@ EC.reembolso = (function () {
   function renderResumoSimples(p, t) {
     function linha(rot, val) { return '<div class="apr-linha"><span>' + rot + '</span><strong>' + val + '</strong></div>'; }
     var cat = p.solicitante_tipo === 'freelancer' ? 'Freelancer' : (p.solicitante_tipo === 'clt' ? 'CLT' : '—');
-    var itens = t === 'evento'
+    var itens = t === 'complemento'
+      ? [['➕ Complemento de gastos', p.valor_outros]]
+      : t === 'evento'
       ? [['🔊 Diárias do evento' + (p.dias_servico != null ? ' (' + p.dias_servico + ' dia(s))' : ''), p.valor_mao_obra]]
       : [
           ['⛽ Abastecimento', p.valor_combustivel],
@@ -1859,17 +1928,24 @@ EC.reembolso = (function () {
           ['🛠️ Manutenção', p.valor_manutencao],
           ['🛣️ Pedágio', p.valor_pedagio]
         ];
-    itens.push(['💠 Outros gastos', p.valor_outros]);
+    if (t !== 'complemento') itens.push(['💠 Outros gastos', p.valor_outros]);
     var valores = itens.filter(function (l) { return Number(l[1]) > 0; })
       .map(function (l) { return linha(l[0], moedaBR(l[1])); }).join('');
-    var outrosJust = Number(p.valor_outros) > 0 && p.outros_justificativa
-      ? '<p class="texto-apoio">💠 Outros gastos: ' + p.outros_justificativa + '</p>' : '';
+    // Km final do veículo (complemento) e justificativa dos gastos.
+    var kmLinha = t === 'complemento' && p.km_final != null && p.km_final !== ''
+      ? linha('Km final do veículo', p.km_final + ' km') : '';
+    var rotJust = t === 'complemento' ? '➕ Justificativa do complemento' : '💠 Outros gastos';
+    var just = Number(p.valor_outros) > 0 && p.outros_justificativa
+      ? '<p class="texto-apoio">' + rotJust + ': ' + p.outros_justificativa + '</p>' : '';
+    var titulo = t === 'complemento' ? '➕ Complemento de gastos (OS paga)'
+      : t === 'evento' ? '🔊 Reembolso de EVENTO' : '🚗 Reembolso de VEÍCULOS';
     return (
-      '<div class="apr-cat">' + (t === 'evento' ? '🔊 Reembolso de EVENTO' : '🚗 Reembolso de VEÍCULOS') + '</div>' +
+      '<div class="apr-cat">' + titulo + '</div>' +
       '<p class="dg-secao">Quem</p><div class="rb-resumo-auto">' +
         linha('Solicitante', p.solicitante || '—') + linha('Designado', (p.designado || '—') + ' · ' + cat) +
+        kmLinha +
       '</div>' +
-      '<p class="dg-secao">Valores</p>' + (valores || '<p class="texto-apoio">—</p>') + outrosJust +
+      '<p class="dg-secao">Valores</p>' + (valores || '<p class="texto-apoio">—</p>') + just +
       '<div class="apr-linha" style="border-top:2px solid var(--cinza-borda);border-bottom:none;">' +
         '<span><strong>TOTAL</strong></span><strong>' + moedaBR(p.valor_total != null ? p.valor_total : (p.valorTotal || 0)) + '</strong></div>'
     );
@@ -1878,7 +1954,7 @@ EC.reembolso = (function () {
   // Reaproveitado pelo extrato e pela tela de saldo pendente.
   function renderResumoPedido(p) {
     var t = p.tipo || 'viagem';
-    if (t === 'evento' || t === 'veiculo') return renderResumoSimples(p, t);
+    if (t === 'evento' || t === 'veiculo' || t === 'complemento') return renderResumoSimples(p, t);
     var tipo = p.solicitante_tipo === 'freelancer' ? 'Freelancer' : (p.solicitante_tipo === 'clt' ? 'CLT' : '—');
     var comb = p.tipo_combustivel ? (p.tipo_combustivel === 'diesel' ? 'Diesel' : 'Gasolina') : null;
     var trajeto = (p.origem_cidade || p.destino_cidade)
@@ -2372,6 +2448,8 @@ EC.reembolso = (function () {
       atualizarTecSel();
       atualizarDisponivel();
       pintarResumoAuto();
+      atualizarBotaoComplemento();
+      atualizarTipoUI();
       pintarValores();
     });
     document.querySelectorAll('input[name="rb-veiculo"]').forEach(function (r) {
@@ -2396,7 +2474,7 @@ EC.reembolso = (function () {
     document.querySelectorAll('.rb-tipo-btn').forEach(function (b) {
       b.addEventListener('click', function () { escolherTipo(b.dataset.tipo); salvarRascunhoLogo(); });
     });
-    ['rb-evento-dias', 'rb-veic-abastecimento', 'rb-veic-pecas', 'rb-veic-manutencao', 'rb-outros-valor']
+    ['rb-evento-dias', 'rb-veic-abastecimento', 'rb-veic-pecas', 'rb-veic-manutencao', 'rb-outros-valor', 'rb-comp-valor']
       .forEach(function (id) { $(id).addEventListener('input', pintarValores); });
     $('rb-chegada-casa').addEventListener('input', pintarValores);
     document.querySelectorAll('input[name="rb-adiant"]').forEach(function (r) { r.addEventListener('change', pintarValores); });

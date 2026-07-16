@@ -286,6 +286,7 @@
               <button type="button" class="rb-tipo-btn" data-tipo="viagem">🧳 Viagem</button>
               <button type="button" class="rb-tipo-btn" data-tipo="evento">🔊 Eventos</button>
               <button type="button" class="rb-tipo-btn" data-tipo="veiculo">🚗 Veículos</button>
+              <button type="button" class="rb-tipo-btn oculto" data-tipo="complemento" id="rb-tipo-complemento">➕ Complemento</button>
             </div>
           </div>
           <div id="rb-sem-agenda" class="alerta alerta-amarelo oculto">📅 Esta OS ainda não tem o serviço na Agenda. Peça para incluir a programação (dias e técnicos) na Agenda primeiro — depois é só voltar aqui.</div>
@@ -310,6 +311,16 @@
             <label>🛠️ Manutenção (R$)<input type="number" id="rb-veic-manutencao" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
             <p class="rb-sub">Evidências da manutenção <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
             <div id="rb-anexos-manutencao"></div>
+          </div>
+
+          <div id="rb-complemento-bloco" class="oculto">
+            <p class="dg-secao">Complemento de gastos</p>
+            <p class="texto-apoio">Esta OS já está 100% paga — informe o gasto complementar a reembolsar.</p>
+            <label>💠 Valor do complemento (R$)<input type="number" id="rb-comp-valor" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+            <label>Km final do veículo<input type="number" id="rb-comp-km" min="0" step="1" inputmode="numeric" placeholder="0"></label>
+            <label>Justificativa<textarea id="rb-comp-just" rows="2" placeholder="Explique o gasto complementar"></textarea></label>
+            <p class="rb-sub">Evidências <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
+            <div id="rb-anexos-complemento"></div>
           </div>
 
           <div id="rb-viagem" class="oculto">
