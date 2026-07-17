@@ -510,16 +510,9 @@ EC.reembolso = (function () {
     var d = new Date(); function pz(n) { return (n < 10 ? '0' : '') + n; }
     return d.getFullYear() + '-' + pz(d.getMonth() + 1) + '-' + pz(d.getDate());
   }
-  // Serviço terminou (ou termina HOJE)? Usa a data de TÉRMINO preenchida no
-  // formulário (pré-vem da Agenda, editável). O restante libera já no último
-  // dia do serviço — quem finaliza hoje pode pedir os 100% hoje mesmo.
-  function servicoTerminou() {
-    var campo = $('rb-servico-fim');
-    var sf = String((campo && campo.value) || (campSel && campSel.servicoFim) || '').slice(0, 10);
-    return !sf || sf <= hojeISO();
-  }
-  // Teto do percentual: 50% antes do último dia do serviço; 100% a partir dele.
-  function tetoPercentual() { return servicoTerminou() ? 100 : 50; }
+  // Teto do percentual: SEMPRE 100% — pode solicitar qualquer valor a qualquer
+  // momento, até somar 100% da logística por designado (sem trava de data).
+  function tetoPercentual() { return 100; }
 
   // Adiantamento de pagamento (opcional): descontado do valor solicitado.
   function adiantamentoAtivo() {
@@ -670,7 +663,7 @@ EC.reembolso = (function () {
     }
 
     atualizarTecSel();
-    if (campSel) fillViagem(campSel); // preenche as datas ANTES do teto (o término define 50%/100%)
+    if (campSel) fillViagem(campSel);
     atualizarDisponivel();
     pintarResumoAuto();
     atualizarBotaoComplemento();
@@ -835,9 +828,8 @@ EC.reembolso = (function () {
       var t = campSel.tecnicos.filter(function (x) { return x.nome === tecSel.nome; })[0];
       ja = t ? (Number(t.jaSolicitado) || 0) : 0;
     }
-    // Teto = 50% antes do último dia do serviço (pela data de término
-    // informada); 100% a partir do último dia.
-    var teto = tetoPercentual();
+    // Disponível = 100% − o que este designado já solicitou (sem trava de data).
+    var teto = tetoPercentual(); // sempre 100
     dispCampanha = tecSel ? Math.max(0, Math.round((teto - ja) * 100) / 100) : 100;
     var pctInp = $('rb-percentual');
     pctInp.max = Math.max(1, dispCampanha);
@@ -1036,19 +1028,12 @@ EC.reembolso = (function () {
       '<span class="rb-total-sub">' + comps.join('<br>') +
       (totalComAjustes(calc) !== calc.total ? '<br><em>(com os valores propostos nos ajustes)</em>' : '') + '</span>';
 
-    // Nota de disponível — POR DESIGNADO + teto de 50% antes do último dia do serviço.
+    // Nota de disponível — POR DESIGNADO (pode pedir qualquer valor até 100%).
     var info = $('rb-pct-info');
     var quem = (tecSel && tecSel.nome) ? tecSel.nome : 'este designado';
-    var semServico = !!tecSel && !servicoTerminou();
     if (dispCampanha <= 0) {
       info.className = 'alerta alerta-vermelho';
-      info.textContent = semServico
-        ? '🚫 O serviço ainda não chegou ao último dia — o teto é 50% da logística, e ' + quem + ' já o atingiu. O restante libera no último dia do serviço (data de término).'
-        : '🚫 ' + quem + ' já teve 100% da logística desta campanha solicitado/pago — não é possível novo reembolso para ele.';
-      info.classList.remove('oculto');
-    } else if (semServico) {
-      info.className = 'alerta alerta-info';
-      info.textContent = '⏳ O serviço ainda não chegou ao último dia: o teto agora é 50% da logística (100% libera na data de término). Disponível para ' + quem + ': ' + dispCampanha + '%.';
+      info.textContent = '🚫 ' + quem + ' já teve 100% da logística desta campanha solicitado/pago — não é possível novo reembolso para ele.';
       info.classList.remove('oculto');
     } else if (dispCampanha < 100) {
       info.className = 'alerta alerta-info';
@@ -1280,7 +1265,7 @@ EC.reembolso = (function () {
       if (r.servicoFim) $('rb-servico-fim').value = r.servicoFim;
       if (r.volta) $('rb-volta').value = r.volta;
       recalcularDias();
-      atualizarDisponivel(); // teto 50%/100% conforme o término restaurado (o % salvo entra abaixo)
+      atualizarDisponivel(); // recalcula o disponível do designado (o % salvo entra abaixo)
       if (r.chegada && $('rb-chegada-casa')) $('rb-chegada-casa').value = r.chegada;
       // adiantamento
       var radAd = document.querySelector('input[name="rb-adiant"][value="' + (r.adiantAtivo ? 'sim' : 'nao') + '"]');
@@ -1582,12 +1567,8 @@ EC.reembolso = (function () {
     }
     var pct = percentualVal();
     if (!(pct > 0 && pct <= 100)) return mostrarErro('O percentual solicitado precisa ficar entre 1% e 100%.');
-    if (dispCampanha <= 0) return mostrarErro(!servicoTerminou()
-      ? 'O serviço ainda não chegou ao último dia — o teto é 50% e já foi atingido. O restante libera na data de término do serviço.'
-      : 'Este designado já teve 100% da logística desta campanha solicitado/pago — não é possível novo reembolso para ele.');
-    if (pct > dispCampanha + 0.01) return mostrarErro(!servicoTerminou()
-      ? 'O serviço ainda não chegou ao último dia: você pode solicitar no máximo ' + dispCampanha + '% agora (teto de 50% até a data de término).'
-      : 'Você pode solicitar no máximo ' + dispCampanha + '% para este designado (o resto já foi solicitado/pago).');
+    if (dispCampanha <= 0) return mostrarErro('Este designado já teve 100% da logística desta campanha solicitado/pago — não é possível novo reembolso para ele.');
+    if (pct > dispCampanha + 0.01) return mostrarErro('Você pode solicitar no máximo ' + dispCampanha + '% para este designado (o resto já foi solicitado/pago).');
     mostrarErro(null);
 
     // Anexos da VIAGEM (os blocos de Eventos/Veículos ficam de fora, mesmo se a
@@ -2702,11 +2683,9 @@ EC.reembolso = (function () {
     document.querySelectorAll('input[name="rb-adiant"]').forEach(function (r) { r.addEventListener('change', pintarValores); });
     $('rb-adiant-valor').addEventListener('input', pintarValores);
     // Datas da viagem editáveis: ao mudar, recalcula os dias e o resumo/valores.
-    // O TÉRMINO também refaz o teto 50%/100% (libera 100% no último dia).
     ['rb-ida', 'rb-servico-inicio', 'rb-servico-fim', 'rb-volta'].forEach(function (id) {
       $(id).addEventListener('change', function () {
         recalcularDias();
-        if (id === 'rb-servico-fim') atualizarDisponivel();
         pintarResumoAuto(); pintarValores();
       });
     });
