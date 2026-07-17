@@ -40,6 +40,18 @@ EC.campoQar = (function () {
   function htmlBtnSalvarColeta() {
     return '<button type="button" class="botao botao-secundario cq-salvar-coleta">💾 Salvar rascunho</button>';
   }
+  // Gera o PDF (mesmo do fim do serviço) COM O QUE JÁ ESTÁ PREENCHIDO — para
+  // resguardar por partes num QAR que dura dias. Cai fora se o fluxo não passou
+  // o gerarPdf ou o gerador de PDF não existe.
+  function gerarPdfParcial(btn) {
+    if (!ctx.gerarPdf) return;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando PDF…'; }
+    Promise.resolve(ctx.gerarPdf()).catch(function () {
+      if (EC.app) EC.app.mostrarToast('Não consegui gerar o PDF agora — tente de novo.');
+    }).then(function () {
+      if (btn) { btn.disabled = false; btn.textContent = '📄 Gerar PDF (parcial)'; }
+    });
+  }
   function salvarDevagar() {
     clearTimeout(temporizadorSalvar);
     temporizadorSalvar = setTimeout(salvar, 400);
@@ -314,6 +326,8 @@ EC.campoQar = (function () {
       '<div id="cq-coletas"></div>' +
       // Finalização
       '<label>Hora final<input type="time" data-campo="horaFinal"></label>' +
+      // PDF por partes: resguardar o que já foi preenchido, sem finalizar.
+      '<button type="button" class="botao botao-secundario cq-gerar-pdf" style="margin-top:10px">📄 Gerar PDF (parcial)</button>' +
       '</div>';
     area.innerHTML = html;
 
@@ -330,6 +344,12 @@ EC.campoQar = (function () {
     atualizarAvisoCarvao(area);
     var selAgv = area.querySelector('[data-campo="equipAGV"]');
     if (selAgv) selAgv.addEventListener('change', function () { atualizarAvisoCarvao(area); });
+    // PDF parcial (por partes) — some se o fluxo não passou o gerador de PDF.
+    var btnPdf = area.querySelector('.cq-gerar-pdf');
+    if (btnPdf) {
+      if (!ctx.gerarPdf) btnPdf.style.display = 'none';
+      else btnPdf.addEventListener('click', function () { gerarPdfParcial(btnPdf); });
+    }
   }
 
   /* ===== Validação ===== */

@@ -1065,7 +1065,14 @@ EC.fluxo = (function () {
     } else if (estado.tipo === 'qar' && qarParticulado()) {
       // salvarRascunho = salvar COMPLETO (aparelho + servidor), usado pelos
       // botões de "Salvar rascunho" entre as coletas (resguarda em serviços longos).
-      EC.campoQar.renderizar(area, { estado: estado, salvar: salvarEstado, salvarRascunho: aoSalvarRascunho });
+      // gerarPdf = mesmo PDF do fim do serviço, mas gerado "por partes" durante o
+      // QAR (serviço longo) — do que já estiver preenchido.
+      EC.campoQar.renderizar(area, {
+        estado: estado,
+        salvar: salvarEstado,
+        salvarRascunho: aoSalvarRascunho,
+        gerarPdf: function () { salvarEstado(); return EC.pdf && EC.pdf.gerar(montarRegistro()); }
+      });
     } else if (estado.tipo === 'opacidade') {
       EC.campoOpacidade.renderizar(area, { estado: estado, salvar: salvarEstado });
     } else if (estado.tipo === 'qarint') {
