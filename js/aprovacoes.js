@@ -358,8 +358,14 @@ EC.aprovacoes = (function () {
       var aj = ajPorItem[l[3]];
       var valFinal = aj ? aj.valor_proposto : l[2];
       var sub = '';
-      if (aj) sub = moeda(aj.valor_calculado) + ' → ' + moeda(aj.valor_proposto) + ' (ajuste)';
-      else if (l[3] === 'alimentacao') sub = 'almoço ' + moeda(s.valor_almoco) + ' · jantar ' + moeda(s.valor_jantar) + ' · lanche ' + moeda(s.valor_lanche);
+      if (l[3] === 'alimentacao') {
+        // Sempre mostra a composição (almoço/jantar/lanche) — deixa claro que não
+        // são 2 almoços; se houve ajuste, acrescenta o calculado → proposto.
+        sub = 'almoço ' + moeda(s.valor_almoco) + ' · jantar ' + moeda(s.valor_jantar) + ' · lanche ' + moeda(s.valor_lanche);
+        if (aj) sub += ' · calculado ' + moeda(aj.valor_calculado) + ' → proposto ' + moeda(aj.valor_proposto) + ' (ajuste)';
+      } else if (aj) {
+        sub = moeda(aj.valor_calculado) + ' → ' + moeda(aj.valor_proposto) + ' (ajuste)';
+      }
       return '<div class="apr-vlinha"><span class="apr-vic">' + l[0] + '</span>' +
         '<div class="apr-vmeio"><div class="apr-vrot">' + l[1] + '</div>' +
         (sub ? '<div class="apr-vsub">' + sub + '</div>' : '') + '</div>' +
