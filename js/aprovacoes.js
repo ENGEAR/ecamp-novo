@@ -627,22 +627,18 @@ EC.aprovacoes = (function () {
     if ((acao === 'rejeitado' || acao === 'correcao') && !obs) {
       return mostrarErro('Escreva a observação para ' + (acao === 'rejeitado' ? 'rejeitar' : 'pedir correção') + '.');
     }
-    // ---- Ajuste da LOGÍSTICA (só PARA MAIS) ao aprovar ----
-    // A logística pode pagar mais que o calculado direto na aprovação. Para
-    // pagar MENOS, tem que voltar ao técnico via "Solicitar correção".
+    // ---- Ajuste da LOGÍSTICA ao aprovar (para MAIS ou para MENOS) ----
+    // Se a logística não aceita o valor como está, ela ajusta (nos dois sentidos),
+    // justifica e segue direto para o pagamento — não devolve ao técnico.
     var totalAtual = Number(s.valor_total) || 0;
     var ajTxt = (($('apr-ajuste-valor') && $('apr-ajuste-valor').value) || '').trim();
     var novoTotal = ajTxt ? Math.round(parseFloat(ajTxt.replace(',', '.')) * 100) / 100 : null;
     var temAjuste = false;
     if (acao === 'aguardando_pagamento' && novoTotal != null) {
       if (!(novoTotal > 0)) return mostrarErro('Valor do ajuste inválido.');
-      if (novoTotal < totalAtual - 0.001) {
-        return mostrarErro('O ajuste da Logística é só para pagar MAIS que o calculado (' + moeda(totalAtual) +
-          '). Para pagar menos, use "Solicitar correção" — volta ao técnico.');
-      }
-      if (novoTotal > totalAtual + 0.001) {
+      if (Math.abs(novoTotal - totalAtual) > 0.001) {
         temAjuste = true;
-        if (!obs) return mostrarErro('Você está ajustando o valor para mais — escreva a justificativa na observação.');
+        if (!obs) return mostrarErro('Você está ajustando o valor — escreva a justificativa na observação.');
       }
     }
     // aprovar acima do orçamento previsto → exige justificativa na observação
@@ -711,7 +707,7 @@ EC.aprovacoes = (function () {
       if ($('apr-ajuste-valor')) $('apr-ajuste-valor').value = '';
       if ($('apr-ajuste-hint')) {
         $('apr-ajuste-hint').textContent = 'Valor total calculado: ' + moeda(s.valor_total) +
-          '. Deixe vazio para manter; preencha só para pagar MAIS que isso.';
+          '. Deixe vazio para manter; preencha para pagar mais OU menos (com justificativa).';
       }
       bLog.classList.remove('oculto');
     } else if (s.status === 'aguardando_pagamento' && ehFinanceiro()) {
