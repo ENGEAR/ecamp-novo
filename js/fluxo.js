@@ -1063,7 +1063,9 @@ EC.fluxo = (function () {
     } else if (estado.tipo === 'sismo') {
       EC.campoVibracao.renderizar(area, { estado: estado, salvar: salvarEstado });
     } else if (estado.tipo === 'qar' && qarParticulado()) {
-      EC.campoQar.renderizar(area, { estado: estado, salvar: salvarEstado });
+      // salvarRascunho = salvar COMPLETO (aparelho + servidor), usado pelos
+      // botões de "Salvar rascunho" entre as coletas (resguarda em serviços longos).
+      EC.campoQar.renderizar(area, { estado: estado, salvar: salvarEstado, salvarRascunho: aoSalvarRascunho });
     } else if (estado.tipo === 'opacidade') {
       EC.campoOpacidade.renderizar(area, { estado: estado, salvar: salvarEstado });
     } else if (estado.tipo === 'qarint') {

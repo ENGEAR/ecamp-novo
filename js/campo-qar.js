@@ -33,6 +33,13 @@ EC.campoQar = (function () {
   function $(seletor) { return raiz.querySelector(seletor); }
   function campo() { return ctx.estado.campo; }
   function salvar() { ctx.salvar(); }
+  // Salvar rascunho COMPLETO (aparelho + servidor) — usado pelos botões entre as
+  // coletas. Cai no salvar local se o fluxo não passou o salvarRascunho.
+  function salvarRascunho() { (ctx.salvarRascunho || ctx.salvar)(); }
+  // Botão de salvar rascunho entre coletas (resguarda serviços longos de QAR).
+  function htmlBtnSalvarColeta() {
+    return '<button type="button" class="botao botao-secundario cq-salvar-coleta">💾 Salvar rascunho</button>';
+  }
   function salvarDevagar() {
     clearTimeout(temporizadorSalvar);
     temporizadorSalvar = setTimeout(salvar, 400);
@@ -250,14 +257,21 @@ EC.campoQar = (function () {
     ponto.coletas = ponto.coletas || [];
     while (ponto.coletas.length < n) ponto.coletas.push({});
     let html = '';
+    // Um "Salvar rascunho" ENTRE a pergunta e a 1ª coleta, e outro DEPOIS de
+    // cada coleta — para ir resguardando os dados em serviços que duram dias.
+    if (n > 0) html += htmlBtnSalvarColeta();
     for (let k = 0; k < n; k++) {
       html += '<div class="cartao-coleta"><h3>' + (k + 1) + 'ª coleta</h3>' +
         '<p class="grupo-checks-titulo">Dados iniciais</p>' +
         htmlBlocoColeta('ini', '<label>Código do filtro<input type="text" data-campo="codigoFiltro"></label>') +
         '<p class="grupo-checks-titulo">Dados finais</p>' + htmlBlocoColeta('fim') + '</div>';
+      html += htmlBtnSalvarColeta();
     }
     div.innerHTML = html;
     div.querySelectorAll('.cartao-coleta').forEach(function (card, k) { vincular(card, ponto.coletas[k]); });
+    div.querySelectorAll('.cq-salvar-coleta').forEach(function (b) {
+      b.addEventListener('click', function () { salvarRascunho(); });
+    });
   }
 
   function renderizarPonto(n) {
