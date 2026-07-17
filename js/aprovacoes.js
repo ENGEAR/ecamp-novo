@@ -627,6 +627,24 @@ EC.aprovacoes = (function () {
     if ((acao === 'rejeitado' || acao === 'correcao') && !obs) {
       return mostrarErro('Escreva a observação para ' + (acao === 'rejeitado' ? 'rejeitar' : 'pedir correção') + '.');
     }
+    // ---- Ajuste da LOGÍSTICA (só PARA MAIS) ao aprovar ----
+    // A logística pode pagar mais que o calculado direto na aprovação. Para
+    // pagar MENOS, tem que voltar ao técnico via "Solicitar correção".
+    var totalAtual = Number(s.valor_total) || 0;
+    var ajTxt = (($('apr-ajuste-valor') && $('apr-ajuste-valor').value) || '').trim();
+    var novoTotal = ajTxt ? Math.round(parseFloat(ajTxt.replace(',', '.')) * 100) / 100 : null;
+    var temAjuste = false;
+    if (acao === 'aguardando_pagamento' && novoTotal != null) {
+      if (!(novoTotal > 0)) return mostrarErro('Valor do ajuste inválido.');
+      if (novoTotal < totalAtual - 0.001) {
+        return mostrarErro('O ajuste da Logística é só para pagar MAIS que o calculado (' + moeda(totalAtual) +
+          '). Para pagar menos, use "Solicitar correção" — volta ao técnico.');
+      }
+      if (novoTotal > totalAtual + 0.001) {
+        temAjuste = true;
+        if (!obs) return mostrarErro('Você está ajustando o valor para mais — escreva a justificativa na observação.');
+      }
+    }
     // aprovar acima do orçamento previsto → exige justificativa na observação
     if (acao === 'aguardando_pagamento' && orcAtual && orcAtual.previsto > 0 &&
         (orcAtual.jaAprovado + orcAtual.esta) > orcAtual.previsto && !obs) {
@@ -640,13 +658,20 @@ EC.aprovacoes = (function () {
     botoes.forEach(function (b) { $(b).disabled = true; });
     try {
       var user = (await cli.auth.getUser()).data.user;
+      var campos = {
+        status: acao,
+        observacao_logistica: obs || null,
+        decidido_em: new Date().toISOString(),
+        decidido_por: user ? user.id : null
+      };
+      // Aplica o ajuste para mais: novo total + parcela recalculada pelo percentual.
+      if (temAjuste) {
+        var pct = s.percentual_solicitado != null ? Number(s.percentual_solicitado) : 100;
+        campos.valor_total = novoTotal;
+        campos.valor_solicitado = Math.round(novoTotal * pct) / 100;
+      }
       var upd = await cli.from('logistica_solicitacoes')
-        .update({
-          status: acao,
-          observacao_logistica: obs || null,
-          decidido_em: new Date().toISOString(),
-          decidido_por: user ? user.id : null
-        })
+        .update(campos)
         .eq('id', s.id)
         .eq('status', 'aguardando_logistica')   // só decide se ainda estiver pendente
         .select('id');
@@ -655,12 +680,15 @@ EC.aprovacoes = (function () {
         toast('Esta solicitação já foi decidida por outra pessoa.');
       } else {
         try {
+          var det = temAjuste
+            ? 'Logística ajustou o total de ' + moeda(totalAtual) + ' para ' + moeda(novoTotal) + (obs ? ' — ' + obs : '')
+            : (obs || null);
           await cli.from('logistica_eventos').insert({
             solicitacao_id: s.id, acao: EVENTO[acao],
-            detalhe: obs || null, por_nome: sessao().nome || null
+            detalhe: det, por_nome: sessao().nome || null
           });
         } catch (e) { /* auditoria é best-effort */ }
-        toast(MSG[acao]);
+        toast(temAjuste ? '✅ Ajustada e aprovada! Seguiu para pagamento.' : MSG[acao]);
       }
       EC.app.mostrarTela('tela-aprovacoes');
       pintarLista();
@@ -680,6 +708,11 @@ EC.aprovacoes = (function () {
     bLog.classList.add('oculto'); bPag.classList.add('oculto');
     if (s.status === 'aguardando_logistica' && ehLogistica()) {
       $('apr-obs').value = '';
+      if ($('apr-ajuste-valor')) $('apr-ajuste-valor').value = '';
+      if ($('apr-ajuste-hint')) {
+        $('apr-ajuste-hint').textContent = 'Valor total calculado: ' + moeda(s.valor_total) +
+          '. Deixe vazio para manter; preencha só para pagar MAIS que isso.';
+      }
       bLog.classList.remove('oculto');
     } else if (s.status === 'aguardando_pagamento' && ehFinanceiro()) {
       $('pag-data').value = hojeISO();
