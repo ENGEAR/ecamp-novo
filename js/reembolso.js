@@ -2135,6 +2135,19 @@ EC.reembolso = (function () {
     );
   }
 
+  // Detalhamento do ALMOÇO conforme os dias REAIS da viagem (não as duas tarifas
+  // de referência): freelancer = R$/dia; CLT = R$ útil × Nº de dias úteis
+  // (+ R$ fds × Nº de fins de semana só se houver). Ex.: sexta ida-e-volta = 1 dia útil.
+  function almocoDetalhe(p, vu) {
+    if (p.solicitante_tipo === 'freelancer') return moedaBR(vu.almoco) + '/dia';
+    var datas = intervaloDatas(p.data_inicio, p.data_retorno || p.dataRetorno);
+    var nFds = datas.filter(ehFimDeSemana).length, nUtil = datas.length - nFds;
+    var partes = [];
+    if (nUtil > 0) partes.push(moedaBR(vu.almoco_clt_util) + ' × ' + nUtil + (nUtil === 1 ? ' dia útil' : ' dias úteis'));
+    if (nFds > 0) partes.push(moedaBR(vu.almoco) + ' × ' + nFds + (nFds === 1 ? ' fim de semana' : ' fins de semana'));
+    return partes.join(' + ') || moedaBR(vu.almoco_clt_util) + '/dia útil';
+  }
+
   // Base de cálculo (igual à da Logística): mesmo layout azul das seções Quem/
   // Datas/Transporte — pares rótulo/valor no rb-resumo-auto.
   function baseCalculoHtml(p) {
@@ -2162,8 +2175,7 @@ EC.reembolso = (function () {
     var diasMO = Number(p.dias_viagem) || 0;
     if (Number(p.valor_mao_obra) > 0 && diasMO > 0) itens.push(['Mão de obra', moedaBR(Math.round(Number(p.valor_mao_obra) / diasMO * 100) / 100) + '/dia']);
     if (Number(p.valor_hospedagem) > 0 && vu.hospedagem_dia != null) itens.push(['Hospedagem', moedaBR(vu.hospedagem_dia) + '/diária']);
-    if (Number(p.valor_almoco) > 0 && vu.almoco != null) itens.push(['Almoço', ehFreela ? moedaBR(vu.almoco) + '/dia'
-      : moedaBR(vu.almoco_clt_util) + ' útil · ' + moedaBR(vu.almoco) + ' fds']);
+    if (Number(p.valor_almoco) > 0 && vu.almoco != null) itens.push(['Almoço', almocoDetalhe(p, vu)]);
     if (Number(p.valor_jantar) > 0 && vu.jantar != null) itens.push(['Jantar', moedaBR(vu.jantar) + '/dia']);
     if (Number(p.valor_lanche) > 0 && vu.lanche != null) itens.push(['Lanche', moedaBR(vu.lanche) + '/dia desloc.']);
     return '<p class="dg-secao">Base de cálculo</p><div class="rb-resumo-auto">' +

@@ -45,6 +45,32 @@ EC.aprovacoes = (function () {
   }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 
+  // Todas as datas "AAAA-MM-DD" de a até b (inclusive); avaliadas em UTC ao meio-dia.
+  function intervaloDatas(a, b) {
+    var out = [];
+    var ini = String(a || '').slice(0, 10), fim = String(b || '').slice(0, 10);
+    if (!ini || !fim) return out;
+    var t = new Date(ini + 'T12:00:00Z').getTime(), end = new Date(fim + 'T12:00:00Z').getTime();
+    if (isNaN(t) || isNaN(end) || t > end) return out;
+    while (t <= end) { out.push(new Date(t).toISOString().slice(0, 10)); t += 86400000; }
+    return out;
+  }
+  function ehFimDeSemana(dataISO) {
+    if (!dataISO) return false;
+    var dia = new Date(String(dataISO).slice(0, 10) + 'T12:00:00Z').getUTCDay();
+    return dia === 0 || dia === 6;
+  }
+  // Detalhamento do almoço pelos dias REAIS da viagem (útil × Nº; + fds só se houver).
+  function almocoDetalhe(s, vu, ehFreela) {
+    if (ehFreela) return moeda(vu.almoco) + '/dia';
+    var datas = intervaloDatas(s.data_inicio, s.data_retorno);
+    var nFds = datas.filter(ehFimDeSemana).length, nUtil = datas.length - nFds;
+    var partes = [];
+    if (nUtil > 0) partes.push(moeda(vu.almoco_clt_util) + ' × ' + nUtil + (nUtil === 1 ? ' dia útil' : ' dias úteis'));
+    if (nFds > 0) partes.push(moeda(vu.almoco) + ' × ' + nFds + (nFds === 1 ? ' fim de semana' : ' fins de semana'));
+    return partes.join(' + ') || moeda(vu.almoco_clt_util) + '/dia útil';
+  }
+
   function ehLogistica() {
     var p = sessao().papeis || [];
     return p.indexOf('logistica') !== -1 || p.indexOf('admin') !== -1;
@@ -407,9 +433,7 @@ EC.aprovacoes = (function () {
       bullets.push('Hospedagem: ' + moeda(vu.hospedagem_dia) + '/diária');
     }
     if (Number(s.valor_almoco) > 0 && vu.almoco != null) {
-      bullets.push('Almoço: ' + (ehFreela
-        ? moeda(vu.almoco) + '/dia'
-        : moeda(vu.almoco_clt_util) + '/dia útil · ' + moeda(vu.almoco) + '/dia no fim de semana'));
+      bullets.push('Almoço: ' + almocoDetalhe(s, vu, ehFreela));
     }
     if (Number(s.valor_jantar) > 0 && vu.jantar != null) {
       bullets.push('Jantar: ' + moeda(vu.jantar) + '/dia');
