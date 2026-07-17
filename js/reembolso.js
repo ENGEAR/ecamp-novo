@@ -1831,13 +1831,16 @@ EC.reembolso = (function () {
     var total = p.valor_total != null ? p.valor_total : p.valorTotal;
     var pct = p.percentual_solicitado != null ? Number(p.percentual_solicitado) : (p.percentual || 100);
     var solicitado = p.valor_solicitado != null ? p.valor_solicitado : p.valorSolicitado;
-    // Valor mostrado = o LÍQUIDO que o técnico recebe (parcela − a fração do
-    // adiantamento que cabe a ela). Sem adiantamento, é o próprio valor da parcela.
+    // Com adiantamento: o NEGRITO é o total da parcela (o que o técnico recebeu
+    // ao todo) e o parêntese abre a composição — o que foi pago agora + a parte
+    // que já tinha vindo no adiantamento. Assim não parece que se pagou menos.
     var adiantC = Number(p.adiantamento_valor) || 0;
     var solC = solicitado != null ? Number(solicitado) : Number(total || 0);
-    var liquidoC = Math.round(solC * 100 - adiantC * pct) / 100;
+    var fracaoC = Math.round(adiantC * pct) / 100;              // parte do adiantamento nesta parcela
+    var liquidoC = Math.round(solC * 100 - adiantC * pct) / 100; // o que saiu no pagamento
     var valorTxt = adiantC > 0
-      ? '<strong>' + moedaBR(liquidoC) + '</strong> <span class="rotulo-apoio">(' + pct + '%, já com o adiantamento)</span>'
+      ? '<strong>' + moedaBR(solC) + '</strong> <span class="rotulo-apoio">(' + pct + '%: ' +
+        moedaBR(liquidoC) + ' + ' + moedaBR(fracaoC) + ' de adiantamento)</span>'
       : (pct < 100 && solicitado != null)
         ? '<strong>' + moedaBR(solicitado) + '</strong> (' + pct + '% de ' + moedaBR(total) + ')'
         : '<strong>' + moedaBR(total) + '</strong>';
