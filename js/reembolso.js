@@ -1937,7 +1937,26 @@ EC.reembolso = (function () {
     return String(p.data_inicio || p.dataInicio || p.created_at || p.criadoEm || '').slice(0, 10);
   }
 
+  // Carimbo de quando a solicitação foi SALVA (created_at do servidor, ou o
+  // criadoEm do aparelho enquanto está na fila) — é por ele que o extrato ordena.
+  function carimboSalvo(p) {
+    return String(p.created_at || p.criadoEm || p.data_inicio || p.dataInicio || '');
+  }
+  // Data "AAAA-MM-DD" de um timestamp no horário de Brasília (UTC−3); data pura
+  // (sem hora) volta como está. Usada para agrupar o extrato por mês/ano.
+  function dataBrasilISO(ts) {
+    var s = String(ts || '');
+    if (!s) return '';
+    if (s.length <= 10 || s.indexOf('T') === -1) return s.slice(0, 10);
+    var t = new Date(s).getTime();
+    if (isNaN(t)) return s.slice(0, 10);
+    var br = new Date(t - 3 * 3600000);
+    function z(n) { return (n < 10 ? '0' : '') + n; }
+    return br.getUTCFullYear() + '-' + z(br.getUTCMonth() + 1) + '-' + z(br.getUTCDate());
+  }
+
   // Renderiza a lista tipo extrato de banco (ano → mês) num container, com busca.
+  // Sempre do MAIS NOVO para o mais antigo (pela data em que foi salva).
   // dados = [{p, aguardandoEnvio}]; onAbrir(item) ao clicar num card.
   function renderBancoLista(area, buscaEl, dados, numParcela, porCodigo, onAbrir, mostrarDesignado) {
     if (!area) return;
@@ -1945,16 +1964,16 @@ EC.reembolso = (function () {
     var itens = (dados || []).filter(function (it) {
       if (!termo) return true;
       var p = it.p;
-      var ida = dataDoExtrato(p);
-      var alvo = ('os ' + (p.os || '') + ' ' + (p.designado || '') + ' ' + (p.cliente || '') + ' ' + (p.projeto || '') + ' ' + mesAnoBusca(ida) + ' ' + ida).toLowerCase();
+      var quando = dataBrasilISO(carimboSalvo(p));
+      var alvo = ('os ' + (p.os || '') + ' ' + (p.designado || '') + ' ' + (p.cliente || '') + ' ' + (p.projeto || '') + ' ' + mesAnoBusca(quando) + ' ' + quando + ' ' + dataDoExtrato(p)).toLowerCase();
       return alvo.indexOf(termo) !== -1;
     });
     if (!itens.length) { area.innerHTML = '<p class="texto-apoio">Nada encontrado.</p>'; return; }
     var porAno = {};
     itens.forEach(function (it) {
-      var ida = dataDoExtrato(it.p);
-      var ano = ida.slice(0, 4) || 'Sem data';
-      var mk = ida.length >= 7 ? ida.slice(5, 7) : '00';
+      var quando = dataBrasilISO(carimboSalvo(it.p));
+      var ano = quando.slice(0, 4) || 'Sem data';
+      var mk = quando.length >= 7 ? quando.slice(5, 7) : '00';
       porAno[ano] = porAno[ano] || {};
       (porAno[ano][mk] = porAno[ano][mk] || []).push(it);
     });
@@ -1962,8 +1981,9 @@ EC.reembolso = (function () {
     area.innerHTML = anos.map(function (ano) {
       var meses = Object.keys(porAno[ano]).sort(function (a, b) { return b.localeCompare(a); });
       var mesesHtml = meses.map(function (mk) {
+        // Dentro do mês: mais novo primeiro, pelo carimbo COMPLETO de quando foi salva.
         var lista = porAno[ano][mk].slice().sort(function (a, b) {
-          return dataDoExtrato(b.p).localeCompare(dataDoExtrato(a.p));
+          return carimboSalvo(b.p).localeCompare(carimboSalvo(a.p));
         });
         var cards = lista.map(function (it) { return cartaoPedido(it.p, it.aguardandoEnvio, numParcela[it.p.codigo], mostrarDesignado); }).join('');
         var nomeM = mk === '00' ? 'Sem data' : (MESES_PT[parseInt(mk, 10) - 1] || mk);
