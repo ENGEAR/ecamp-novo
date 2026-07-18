@@ -105,8 +105,8 @@ EC.ajuda = (function () {
       secao('Solicitar reembolso') +
       topico('💰 Como solicitar', ol([
         'Reembolso → <strong>Nova solicitação</strong> (precisa de internet — os dados vêm da Agenda).',
-        'Busque e escolha a <strong>OS</strong> e o <strong>designado</strong>.',
-        'Escolha o <strong>tipo</strong> e preencha os campos.',
+        'Busque a <strong>OS</strong> (ou o nome da empresa/projeto) para a qual deseja pedir reembolso/pagamento. Preencha o nome do <strong>designado</strong>, ou seja, para quem é o reembolso. Se está pedindo para você mesmo, basta escolher o seu nome no designado.',
+        'Escolha o <strong>tipo de reembolso</strong> (ver o tópico “Tipos de reembolso”) e preencha os campos.',
         'Anexe os <strong>comprovantes</strong> (📷 foto · 🖼️ galeria · 📎 PDF) e envie.'
       ])) +
       topico('🧳 Tipos de reembolso', ul([
