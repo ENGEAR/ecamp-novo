@@ -264,6 +264,10 @@
     fecharMenuConta();
     if (EC.ajuda && EC.ajuda.abrir) EC.ajuda.abrir();
   });
+  // Atalho de Ajuda direto no cabeçalho (ícone ❓).
+  $('btn-ajuda').addEventListener('click', function () {
+    if (EC.ajuda && EC.ajuda.abrir) EC.ajuda.abrir();
+  });
   $('menu-sair').addEventListener('click', function () {
     fecharMenuConta();
     if (confirm('Sair do eCamp?')) {

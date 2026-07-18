@@ -64,7 +64,7 @@ code { background: var(--azul-claro); padding: 1px 5px; border-radius: 4px; font
   box-shadow: var(--sombra);
 }
 
-#header-logo { height: 42px; cursor: pointer; }
+#header-logo { height: 36px; cursor: pointer; }
 
 .header-acoes { display: flex; align-items: center; gap: 4px; }
 
@@ -104,14 +104,15 @@ code { background: var(--azul-claro); padding: 1px 5px; border-radius: 4px; font
 }
 #chip-nome { display: none; }
 
-/* Em celulares estreitos (ex.: 360–375px) o logo + os ícones do cabeçalho não
-   cabiam e a página vazava para a direita. Aperta o cabeçalho para caber sem
-   cortar nenhum ícone (o logo encolhe um pouco e os ícones ficam mais juntos). */
-@media (max-width: 400px) {
+/* Em celulares (inclui os "Pro Max"/Plus de ~414–430px) o logo + os ícones do
+   cabeçalho não cabiam e a página vazava para a direita — com o novo ícone de
+   Ajuda (❓) o limite subiu. Aperta o cabeçalho para caber sem cortar nenhum
+   ícone (o logo encolhe um pouco e os ícones ficam mais juntos). */
+@media (max-width: 440px) {
   #header { padding: 8px 8px; gap: 4px; }
-  #header-logo { height: 36px; }
+  #header-logo { height: 30px; }
   .header-acoes { gap: 0; }
-  .botao-icone { padding: 6px 4px; font-size: 1.1rem; }
+  .botao-icone { padding: 6px 3px; font-size: 1.1rem; }
 }
 
 /* ---------- Menu da conta (iniciais → Ajuda / Sair) ---------- */
