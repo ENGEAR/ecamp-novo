@@ -62,16 +62,16 @@ EC.ajuda = (function () {
 
       secao('Fazer um serviço (campo)') +
       topico('🛠️ Passo a passo (1 a 10)', ol([
-        '<strong>Escolher a OS</strong> — busque por número ou cliente.',
-        '<strong>Serviços da OS</strong> — se houver vários, escolha um (🔒 libera após a campanha anterior).',
-        '<strong>Dados gerais</strong> — só leitura; o único editável é o nº de pontos (se mudar, justifique).',
+        '<strong>Escolher a OS</strong> — busque pelo número ou cliente do serviço que você está designado a fazer.',
+        '<strong>Serviços da OS</strong> — alguns serviços contemplam vários escopos. Neste caso, escolha o que foi designado a fazer. Só a campanha vigente fica liberada; campanhas posteriores ficam travadas (🔒) e são liberadas após a campanha anterior finalizar.',
+        '<strong>Dados gerais</strong> — inclui todos os dados da OS, como informação do cliente, escopo, metodologia e procedimentos aplicáveis. Esta página é apenas de leitura; os únicos editáveis são o nº de pontos (se mudar, justifique) e a inclusão do link do Maps.',
         '<strong>Tipo de monitoramento</strong> — já vem definido pelo escopo da OS.',
-        '<strong>Equipamentos</strong> — ao menos um de cada categoria; calibração vencida fica bloqueada.',
+        '<strong>Equipamentos</strong> — escolha os equipamentos que irá levar para campo. É necessário preencher ao menos um de cada categoria; equipamentos com calibração vencida ficam bloqueados.',
         '<strong>Pré-campo / romaneio</strong> — confira o checklist antes de sair do laboratório.',
         '<strong>Preparação concluída</strong> — toque em “Ir para o campo”.',
         '<strong>Em campo</strong> — ponto a ponto: GPS, hora, checagens, fotos e condições.',
-        '<strong>Revisão</strong> — 🟡 em branco não bloqueia · 🔴 obrigatório impede salvar.',
-        '<strong>Finalizar</strong> — “Salvar registro”. O <strong>PDF é gerado</strong> e pode ser encaminhado no WhatsApp.'
+        '<strong>Revisão</strong> — oportunidade de revisar o preenchimento. O ícone 🟡 significa que dados em branco não bloqueiam a opção de salvar · O ícone 🔴 indica que a informação é de preenchimento obrigatório, o que impede salvar.',
+        '<strong>Finalizar</strong> — “Salvar registro”. O <strong>PDF é gerado</strong> e deve ser encaminhado no WhatsApp imediatamente para o diretor técnico ou grupo designado ao envio de informações.'
       ])) +
       topico('🧭 Tipos de serviço', '<p class="texto-apoio">Cada tipo tem o seu formulário, mas a lógica é a mesma (pontos → GPS → checagens → fotos → condições).</p>' + ul([
         '<strong>Ruído</strong> — externo, interno, ferroviário e aeronáutico.',
