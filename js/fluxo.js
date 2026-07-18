@@ -507,8 +507,8 @@ EC.fluxo = (function () {
         '<div class="pilha-botoes">' +
         '  <button type="button" class="botao botao-primario" id="sv-continuar">✏️ Continuar preenchimento</button>' +
         '  <button type="button" class="botao botao-secundario" id="sv-reiniciar">🔄 Reiniciar este serviço</button>' +
-        '  <button type="button" class="botao botao-perigo" id="sv-descartar">🗑️ Descartar (não vou fazer)</button>' +
-        '</div>');
+        '</div>' +
+        '<p class="texto-apoio" style="margin-top:8px">Ao reiniciar, o que já foi preenchido é guardado (vai para os arquivados no SGP) — nada é apagado.</p>');
       $('sv-continuar').addEventListener('click', async function () {
         EC.app.fecharOverlay();
         var completo = rascunho;
@@ -521,15 +521,20 @@ EC.fluxo = (function () {
         abrirServico(os, indice, completo);
       });
       $('sv-reiniciar').addEventListener('click', function () {
+        if (!confirm('Reiniciar este serviço? O que já foi preenchido é GUARDADO (arquivado no SGP) e você começa do zero. Nada é apagado.')) return;
         EC.app.fecharOverlay();
+        // Preserva o que já estava: arquiva o rascunho antigo no servidor (best-effort)
+        // antes de começar do zero. Nada é apagado — vai para Obsoletos > Rascunhos de campo.
+        var rid = rascunho && rascunho.rascunhoId;
+        if (rid && EC.sync && EC.sync.arquivarRascunho) {
+          EC.sync.arquivarRascunho(rid).then(function () {
+            if (EC.os && EC.os.carregarAndamentoPor) EC.os.carregarAndamentoPor();
+          });
+        }
+        // Limpa o rascunho LOCAL e começa um novo (o servidor guardou o antigo).
         EC.storage.remover(chaveServico(os.numero, indice));
         if (EC.db) EC.db.remove('rascunhos', chaveServico(os.numero, indice)).catch(function () {});
         abrirServico(os, indice, null);
-      });
-      $('sv-descartar').addEventListener('click', function () {
-        if (!confirm('Descartar este serviço? Isso apaga o que foi preenchido nele e ele sai de "em andamento". Não dá para desfazer.')) return;
-        EC.app.fecharOverlay();
-        descartarServico(os, indice, rascunho);
       });
       return;
     }

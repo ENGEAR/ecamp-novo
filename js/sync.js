@@ -16,7 +16,8 @@ EC.sync = (function () {
   var ROTA_REGISTRO = BASE + '/registro';
   var ROTA_FOTO = BASE + '/foto';
   var ROTA_PDF = BASE + '/pdf';
-  var ROTA_DESCARTAR = BASE + '/descartar';
+  var ROTA_DESCARTAR = BASE + '/descartar';        // legado (DELETE) — não usar
+  var ROTA_ARQUIVAR_RASCUNHO = BASE + '/arquivar-rascunho'; // soft: preserva o antigo
   var ROTA_RASCUNHO = BASE + '/rascunho';
   var BASE_BIBLIOTECA = 'https://engear-sgp.vercel.app/api/biblioteca';
   var TOKEN = 'f8b17592b0130d95047d37865a14b31570c6381509ccc066';
@@ -315,6 +316,20 @@ EC.sync = (function () {
     }
   }
 
+  // ARQUIVA (soft, nunca apaga) o rascunho antigo pelo rascunhoId — usado no
+  // "Reiniciar": a versão antiga vai para o SGP → Obsoletos → Rascunhos de campo
+  // e o servidor destaca o rascunho_id, para o rascunho novo não sobrescrevê-la.
+  // Best-effort: sem internet, não trava o técnico (o novo segue localmente).
+  async function arquivarRascunho(rascunhoId) {
+    if (!rascunhoId) return;
+    var sessao = (EC.storage && EC.storage.ler('sessao:atual')) || {};
+    try {
+      await postJson(ROTA_ARQUIVAR_RASCUNHO, { rascunhoId: rascunhoId, tecnico: sessao.nome || '' });
+    } catch (e) {
+      /* sem internet/erro: melhor que apagar — o antigo continua no servidor */
+    }
+  }
+
   // Reenvia toda a fila pendente. silencioso=true não avisa quando não há nada.
   async function sincronizarPendentes(silencioso) {
     // Itera pelas CHAVES (mesma fonte do contador da barra) e lê uma a uma —
@@ -393,6 +408,7 @@ EC.sync = (function () {
     sincronizarRascunho: sincronizarRascunho,
     sincronizarRascunhoDados: sincronizarRascunhoDados,
     descartarRascunho: descartarRascunho,
+    arquivarRascunho: arquivarRascunho,
     buscarRascunho: buscarRascunho,
     listarRascunhos: listarRascunhos,
     travar: travar,

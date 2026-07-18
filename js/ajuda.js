@@ -81,11 +81,10 @@ EC.ajuda = (function () {
         '<strong>Opacidade</strong>.',
         '<strong>Outros</strong>.'
       ]) + '<div class="alerta alerta-amarelo">🚨 Sempre leia as informações da OS antes de iniciar o serviço. Em caso de dúvidas sobre a execução do serviço, busque informações com o seu supervisor e lembre-se que o procedimento e a norma de referência estão disponíveis no menu <strong>Biblioteca</strong>.</div>') +
-      topico('📝 Rascunho: continuar, reiniciar ou descartar', ul([
+      topico('📝 Rascunho: continuar ou reiniciar', ul([
         'Ao reabrir um serviço já começado, o app pergunta o que fazer:',
         '<strong>✏️ Continuar</strong> — retoma de onde parou.',
-        '<strong>🔄 Reiniciar</strong> — começa do zero.',
-        '<strong>🗑️ Descartar</strong> — apaga o que foi preenchido.',
+        '<strong>🔄 Reiniciar</strong> — começa do zero. O que já tinha sido preenchido NÃO é apagado: fica guardado (arquivado no SGP).',
         'Os serviços em aberto também aparecem em 📝 <strong>Rascunhos</strong>, no topo.'
       ])) +
       topico('🕐 Histórico e refazer o PDF', ul([
