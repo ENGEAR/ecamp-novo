@@ -64,7 +64,7 @@ code { background: var(--azul-claro); padding: 1px 5px; border-radius: 4px; font
   box-shadow: var(--sombra);
 }
 
-#header-logo { height: 36px; cursor: pointer; }
+#header-logo { height: 42px; cursor: pointer; }
 
 .header-acoes { display: flex; align-items: center; gap: 4px; }
 
@@ -104,46 +104,21 @@ code { background: var(--azul-claro); padding: 1px 5px; border-radius: 4px; font
 }
 #chip-nome { display: none; }
 
-/* Em celulares (inclui os "Pro Max"/Plus de ~414–430px) o logo + os ícones do
-   cabeçalho não cabiam e a página vazava para a direita — com o novo ícone de
-   Ajuda (❓) o limite subiu. Aperta o cabeçalho para caber sem cortar nenhum
-   ícone (o logo encolhe um pouco e os ícones ficam mais juntos). */
+/* Cabeçalho responsivo com os 6 ícones + iniciais. Em celulares médios
+   (~390–440px, inclui Pro Max/Plus) mantém a logo grande e só aproxima um
+   pouco os ícones; nos bem estreitos (≤380px) aperta mais para não vazar. */
 @media (max-width: 440px) {
-  #header { padding: 8px 8px; gap: 4px; }
-  #header-logo { height: 30px; }
-  .header-acoes { gap: 0; }
-  .botao-icone { padding: 6px 3px; font-size: 1.1rem; }
+  #header { padding: 8px 9px; gap: 6px; }
+  #header-logo { height: 36px; }
+  .header-acoes { gap: 4px; }
+  .botao-icone { padding: 6px 4px; font-size: 1.1rem; }
 }
-
-/* ---------- Menu da conta (iniciais → Ajuda / Sair) ---------- */
-.menu-conta {
-  position: fixed;
-  top: 56px;
-  right: 10px;
-  z-index: 60;
-  min-width: 168px;
-  background: #fff;
-  border: 1px solid var(--cinza-borda);
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(22, 39, 110, 0.18);
-  padding: 6px;
+@media (max-width: 380px) {
+  #header { padding: 8px 7px; gap: 3px; }
+  #header-logo { height: 31px; }
+  .header-acoes { gap: 2px; }
+  .botao-icone { padding: 6px 2px; font-size: 1.02rem; }
 }
-.menu-conta button {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  text-align: left;
-  border: none;
-  background: none;
-  padding: 12px 12px;
-  border-radius: 8px;
-  font-size: 1rem;
-  color: var(--texto);
-  cursor: pointer;
-}
-.menu-conta button:active { background: var(--azul-claro); }
-#menu-sair { color: var(--vermelho); }
 
 /* ---------- Ajuda (accordion) ---------- */
 .ajuda-intro { color: var(--cinza-texto); font-size: 0.9rem; margin: 0 0 6px; }

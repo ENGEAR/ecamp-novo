@@ -238,43 +238,18 @@
     $('login-senha').type = this.checked ? 'text' : 'password';
   });
 
-  /* ============ Menu da conta (iniciais → Ajuda / Sair) ============ */
-  function fecharMenuConta() {
-    $('menu-conta').classList.add('oculto');
-    $('chip-usuario').setAttribute('aria-expanded', 'false');
-  }
-  function alternarMenuConta() {
-    var aberto = !$('menu-conta').classList.contains('oculto');
-    if (aberto) { fecharMenuConta(); return; }
-    $('menu-conta').classList.remove('oculto');
-    $('chip-usuario').setAttribute('aria-expanded', 'true');
-  }
-  $('chip-usuario').addEventListener('click', function (e) {
-    e.stopPropagation();
-    alternarMenuConta();
-  });
-  // Fecha ao tocar fora do menu ou apertar Esc.
-  document.addEventListener('click', function (e) {
-    if ($('menu-conta').classList.contains('oculto')) return;
-    if (!$('menu-conta').contains(e.target) && e.target !== $('chip-usuario') && !$('chip-usuario').contains(e.target)) fecharMenuConta();
-  });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') fecharMenuConta(); });
-
-  $('menu-ajuda').addEventListener('click', function () {
-    fecharMenuConta();
-    if (EC.ajuda && EC.ajuda.abrir) EC.ajuda.abrir();
-  });
-  // Atalho de Ajuda direto no cabeçalho (ícone ❓).
-  $('btn-ajuda').addEventListener('click', function () {
-    if (EC.ajuda && EC.ajuda.abrir) EC.ajuda.abrir();
-  });
-  $('menu-sair').addEventListener('click', function () {
-    fecharMenuConta();
+  /* ============ Conta (iniciais → Sair) e Ajuda (❓) ============ */
+  // Toque nas iniciais sai da conta. A Ajuda agora fica no ícone ❓ do topo.
+  $('chip-usuario').addEventListener('click', function () {
     if (confirm('Sair do eCamp?')) {
       EC.storage.remover(CHAVE_SESSAO);
       EC.auth.sair();
       prepararLogin();
     }
+  });
+  // Atalho de Ajuda direto no cabeçalho (ícone ❓).
+  $('btn-ajuda').addEventListener('click', function () {
+    if (EC.ajuda && EC.ajuda.abrir) EC.ajuda.abrir();
   });
 
   /* ============ Header: logo volta à tela inicial ============ */
