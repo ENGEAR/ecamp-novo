@@ -1028,12 +1028,24 @@ EC.reembolso = (function () {
       '<span class="rb-total-sub">' + comps.join('<br>') +
       (totalComAjustes(calc) !== calc.total ? '<br><em>(com os valores propostos nos ajustes)</em>' : '') + '</span>';
 
+    // Valor total ≥ R$ 2.500: não pode pedir 100% de uma única vez — o máximo
+    // por solicitação cai para 99% enquanto ainda há 100% disponível (a pessoa
+    // divide em parcelas). Se já solicitou parte, o disponível manda.
+    var limiteGrande = totalFinal >= 2500 && dispCampanha >= 100;
+    var pctInp = $('rb-percentual');
+    pctInp.max = limiteGrande ? 99 : Math.max(1, dispCampanha);
+    if (limiteGrande && percentualVal() >= 100) pctInp.value = 99;
+
     // Nota de disponível — POR DESIGNADO (pode pedir qualquer valor até 100%).
     var info = $('rb-pct-info');
     var quem = (tecSel && tecSel.nome) ? tecSel.nome : 'este designado';
     if (dispCampanha <= 0) {
       info.className = 'alerta alerta-vermelho';
       info.textContent = '🚫 ' + quem + ' já teve 100% da logística desta campanha solicitado/pago — não é possível novo reembolso para ele.';
+      info.classList.remove('oculto');
+    } else if (limiteGrande) {
+      info.className = 'alerta alerta-info';
+      info.textContent = 'ℹ️ Valor total ' + moedaBR(totalFinal) + ' (≥ R$ 2.500): não é possível pedir 100% de uma vez. Solicite no máximo 99% agora e o restante depois.';
       info.classList.remove('oculto');
     } else if (dispCampanha < 100) {
       info.className = 'alerta alerta-info';
@@ -1569,6 +1581,11 @@ EC.reembolso = (function () {
     if (!(pct > 0 && pct <= 100)) return mostrarErro('O percentual solicitado precisa ficar entre 1% e 100%.');
     if (dispCampanha <= 0) return mostrarErro('Este designado já teve 100% da logística desta campanha solicitado/pago — não é possível novo reembolso para ele.');
     if (pct > dispCampanha + 0.01) return mostrarErro('Você pode solicitar no máximo ' + dispCampanha + '% para este designado (o resto já foi solicitado/pago).');
+    // Valor total ≥ R$ 2.500: não pode pedir 100% de uma única vez.
+    var totalViagem = Math.round(((calc ? totalComAjustes(calc) : 0) + outrosVal()) * 100) / 100;
+    if (totalViagem >= 2500 && pct >= 100) {
+      return mostrarErro('O valor total (' + moedaBR(totalViagem) + ') é ≥ R$ 2.500 — não é possível pedir 100% de uma vez. Solicite no máximo 99% agora e o restante depois.');
+    }
     mostrarErro(null);
 
     // Anexos da VIAGEM (os blocos de Eventos/Veículos ficam de fora, mesmo se a
