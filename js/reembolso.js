@@ -1147,12 +1147,21 @@ EC.reembolso = (function () {
   function pintarTeto() {
     var preco = parseFloat($('rb-preco-litro').value) || 0;
     var teto = tetoDoCombustivel();
-    var estourou = preco > 0 && $('rb-combustivel').value && preco > teto;
+    var temTipo = !!$('rb-combustivel').value;
+    var estourou = preco > 0 && temTipo && preco > teto;
     $('rb-teto-alerta').classList.toggle('oculto', !estourou);
     $('rb-teto-just').classList.toggle('oculto', !estourou);
     if (estourou) {
       $('rb-teto-alerta').textContent = '⚠️ O preço informado passa do teto (' + moedaBR(teto) +
         '/L). Explique o motivo e anexe uma evidência (foto da bomba ou nota).';
+    }
+    // Referência do teto máximo enquanto o usuário digita o preço (só quando há
+    // tipo escolhido e ainda não estourou — se estourou, o alerta vermelho já diz).
+    var hint = $('rb-preco-hint');
+    if (hint) {
+      var mostrarHint = temTipo && teto > 0 && !estourou;
+      hint.classList.toggle('oculto', !mostrarHint);
+      if (mostrarHint) hint.textContent = 'Teto máximo: ' + moedaBR(teto) + '/L';
     }
   }
 
@@ -1442,6 +1451,7 @@ EC.reembolso = (function () {
     $('rb-comb-justificativa').value = '';
     $('rb-teto-alerta').classList.add('oculto');
     $('rb-teto-just').classList.add('oculto');
+    if ($('rb-preco-hint')) $('rb-preco-hint').classList.add('oculto');
     $('rb-pedagio').value = '';
     $('rb-percentual').value = '100';
     cacheDesignado = {}; // status de "OS paga" por designado é rebaixado a cada nova solicitação
@@ -2676,10 +2686,9 @@ EC.reembolso = (function () {
       r.addEventListener('change', aoMudarVeiculo);
     });
     $('rb-combustivel').addEventListener('change', function () {
-      // Preço por litro vem da config da Logística (o R$/litro configurado por
-      // combustível). Auto-preenche ao escolher o tipo; segue editável.
-      var t = tetoDoCombustivel();
-      $('rb-preco-litro').value = ($('rb-combustivel').value && t > 0) ? String(t) : '';
+      // O usuário digita o preço por litro (não auto-preenche). O teto máximo
+      // configurado pela Logística aparece como referência; se passar, o
+      // lembrete e a justificativa aparecem em pintarTeto().
       pintarTeto(); pintarValores();
     });
     $('rb-preco-litro').addEventListener('input', function () { pintarTeto(); pintarValores(); });
