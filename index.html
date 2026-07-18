@@ -24,12 +24,18 @@
       <button type="button" class="botao-icone" id="btn-rascunhos" title="Rascunhos — OS iniciadas e não finalizadas (últimos 30 dias)">📝</button>
       <button type="button" class="botao-icone" id="btn-agenda" title="Agenda">📅</button>
       <button type="button" class="botao-icone" id="btn-biblioteca" title="Biblioteca — normas e procedimentos">📚</button>
-      <button type="button" id="chip-usuario" title="Sair do eCamp">
+      <button type="button" id="chip-usuario" title="Conta (Ajuda e Sair)" aria-haspopup="true" aria-expanded="false">
         <span id="chip-avatar">?</span>
         <span id="chip-nome">Técnico</span>
       </button>
     </div>
   </header>
+
+  <!-- ======= Menu da conta (abre nas iniciais): Ajuda e Sair ======= -->
+  <div id="menu-conta" class="menu-conta oculto" role="menu">
+    <button type="button" id="menu-ajuda" role="menuitem">❓ Ajuda</button>
+    <button type="button" id="menu-sair" role="menuitem">🚪 Sair</button>
+  </div>
 
   <!-- ======= Barra de pendências offline ======= -->
   <div id="barra-pendencias" class="oculto">
@@ -654,6 +660,7 @@
   <script src="js/campo-outro.js"></script>
   <script src="js/fluxo.js"></script>
   <script src="js/reembolso.js"></script>
+  <script src="js/ajuda.js"></script>
   <script src="js/aprovacoes.js"></script>
   <script src="js/agenda.js"></script>
   <script src="js/biblioteca.js"></script>

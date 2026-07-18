@@ -114,6 +114,70 @@ code { background: var(--azul-claro); padding: 1px 5px; border-radius: 4px; font
   .botao-icone { padding: 6px 4px; font-size: 1.1rem; }
 }
 
+/* ---------- Menu da conta (iniciais → Ajuda / Sair) ---------- */
+.menu-conta {
+  position: fixed;
+  top: 56px;
+  right: 10px;
+  z-index: 60;
+  min-width: 168px;
+  background: #fff;
+  border: 1px solid var(--cinza-borda);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(22, 39, 110, 0.18);
+  padding: 6px;
+}
+.menu-conta button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 12px 12px;
+  border-radius: 8px;
+  font-size: 1rem;
+  color: var(--texto);
+  cursor: pointer;
+}
+.menu-conta button:active { background: var(--azul-claro); }
+#menu-sair { color: var(--vermelho); }
+
+/* ---------- Ajuda (accordion) ---------- */
+.ajuda-intro { color: var(--cinza-texto); font-size: 0.9rem; margin: 0 0 6px; }
+.ajuda-secao {
+  font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--cinza-texto); font-weight: 700; margin: 18px 0 6px;
+}
+.ajuda-topico {
+  border: 1px solid var(--cinza-borda);
+  border-radius: 10px;
+  margin: 8px 0;
+  background: #fff;
+  overflow: hidden;
+}
+.ajuda-topico > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 14px;
+  font-weight: 700;
+  color: var(--azul-escuro);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.ajuda-topico > summary::-webkit-details-marker { display: none; }
+.ajuda-topico > summary::after { content: "▸"; color: var(--cinza-texto); font-weight: 400; }
+.ajuda-topico[open] > summary::after { content: "▾"; }
+.ajuda-topico[open] > summary { border-bottom: 1px solid var(--cinza-borda); }
+.ajuda-corpo { padding: 12px 14px 14px; }
+.ajuda-corpo p { margin: 0 0 8px; }
+.ajuda-corpo ol, .ajuda-corpo ul { margin: 0; padding-left: 20px; }
+.ajuda-corpo li { margin: 6px 0; }
+.ajuda-rodape { color: var(--cinza-texto); font-size: 0.82rem; text-align: center; margin: 18px 0 2px; }
+
 /* ---------- Barra de pendências ---------- */
 #barra-pendencias {
   position: sticky;

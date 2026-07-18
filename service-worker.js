@@ -37,6 +37,7 @@ const ARQUIVOS_APP = [
   './js/campo-outro.js',
   './js/fluxo.js',
   './js/reembolso.js',
+  './js/ajuda.js',
   './js/aprovacoes.js',
   './js/agenda.js',
   './js/biblioteca.js',
