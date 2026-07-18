@@ -34,6 +34,8 @@ EC.ajuda = (function () {
     if (ehGestor) telaInicial.push('<strong>🧾 Extrato geral</strong> — todas as solicitações (Financeiro / Logística).');
     return (
       '<p class="ajuda-intro">Toque num tópico para abrir o passo a passo. Vale para o técnico de campo.</p>' +
+      '<label class="overlay-busca"><input type="search" id="ajuda-busca" placeholder="🔍 Buscar na ajuda…" autocomplete="off"></label>' +
+      '<p class="texto-apoio oculto" id="ajuda-vazio">Nada encontrado para essa busca.</p>' +
 
       secao('Primeiros passos') +
       topico('📲 Instalar no celular', ul([
@@ -140,9 +142,37 @@ EC.ajuda = (function () {
     );
   }
 
+  // Busca sem acento/caixa: filtra os tópicos pelo texto (título + corpo),
+  // abre os que casam e esconde as seções que ficaram sem nenhum tópico.
+  function semAcento(s) { return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+  function filtrar(termo) {
+    var cont = document.getElementById('overlay-conteudo');
+    if (!cont) return;
+    var q = semAcento(termo).trim();
+    var nodes = Array.prototype.slice.call(cont.children);
+    var grupos = [], atual = null, temVis = false, algum = false;
+    nodes.forEach(function (el) {
+      if (el.classList.contains('ajuda-secao')) {
+        if (atual) grupos.push({ sec: atual, vis: temVis });
+        atual = el; temVis = false;
+      } else if (el.classList.contains('ajuda-topico')) {
+        var match = !q || semAcento(el.textContent).indexOf(q) !== -1;
+        el.style.display = match ? '' : 'none';
+        el.open = !!q && match; // abre nos resultados; recolhe quando a busca está vazia
+        if (match) { temVis = true; algum = true; }
+      }
+    });
+    if (atual) grupos.push({ sec: atual, vis: temVis });
+    grupos.forEach(function (g) { g.sec.style.display = g.vis ? '' : 'none'; });
+    var vazio = document.getElementById('ajuda-vazio');
+    if (vazio) vazio.classList.toggle('oculto', algum || !q);
+  }
+
   function abrir() {
     if (!(EC.app && EC.app.abrirOverlay)) return;
     EC.app.abrirOverlay('❓ Ajuda — como usar o e-CAMP', html());
+    var input = document.getElementById('ajuda-busca');
+    if (input) input.addEventListener('input', function () { filtrar(input.value); });
   }
 
   return { abrir: abrir };
