@@ -23,6 +23,32 @@ EC.aprovacoes = (function () {
     mao_obra: '👷 Mão de obra', alimentacao: '🍽️ Alimentação'
   };
 
+  // Itens de valor que a Logística pode ajustar no aprovar, por tipo. Cada um
+  // mapeia para a coluna concreta de logistica_solicitacoes; o total é a soma.
+  var CAMPOS_ITEM = {
+    combustivel: { campo: 'valor_combustivel', rotulo: '⛽ Transporte (combustível)' },
+    aluguel:     { campo: 'valor_aluguel',     rotulo: '🚗 Aluguel de veículo' },
+    pedagio:     { campo: 'valor_pedagio',     rotulo: '🛣️ Pedágio' },
+    hospedagem:  { campo: 'valor_hospedagem',  rotulo: '🏨 Hospedagem' },
+    mao_obra:    { campo: 'valor_mao_obra',    rotulo: '👷 Mão de obra' },
+    almoco:      { campo: 'valor_almoco',      rotulo: '🍽️ Almoço' },
+    jantar:      { campo: 'valor_jantar',      rotulo: '🍽️ Jantar' },
+    lanche:      { campo: 'valor_lanche',      rotulo: '🥪 Lanche' },
+    pecas:       { campo: 'valor_pecas',       rotulo: '🔩 Compra de peças' },
+    manutencao:  { campo: 'valor_manutencao',  rotulo: '🛠️ Manutenção' },
+    outros:      { campo: 'valor_outros',      rotulo: '💠 Outros gastos' }
+  };
+  var ITENS_POR_TIPO = {
+    viagem:      ['combustivel', 'aluguel', 'pedagio', 'hospedagem', 'mao_obra', 'almoco', 'jantar', 'lanche', 'outros'],
+    evento:      ['mao_obra', 'outros'],
+    veiculo:     ['combustivel', 'pecas', 'manutencao', 'pedagio', 'outros'],
+    complemento: ['outros']
+  };
+  function rotDeCampo(campo) {
+    for (var k in CAMPOS_ITEM) if (CAMPOS_ITEM[k].campo === campo) return CAMPOS_ITEM[k].rotulo;
+    return campo;
+  }
+
   var detalheAtual = null, orcAtual = null;
 
   function $(id) { return document.getElementById(id); }
@@ -620,6 +646,64 @@ EC.aprovacoes = (function () {
   var EVENTO = { aguardando_pagamento: 'aprovou', rejeitado: 'rejeitou', correcao: 'pediu_correcao' };
   var MSG = { aguardando_pagamento: '✅ Aprovada! Seguiu para pagamento.', rejeitado: '❌ Solicitação rejeitada.', correcao: '✏️ Correção solicitada ao técnico.' };
 
+  // ---- Ajuste de VALORES pela Logística (edição por item) -------------------
+  // Monta os campos editáveis (só os itens com valor > 0), guardando o valor
+  // original em data-orig. O total recalcula a partir dos deltas (robusto mesmo
+  // que o total tenha componentes fora desta lista).
+  function montarAjusteEditor(s) {
+    var wrap = $('apr-ajuste-itens');
+    if (!wrap) return;
+    var tipo = s.tipo || 'viagem';
+    var chaves = (ITENS_POR_TIPO[tipo] || ITENS_POR_TIPO.viagem).filter(function (k) {
+      return Number(s[CAMPOS_ITEM[k].campo]) > 0;
+    });
+    if (!chaves.length) {
+      wrap.innerHTML = '<p class="texto-apoio">Sem itens de valor para ajustar.</p>';
+      if ($('apr-ajuste-hint')) $('apr-ajuste-hint').textContent = '';
+      return;
+    }
+    wrap.innerHTML = chaves.map(function (k) {
+      var it = CAMPOS_ITEM[k];
+      var v = Math.round(Number(s[it.campo]) * 100) / 100;
+      return '<label class="apr-ajuste-item"><span>' + it.rotulo + '</span>' +
+        '<input type="number" class="apr-ajuste-in" data-campo="' + it.campo + '" data-orig="' + v + '" ' +
+        'min="0" step="0.01" inputmode="decimal" value="' + v + '"></label>';
+    }).join('');
+    wrap.querySelectorAll('.apr-ajuste-in').forEach(function (inp) {
+      inp.addEventListener('input', function () { recalcularAjuste(s); });
+    });
+    recalcularAjuste(s);
+  }
+
+  // Lê os campos: soma os deltas sobre o total original, marca quais mudaram.
+  function lerAjuste(s) {
+    var wrap = $('apr-ajuste-itens');
+    var inps = wrap ? wrap.querySelectorAll('.apr-ajuste-in') : [];
+    var totalOrig = Math.round((Number(s.valor_total) || 0) * 100) / 100;
+    var delta = 0, mudou = false, campos = {};
+    Array.prototype.forEach.call(inps, function (inp) {
+      var orig = Math.round((parseFloat(inp.dataset.orig) || 0) * 100) / 100;
+      var bruto = String(inp.value).trim().replace(',', '.');
+      var val = bruto === '' ? orig : Math.round(parseFloat(bruto) * 100) / 100;
+      if (isNaN(val) || val < 0) val = orig;
+      if (Math.abs(val - orig) > 0.001) { mudou = true; campos[inp.dataset.campo] = val; delta += (val - orig); }
+    });
+    return { novoTotal: Math.round((totalOrig + delta) * 100) / 100, mudou: mudou, campos: campos };
+  }
+
+  function recalcularAjuste(s) {
+    var hint = $('apr-ajuste-hint');
+    if (!hint) return;
+    var r = lerAjuste(s);
+    var totalOrig = Math.round((Number(s.valor_total) || 0) * 100) / 100;
+    if (r.mudou) {
+      hint.innerHTML = 'Novo total: <strong>' + moeda(r.novoTotal) + '</strong> · calculado: ' + moeda(totalOrig) +
+        '. Justifique o ajuste na observação abaixo.';
+    } else {
+      hint.textContent = 'Total calculado: ' + moeda(totalOrig) + '. Edite um item acima para pagar mais ou menos (com justificativa).';
+    }
+  }
+
   async function decidir(acao) {
     var s = detalheAtual;
     if (!s) return;
@@ -631,15 +715,14 @@ EC.aprovacoes = (function () {
     // Se a logística não aceita o valor como está, ela ajusta (nos dois sentidos),
     // justifica e segue direto para o pagamento — não devolve ao técnico.
     var totalAtual = Number(s.valor_total) || 0;
-    var ajTxt = (($('apr-ajuste-valor') && $('apr-ajuste-valor').value) || '').trim();
-    var novoTotal = ajTxt ? Math.round(parseFloat(ajTxt.replace(',', '.')) * 100) / 100 : null;
+    var aj = lerAjuste(s);   // { novoTotal, mudou, campos }
+    var novoTotal = null;
     var temAjuste = false;
-    if (acao === 'aguardando_pagamento' && novoTotal != null) {
-      if (!(novoTotal > 0)) return mostrarErro('Valor do ajuste inválido.');
-      if (Math.abs(novoTotal - totalAtual) > 0.001) {
-        temAjuste = true;
-        if (!obs) return mostrarErro('Você está ajustando o valor — escreva a justificativa na observação.');
-      }
+    if (acao === 'aguardando_pagamento' && aj.mudou) {
+      temAjuste = true;
+      novoTotal = aj.novoTotal;
+      if (!(novoTotal > 0)) return mostrarErro('O novo total ficou inválido (deve ser maior que zero).');
+      if (!obs) return mostrarErro('Você está ajustando valores — escreva a justificativa na observação.');
     }
     // aprovar acima do orçamento previsto → exige justificativa na observação
     if (acao === 'aguardando_pagamento' && orcAtual && orcAtual.previsto > 0 &&
@@ -660,9 +743,11 @@ EC.aprovacoes = (function () {
         decidido_em: new Date().toISOString(),
         decidido_por: user ? user.id : null
       };
-      // Aplica o ajuste para mais: novo total + parcela recalculada pelo percentual.
+      // Aplica o ajuste (para mais ou para menos): grava os itens editados, o novo
+      // total e a parcela recalculada pelo percentual. Segue direto p/ pagamento.
       if (temAjuste) {
         var pct = s.percentual_solicitado != null ? Number(s.percentual_solicitado) : 100;
+        Object.keys(aj.campos).forEach(function (c) { campos[c] = aj.campos[c]; });
         campos.valor_total = novoTotal;
         campos.valor_solicitado = Math.round(novoTotal * pct) / 100;
       }
@@ -677,7 +762,9 @@ EC.aprovacoes = (function () {
       } else {
         try {
           var det = temAjuste
-            ? 'Logística ajustou o total de ' + moeda(totalAtual) + ' para ' + moeda(novoTotal) + (obs ? ' — ' + obs : '')
+            ? 'Logística ajustou (total ' + moeda(totalAtual) + ' → ' + moeda(novoTotal) + '): ' +
+              Object.keys(aj.campos).map(function (c) { return rotDeCampo(c) + ' → ' + moeda(aj.campos[c]); }).join(', ') +
+              (obs ? ' — ' + obs : '')
             : (obs || null);
           await cli.from('logistica_eventos').insert({
             solicitacao_id: s.id, acao: EVENTO[acao],
@@ -704,11 +791,7 @@ EC.aprovacoes = (function () {
     bLog.classList.add('oculto'); bPag.classList.add('oculto');
     if (s.status === 'aguardando_logistica' && ehLogistica()) {
       $('apr-obs').value = '';
-      if ($('apr-ajuste-valor')) $('apr-ajuste-valor').value = '';
-      if ($('apr-ajuste-hint')) {
-        $('apr-ajuste-hint').textContent = 'Valor total calculado: ' + moeda(s.valor_total) +
-          '. Deixe vazio para manter; preencha para pagar mais OU menos (com justificativa).';
-      }
+      montarAjusteEditor(s);
       bLog.classList.remove('oculto');
     } else if (s.status === 'aguardando_pagamento' && ehFinanceiro()) {
       $('pag-data').value = hojeISO();

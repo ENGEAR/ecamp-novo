@@ -509,11 +509,10 @@
         <!-- Ação da LOGÍSTICA (quando aguardando aprovação) -->
         <div id="apr-acao-logistica" class="oculto">
           <p class="dg-secao">Decisão da Logística</p>
-          <label>Ajustar valor total <span class="rotulo-apoio">(opcional — para mais ou para menos; justifique na observação)</span>
-            <input type="number" id="apr-ajuste-valor" min="0" step="0.01" inputmode="decimal" placeholder="deixe vazio para manter o valor">
-          </label>
+          <p class="rotulo-apoio" style="margin:0 0 8px;">Ajuste de valores (opcional) — edite os itens que quiser pagar a mais ou a menos. O total recalcula sozinho; justifique na observação.</p>
+          <div id="apr-ajuste-itens"></div>
           <div id="apr-ajuste-hint" class="texto-apoio"></div>
-          <label>Observação <span class="rotulo-apoio">(obrigatória para rejeitar, pedir correção ou ajustar o valor)</span>
+          <label>Observação <span class="rotulo-apoio">(obrigatória para rejeitar, pedir correção ou ajustar valores)</span>
             <textarea id="apr-obs" rows="3" placeholder="Escreva uma observação (opcional ao aprovar sem ajuste)"></textarea>
           </label>
           <div class="pilha-botoes">
