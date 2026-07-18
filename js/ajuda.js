@@ -122,8 +122,8 @@ EC.ajuda = (function () {
         'Todas as suas solicitações ficam salvas com o detalhamento dos cálculos e as evidências anexadas, bem como os comprovantes de pagamento. Os registros ficam armazenados por mês e ano, podendo ser buscados pelo número da OS ou nome do cliente/projeto.'
       ])) +
       topico('➕ Saldo, adiantamento, ajuste e editar', ul([
-        '<strong>Saldo pendente</strong> — se pediu menos de 100%, peça o que faltou (botão “💠 Serviços com saldo pendente”).',
-        '<strong>Adiantamento</strong> — marque “Sim” e informe data e valor; o app desconta do total.',
+        '<strong>Saldo pendente</strong> — se pediu menos de 100%, peça o que faltou. Basta clicar no botão <strong>“💠 Serviços com saldo pendente”</strong> e colocar a porcentagem que quer pedir.',
+        '<strong>Adiantamento</strong> — caso a ENGEAR tenha pago algum valor adiantado, marque “Sim” em adiantamento e informe data e valor; o app desconta do total.',
         '<strong>Ajuste</strong> — não concorda com um valor? Marque “Solicitar ajuste” com a justificativa.',
         '<strong>Editar</strong> — corrija uma solicitação já enviada (as fotos precisam ser anexadas de novo).'
       ])) +
