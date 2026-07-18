@@ -22,31 +22,36 @@ EC.ajuda = (function () {
   function ul(itens) { return '<ul>' + itens.map(function (i) { return '<li>' + i + '</li>'; }).join('') + '</ul>'; }
 
   function html() {
+    // Papéis do usuário (mesmo critério do botão "Extrato geral" no app.js):
+    // a linha do Extrato geral só aparece para Financeiro / Logística / admin.
+    var pap = ((EC.storage && EC.storage.ler('sessao:atual')) || {}).papeis || [];
+    var ehGestor = pap.indexOf('financeiro') !== -1 || pap.indexOf('logistica') !== -1 || pap.indexOf('admin') !== -1;
+    var telaInicial = [
+      '<strong>🛠️ Serviços</strong> — registrar um monitoramento em campo.',
+      '<strong>💰 Solicitação de reembolso</strong>.',
+      '<strong>📅 Agenda</strong> — a sua programação.'
+    ];
+    if (ehGestor) telaInicial.push('<strong>🧾 Extrato geral</strong> — todas as solicitações (Financeiro / Logística).');
     return (
       '<p class="ajuda-intro">Toque num tópico para abrir o passo a passo. Vale para o técnico de campo.</p>' +
 
       secao('Primeiros passos') +
-      topico('▶️ Entrar no app', ul([
-        'Use o <strong>mesmo e-mail e senha do SGP</strong>.',
-        'Marque <strong>“Salvar e-mail e senha”</strong> para não digitar toda vez.',
-        'Esqueceu a senha? Peça ao administrador para redefinir (a senha é gerida por ele).',
-        'Conta desativada não entra — fale com o administrador.'
-      ])) +
-      topico('🏠 Tela inicial', ul([
-        '<strong>🛠️ Serviços</strong> — registrar um monitoramento em campo.',
-        '<strong>💰 Solicitação de reembolso</strong>.',
-        '<strong>📅 Agenda</strong> — a sua programação.',
-        '<strong>🧾 Extrato geral</strong> — só Financeiro / Logística.'
-      ])) +
       topico('📲 Instalar no celular', ul([
         '<strong>Android (Chrome):</strong> menu ⋮ → “Adicionar à tela de início”.',
         '<strong>iPhone (Safari):</strong> botão Compartilhar → “Adicionar à Tela de Início”.',
         'O <strong>primeiro acesso precisa de internet</strong>; depois o app abre e funciona offline.'
       ])) +
+      topico('▶️ Entrar no app', ul([
+        'Use o seu <strong>e-mail corporativo</strong> (@engearlaboratorio.com.br) se for funcionário efetivo da empresa. Em caso de <strong>freelancer</strong>, use o e-mail informado para a ENGEAR.',
+        'Marque <strong>“Salvar e-mail e senha”</strong> para não digitar toda vez.',
+        'Esqueceu a senha? Peça ao administrador para redefinir (a senha é gerida por ele).',
+        'Conta desativada não entra — fale com o administrador.'
+      ])) +
+      topico('🏠 Tela inicial', ul(telaInicial)) +
 
       secao('A barra do topo') +
       topico('🔝 O que faz cada ícone', ul([
-        '🔔 <strong>Avisos e aprovações</strong> — pendências de reembolso e lembretes de serviço.',
+        '🔔 <strong>Avisos e aprovações</strong> — pagamentos de reembolso, lembretes de serviço e outros avisos.',
         '🕐 <strong>Histórico</strong> — serviços finalizados (últimos 30 dias).',
         '📝 <strong>Rascunhos</strong> — serviços começados e não finalizados.',
         '📅 <strong>Agenda</strong> — a sua programação.',
