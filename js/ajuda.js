@@ -36,6 +36,11 @@ EC.ajuda = (function () {
       '<p class="ajuda-intro">Toque num tópico para abrir o passo a passo. Vale para o técnico de campo.</p>' +
 
       secao('Primeiros passos') +
+      '<div class="ajuda-banner">' +
+        '<span class="ajuda-banner-tit">📚 Baixe a Biblioteca no primeiro acesso</span>' +
+        'Assim que acessar o e-CAMP pela primeira vez, abra o menu <strong>Biblioteca</strong> e faça o download de todos os arquivos.' +
+        '<span class="ajuda-banner-alerta">🚨 <strong>Atenção:</strong> esta etapa é indispensável — é ela que garante o acesso às normas e procedimentos de referência para a execução dos serviços. Sempre que um documento é atualizado, você recebe uma notificação no sininho (🔔) avisando que há novos arquivos para baixar. Fique atento.</span>' +
+      '</div>' +
       topico('📲 Instalar no celular', ul([
         '<strong>Android (Chrome):</strong> menu ⋮ → “Adicionar à tela de início”.',
         '<strong>iPhone (Safari):</strong> botão Compartilhar → “Adicionar à Tela de Início”.',

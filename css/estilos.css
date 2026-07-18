@@ -178,6 +178,26 @@ code { background: var(--azul-claro); padding: 1px 5px; border-radius: 4px; font
 .ajuda-corpo li { margin: 6px 0; }
 .ajuda-rodape { color: var(--cinza-texto); font-size: 0.82rem; text-align: center; margin: 18px 0 2px; }
 
+/* Banner de destaque na Ajuda (ex.: baixar a Biblioteca no 1º acesso) */
+.ajuda-banner {
+  background: var(--azul-claro);
+  border: 1px solid #cde1f2;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 8px 0 14px;
+  font-size: 0.95rem;
+}
+.ajuda-banner-tit { display: block; font-weight: 700; color: var(--azul-escuro); margin-bottom: 6px; }
+.ajuda-banner-alerta {
+  display: block;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--amarelo-claro);
+  border: 1px solid #ecd98a;
+  border-radius: 8px;
+  color: #6b5600;
+}
+
 /* ---------- Barra de pendências ---------- */
 #barra-pendencias {
   position: sticky;
@@ -242,6 +262,11 @@ input[type="text"], input[type="email"], input[type="password"], input[type="num
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--azul); border-color: var(--azul); }
 input[readonly], textarea[readonly] { background: var(--cinza-fundo); }
 textarea { resize: vertical; font-family: inherit; }
+
+/* Ajuste de valores pela Logística (tela de decisão): rótulo à esquerda, valor à direita */
+.apr-ajuste-item { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.apr-ajuste-item > span { flex: 1; font-size: 0.9rem; color: var(--cinza-texto); }
+.apr-ajuste-item > input { margin-top: 0; width: 130px; flex: none; }
 
 .linha-check {
   display: flex;
