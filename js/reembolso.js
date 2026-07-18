@@ -2518,22 +2518,72 @@ EC.reembolso = (function () {
     return out;
   }
 
+  // ---- Saldo pendente de TODOS (logística/admin) --------------------------
+  // A logística vê os serviços com saldo pendente de QUALQUER técnico e pode
+  // solicitar o restante em nome dele (o /saldo copia o designado da parcela
+  // aprovada). Fonte: TODAS as solicitações (RLS libera leitura p/ gestor); o
+  // jaConsumido é calculado aqui (o /lista só traz as do próprio usuário).
+  var saldosGeraisCache = [];
+  function podeVerSaldosDeTodos() {
+    var p = (sessao().papeis) || [];
+    return p.indexOf('logistica') !== -1 || p.indexOf('admin') !== -1;
+  }
+  async function carregarSaldosGerais() {
+    var cli = (EC.auth && EC.auth.cliente) ? EC.auth.cliente() : null;
+    if (!cli) return saldosGeraisCache; // offline: mantém o último carregado
+    try {
+      var q = await cli.from('logistica_solicitacoes').select('*')
+        .eq('tipo', 'viagem') // saldo só existe na viagem
+        .in('status', ['aguardando_logistica', 'aguardando_pagamento', 'pago'])
+        .order('created_at', { ascending: false });
+      if (q.error) throw q.error;
+      var grupos = {};
+      (q.data || []).forEach(function (p) {
+        var chave = p.os + '|' + p.campanha_numero + '|' + (p.designado || '');
+        if (!grupos[chave]) grupos[chave] = { os: p.os, campanha: p.campanha_numero, cliente: p.cliente, designado: p.designado || '', consumido: 0, aprovada: null };
+        grupos[chave].consumido += Number(p.percentual_solicitado || 0);
+        // template = parcela aprovada mais recente (a consulta vem por created_at desc)
+        if (!grupos[chave].aprovada && (p.status === 'aguardando_pagamento' || p.status === 'pago')) grupos[chave].aprovada = p;
+      });
+      var out = [];
+      Object.keys(grupos).forEach(function (k) {
+        var g = grupos[k];
+        var disp = Math.round((100 - g.consumido) * 100) / 100;
+        if (g.aprovada && disp > 0) out.push({ os: g.os, campanha: g.campanha, cliente: g.cliente, designado: g.designado, template: g.aprovada, jaConsumido: Math.round(g.consumido * 100) / 100, disponivel: disp });
+      });
+      out.sort(function (a, b) { return String(a.os).localeCompare(String(b.os)) || String(a.designado).localeCompare(String(b.designado)); });
+      saldosGeraisCache = out;
+    } catch (e) { /* erro/offline: mantém o cache anterior */ }
+    return saldosGeraisCache;
+  }
+
   function atualizarSaldoBtn() {
     var btn = $('rb-saldo-btn');
     if (!btn) return;
-    var n = saldosDisponiveis().length;
-    btn.classList.toggle('oculto', n === 0);
-    $('rb-saldo-badge').textContent = n > 0 ? '(' + n + ')' : '';
+    function pintarBadge(n) {
+      btn.classList.toggle('oculto', n === 0);
+      $('rb-saldo-badge').textContent = n > 0 ? '(' + n + ')' : '';
+    }
+    if (podeVerSaldosDeTodos()) {
+      // gestor: conta os saldos de TODOS (mostra o cache enquanto rebusca)
+      pintarBadge(saldosGeraisCache.length);
+      carregarSaldosGerais().then(function (lista) { pintarBadge(lista.length); });
+      return;
+    }
+    pintarBadge(saldosDisponiveis().length);
   }
 
   function pintarSaldoLista() {
     var area = $('rb-saldo-lista');
-    var lista = saldosDisponiveis();
+    var gestor = podeVerSaldosDeTodos();
+    var lista = gestor ? saldosGeraisCache : saldosDisponiveis();
     if (!lista.length) { area.innerHTML = '<p class="texto-apoio">Nenhum serviço com saldo pendente. 🎉</p>'; return; }
     area.innerHTML = lista.map(function (s) {
-      return '<button type="button" class="rb-pedido rb-pedido-click" data-chave="' + s.os + '|' + s.campanha + '">' +
+      var chave = s.os + '|' + s.campanha + '|' + (s.designado || '');
+      return '<button type="button" class="rb-pedido rb-pedido-click" data-chave="' + chave + '">' +
         '<div class="rb-pedido-topo"><span class="os-numero">OS ' + s.os + '</span>' +
         '<span class="rb-status rb-pendente">faltam ' + s.disponivel + '%</span></div>' +
+        (gestor && s.designado ? '<div class="os-resumo"><strong>' + s.designado + '</strong></div>' : '') +
         (s.cliente ? '<div class="os-resumo">' + s.cliente + '</div>' : '') +
         '<div class="os-resumo">Total da logística: ' + moedaBR(s.template.valor_total) + ' · já solicitado ' + s.jaConsumido + '%</div>' +
         '<div class="rb-ver-extrato">💠 Solicitar saldo ›</div>' +
@@ -2541,14 +2591,19 @@ EC.reembolso = (function () {
     }).join('');
     area.querySelectorAll('.rb-pedido-click[data-chave]').forEach(function (el) {
       el.addEventListener('click', function () {
-        var s = lista.filter(function (x) { return (x.os + '|' + x.campanha) === el.dataset.chave; })[0];
+        var s = lista.filter(function (x) { return (x.os + '|' + x.campanha + '|' + (x.designado || '')) === el.dataset.chave; })[0];
         if (s) abrirSaldoDetalhe(s);
       });
     });
   }
 
-  function abrirSaldos() {
+  async function abrirSaldos() {
     EC.app.mostrarTela('tela-saldo-pendente');
+    var area = $('rb-saldo-lista');
+    if (podeVerSaldosDeTodos()) {
+      if (area) area.innerHTML = '<p class="texto-apoio">Carregando…</p>';
+      await carregarSaldosGerais();
+    }
     pintarSaldoLista();
   }
 
@@ -2571,7 +2626,8 @@ EC.reembolso = (function () {
     window.scrollTo(0, 0);
     saldoErro(null);
     $('rb-saldo-det').innerHTML = renderResumoPedido(s.template);
-    $('rb-saldo-info').textContent = 'ℹ️ Já solicitado nesta campanha: ' + s.jaConsumido + '%. Disponível: ' + s.disponivel + '%.';
+    $('rb-saldo-info').textContent = (podeVerSaldosDeTodos() && s.designado ? '👤 Solicitando para ' + s.designado + '. ' : '') +
+      'ℹ️ Já solicitado nesta campanha: ' + s.jaConsumido + '%. Disponível: ' + s.disponivel + '%.';
     var inp = $('rb-saldo-pct');
     inp.max = s.disponivel;
     inp.value = s.disponivel;
