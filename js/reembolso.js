@@ -1028,13 +1028,13 @@ EC.reembolso = (function () {
       '<span class="rb-total-sub">' + comps.join('<br>') +
       (totalComAjustes(calc) !== calc.total ? '<br><em>(com os valores propostos nos ajustes)</em>' : '') + '</span>';
 
-    // Valor total ≥ R$ 2.500: não pode pedir 100% de uma única vez — o máximo
-    // por solicitação cai para 99% enquanto ainda há 100% disponível (a pessoa
-    // divide em parcelas). Se já solicitou parte, o disponível manda.
-    var limiteGrande = totalFinal >= 2500 && dispCampanha >= 100;
+    // Valor total ≥ R$ 2.500: teto de 70% POR SOLICITAÇÃO (a pessoa divide em
+    // parcelas). O disponível do designado manda quando é menor que 70%.
+    var grande = totalFinal >= 2500;
+    var maxPct = grande ? Math.min(70, dispCampanha) : dispCampanha;
     var pctInp = $('rb-percentual');
-    pctInp.max = limiteGrande ? 99 : Math.max(1, dispCampanha);
-    if (limiteGrande && percentualVal() >= 100) pctInp.value = 99;
+    pctInp.max = Math.max(1, maxPct);
+    if (percentualVal() > maxPct + 0.001) pctInp.value = maxPct > 0 ? maxPct : 0;
 
     // Nota de disponível — POR DESIGNADO (pode pedir qualquer valor até 100%).
     var info = $('rb-pct-info');
@@ -1043,9 +1043,9 @@ EC.reembolso = (function () {
       info.className = 'alerta alerta-vermelho';
       info.textContent = '🚫 ' + quem + ' já teve 100% da logística desta campanha solicitado/pago — não é possível novo reembolso para ele.';
       info.classList.remove('oculto');
-    } else if (limiteGrande) {
+    } else if (grande && maxPct < dispCampanha - 0.001) {
       info.className = 'alerta alerta-info';
-      info.textContent = 'ℹ️ Valor total ' + moedaBR(totalFinal) + ' (≥ R$ 2.500): não é possível pedir 100% de uma vez. Solicite no máximo 99% agora e o restante depois.';
+      info.textContent = 'ℹ️ Valor total ' + moedaBR(totalFinal) + ' (≥ R$ 2.500): máximo 70% por solicitação. Peça até 70% agora e o restante em outra solicitação.';
       info.classList.remove('oculto');
     } else if (dispCampanha < 100) {
       info.className = 'alerta alerta-info';
@@ -1581,10 +1581,10 @@ EC.reembolso = (function () {
     if (!(pct > 0 && pct <= 100)) return mostrarErro('O percentual solicitado precisa ficar entre 1% e 100%.');
     if (dispCampanha <= 0) return mostrarErro('Este designado já teve 100% da logística desta campanha solicitado/pago — não é possível novo reembolso para ele.');
     if (pct > dispCampanha + 0.01) return mostrarErro('Você pode solicitar no máximo ' + dispCampanha + '% para este designado (o resto já foi solicitado/pago).');
-    // Valor total ≥ R$ 2.500: não pode pedir 100% de uma única vez.
+    // Valor total ≥ R$ 2.500: teto de 70% por solicitação.
     var totalViagem = Math.round(((calc ? totalComAjustes(calc) : 0) + outrosVal()) * 100) / 100;
-    if (totalViagem >= 2500 && pct >= 100) {
-      return mostrarErro('O valor total (' + moedaBR(totalViagem) + ') é ≥ R$ 2.500 — não é possível pedir 100% de uma vez. Solicite no máximo 99% agora e o restante depois.');
+    if (totalViagem >= 2500 && pct > 70.001) {
+      return mostrarErro('O valor total (' + moedaBR(totalViagem) + ') é ≥ R$ 2.500 — o máximo por solicitação é 70%. Peça até 70% agora e o restante em outra solicitação.');
     }
     mostrarErro(null);
 
