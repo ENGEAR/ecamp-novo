@@ -110,10 +110,10 @@ EC.ajuda = (function () {
         'Anexe os <strong>comprovantes</strong> (📷 foto · 🖼️ galeria · 📎 PDF) e envie.'
       ])) +
       topico('🧳 Tipos de reembolso', ul([
-        '<strong>Viagem</strong> — datas, transporte, distância, combustível, pedágio e valores.',
-        '<strong>Eventos</strong> — pagamento por diárias do evento.',
-        '<strong>Veículos</strong> — abastecimento, peças e manutenção.',
-        '<strong>Complemento</strong> — aparece quando a OS já está 100% paga (paga o combustível dos km a mais).'
+        '🧳 <strong>Viagem:</strong> opção para solicitar a previsão de despesas de viagens destinadas à execução de serviços de monitoramento.',
+        '➕ <strong>Complemento:</strong> opção para solicitar um valor complementar referente a despesas não previstas na solicitação inicial da viagem.',
+        '🔊 <strong>Eventos:</strong> opção para solicitar o pagamento do valor acordado para a realização de monitoramentos em eventos, como shows, partidas esportivas, feiras, entre outros.',
+        '🚗 <strong>Veículos:</strong> opção para solicitar o reembolso ou pagamento de despesas relacionadas exclusivamente ao uso de veículos, como abastecimento, manutenção, pedágios e outros custos associados.'
       ])) +
       topico('📊 Acompanhar o status', ul([
         'Em <strong>“Minhas solicitações”</strong> cada pedido mostra o status:',
