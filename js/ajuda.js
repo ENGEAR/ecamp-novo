@@ -118,7 +118,8 @@ EC.ajuda = (function () {
       topico('📊 Acompanhar o status', ul([
         'Em <strong>“Minhas solicitações”</strong> cada pedido mostra o status:',
         '⏳ Aguardando aprovação da Logística → ✅ Aguardando pagamento → 💰 Pago.',
-        'Toque numa solicitação para ver o <strong>extrato</strong> (valores, parcelas e comprovantes).'
+        'Toque numa solicitação para ver o <strong>extrato</strong> (valores, parcelas e comprovantes).',
+        'Todas as suas solicitações ficam salvas com o detalhamento dos cálculos e as evidências anexadas, bem como os comprovantes de pagamento. Os registros ficam armazenados por mês e ano, podendo ser buscados pelo número da OS ou nome do cliente/projeto.'
       ])) +
       topico('➕ Saldo, adiantamento, ajuste e editar', ul([
         '<strong>Saldo pendente</strong> — se pediu menos de 100%, peça o que faltou (botão “💠 Serviços com saldo pendente”).',
