@@ -299,7 +299,7 @@ EC.aprovacoes = (function () {
     var t = s.tipo === 'evento' ? 'evento' : (s.tipo === 'complemento' ? 'complemento' : 'veiculo');
     var cat = s.solicitante_tipo === 'freelancer' ? 'Freelancer' : (s.solicitante_tipo === 'clt' ? 'CLT' : '—');
     var itens = t === 'complemento'
-      ? [['➕', 'Complemento de combustível (km a mais)', s.valor_outros]]
+      ? [['➕', 'Complemento de combustível (km a mais)', s.valor_combustivel], ['💠', 'Outros gastos', s.valor_outros]]
       : t === 'evento'
       ? [['🔊', 'Diárias do evento' + (s.dias_servico != null ? ' (' + s.dias_servico + ' dia(s))' : ''), s.valor_mao_obra]]
       : [
@@ -327,9 +327,13 @@ EC.aprovacoes = (function () {
         kmInfo += linhaInfo('Quilometragem percorrida', (Math.round((Number(s.km_final) - Number(s.km_atual)) * 100) / 100) + ' km');
       }
     }
-    var rotJust = t === 'complemento' ? '➕ Cálculo do complemento' : '💠 Justificativa dos outros gastos';
-    var outrosJust = Number(s.valor_outros) > 0 && s.outros_justificativa
-      ? '<div class="apr-just">' + rotJust + ': ' + esc(s.outros_justificativa) + '</div>' : '';
+    var outrosJust = '';
+    if (t === 'complemento' && Number(s.valor_combustivel) > 0 && s.combustivel_justificativa) {
+      outrosJust += '<div class="apr-just">➕ Cálculo do complemento: ' + esc(s.combustivel_justificativa) + '</div>';
+    }
+    if (Number(s.valor_outros) > 0 && s.outros_justificativa) {
+      outrosJust += '<div class="apr-just">💠 Justificativa dos outros gastos: ' + esc(s.outros_justificativa) + '</div>';
+    }
 
     // Pagamento único (100%): o adiantamento desconta por inteiro.
     var adiant = Number(s.adiantamento_valor) || 0;

@@ -745,17 +745,18 @@ EC.reembolso = (function () {
     var v = compViagem;
     var finalTxt = String($('rb-comp-kmfinal').value).trim();
     var finalKm = finalTxt === '' ? null : parseFloat(finalTxt.replace(',', '.'));
-    var out = { inicial: null, final: finalKm, percorrida: null, efetiva: null, extra: null, valor: 0, ok: false, msg: '' };
-    if (!v || v.km_atual == null) { out.msg = 'A viagem desta OS não tem a quilometragem inicial registrada — não dá para calcular o complemento.'; return out; }
+    var out = { inicial: (v && v.km_atual != null ? Number(v.km_atual) : null), final: finalKm, percorrida: null, efetiva: null, extra: null, valor: 0, ok: false, msg: '', erroKm: false };
+    if (out.inicial != null) out.efetiva = Math.round(((Number(v.distancia_km) || 0) + 5 * (Number(v.dias_servico) || 0)) * 100) / 100;
+    // Km é OPCIONAL: em branco → sem complemento por km (a pessoa pode lançar só outros gastos).
+    if (finalKm == null) return out;
+    // A partir daqui a pessoa digitou uma km final — validamos de verdade (erroKm bloqueia o envio).
+    if (out.inicial == null) { out.msg = 'A viagem desta OS não tem a quilometragem inicial registrada — deixe a km final em branco e lance só os outros gastos.'; out.erroKm = true; return out; }
     var consumo = Number(v.consumo_kml) || 0, preco = Number(v.preco_litro) || 0;
-    if (!(consumo > 0) || !(preco > 0)) { out.msg = 'A viagem não teve combustível reembolsado — não há como calcular o complemento por km.'; return out; }
-    out.inicial = Number(v.km_atual);
-    out.efetiva = Math.round(((Number(v.distancia_km) || 0) + 5 * (Number(v.dias_servico) || 0)) * 100) / 100;
-    if (finalKm == null || !(finalKm >= 0)) return out; // ainda não digitou o final
+    if (!(consumo > 0) || !(preco > 0)) { out.msg = 'A viagem não teve combustível reembolsado — não dá para calcular o complemento por km. Deixe a km em branco e lance só os outros gastos.'; out.erroKm = true; return out; }
     out.percorrida = Math.round((finalKm - out.inicial) * 100) / 100;
-    if (!(out.percorrida > 0)) { out.msg = 'A quilometragem final deve ser maior que a inicial (' + out.inicial + ' km).'; return out; }
+    if (!(out.percorrida > 0)) { out.msg = 'A quilometragem final deve ser maior que a inicial (' + out.inicial + ' km).'; out.erroKm = true; return out; }
     out.extra = Math.round((out.percorrida - out.efetiva) * 100) / 100;
-    if (!(out.extra > 0)) { out.msg = 'A quilometragem percorrida (' + out.percorrida + ' km) não passou da já paga na viagem (' + out.efetiva + ' km) — não há complemento a pagar.'; return out; }
+    if (!(out.extra > 0)) { out.msg = 'A quilometragem percorrida (' + out.percorrida + ' km) não passou da já paga na viagem (' + out.efetiva + ' km) — sem complemento por km (mas você pode lançar outros gastos).'; return out; }
     out.valor = Math.round((out.extra / consumo) * preco * 100) / 100;
     out.ok = out.valor > 0;
     return out;
@@ -793,9 +794,9 @@ EC.reembolso = (function () {
     $('rb-veic-bloco').classList.toggle('oculto', !ehVeic);
     $('rb-complemento-bloco').classList.toggle('oculto', !ehComp);
     $('rb-pedagio-bloco').classList.toggle('oculto', !(ehViagem || ehVeic));
-    // "Outros gastos" existe nos demais tipos; no complemento o próprio valor
-    // já é o gasto extra (com justificativa), então não repete o bloco.
-    $('rb-outros-bloco').classList.toggle('oculto', !tipoSel || ehComp);
+    // "Outros gastos" aparece em todos os tipos (inclusive complemento, que passou
+    // a aceitar despesas não previstas além do combustível dos km a mais).
+    $('rb-outros-bloco').classList.toggle('oculto', !tipoSel);
     if (ehEvento) {
       // Só avisa quando a diária de eventos NÃO está configurada no SGP (sem ela
       // o cálculo fica em zero). Com a diária definida, não mostra nada.
@@ -1082,10 +1083,10 @@ EC.reembolso = (function () {
   // único (100%), sem percentual/parcelas; adiantamento desconta por inteiro.
   function pintarValoresSimples() {
     var comps = [], total = 0, pronto = false;
-    // Complemento não usa o bloco "Outros gastos" (o próprio valor já é o gasto).
-    var outros = tipoSel === 'complemento' ? 0 : outrosVal();
+    var outros = outrosVal();
     if (tipoSel === 'complemento') {
-      // Complemento por quilometragem: valor calculado do combustível dos km a mais.
+      // Complemento por quilometragem (combustível dos km a mais) + outros gastos.
+      // A km é opcional: dá para lançar só outros gastos.
       var c = calcularComplemento();
       $('rb-comp-kminicial').value = (c.inicial != null ? c.inicial : '');
       var info = $('rb-comp-info'), linhas = [];
@@ -1103,8 +1104,8 @@ EC.reembolso = (function () {
       if (linhas.length) { info.innerHTML = linhas.join('<br>'); info.classList.remove('oculto'); }
       else info.classList.add('oculto');
       if (c.ok) comps.push('➕ Complemento de combustível (' + c.extra + ' km a mais): ' + moedaBR(c.valor));
-      total = c.valor;
-      pronto = !!tecSel && c.ok;
+      total = Math.round((c.valor + outros) * 100) / 100;
+      pronto = !!tecSel && !c.erroKm && total > 0;
     } else if (tipoSel === 'evento') {
       var dias = parseInt($('rb-evento-dias').value, 10) || 0;
       var diaria = ctx ? (Number(ctx.valores.diaria_evento) || 0) : 0;
@@ -1690,16 +1691,19 @@ EC.reembolso = (function () {
     var solicitante = sessionNome();
     if (!solicitante) return mostrarErro('Sua sessão expirou — entre de novo no app.');
 
-    var outros = tipoSel === 'complemento' ? 0 : outrosVal();
+    var outros = outrosVal();
     var extra = {}, total = 0, blocos = ['outros'];
     if (tipoSel === 'complemento') {
       var c = calcularComplemento();
-      if (c.final == null) return mostrarErro('Informe a quilometragem final do carro.');
-      if (!c.ok) return mostrarErro(c.msg || 'Não há complemento a pagar.');
-      if (anexos.complemento.obter().length === 0) return mostrarErro('Anexe a foto da quilometragem final (obrigatória).');
-      total = c.valor;
-      extra.kmFinal = c.final; // o servidor puxa a inicial e recalcula o valor
-      blocos = ['complemento'];
+      if (c.erroKm) return mostrarErro(c.msg || 'Confira a quilometragem informada.');
+      total = Math.round((c.valor + outros) * 100) / 100;
+      if (!(total > 0)) return mostrarErro('Informe a quilometragem a mais e/ou um valor em outros gastos.');
+      if (c.ok && anexos.complemento.obter().length === 0) return mostrarErro('Anexe a foto da quilometragem final (obrigatória para o complemento por km).');
+      if (outros > 0 && !$('rb-outros-just').value.trim()) return mostrarErro('Escreva a justificativa dos outros gastos.');
+      // Só manda a km quando ela realmente gera complemento; se não gera (ou está em
+      // branco), vai null e o servidor cobra só os outros gastos.
+      extra.kmFinal = c.ok ? c.final : null;
+      blocos = ['complemento', 'outros'];
     } else if (tipoSel === 'evento') {
       var dias = parseInt($('rb-evento-dias').value, 10) || 0;
       if (!(dias >= 1)) return mostrarErro('Informe quantos dias de serviço (1 ou mais).');
@@ -2050,7 +2054,7 @@ EC.reembolso = (function () {
     function linha(rot, val) { return '<div class="apr-linha"><span>' + rot + '</span><strong>' + val + '</strong></div>'; }
     var cat = p.solicitante_tipo === 'freelancer' ? 'Freelancer' : (p.solicitante_tipo === 'clt' ? 'CLT' : '—');
     var itens = t === 'complemento'
-      ? [['➕ Complemento de combustível (km a mais)', p.valor_outros]]
+      ? [['➕ Complemento de combustível (km a mais)', p.valor_combustivel], ['💠 Outros gastos', p.valor_outros]]
       : t === 'evento'
       ? [['🔊 Diárias do evento' + (p.dias_servico != null ? ' (' + p.dias_servico + ' dia(s))' : ''), p.valor_mao_obra]]
       : [
@@ -2061,13 +2065,7 @@ EC.reembolso = (function () {
         ];
     if (t !== 'complemento') itens.push(['💠 Outros gastos', p.valor_outros]);
     var valores = itens.filter(function (l) { return Number(l[1]) > 0; })
-      // No complemento, a justificativa vem logo abaixo do valor — sem a linha
-      // divisória (border-bottom) da linha de valor.
-      .map(function (l) {
-        return t === 'complemento'
-          ? '<div class="apr-linha" style="border-bottom:none;"><span>' + l[0] + '</span><strong>' + moedaBR(l[1]) + '</strong></div>'
-          : linha(l[0], moedaBR(l[1]));
-      }).join('');
+      .map(function (l) { return linha(l[0], moedaBR(l[1])); }).join('');
     // Complemento: quilometragem inicial, final e percorrida.
     var kmLinha = '';
     if (t === 'complemento') {
@@ -2077,9 +2075,13 @@ EC.reembolso = (function () {
         kmLinha += linha('Quilometragem percorrida', (Math.round((Number(p.km_final) - Number(p.km_atual)) * 100) / 100) + ' km');
       }
     }
-    var rotJust = t === 'complemento' ? 'Cálculo do complemento' : '💠 Outros gastos';
-    var just = Number(p.valor_outros) > 0 && p.outros_justificativa
-      ? '<p class="texto-apoio">' + rotJust + ': ' + p.outros_justificativa + '</p>' : '';
+    var just = '';
+    if (t === 'complemento' && Number(p.valor_combustivel) > 0 && p.combustivel_justificativa) {
+      just += '<p class="texto-apoio">Cálculo do complemento: ' + p.combustivel_justificativa + '</p>';
+    }
+    if (Number(p.valor_outros) > 0 && p.outros_justificativa) {
+      just += '<p class="texto-apoio">💠 Outros gastos: ' + p.outros_justificativa + '</p>';
+    }
     return (
       // (o banner azul do tipo foi removido a pedido — o extrato começa em "Quem")
       '<p class="dg-secao">Quem</p><div class="rb-resumo-auto">' +
