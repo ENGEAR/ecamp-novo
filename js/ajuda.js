@@ -75,10 +75,12 @@ EC.ajuda = (function () {
       ])) +
       topico('🧭 Tipos de serviço', '<p class="texto-apoio">Cada tipo tem o seu formulário, mas a lógica é a mesma (pontos → GPS → checagens → fotos → condições).</p>' + ul([
         '<strong>Ruído</strong> — externo, interno, ferroviário e aeronáutico.',
-        '<strong>Vibração</strong> (Sismografia).',
-        '<strong>QAR Externo</strong> e <strong>QAR Interno</strong>.',
-        '<strong>Opacidade</strong>.'
-      ])) +
+        '<strong>Vibração</strong> — detonação, cavernas/grutas, áreas habitadas.',
+        '<strong>QAR Externo</strong>.',
+        '<strong>QAR Interno</strong>.',
+        '<strong>Opacidade</strong>.',
+        '<strong>Outros</strong>.'
+      ]) + '<div class="alerta alerta-amarelo">🚨 Sempre leia as informações da OS antes de iniciar o serviço. Em caso de dúvidas sobre a execução do serviço, busque informações com o seu supervisor e lembre-se que o procedimento e a norma de referência estão disponíveis no menu <strong>Biblioteca</strong>.</div>') +
       topico('📝 Rascunho: continuar, reiniciar ou descartar', ul([
         'Ao reabrir um serviço já começado, o app pergunta o que fazer:',
         '<strong>✏️ Continuar</strong> — retoma de onde parou.',
