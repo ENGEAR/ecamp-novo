@@ -136,7 +136,7 @@ EC.ajuda = (function () {
         'Os <strong>lembretes</strong> de serviço aparecem no 🔔 do topo.'
       ])) +
 
-      '<p class="ajuda-rodape">e-CAMP · ENGEAR Laboratório — dúvidas ou algo travado? Fale com a Logística.</p>'
+      '<p class="ajuda-rodape">e-CAMP · ENGEAR Laboratório — dúvidas ou algo travado? Fale conosco.</p>'
     );
   }
 
