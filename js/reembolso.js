@@ -246,8 +246,44 @@ EC.reembolso = (function () {
         '_' + dois(d.getHours()) + dois(d.getMinutes()) + dois(d.getSeconds());
     }
 
-    // Reduz a imagem e guarda como JPEG base64. Chama pronto() ao terminar.
-    function processarImagem(arq, pronto) {
+    // ---- Carimbo VISUAL (data/hora + coordenada) — só quando opcoes.carimbar ----
+    function dhCarimbo() {
+      var d = new Date();
+      function z(n) { return n < 10 ? '0' + n : '' + n; }
+      return z(d.getDate()) + '/' + z(d.getMonth() + 1) + '/' + d.getFullYear() +
+        ' ' + z(d.getHours()) + ':' + z(d.getMinutes()) + ':' + z(d.getSeconds());
+    }
+    // Coordenada atual (UTM se der; senão lat/lon). cb(texto) sempre é chamado.
+    function obterCoordTexto(cb) {
+      if (!navigator.geolocation) return cb('coordenada não capturada');
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        var lat = pos.coords.latitude, lon = pos.coords.longitude, txt = '';
+        try {
+          if (EC.gps && EC.gps.latLonParaUtm) {
+            var u = EC.gps.latLonParaUtm(lat, lon);
+            txt = 'UTM ' + u.zona + u.hemisferio + ' ' + u.leste + 'E ' + u.norte + 'N';
+          }
+        } catch (e) { /* cai no lat/lon */ }
+        cb(txt || (lat.toFixed(6) + ', ' + lon.toFixed(6)));
+      }, function () { cb('coordenada não capturada'); },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 15000 });
+    }
+    // Caixinha do carimbo no canto inferior direito da foto.
+    function desenharCarimboAnexo(ctx, largura, altura, linhas) {
+      var fonte = Math.max(13, Math.round(largura * 0.028));
+      ctx.font = 'bold ' + fonte + 'px Arial, sans-serif';
+      var alturaLinha = Math.round(fonte * 1.35), mi = Math.round(fonte * 0.7), mb = Math.round(fonte * 0.8);
+      var lt = 0;
+      linhas.forEach(function (l) { lt = Math.max(lt, ctx.measureText(l).width); });
+      var cw = lt + mi * 2, ch = alturaLinha * linhas.length + mi;
+      var x = largura - cw - mb, y = altura - ch - mb;
+      ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(x, y, cw, ch);
+      ctx.fillStyle = '#ffffff'; ctx.textBaseline = 'top';
+      linhas.forEach(function (l, i) { ctx.fillText(l, x + mi, y + mi * 0.6 + i * alturaLinha); });
+    }
+
+    // Reduz a imagem e guarda como JPEG base64. Se `linhas` vier, carimba a foto.
+    function processarImagem(arq, pronto, linhas) {
       var leitor = new FileReader();
       leitor.onload = function () {
         var img = new Image();
@@ -256,7 +292,9 @@ EC.reembolso = (function () {
           var canvas = document.createElement('canvas');
           canvas.width = Math.round(img.width * escala);
           canvas.height = Math.round(img.height * escala);
-          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          var ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          if (linhas && linhas.length) { try { desenharCarimboAnexo(ctx, canvas.width, canvas.height, linhas); } catch (e) { /* segue sem carimbo */ } }
           var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
           arquivos.push({
             nomeArquivo: 'EVIDENCIA_' + carimbo() + '_F' + (arquivos.length + 1) + '.jpg',
@@ -279,13 +317,22 @@ EC.reembolso = (function () {
     inFoto.addEventListener('change', function () {
       var arq = inFoto.files && inFoto.files[0];
       if (!arq) return;
-      status.textContent = '⏳ Processando a foto…';
-      processarImagem(arq, function (ok) {
-        render();
-        status.textContent = ok ? '✅ Foto adicionada (' + arquivos.length + '/' + MAX_ANEXOS + ').' : '⚠️ Não foi possível ler a imagem.';
-        inFoto.value = '';
-        if (ok) notificar();
-      });
+      function processar(linhas) {
+        status.textContent = '⏳ Processando a foto…';
+        processarImagem(arq, function (ok) {
+          render();
+          status.textContent = ok ? '✅ Foto adicionada (' + arquivos.length + '/' + MAX_ANEXOS + ').' : '⚠️ Não foi possível ler a imagem.';
+          inFoto.value = '';
+          if (ok) notificar();
+        }, linhas);
+      }
+      // Bloco com carimbo (ex.: complemento): grava data/hora + coordenada na foto.
+      if (opcoes.carimbar) {
+        status.textContent = '📍 Capturando data, hora e coordenada…';
+        obterCoordTexto(function (coord) { processar([dhCarimbo(), coord]); });
+      } else {
+        processar(null);
+      }
     });
 
     // Galeria: fotos já salvas no celular (permite escolher várias)
@@ -917,7 +964,7 @@ EC.reembolso = (function () {
       pecas: criarAnexos($('rb-anexos-pecas'), { iniciais: anexosIniciais.pecas, aoMudar: salvarRascunhoLogo }),
       manutencao: criarAnexos($('rb-anexos-manutencao'), { iniciais: anexosIniciais.manutencao, aoMudar: salvarRascunhoLogo }),
       // Evidências do COMPLEMENTO de gastos (OS já paga)
-      complemento: criarAnexos($('rb-anexos-complemento'), { iniciais: anexosIniciais.complemento, aoMudar: salvarRascunhoLogo })
+      complemento: criarAnexos($('rb-anexos-complemento'), { iniciais: anexosIniciais.complemento, aoMudar: salvarRascunhoLogo, carimbar: true })
     };
     ITENS.forEach(function (it) {
       anexos['ajuste_' + it.chave] = criarAnexos($('rb-anexos-ajuste_' + it.chave),
