@@ -2246,7 +2246,14 @@ EC.reembolso = (function () {
       '</div>' +
       '<p class="dg-secao">Solicitações de reembolso</p>' +
       (parcelasHtml || '<div class="apr-orc apr-orc-cinza">—</div>') +
-      renderResumoPedido(p);
+      renderResumoPedido(p) +
+      '<div id="rb-evidencias"></div>';
+
+    // Evidências inseridas pelo usuário (fotos/PDF de cada bloco) — sempre visíveis
+    // no extrato. Na viagem, as evidências ficam na 1ª parcela (a que foi preenchida).
+    var idEvid = p.id;
+    if ((p.tipo || 'viagem') === 'viagem' && parcelas[0] && parcelas[0].id) idEvid = parcelas[0].id;
+    mostrarEvidencias(idEvid);
 
     // Comprovantes: das parcelas pagas e, abaixo, do adiantamento (mesma seção,
     // sem título próprio para o adiantamento — os botões já se identificam).
@@ -2327,6 +2334,42 @@ EC.reembolso = (function () {
       if (podeEditar) $('rb-extrato-editar').addEventListener('click', function () { abrirEdicao(p); });
       if (podeApagar) $('rb-extrato-apagar').addEventListener('click', function () { apagarSolicitacao(p, aguardandoEnvio); });
     }
+  }
+
+  // Rótulo amigável de cada bloco de evidência.
+  var ROT_BLOCO = {
+    combustivel: '⛽ Combustível', pedagio: '🛣️ Pedágio', outros: '💠 Outros gastos',
+    complemento: '➕ Complemento (quilometragem)', abastecimento: '⛽ Abastecimento',
+    pecas: '🔩 Peças', manutencao: '🛠️ Manutenção', solicitacao: '📎 Solicitação'
+  };
+  function rotBloco(b) {
+    if (ROT_BLOCO[b]) return ROT_BLOCO[b];
+    if (b && b.indexOf('ajuste_') === 0) return '✏️ Ajuste — ' + b.slice(7).replace(/_/g, ' ');
+    return '📎 Evidência';
+  }
+
+  // Mostra, no extrato, TODAS as evidências que o usuário anexou (fotos inline,
+  // PDF vira link), agrupadas por bloco. Sempre disponíveis (bloco='evidencias').
+  async function mostrarEvidencias(id) {
+    var host = $('rb-evidencias');
+    if (!host || !id) return;
+    try {
+      var r = await getJson(BASE + '/comprovante?id=' + encodeURIComponent(id) + '&bloco=evidencias');
+      if (!r || !r.ok || !r.comprovantes || !r.comprovantes.length) return;
+      var grupos = {};
+      r.comprovantes.forEach(function (c) { var b = c.bloco || 'outros'; (grupos[b] = grupos[b] || []).push(c); });
+      var html = '<p class="dg-secao">Evidências da solicitação</p>';
+      Object.keys(grupos).forEach(function (b) {
+        html += '<div style="margin-bottom:12px;"><div class="rotulo-apoio" style="margin-bottom:4px;">' + rotBloco(b) + '</div>' +
+          grupos[b].map(function (c) {
+            var ehPdf = /pdf/i.test(c.mime || '') || /\.pdf$/i.test(c.nome || '');
+            return ehPdf
+              ? '<p style="margin:4px 0;"><a class="botao botao-secundario" href="' + c.url + '" target="_blank" rel="noopener">📄 Abrir ' + (c.nome || 'evidência') + '</a></p>'
+              : '<img src="' + c.url + '" alt="evidência" style="max-width:100%;border-radius:8px;margin-bottom:6px;display:block;">';
+          }).join('') + '</div>';
+      });
+      host.innerHTML = html;
+    } catch (e) { /* offline/erro: extrato segue sem as evidências */ }
   }
 
   // Abre o(s) comprovante(s) de pagamento (URLs assinadas vindas da API) num
