@@ -213,6 +213,10 @@ EC.reembolso = (function () {
     var inGaleria = container.querySelector('.anx-entrada-galeria');
     var inPdf = container.querySelector('.anx-entrada-pdf');
 
+    // Blocos que exigem foto AO VIVO (ex.: quilometragem, com carimbo de data/hora
+    // e coordenada) não podem usar a galeria/fototeca — só a câmera na hora.
+    if (opcoes.semGaleria && btnGaleria) btnGaleria.style.display = 'none';
+
     function notificar() { if (typeof opcoes.aoMudar === 'function') opcoes.aoMudar(); }
 
     function render() {
@@ -956,7 +960,8 @@ EC.reembolso = (function () {
     }).join('');
 
     anexos = {
-      combustivel: criarAnexos($('rb-anexos-combustivel'), { iniciais: anexosIniciais.combustivel, aoMudar: salvarRascunhoLogo }),
+      // Evidência da quilometragem inicial (na viagem): foto ao vivo com carimbo, sem galeria.
+      combustivel: criarAnexos($('rb-anexos-combustivel'), { iniciais: anexosIniciais.combustivel, aoMudar: salvarRascunhoLogo, carimbar: true, semGaleria: true }),
       pedagio: criarAnexos($('rb-anexos-pedagio'), { iniciais: anexosIniciais.pedagio, aoMudar: salvarRascunhoLogo }),
       // Outros gastos (três tipos) + evidências do reembolso de VEÍCULOS
       outros: criarAnexos($('rb-anexos-outros'), { iniciais: anexosIniciais.outros, aoMudar: salvarRascunhoLogo }),
@@ -964,7 +969,7 @@ EC.reembolso = (function () {
       pecas: criarAnexos($('rb-anexos-pecas'), { iniciais: anexosIniciais.pecas, aoMudar: salvarRascunhoLogo }),
       manutencao: criarAnexos($('rb-anexos-manutencao'), { iniciais: anexosIniciais.manutencao, aoMudar: salvarRascunhoLogo }),
       // Evidências do COMPLEMENTO de gastos (OS já paga)
-      complemento: criarAnexos($('rb-anexos-complemento'), { iniciais: anexosIniciais.complemento, aoMudar: salvarRascunhoLogo, carimbar: true })
+      complemento: criarAnexos($('rb-anexos-complemento'), { iniciais: anexosIniciais.complemento, aoMudar: salvarRascunhoLogo, carimbar: true, semGaleria: true })
     };
     ITENS.forEach(function (it) {
       anexos['ajuste_' + it.chave] = criarAnexos($('rb-anexos-ajuste_' + it.chave),
