@@ -2265,7 +2265,7 @@ EC.reembolso = (function () {
     var ehVeiculo = (p.tipo === 'veiculo') && !!p.id;
     if (pagas.length || temAdiant || ehVeiculo) {
       var secComp = document.createElement('div');
-      secComp.innerHTML = '<p class="dg-secao">Comprovantes</p>';
+      secComp.innerHTML = '<p class="dg-secao">Comprovantes de pagamento</p>';
       $('rb-extrato').appendChild(secComp);
       pagas.forEach(function (o) {
         var bComp = document.createElement('button');
