@@ -554,7 +554,7 @@ textarea { resize: vertical; font-family: inherit; }
   color: var(--azul-escuro);
   cursor: pointer;
 }
-.card-tipo-icone { font-size: 1.8rem; }
+.card-tipo-icone { font-size: 2.4rem; height: 64px; display: flex; align-items: center; justify-content: center; line-height: 1; }
 /* Imagens têm fundo branco; multiply faz o branco "sumir" sobre o cartão ativo (verde-claro) */
 .card-tipo-img { width: 64px; height: 64px; object-fit: contain; mix-blend-mode: multiply; }
 /* Versão pequena do ícone-imagem, para linhas de texto (checkpoint, revisão) */
