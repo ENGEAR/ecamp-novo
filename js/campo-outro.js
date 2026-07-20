@@ -72,14 +72,8 @@ EC.campoOutro = (function () {
     pontoExibido = Math.min(pontoExibido, total);
     EC.paginacao.criar($('#ou-paginacao'), {
       total: total,
-      aoSair: function (numero) {
-        const p = campo().pontos[numero - 1] || {};
-        if (!EC.foto.tem(p.fotoTela) || !EC.foto.tem(p.fotoPonto)) {
-          EC.app.mostrarToast('Tire as fotos do ponto P' + numero + ' antes de sair.');
-          return false;
-        }
-        return true;
-      },
+      // Navegação livre entre pontos (começar em qualquer ponto). A validação das
+      // fotos/dados obrigatórios continua na finalização (itensFaltando).
       aoMudar: function (n) { pontoExibido = n; renderizarPonto(n); }
     });
     renderizarPonto(pontoExibido);

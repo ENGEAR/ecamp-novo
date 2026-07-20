@@ -284,13 +284,8 @@ EC.campoVibracao = (function () {
 
     EC.paginacao.criar($('#cv-paginacao'), {
       total: total,
-      aoSair: function (numero) {
-        if (!EC.foto.tem(campo().pontos[numero - 1].fotoPonto)) {
-          EC.app.mostrarToast('Tire a foto do ponto P' + numero + ' antes de sair.');
-          return false;
-        }
-        return true;
-      },
+      // Navegação livre entre pontos (começar em qualquer ponto). A validação das
+      // fotos/dados obrigatórios continua na finalização (itensFaltando).
       aoMudar: function (n) { pontoExibido = n; renderizarPonto(n); }
     });
     renderizarPonto(pontoExibido);

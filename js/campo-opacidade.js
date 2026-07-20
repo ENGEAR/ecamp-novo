@@ -130,13 +130,8 @@ EC.campoOpacidade = (function () {
     EC.paginacao.criar($('#co-paginacao'), {
       total: total,
       rotulo: 'V',
-      aoSair: function (numero) {
-        if (!EC.foto.tem(campo().veiculos[numero - 1].foto)) {
-          EC.app.mostrarToast('Tire a foto do veículo V' + numero + ' antes de sair.');
-          return false;
-        }
-        return true;
-      },
+      // Navegação livre entre veículos (começar em qualquer um). A validação da
+      // foto/dados obrigatórios continua na finalização (itensFaltando).
       aoMudar: function (n) { veiculoExibido = n; renderizarVeiculo(n); }
     });
     renderizarVeiculo(veiculoExibido);

@@ -528,8 +528,9 @@ EC.campoRuido = (function () {
   // Lembretes do escopo de ruído (série de pontos próximos: checagem/clima podem
   // ser feitos uma vez para o conjunto). Textos definidos com a Raisa.
   var LEMBRETE_CHECAGEM =
-    '<p class="texto-apoio cr-lembrete">Para uma série de pontos próximos, a checagem inicial e final pode ser realizada para o conjunto de medições, e não necessariamente em cada ponto. Entretanto, se a diferença entre as checagens inicial e final for ≥ 0,5 dB, todas as medições da série deverão ser repetidas. Por precaução, recomenda-se realizar a checagem em cada ponto.</p>' +
-    '<div class="cr-alerta-serie"></div>';
+    '<div class="alerta alerta-amarelo cr-lembrete">💡 Para uma série de pontos próximos, a checagem inicial e final pode ser realizada para o conjunto de medições, e não necessariamente em cada ponto. Entretanto, se a diferença entre as checagens inicial e final for ≥ 0,5 dB, todas as medições da série deverão ser repetidas. Por precaução, recomenda-se realizar a checagem em cada ponto.</div>';
+  // Mesmo lembrete abaixo da checagem INICIAL, só nos pontos ≠ 1 (intermediários e último).
+  function lembreteChecagemIni(ehPonto1) { return ehPonto1 ? '' : LEMBRETE_CHECAGEM; }
   function lembreteClima(ehPonto1) {
     if (ehPonto1) return '';
     return '<p class="texto-apoio cr-lembrete">Se o monitoramento for realizado na mesma data e no mesmo período (diurno, vespertino ou noturno) do ponto 1, <strong>não é necessário registrar novamente as condições ambientais.</strong></p>';
@@ -1059,15 +1060,8 @@ EC.campoRuido = (function () {
     pontoExibido = Math.min(pontoExibido, total);
     EC.paginacao.criar($('#cr-paginacao'), {
       total: total,
-      // Não deixa sair de um ponto sem as fotos obrigatórias dele
-      aoSair: function (numero) {
-        const faltando = fotosFaltando(lista[numero - 1], campo().subtipo);
-        if (faltando.length) {
-          EC.app.mostrarToast('Tire a(s) foto(s) do ponto P' + numero + ' antes de sair: ' + faltando.join(', ') + '.');
-          return false;
-        }
-        return true;
-      },
+      // Navegação livre entre pontos (começar em qualquer ponto). A validação dos
+      // dados/fotos obrigatórios continua na finalização (itensFaltando).
       aoMudar: function (n) {
         pontoExibido = n;
         janelaExibida = 'total'; // cada ponto abre na janela Total
@@ -1089,6 +1083,7 @@ EC.campoRuido = (function () {
       htmlChecks(['Se monitoramento em fachada: distância mínima de 1 m da fachada (opcional)'], 'posfachada') +
       '<p class="grupo-checks-titulo">⚙️ Montagem do equipamento</p>' + htmlChecks(checksMontagemExterno(ehLongaDuracao()), 'mont') +
       htmlChecagem('Checagem inicial', 'chkIni') +
+      lembreteChecagemIni(ehPonto1) +
       '<div class="cr-foto-tela-ini"></div>' +
       '<div class="cr-foto-ponto"></div>' +
       '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' +
@@ -1103,6 +1098,7 @@ EC.campoRuido = (function () {
       '<div class="cr-resultado-checagem"></div>' +
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
       LEMBRETE_CHECAGEM +
+      '<div class="cr-alerta-serie"></div>' +
       '<div class="cr-foto-tela-fim"></div>' +
       '<label>Observações do ponto<textarea rows="2" data-campo="observacoes"></textarea></label>' +
       '<label>Hora de término<input type="time" data-campo="horaTermino"></label>'
@@ -1121,6 +1117,7 @@ EC.campoRuido = (function () {
       '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' + htmlClima(true) +
       lembreteClima(ehPonto1) +
       htmlChecagem('Checagem inicial', 'chkIni') +
+      lembreteChecagemIni(ehPonto1) +
       '<div class="cr-foto-tela-ini"></div>' +
       '<div class="cr-foto-ponto"></div>' +
       '<label>Eventualidade<select data-campo="eventualidade"><option value="">Selecione…</option><option>Não</option><option>Sim</option></select></label>' +
@@ -1129,6 +1126,7 @@ EC.campoRuido = (function () {
       '<div class="cr-resultado-checagem"></div>' +
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
       LEMBRETE_CHECAGEM +
+      '<div class="cr-alerta-serie"></div>' +
       '<label>Hora de término<input type="time" data-campo="horaTermino"></label>'
     );
   }
@@ -1159,6 +1157,7 @@ EC.campoRuido = (function () {
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       '<div class="cr-gps"></div>' +
       htmlChecagem('Checagem inicial', 'chkIni') +
+      lembreteChecagemIni(ehPonto1) +
       '<div class="cr-foto-tela-ini"></div>' +
       checksPonto +
       (passagem && total
@@ -1171,6 +1170,7 @@ EC.campoRuido = (function () {
       '<div class="cr-resultado-checagem"></div>' +
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
       LEMBRETE_CHECAGEM +
+      '<div class="cr-alerta-serie"></div>' +
       '<div class="cr-foto-tela-fim"></div>' +
       '<label>Observações do ponto<textarea rows="2" data-campo="observacoes"></textarea></label>' +
       '<label>Hora de término<input type="time" data-campo="horaTermino"></label>'
@@ -1184,6 +1184,7 @@ EC.campoRuido = (function () {
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       '<div class="cr-gps"></div>' +
       htmlChecagem('Checagem inicial', 'chkIni') +
+      lembreteChecagemIni(ehPonto1) +
       '<div class="cr-foto-tela-ini"></div>' +
       '<div class="cr-foto-ponto"></div>' +
       (operacional
@@ -1195,6 +1196,7 @@ EC.campoRuido = (function () {
       '<div class="cr-resultado-checagem"></div>' +
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
       LEMBRETE_CHECAGEM +
+      '<div class="cr-alerta-serie"></div>' +
       '<div class="cr-foto-tela-fim"></div>' +
       '<label>Observações do ponto<textarea rows="2" data-campo="observacoes"></textarea></label>' +
       '<label>Hora de término<input type="time" data-campo="horaTermino"></label>'
