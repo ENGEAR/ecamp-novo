@@ -294,19 +294,32 @@ EC.campoRuido = (function () {
   }
 
   // Itens em branco de UMA janela (Total ou Residual), conforme o subtipo.
-  function faltasJanela(subtipo, j, longa, geral, janela) {
+  // Regra do escopo (2026-07): a checagem INICIAL só é obrigatória no ponto 1 e a
+  // FINAL só no último ponto (na janela Total). Nos demais pontos são opcionais; a
+  // foto da tela só é cobrada QUANDO a checagem correspondente estiver preenchida.
+  // As condições ambientais (clima) só são obrigatórias no ponto 1. Tudo isso vale
+  // só na Total — na Residual (ehPonto1/ehUltimo=false) checagem e clima são livres.
+  function faltasJanela(subtipo, j, longa, geral, janela, ehPonto1, ehUltimo) {
     j = j || {};
     const falta = [];
+    const ehTotal = janela === 'total';
+    const iniObrig = ehTotal && ehPonto1;
+    const fimObrig = ehTotal && ehUltimo;
+    const climaObrig = ehTotal && ehPonto1;
     const reqVal = function (chave, rotulo) {
       const v = j[chave];
       if (v === undefined || v === null || String(v).trim() === '') falta.push(rotulo);
+    };
+    const preenchido = function (chave) {
+      const v = j[chave];
+      return v !== undefined && v !== null && String(v).trim() !== '';
     };
     const checks = j.checks || {};
     const grupoChecks = function (prefixo, qtde, rotulo) {
       let n = 0; for (let i = 0; i < qtde; i++) if (!checks[prefixo + i]) n++;
       if (n) falta.push(n + ' confirmação(ões) de ' + rotulo);
     };
-    // Só alguns índices de um grupo (ex.: ferroviário passagem/total usa [3,4]).
+    // Só alguns índices de um grupo (ex.: ferroviário clima usa [3,4]).
     const grupoChecksIdx = function (prefixo, indices, rotulo) {
       let n = 0; indices.forEach(function (i) { if (!checks[prefixo + i]) n++; });
       if (n) falta.push(n + ' confirmação(ões) de ' + rotulo);
@@ -315,55 +328,63 @@ EC.campoRuido = (function () {
     reqVal('nome', 'nome do ponto');
     reqVal('horaInicial', 'hora inicial');
     if (!j.gps) falta.push('GPS');
-    reqVal('chkIniValor', 'checagem inicial');
-    if (!EC.foto.tem(j.fotoTelaIni)) falta.push('foto da tela (checagem inicial)');
+    // Checagem inicial: obrigatória só no ponto 1 (Total). A foto da tela inicial é
+    // cobrada sempre que a checagem inicial estiver preenchida.
+    if (iniObrig) reqVal('chkIniValor', 'checagem inicial (ponto 1)');
+    if (preenchido('chkIniValor') && !EC.foto.tem(j.fotoTelaIni)) falta.push('foto da tela (checagem inicial)');
     if (!EC.foto.tem(j.fotoPonto)) falta.push('foto do ponto');
 
     if (ehInterno(subtipo)) {
       reqVal('altura', 'altura do sonômetro');
       grupoChecks('altura', 1, 'altura do sonômetro');
-      reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento');
-      grupoChecks('chuva', 1, 'condições ambientais');
+      if (climaObrig) {
+        reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento');
+        grupoChecks('chuva', 1, 'condições ambientais');
+      }
       reqVal('eventualidade', 'eventualidade');
       if (j.eventualidade === 'Sim') reqVal('eventualidadeDesc', 'descrição da eventualidade');
-      reqVal('chkFimValor', 'checagem final');
     } else if (subtipo === 'ferroviario') {
       const fin = (geral || {}).finalidade;
-      // Passagem: Total exige [2,3,4] (som da passagem + clima); Residual exige
-      // [0,1,3,4] (som residual + clima). Pátios: só o clima [3,4] — os blocos
-      // de operações/som residual são orientação e não travam o salvamento.
+      // Som/operação sempre exigidos; o clima [3,4] só no ponto 1.
+      // Passagem: Total exige som da passagem [2]; Residual exige som residual [0,1].
+      // Pátios: só o clima. Sem finalidade: som [0,1,2].
       if (fin === FERRO_PASSAGEM) {
-        grupoChecksIdx('ferro', janela === 'total' ? [2, 3, 4] : [0, 1, 3, 4], 'checks do ponto');
+        grupoChecksIdx('ferro', janela === 'total' ? [2] : [0, 1], 'checks do ponto');
       } else if (fin === FERRO_PATIOS) {
-        grupoChecksIdx('ferro', [3, 4], 'condições ambientais');
+        // sem checks de som obrigatórios aqui (os blocos oper/mres são orientação)
       } else {
-        grupoChecks('ferro', CHECKS_PONTO_FERRO.length, 'checks do ponto');
+        grupoChecksIdx('ferro', [0, 1, 2], 'checks do ponto');
       }
-      reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento');
-      reqVal('chkFimValor', 'checagem final');
-      if (!EC.foto.tem(j.fotoTelaFim)) falta.push('foto da tela (checagem final)');
+      if (climaObrig) {
+        grupoChecksIdx('ferro', [3, 4], 'condições ambientais');
+        reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento');
+      }
       reqVal('observacoes', 'observações');
     } else if (subtipo === 'aeronautico') {
       if ((geral || {}).finalidade === AERO_OPERACIONAL) {
         grupoChecks('estacao', 1, 'estação meteorológica funcionando');
       } else {
         grupoChecks('aero', CHECKS_PONTO_AERO_RECEPTORES.length, 'checks do ponto');
-        reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento');
+        if (climaObrig) { reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento'); }
       }
-      reqVal('chkFimValor', 'checagem final');
-      if (!EC.foto.tem(j.fotoTelaFim)) falta.push('foto da tela (checagem final)');
       reqVal('observacoes', 'observações');
     } else {
       // externo
       grupoChecks('pos', POSICIONAMENTO_EXTERNO_PADRAO.length, 'posicionamento do microfone');
       grupoChecks('mont', checksMontagemExterno(longa).length, 'montagem do equipamento');
-      if (longa) grupoChecks('climacont', 1, 'monitoramento contínuo de temperatura/umidade/vento');
-      else { reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento'); }
+      if (climaObrig) {
+        if (longa) grupoChecks('climacont', 1, 'monitoramento contínuo de temperatura/umidade/vento');
+        else { reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento'); }
+      }
       reqVal('fontesEmpresa', 'fontes da empresa'); reqVal('fontesAmbiente', 'fontes do ambiente');
-      reqVal('chkFimValor', 'checagem final');
-      if (!EC.foto.tem(j.fotoTelaFim)) falta.push('foto da tela (checagem final)');
       reqVal('observacoes', 'observações');
     }
+
+    // Checagem final: obrigatória só no último ponto (Total). Foto da tela final só
+    // é cobrada quando a checagem final estiver preenchida. Uniforme a todos os subtipos.
+    if (fimObrig) reqVal('chkFimValor', 'checagem final (último ponto)');
+    if (preenchido('chkFimValor') && !EC.foto.tem(j.fotoTelaFim)) falta.push('foto da tela (checagem final)');
+
     return falta;
   }
 
@@ -372,13 +393,16 @@ EC.campoRuido = (function () {
   function itensFaltandoDoPonto(ponto, subtipo, indice, total, geral, longaDuracao) {
     ponto = ponto || {};
     const falta = [];
-    faltasJanela(subtipo, ponto.total, longaDuracao, geral, 'total').forEach(function (x) { falta.push('Total: ' + x); });
+    const ehPonto1 = indice === 0;
+    const ehUltimo = indice === (total - 1);
+    faltasJanela(subtipo, ponto.total, longaDuracao, geral, 'total', ehPonto1, ehUltimo).forEach(function (x) { falta.push('Total: ' + x); });
     const justif = ponto.justificativaResidual && String(ponto.justificativaResidual).trim();
     if (!justif) {
       if (!janelaTemDados(ponto.residual)) {
         falta.push('Residual: medir OU escrever a justificativa');
       } else {
-        faltasJanela(subtipo, ponto.residual, longaDuracao, geral, 'residual').forEach(function (x) { falta.push('Residual: ' + x); });
+        // Residual nunca é ponto1/último para efeito de checagem/clima (regra só na Total).
+        faltasJanela(subtipo, ponto.residual, longaDuracao, geral, 'residual', false, false).forEach(function (x) { falta.push('Residual: ' + x); });
       }
     }
     return falta;
@@ -501,6 +525,16 @@ EC.campoRuido = (function () {
     }).join('');
   }
 
+  // Lembretes do escopo de ruído (série de pontos próximos: checagem/clima podem
+  // ser feitos uma vez para o conjunto). Textos definidos com a Raisa.
+  var LEMBRETE_CHECAGEM =
+    '<p class="texto-apoio cr-lembrete">Para uma série de pontos próximos, a checagem inicial e final pode ser realizada para o conjunto de medições, e não necessariamente em cada ponto. Entretanto, se a diferença entre as checagens inicial e final for ≥ 0,5 dB, todas as medições da série deverão ser repetidas. Por precaução, recomenda-se realizar a checagem em cada ponto.</p>' +
+    '<div class="cr-alerta-serie"></div>';
+  function lembreteClima(ehPonto1) {
+    if (ehPonto1) return '';
+    return '<p class="texto-apoio cr-lembrete">Se o monitoramento for realizado na mesma data e no mesmo período (diurno, vespertino ou noturno) do ponto 1, <strong>não é necessário registrar novamente as condições ambientais.</strong></p>';
+  }
+
   function htmlChecagem(titulo, prefixo) {
     return (
       '<fieldset class="checagem-bloco">' +
@@ -584,6 +618,41 @@ EC.campoRuido = (function () {
     elemento.querySelectorAll('[data-campo^="chk"]').forEach(function (el) {
       el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', avaliar);
     });
+    avaliar();
+  }
+
+  // Validação da SÉRIE: no ÚLTIMO ponto (Total) de uma série com mais de 1 ponto,
+  // compara a checagem FINAL deste ponto com a checagem INICIAL do PRIMEIRO ponto.
+  // Se a diferença for ≥ 0,5 dB, exibe o alerta (repetir todas as medições da série).
+  function ativarAlertaSerie(elemento, ponto, janela, n, total) {
+    const cont = elemento.querySelector('.cr-alerta-serie');
+    if (!cont) return;
+    if (janela !== 'total' || total <= 1 || n !== total) { cont.innerHTML = ''; return; }
+    const primeiro = listaPontos()[0];
+    const ini = primeiro && primeiro.total ? primeiro.total : null;
+    const fimAlvo = ponto.total || {};
+    const num = function (v) {
+      if (v === undefined || v === null || String(v).trim() === '') return null;
+      const x = parseFloat(String(v).replace(',', '.'));
+      return isNaN(x) ? null : x;
+    };
+    function avaliar() {
+      const vIni = ini ? num(ini.chkIniValor) : null;
+      const vFim = num(fimAlvo.chkFimValor);
+      if (vIni === null || vFim === null) { cont.innerHTML = ''; return; }
+      const r = EC.checagens.calcular((ini && ini.chkIniSinal) || '+', vIni, fimAlvo.chkFimSinal || '+', vFim);
+      const texto = r.diff.toFixed(2).replace('.', ',');
+      if (r.alerta) {
+        cont.innerHTML = '<div class="alerta alerta-vermelho">🛑 <strong>Diferença da série = ' + texto +
+          ' dB (limite: 0,5 dB)</strong> — checagem inicial do ponto 1 → checagem final do último ponto. Será necessário <strong>repetir todas as medições da série</strong>.</div>';
+      } else {
+        cont.innerHTML = '<div class="alerta alerta-info">✅ Diferença da série (ponto 1 → último ponto) = <strong>' + texto + ' dB</strong> — dentro do limite (0,5 dB).</div>';
+      }
+    }
+    const inpFim = elemento.querySelector('[data-campo="chkFimValor"]');
+    const selFim = elemento.querySelector('[data-campo="chkFimSinal"]');
+    if (inpFim) inpFim.addEventListener('input', avaliar);
+    if (selFim) selFim.addEventListener('change', avaliar);
     avaliar();
   }
 
@@ -1010,7 +1079,7 @@ EC.campoRuido = (function () {
 
   // Campos de UMA janela (Total ou Residual) do externo — SEM equipamentos, que
   // é do ponto (compartilhado). É a cópia completa dos campos de medição.
-  function htmlCamposJanelaExterno() {
+  function htmlCamposJanelaExterno(ehPonto1) {
     return (
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
@@ -1026,11 +1095,13 @@ EC.campoRuido = (function () {
       (ehLongaDuracao()
         ? htmlChecks(['Monitorar e registrar temperatura, umidade e vento de forma contínua'], 'climacont')
         : htmlClima(false)) +
+      lembreteClima(ehPonto1) +
       '<label>Fontes percebidas da EMPRESA<input type="text" data-campo="fontesEmpresa"></label>' +
       '<label>Fontes percebidas do AMBIENTE<input type="text" data-campo="fontesAmbiente"></label>' +
       htmlChecagem('Checagem final', 'chkFim') +
       '<div class="cr-resultado-checagem"></div>' +
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
+      LEMBRETE_CHECAGEM +
       '<div class="cr-foto-tela-fim"></div>' +
       '<label>Observações do ponto<textarea rows="2" data-campo="observacoes"></textarea></label>' +
       '<label>Hora de término<input type="time" data-campo="horaTermino"></label>'
@@ -1039,7 +1110,7 @@ EC.campoRuido = (function () {
 
   // Interno (10151/10152): cada janela é uma medição completa (clima + checagem
   // em cada). Os grupos Ltot/Lres saíram — as janelas Total/Residual já são isso.
-  function htmlCamposJanelaInterno(subtipo) {
+  function htmlCamposJanelaInterno(subtipo, ehPonto1) {
     return (
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       '<label>Nome do ponto<input type="text" data-campo="nome"></label>' +
@@ -1047,6 +1118,7 @@ EC.campoRuido = (function () {
       '<label>Altura do sonômetro (m)<input type="number" step="0.01" inputmode="decimal" data-campo="altura"></label>' +
       htmlChecks(['Monitorar, quando possível, variando a altura do tripé entre 1,2 e 1,5 m'], 'altura') +
       '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' + htmlClima(true) +
+      lembreteClima(ehPonto1) +
       htmlChecagem('Checagem inicial', 'chkIni') +
       '<div class="cr-foto-tela-ini"></div>' +
       '<div class="cr-foto-ponto"></div>' +
@@ -1055,11 +1127,12 @@ EC.campoRuido = (function () {
       htmlChecagem('Checagem final', 'chkFim') +
       '<div class="cr-resultado-checagem"></div>' +
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
+      LEMBRETE_CHECAGEM +
       '<label>Hora de término<input type="time" data-campo="horaTermino"></label>'
     );
   }
 
-  function htmlCamposJanelaFerro(janela) {
+  function htmlCamposJanelaFerro(janela, ehPonto1) {
     // Checks do ponto por finalidade/janela. CHECKS_PONTO_FERRO: 0/1 som
     // residual, 2 som da passagem, 3/4 condições ambientais (clima).
     //  • PASSAGEM: Total = som da passagem [2] + clima [3,4] + campo caract.;
@@ -1092,16 +1165,18 @@ EC.campoRuido = (function () {
         : '') +
       '<div class="cr-foto-ponto"></div>' +
       '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' + htmlClima(false) +
+      lembreteClima(ehPonto1) +
       htmlChecagem('Checagem final', 'chkFim') +
       '<div class="cr-resultado-checagem"></div>' +
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
+      LEMBRETE_CHECAGEM +
       '<div class="cr-foto-tela-fim"></div>' +
       '<label>Observações do ponto<textarea rows="2" data-campo="observacoes"></textarea></label>' +
       '<label>Hora de término<input type="time" data-campo="horaTermino"></label>'
     );
   }
 
-  function htmlCamposJanelaAero() {
+  function htmlCamposJanelaAero(ehPonto1) {
     const operacional = campo().geral.finalidade === AERO_OPERACIONAL;
     return (
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
@@ -1113,10 +1188,12 @@ EC.campoRuido = (function () {
       (operacional
         ? htmlChecks(['Estação meteorológica funcionando'], 'estacao')
         : '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' + htmlClima(false) +
+          lembreteClima(ehPonto1) +
           htmlChecks(CHECKS_PONTO_AERO_RECEPTORES, 'aero')) +
       htmlChecagem('Checagem final', 'chkFim') +
       '<div class="cr-resultado-checagem"></div>' +
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
+      LEMBRETE_CHECAGEM +
       '<div class="cr-foto-tela-fim"></div>' +
       '<label>Observações do ponto<textarea rows="2" data-campo="observacoes"></textarea></label>' +
       '<label>Hora de término<input type="time" data-campo="horaTermino"></label>'
@@ -1124,11 +1201,11 @@ EC.campoRuido = (function () {
   }
 
   // Campos da janela conforme o subtipo do ruído.
-  function htmlCamposJanela(subtipo, janela) {
-    if (ehInterno(subtipo)) return htmlCamposJanelaInterno(subtipo);
-    if (subtipo === 'ferroviario') return htmlCamposJanelaFerro(janela);
-    if (subtipo === 'aeronautico') return htmlCamposJanelaAero();
-    return htmlCamposJanelaExterno();
+  function htmlCamposJanela(subtipo, janela, ehPonto1) {
+    if (ehInterno(subtipo)) return htmlCamposJanelaInterno(subtipo, ehPonto1);
+    if (subtipo === 'ferroviario') return htmlCamposJanelaFerro(janela, ehPonto1);
+    if (subtipo === 'aeronautico') return htmlCamposJanelaAero(ehPonto1);
+    return htmlCamposJanelaExterno(ehPonto1);
   }
 
   // true se a janela tem algum dado relevante preenchido (para o status da aba
@@ -1186,7 +1263,7 @@ EC.campoRuido = (function () {
       html += '<div class="alerta alerta-info">🔇 <strong>Residual</strong> — opcional. Se NÃO for medir, escreva a justificativa abaixo e deixe o resto em branco.</div>' +
         '<label>Justificativa (se não medir o residual)<textarea rows="2" data-justif="1" placeholder="Ex.: não foi possível desligar/afastar a fonte."></textarea></label>';
     }
-    html += htmlCamposJanela(sub, janela);
+    html += htmlCamposJanela(sub, janela, n === 1);
     wrap.innerHTML = html;
 
     const taj = wrap.querySelector('[data-justif]');
@@ -1198,11 +1275,12 @@ EC.campoRuido = (function () {
     vincular(wrap, alvo);
     ativarAlertaVento(wrap, alvo);
     ativarAlertaChecagens(wrap, alvo);
+    ativarAlertaSerie(wrap, ponto, janela, n, totalPontosCtx());
     const gps = montarGps(wrap, alvo);
     const suf = janela === 'total' ? 'Total' : 'Residual';
-    montarFoto(wrap, '.cr-foto-tela-ini', alvo, 'fotoTelaIni', '📷 Foto da tela após checagem inicial (obrigatória)', gps, n, suf);
+    montarFoto(wrap, '.cr-foto-tela-ini', alvo, 'fotoTelaIni', '📷 Foto da tela após checagem inicial (obrigatória se fizer a checagem)', gps, n, suf);
     montarFoto(wrap, '.cr-foto-ponto', alvo, 'fotoPonto', '📷 Foto do ponto (obrigatória)', gps, n, suf);
-    montarFoto(wrap, '.cr-foto-tela-fim', alvo, 'fotoTelaFim', '📷 Foto da tela após checagem final (obrigatória)', gps, n, suf);
+    montarFoto(wrap, '.cr-foto-tela-fim', alvo, 'fotoTelaFim', '📷 Foto da tela após checagem final (obrigatória se fizer a checagem)', gps, n, suf);
 
     // Interno: eventualidade — ligada à janela.
     const seletorEvent = wrap.querySelector('[data-campo="eventualidade"]');
