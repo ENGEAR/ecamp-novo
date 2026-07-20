@@ -465,19 +465,43 @@ EC.pdf = (function () {
         fotosDe(j.fotoPonto, 'Ponto');
         fotosDe(j.fotoTelaFim, 'Tela — checagem final');
       }
-      function pontoRuido(p, n) {
+      // Período (diurno/vespertino/noturno/outro). "Outro" usa o rótulo digitado.
+      var PERIODO_ORDEM = ['diurno', 'vespertino', 'noturno', 'outro'];
+      var PERIODO_NOME = { diurno: 'Diurno', vespertino: 'Vespertino', noturno: 'Noturno', outro: 'Outro' };
+      function rotuloPeriodoPdf(id, geral) {
+        if (id === 'outro') { var n = String(((geral || {}).periodoOutroLabel || '')).trim(); return n || 'Outro'; }
+        return PERIODO_NOME[id] || id;
+      }
+      // Renderiza as duas janelas (Total/Residual) de uma medição, com prefixo opcional.
+      function janelasDaMedicao(med, pre) {
+        subtitulo(pre + 'Ruído Total (com a fonte)');
+        medicaoRuido((med && med.total) || {});
+        subtitulo(pre + 'Ruído Residual (sem a fonte)');
+        if (med && janelaComDados(med.residual)) medicaoRuido(med.residual);
+        else kv('Residual não medido', (med && med.justificativaResidual) || '—');
+      }
+      function pontoRuido(p, n, geral) {
         tituloSecao('Ponto P' + String(n).padStart(2, '0'));
         kv('Equipamentos do ponto', (p.equipamentos && p.equipamentos.length) ? p.equipamentos.join(', ') : '—');
+        // Formato novo: p.periodos[periodo] = { total, residual, justificativaResidual }.
+        if (p.periodos && typeof p.periodos === 'object') {
+          var ids = PERIODO_ORDEM.filter(function (id) { return p.periodos[id]; });
+          if (ids.length) {
+            var varios = ids.length > 1;
+            ids.forEach(function (id) {
+              janelasDaMedicao(p.periodos[id], varios ? (rotuloPeriodoPdf(id, geral) + ' — ') : '');
+            });
+            return;
+          }
+        }
+        // Formato antigo: total/residual no topo do ponto.
         var temJanelas = p.total && typeof p.total === 'object';
-        if (!temJanelas) { medicaoRuido(p); return; } // rascunho antigo (flat)
-        subtitulo('Ruído Total (com a fonte)');
-        medicaoRuido(p.total || {});
-        subtitulo('Ruído Residual (sem a fonte)');
-        if (janelaComDados(p.residual)) medicaoRuido(p.residual);
-        else kv('Residual não medido', p.justificativaResidual || '—');
+        if (!temJanelas) { medicaoRuido(p); return; } // rascunho MUITO antigo (flat)
+        janelasDaMedicao(p, '');
       }
       function corpoRuido() {
         var campo = reg.campo || {};
+        var geralRuido = campo.geral || {};
         var interno = campo.subtipo === 'interno10151' || campo.subtipo === 'interno10152';
         if (interno) {
           // Um bloco por AMBIENTE (condições da sala) + seus pontos.
@@ -495,14 +519,13 @@ EC.pdf = (function () {
             if (amb.layoutFoto && amb.layoutFoto.dataUrl) foto(amb.layoutFoto.dataUrl, 'Layout do ambiente');
             var pts = amb.pontos || [];
             var tp = Math.min(pts.length, Math.max(0, parseInt(amb.pontosCalculados, 10) || pts.length));
-            for (var i = 0; i < tp; i++) { gN++; pontoRuido(pts[i] || {}, gN); }
+            for (var i = 0; i < tp; i++) { gN++; pontoRuido(pts[i] || {}, gN, geralRuido); }
           }
           return;
         }
-        var geral = campo.geral || {};
         var pontos = campo.pontos || [];
-        var total = Math.min(pontos.length, Math.max(1, parseInt(geral.qtdePontos, 10) || pontos.length));
-        for (var k = 0; k < total; k++) pontoRuido(pontos[k] || {}, k + 1);
+        var total = Math.min(pontos.length, Math.max(1, parseInt(geralRuido.qtdePontos, 10) || pontos.length));
+        for (var k = 0; k < total; k++) pontoRuido(pontos[k] || {}, k + 1, geralRuido);
       }
 
       /* ---------- Corpo GENÉRICO (demais serviços) ---------- */
