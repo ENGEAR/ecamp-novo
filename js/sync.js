@@ -123,17 +123,19 @@ EC.sync = (function () {
   async function enviar(registro, aoRegistrar) {
     var resp = await postJson(ROTA_REGISTRO, semFotos(registro));
     if (typeof aoRegistrar === 'function') { try { aoRegistrar(resp); } catch (e) { /* ok */ } }
-    var pontos = resp.pontos || []; // [{ordem, janela, ponto_id, revisao}, ...]
+    var pontos = resp.pontos || []; // [{ordem, periodo, janela, ponto_id, revisao}, ...]
     var pontosCampo = pontosDoRegistro(registro);
 
     // Monta a lista de fotos a enviar. O servidor devolve uma entrada por
-    // (ponto × janela); para cada uma, pego as fotos da janela correspondente
-    // (estrutura nova: pc.total/pc.residual; antiga: o próprio ponto, flat).
+    // (ponto × período × janela); para cada uma, pego as fotos da janela daquele
+    // período (estrutura nova: pc.periodos[periodo].total/.residual; antiga:
+    // pc.total/pc.residual ou o próprio ponto flat).
     var tarefas = [];
     pontos.forEach(function (pr) {
       var pc = pontosCampo[(pr.ordem || 1) - 1];
       if (!pc) return;
-      var alvo = (pr.janela && pc[pr.janela] && typeof pc[pr.janela] === 'object') ? pc[pr.janela] : pc;
+      var med = (pc.periodos && pr.periodo && pc.periodos[pr.periodo]) ? pc.periodos[pr.periodo] : pc;
+      var alvo = (pr.janela && med[pr.janela] && typeof med[pr.janela] === 'object') ? med[pr.janela] : med;
       fotosDoPonto(alvo).forEach(function (f) {
         tarefas.push({ ponto_id: pr.ponto_id, tipo: f.tipo, nomeArquivo: f.nomeArquivo, base64: f.base64 });
       });
@@ -144,7 +146,9 @@ EC.sync = (function () {
     var sub = (registro.campo && registro.campo.subtipo) || '';
     if (sub === 'interno10151' || sub === 'interno10152') {
       var mapaPid = {};
-      pontos.forEach(function (pr) { mapaPid[(pr.ordem || 1) + '|' + (pr.janela || 'total')] = pr.ponto_id; });
+      // O layout do ambiente liga ao 1º ponto (Total). Com períodos há várias
+      // linhas Total por ordem — fica com a PRIMEIRA (qualquer serve p/ o layout).
+      pontos.forEach(function (pr) { var key = (pr.ordem || 1) + '|' + (pr.janela || 'total'); if (mapaPid[key] === undefined) mapaPid[key] = pr.ponto_id; });
       var ordemBase = 0;
       ((registro.campo && registro.campo.ambientes) || []).forEach(function (amb) {
         var calc = parseInt(amb && amb.pontosCalculados, 10);
