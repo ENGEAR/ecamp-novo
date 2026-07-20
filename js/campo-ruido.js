@@ -251,13 +251,23 @@ EC.campoRuido = (function () {
     { id: 'noturno', icone: '🌙', nome: 'Noturno' }
   ];
   function rotuloPeriodo(id) { const p = PERIODOS.filter(function (x) { return x.id === id; })[0]; return p ? p.nome : id; }
-  // Períodos ativos a partir de um `geral` (opcional). Sem argumento usa o campo
-  // ativo — mas a validação SEMPRE passa o geral (não depende do estado global).
-  function periodosAtivos(geral) {
+  // Períodos REALMENTE marcados na campanha (sem fallback) — para o "obrigatório".
+  function periodosMarcados(geral) {
     const g = geral || (ctx && campo().geral) || {};
     const marcados = Array.isArray(g.periodos) ? g.periodos : [];
-    const lista = PERIODOS.filter(function (x) { return marcados.indexOf(x.id) !== -1; }).map(function (x) { return x.id; });
+    return PERIODOS.filter(function (x) { return marcados.indexOf(x.id) !== -1; }).map(function (x) { return x.id; });
+  }
+  // Períodos ativos para RENDER/validação por-ponto (fallback diurno para não quebrar
+  // a tela). O "marque ao menos um" é cobrado à parte (periodosMarcados).
+  function periodosAtivos(geral) {
+    const lista = periodosMarcados(geral);
     return lista.length ? lista : ['diurno'];
+  }
+  // Algum ponto já tem medição? (registro antigo → abre com Diurno; novo → vazio).
+  function campoTemPontoComDados() {
+    const temNoPonto = function (p) { return !!p && (p.total || p.residual || (p.periodos && Object.keys(p.periodos).length)); };
+    if (ehInternoAtivo()) return (campo().ambientes || []).some(function (a) { return (a && a.pontos || []).some(temNoPonto); });
+    return (campo().pontos || []).some(temNoPonto);
   }
   // Garante ponto.periodos e migra o formato antigo (total/residual no topo) p/ o
   // 1º período (`p0`; se não vier, calcula pelo campo ativo).
@@ -525,6 +535,15 @@ EC.campoRuido = (function () {
   function itensFaltando(estado) {
     const campo = estado && estado.campo;
     if (!campo || !campo.subtipo) return ['o monitoramento em campo não foi iniciado'];
+    // Período é obrigatório numa campanha NOVA. Registro antigo (já com dados, sem
+    // período escolhido) não trava — cai no fallback "diurno" da migração.
+    if (!periodosMarcados(campo.geral).length) {
+      const scan = function (pts) { return (pts || []).some(function (p) { return p && (p.total || p.residual || (p.periodos && Object.keys(p.periodos).length)); }); };
+      const temDados = ehInterno(campo.subtipo)
+        ? (campo.ambientes || []).some(function (a) { return scan(a && a.pontos); })
+        : scan(campo.pontos);
+      if (!temDados) return ['marque ao menos um período monitorado (diurno/vespertino/noturno)'];
+    }
     const s = estado.servico || {};
     const longaDuracao = /longa\s*dura/i.test((s.metodo || '') + ' ' + (s.periodo || ''));
     if (ehInterno(campo.subtipo)) return itensFaltandoInterno(campo, longaDuracao);
@@ -863,26 +882,31 @@ EC.campoRuido = (function () {
     if (!div) return;
     if (!campo().subtipo) { div.innerHTML = ''; return; }
     const g = campo().geral;
-    if (!Array.isArray(g.periodos) || !g.periodos.length) g.periodos = ['diurno'];
+    // Campanha nova começa SEM período marcado (obrigatório escolher). Registro antigo
+    // (já com dados) abre com Diurno marcado, para não dar atrito.
+    if (g.periodos === undefined) g.periodos = campoTemPontoComDados() ? ['diurno'] : [];
+    if (!Array.isArray(g.periodos)) g.periodos = [];
+    const nenhum = periodosMarcados(g).length === 0;
     div.innerHTML =
-      '<p class="grupo-checks-titulo">🕒 Períodos monitorados</p>' +
-      '<div class="cr-periodos-sel">' + PERIODOS.map(function (p) {
+      '<p class="grupo-checks-titulo">🕒 Períodos monitorados' + (nenhum ? ' <span style="color:var(--vermelho)">(obrigatório)</span>' : '') + '</p>' +
+      '<div class="cr-periodos-sel" style="display:flex;flex-wrap:wrap;gap:18px;align-items:center">' + PERIODOS.map(function (p) {
         const on = g.periodos.indexOf(p.id) !== -1;
-        return '<label class="linha-check check-campo"><input type="checkbox" data-periodo-sel="' + p.id + '"' + (on ? ' checked' : '') + '><span>' + p.icone + ' ' + p.nome + '</span></label>';
+        return '<label class="check-campo" style="display:inline-flex;align-items:center;gap:6px;margin:0"><input type="checkbox" data-periodo-sel="' + p.id + '"' + (on ? ' checked' : '') + '><span>' + p.nome + '</span></label>';
       }).join('') + '</div>' +
-      '<p class="texto-apoio">Marque os períodos desta campanha. Cada ponto terá as medições (Total/Residual) em cada período marcado.</p>';
+      (nenhum
+        ? '<div class="alerta alerta-amarelo cr-lembrete">Marque ao menos um período desta campanha para preencher os pontos.</div>'
+        : '<p class="texto-apoio">Cada ponto terá as medições (Total/Residual) em cada período marcado.</p>');
     div.querySelectorAll('[data-periodo-sel]').forEach(function (cb) {
       cb.addEventListener('change', function () {
         const id = cb.dataset.periodoSel;
         let lista = (campo().geral.periodos || []).slice();
         if (cb.checked) { if (lista.indexOf(id) === -1) lista.push(id); }
         else { lista = lista.filter(function (x) { return x !== id; }); }
-        if (!lista.length) { lista = [id]; cb.checked = true; if (EC.app && EC.app.mostrarToast) EC.app.mostrarToast('Pelo menos um período é obrigatório.'); }
         campo().geral.periodos = lista;
         if (periodosAtivos().indexOf(periodoExibido) === -1) periodoExibido = periodosAtivos()[0];
         salvar();
         renderizarPeriodos();
-        renderizarPonto(pontoExibido); // as abas de período do ponto mudam
+        renderizarPonto(pontoExibido); // as abas de período do ponto mudam (ou mostra o aviso)
       });
     });
   }
@@ -1314,6 +1338,10 @@ EC.campoRuido = (function () {
   // + a janela ativa. Cada janela guarda seus próprios campos em ponto[janela].
   function renderizarPontoJanelas(n, ponto) {
     const area = $('#cr-ponto');
+    if (periodosMarcados().length === 0) {
+      area.innerHTML = '<div class="cartao-ponto"><div class="alerta alerta-amarelo">🕒 Marque ao menos um <strong>período monitorado</strong> (acima) para preencher os pontos.</div></div>';
+      return;
+    }
     const periodos = periodosAtivos();
     if (periodos.indexOf(periodoExibido) === -1) periodoExibido = periodos[0];
     const med = medPer(ponto, periodoExibido);
