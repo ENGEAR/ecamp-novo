@@ -248,7 +248,8 @@ EC.campoRuido = (function () {
   const PERIODOS = [
     { id: 'diurno', icone: '☀️', nome: 'Diurno' },
     { id: 'vespertino', icone: '🌇', nome: 'Vespertino' },
-    { id: 'noturno', icone: '🌙', nome: 'Noturno' }
+    { id: 'noturno', icone: '🌙', nome: 'Noturno' },
+    { id: 'outro', icone: '🕓', nome: 'Outro' }
   ];
   function rotuloPeriodo(id) { const p = PERIODOS.filter(function (x) { return x.id === id; })[0]; return p ? p.nome : id; }
   // Períodos REALMENTE marcados na campanha (sem fallback) — para o "obrigatório".
