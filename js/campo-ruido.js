@@ -228,6 +228,7 @@ EC.campoRuido = (function () {
   let pontoExibido = 1;
   let ambienteExibido = 1;     // interno: qual ambiente está aberto (1-based)
   let janelaExibida = 'total'; // janela do ponto em edição (externo): 'total' | 'residual'
+  let periodoExibido = 'diurno'; // período do ponto em edição: 'diurno' | 'vespertino' | 'noturno'
   let temporizadorSalvar = null;
 
   // Cada ponto do ruído tem DUAS janelas de medição: Total (obrigatória) e
@@ -237,6 +238,54 @@ EC.campoRuido = (function () {
     { id: 'total', icone: '🔊', nome: 'Total', ajuda: 'com a fonte em operação' },
     { id: 'residual', icone: '🔇', nome: 'Residual', ajuda: 'sem a fonte (background)' }
   ];
+
+  // Cada ponto pode ter medições em até TRÊS períodos (diurno/vespertino/noturno),
+  // escolhidos uma vez para a campanha (campo.geral.periodos). Dentro de cada período
+  // existem as duas janelas (Total/Residual). Estrutura:
+  //   ponto.periodos[periodo] = { total, residual, justificativaResidual }
+  // Registros antigos (com total/residual no topo do ponto) são migrados para o 1º
+  // período ativo ao abrir — nada se perde.
+  const PERIODOS = [
+    { id: 'diurno', icone: '☀️', nome: 'Diurno' },
+    { id: 'vespertino', icone: '🌇', nome: 'Vespertino' },
+    { id: 'noturno', icone: '🌙', nome: 'Noturno' }
+  ];
+  function rotuloPeriodo(id) { const p = PERIODOS.filter(function (x) { return x.id === id; })[0]; return p ? p.nome : id; }
+  // Períodos ativos a partir de um `geral` (opcional). Sem argumento usa o campo
+  // ativo — mas a validação SEMPRE passa o geral (não depende do estado global).
+  function periodosAtivos(geral) {
+    const g = geral || (ctx && campo().geral) || {};
+    const marcados = Array.isArray(g.periodos) ? g.periodos : [];
+    const lista = PERIODOS.filter(function (x) { return marcados.indexOf(x.id) !== -1; }).map(function (x) { return x.id; });
+    return lista.length ? lista : ['diurno'];
+  }
+  // Garante ponto.periodos e migra o formato antigo (total/residual no topo) p/ o
+  // 1º período (`p0`; se não vier, calcula pelo campo ativo).
+  function garantirPeriodos(ponto, p0) {
+    if (!ponto.periodos) ponto.periodos = {};
+    if (ponto.total || ponto.residual || ponto.justificativaResidual !== undefined) {
+      const alvo = p0 || periodosAtivos()[0];
+      const m = ponto.periodos[alvo] = ponto.periodos[alvo] || {};
+      if (ponto.total && !m.total) m.total = ponto.total;
+      if (ponto.residual && !m.residual) m.residual = ponto.residual;
+      if (ponto.justificativaResidual !== undefined && m.justificativaResidual === undefined) m.justificativaResidual = ponto.justificativaResidual;
+      delete ponto.total; delete ponto.residual; delete ponto.justificativaResidual;
+    }
+    return ponto.periodos;
+  }
+  // Medições de um período (garante as duas janelas). `p0` = 1º período (migração).
+  function medPer(ponto, periodo, p0) {
+    garantirPeriodos(ponto, p0 || periodo);
+    const m = ponto.periodos[periodo] = ponto.periodos[periodo] || {};
+    m.total = m.total || {};
+    m.residual = m.residual || {};
+    return m;
+  }
+  // Período com algum dado (para o ✓ da aba de período).
+  function medComDados(ponto, periodo) {
+    const m = (ponto.periodos || {})[periodo];
+    return !!m && (janelaTemDados(m.total) || janelaTemDados(m.residual));
+  }
 
   function $(seletor) { return raiz.querySelector(seletor); }
 
@@ -395,16 +444,23 @@ EC.campoRuido = (function () {
     const falta = [];
     const ehPonto1 = indice === 0;
     const ehUltimo = indice === (total - 1);
-    faltasJanela(subtipo, ponto.total, longaDuracao, geral, 'total', ehPonto1, ehUltimo).forEach(function (x) { falta.push('Total: ' + x); });
-    const justif = ponto.justificativaResidual && String(ponto.justificativaResidual).trim();
-    if (!justif) {
-      if (!janelaTemDados(ponto.residual)) {
-        falta.push('Residual: medir OU escrever a justificativa');
-      } else {
-        // Residual nunca é ponto1/último para efeito de checagem/clima (regra só na Total).
-        faltasJanela(subtipo, ponto.residual, longaDuracao, geral, 'residual', false, false).forEach(function (x) { falta.push('Residual: ' + x); });
+    const periodos = periodosAtivos(geral);
+    const p0 = periodos[0];
+    const varios = periodos.length > 1;
+    periodos.forEach(function (pid) {
+      const med = medPer(ponto, pid, p0);
+      const pref = varios ? (rotuloPeriodo(pid) + ' · ') : '';
+      faltasJanela(subtipo, med.total, longaDuracao, geral, 'total', ehPonto1, ehUltimo).forEach(function (x) { falta.push(pref + 'Total: ' + x); });
+      const justif = med.justificativaResidual && String(med.justificativaResidual).trim();
+      if (!justif) {
+        if (!janelaTemDados(med.residual)) {
+          falta.push(pref + 'Residual: medir OU escrever a justificativa');
+        } else {
+          // Residual nunca é ponto1/último para efeito de checagem/clima (regra só na Total).
+          faltasJanela(subtipo, med.residual, longaDuracao, geral, 'residual', false, false).forEach(function (x) { falta.push(pref + 'Residual: ' + x); });
+        }
       }
-    }
+    });
     return falta;
   }
 
@@ -630,8 +686,8 @@ EC.campoRuido = (function () {
     if (!cont) return;
     if (janela !== 'total' || total <= 1 || n !== total) { cont.innerHTML = ''; return; }
     const primeiro = listaPontos()[0];
-    const ini = primeiro && primeiro.total ? primeiro.total : null;
-    const fimAlvo = ponto.total || {};
+    const ini = primeiro ? medPer(primeiro, periodoExibido).total : null;
+    const fimAlvo = medPer(ponto, periodoExibido).total;
     const num = function (v) {
       if (v === undefined || v === null || String(v).trim() === '') return null;
       const x = parseFloat(String(v).replace(',', '.'));
@@ -800,11 +856,43 @@ EC.campoRuido = (function () {
     };
   }
 
+  // Seletor de PERÍODOS (uma vez para a campanha): diurno/vespertino/noturno.
+  // Vale para todos os pontos. Ao mudar, redesenha o ponto atual (as abas mudam).
+  function renderizarPeriodos() {
+    const div = $('#cr-periodos');
+    if (!div) return;
+    if (!campo().subtipo) { div.innerHTML = ''; return; }
+    const g = campo().geral;
+    if (!Array.isArray(g.periodos) || !g.periodos.length) g.periodos = ['diurno'];
+    div.innerHTML =
+      '<p class="grupo-checks-titulo">🕒 Períodos monitorados</p>' +
+      '<div class="cr-periodos-sel">' + PERIODOS.map(function (p) {
+        const on = g.periodos.indexOf(p.id) !== -1;
+        return '<label class="linha-check check-campo"><input type="checkbox" data-periodo-sel="' + p.id + '"' + (on ? ' checked' : '') + '><span>' + p.icone + ' ' + p.nome + '</span></label>';
+      }).join('') + '</div>' +
+      '<p class="texto-apoio">Marque os períodos desta campanha. Cada ponto terá as medições (Total/Residual) em cada período marcado.</p>';
+    div.querySelectorAll('[data-periodo-sel]').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        const id = cb.dataset.periodoSel;
+        let lista = (campo().geral.periodos || []).slice();
+        if (cb.checked) { if (lista.indexOf(id) === -1) lista.push(id); }
+        else { lista = lista.filter(function (x) { return x !== id; }); }
+        if (!lista.length) { lista = [id]; cb.checked = true; if (EC.app && EC.app.mostrarToast) EC.app.mostrarToast('Pelo menos um período é obrigatório.'); }
+        campo().geral.periodos = lista;
+        if (periodosAtivos().indexOf(periodoExibido) === -1) periodoExibido = periodosAtivos()[0];
+        salvar();
+        renderizarPeriodos();
+        renderizarPonto(pontoExibido); // as abas de período do ponto mudam
+      });
+    });
+  }
+
   function renderizarGeral() {
     const area = $('#cr-geral');
     $('#cr-paginacao').innerHTML = '';
     $('#cr-ponto').innerHTML = '';
     const g = campo().geral;
+    renderizarPeriodos();
 
     if (!campo().subtipo) { area.innerHTML = ''; return; }
 
@@ -1226,11 +1314,23 @@ EC.campoRuido = (function () {
   // + a janela ativa. Cada janela guarda seus próprios campos em ponto[janela].
   function renderizarPontoJanelas(n, ponto) {
     const area = $('#cr-ponto');
-    ponto.total = ponto.total || {};
-    ponto.residual = ponto.residual || {};
+    const periodos = periodosAtivos();
+    if (periodos.indexOf(periodoExibido) === -1) periodoExibido = periodos[0];
+    const med = medPer(ponto, periodoExibido);
+
+    // Abas de PERÍODO (só aparecem se houver mais de um período ativo na campanha).
+    let abasPeriodo = '';
+    if (periodos.length > 1) {
+      abasPeriodo = '<div class="grade-tipos cr-periodo-abas">' + periodos.map(function (pid) {
+        const P = PERIODOS.filter(function (x) { return x.id === pid; })[0] || { icone: '', nome: pid };
+        const cheio = medComDados(ponto, pid) ? ' ✓' : '';
+        return '<button type="button" class="card-tipo cr-periodo-aba' + (periodoExibido === pid ? ' card-tipo-ativo' : '') +
+          '" data-periodo="' + pid + '"><span class="card-tipo-icone">' + P.icone + '</span><span>' + P.nome + cheio + '</span></button>';
+      }).join('') + '</div>';
+    }
 
     const abas = JANELAS.map(function (j) {
-      const cheia = janelaTemDados(ponto[j.id]);
+      const cheia = janelaTemDados(med[j.id]);
       const marca = cheia ? ' ✓' : (j.id === 'residual' ? ' (opcional)' : '');
       return '<button type="button" class="card-tipo cr-janela-aba' + (janelaExibida === j.id ? ' card-tipo-ativo' : '') +
         '" data-janela="' + j.id + '"><span class="card-tipo-icone">' + j.icone + '</span><span>' + j.nome + marca + '</span></button>';
@@ -1239,6 +1339,7 @@ EC.campoRuido = (function () {
     area.innerHTML =
       '<div class="cartao-ponto"><h2>Ponto P' + n + '</h2>' +
       '<p class="grupo-checks-titulo">Equipamentos utilizados</p><div id="cr-equip-ponto"></div>' +
+      (periodos.length > 1 ? '<p class="grupo-checks-titulo">Período</p>' : '') + abasPeriodo +
       '<p class="texto-apoio">Duas medições por ponto: <strong>Total</strong> (com a fonte) e <strong>Residual</strong> (sem a fonte). Comece pela que quiser; o Residual é opcional se você justificar.</p>' +
       '<div class="grade-tipos cr-janelas">' + abas + '</div>' +
       '<div id="cr-janela-form"></div></div>';
@@ -1246,6 +1347,14 @@ EC.campoRuido = (function () {
     $('#cr-equip-ponto').innerHTML = htmlEquipamentosPonto(ponto);
     vincularEquipamentos($('#cr-equip-ponto'), ponto);
 
+    area.querySelectorAll('.cr-periodo-aba').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (periodoExibido === b.dataset.periodo) return;
+        periodoExibido = b.dataset.periodo;
+        janelaExibida = 'total';
+        renderizarPontoJanelas(n, ponto);
+      });
+    });
     area.querySelectorAll('.cr-janela-aba').forEach(function (b) {
       b.addEventListener('click', function () {
         if (janelaExibida === b.dataset.janela) return;
@@ -1259,7 +1368,8 @@ EC.campoRuido = (function () {
 
   function renderizarJanela(n, ponto, janela) {
     const wrap = $('#cr-janela-form');
-    const alvo = ponto[janela];
+    const med = medPer(ponto, periodoExibido);
+    const alvo = med[janela];
     const sub = campo().subtipo;
     let html = '';
     if (janela === 'residual') {
@@ -1271,8 +1381,8 @@ EC.campoRuido = (function () {
 
     const taj = wrap.querySelector('[data-justif]');
     if (taj) {
-      if (ponto.justificativaResidual) taj.value = ponto.justificativaResidual;
-      taj.addEventListener('input', function () { ponto.justificativaResidual = taj.value; salvarDevagar(); });
+      if (med.justificativaResidual) taj.value = med.justificativaResidual;
+      taj.addEventListener('input', function () { med.justificativaResidual = taj.value; salvarDevagar(); });
     }
 
     vincular(wrap, alvo);
@@ -1315,6 +1425,7 @@ EC.campoRuido = (function () {
     pontoExibido = 1;
     ambienteExibido = 1;
     janelaExibida = 'total'; // nunca reabrir na Residual (o form do interno é idêntico e confunde)
+    periodoExibido = periodosAtivos()[0];
 
     // Pré-seleciona o subtipo pelo escopo da OS (o técnico pode trocar)
     if (!campo().subtipo && EC.mapaEscopo && EC.mapaEscopo.subtipoPorEscopo) {
@@ -1327,6 +1438,7 @@ EC.campoRuido = (function () {
       '<p class="grupo-checks-titulo">Subtipo do monitoramento</p>' +
       '<div class="grade-tipos" id="cr-subtipos"></div>' +
       '<div id="cr-subtipo-hint"></div>' +
+      '<div id="cr-periodos"></div>' +
       '<div id="cr-geral"></div>' +
       '<div id="cr-paginacao" class="cr-paginacao"></div>' +
       '<div id="cr-ponto"></div>';
