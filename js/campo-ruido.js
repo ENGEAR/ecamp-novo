@@ -251,7 +251,15 @@ EC.campoRuido = (function () {
     { id: 'noturno', icone: '🌙', nome: 'Noturno' },
     { id: 'outro', icone: '🕓', nome: 'Outro' }
   ];
-  function rotuloPeriodo(id) { const p = PERIODOS.filter(function (x) { return x.id === id; })[0]; return p ? p.nome : id; }
+  function rotuloPeriodo(id, geral) {
+    if (id === 'outro') {
+      const g = geral || (ctx && campo().geral) || {};
+      const nome = (g.periodoOutroLabel || '').trim();
+      return nome || 'Outro';
+    }
+    const p = PERIODOS.filter(function (x) { return x.id === id; })[0];
+    return p ? p.nome : id;
+  }
   // Períodos REALMENTE marcados na campanha (sem fallback) — para o "obrigatório".
   function periodosMarcados(geral) {
     const g = geral || (ctx && campo().geral) || {};
@@ -460,7 +468,7 @@ EC.campoRuido = (function () {
     const varios = periodos.length > 1;
     periodos.forEach(function (pid) {
       const med = medPer(ponto, pid, p0);
-      const pref = varios ? (rotuloPeriodo(pid) + ' · ') : '';
+      const pref = varios ? (rotuloPeriodo(pid, geral) + ' · ') : '';
       faltasJanela(subtipo, med.total, longaDuracao, geral, 'total', ehPonto1, ehUltimo).forEach(function (x) { falta.push(pref + 'Total: ' + x); });
       const justif = med.justificativaResidual && String(med.justificativaResidual).trim();
       if (!justif) {
@@ -544,6 +552,10 @@ EC.campoRuido = (function () {
         ? (campo.ambientes || []).some(function (a) { return scan(a && a.pontos); })
         : scan(campo.pontos);
       if (!temDados) return ['marque ao menos um período monitorado (diurno/vespertino/noturno)'];
+    }
+    // Se "Outro" foi marcado, exige descrever qual é.
+    if (periodosMarcados(campo.geral).indexOf('outro') !== -1 && !String((campo.geral || {}).periodoOutroLabel || '').trim()) {
+      return ['descreva qual é o período “Outro”'];
     }
     const s = estado.servico || {};
     const longaDuracao = /longa\s*dura/i.test((s.metodo || '') + ' ' + (s.periodo || ''));
@@ -894,6 +906,9 @@ EC.campoRuido = (function () {
         const on = g.periodos.indexOf(p.id) !== -1;
         return '<label class="check-campo" style="display:inline-flex;align-items:center;gap:6px;margin:0"><input type="checkbox" data-periodo-sel="' + p.id + '"' + (on ? ' checked' : '') + '><span>' + p.nome + '</span></label>';
       }).join('') + '</div>' +
+      (g.periodos.indexOf('outro') !== -1
+        ? '<label style="margin-top:8px;display:block">Descreva o período “Outro”<input type="text" data-periodo-outro placeholder="ex.: madrugada, pico da manhã…"></label>'
+        : '') +
       (nenhum
         ? '<div class="alerta alerta-amarelo cr-lembrete">Marque ao menos um período desta campanha para preencher os pontos.</div>'
         : '<p class="texto-apoio">Cada ponto terá as medições (Total/Residual) em cada período marcado.</p>');
@@ -910,6 +925,15 @@ EC.campoRuido = (function () {
         renderizarPonto(pontoExibido); // as abas de período do ponto mudam (ou mostra o aviso)
       });
     });
+    const inpOutro = div.querySelector('[data-periodo-outro]');
+    if (inpOutro) {
+      inpOutro.value = campo().geral.periodoOutroLabel || '';
+      inpOutro.addEventListener('input', function () {
+        campo().geral.periodoOutroLabel = inpOutro.value;
+        salvarDevagar();
+        renderizarPonto(pontoExibido); // atualiza o rótulo da aba "Outro" ao vivo (sem re-render deste campo)
+      });
+    }
   }
 
   function renderizarGeral() {
@@ -1354,7 +1378,7 @@ EC.campoRuido = (function () {
         const P = PERIODOS.filter(function (x) { return x.id === pid; })[0] || { icone: '', nome: pid };
         const cheio = medComDados(ponto, pid) ? ' ✓' : '';
         return '<button type="button" class="card-tipo cr-periodo-aba' + (periodoExibido === pid ? ' card-tipo-ativo' : '') +
-          '" data-periodo="' + pid + '"><span class="card-tipo-icone">' + P.icone + '</span><span>' + P.nome + cheio + '</span></button>';
+          '" data-periodo="' + pid + '"><span class="card-tipo-icone">' + P.icone + '</span><span>' + rotuloPeriodo(pid) + cheio + '</span></button>';
       }).join('') + '</div>';
     }
 
