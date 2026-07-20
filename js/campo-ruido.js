@@ -533,7 +533,7 @@ EC.campoRuido = (function () {
   function lembreteChecagemIni(ehPonto1) { return ehPonto1 ? '' : LEMBRETE_CHECAGEM; }
   function lembreteClima(ehPonto1) {
     if (ehPonto1) return '';
-    return '<p class="texto-apoio cr-lembrete">Se o monitoramento for realizado na mesma data e no mesmo período (diurno, vespertino ou noturno) do ponto 1, <strong>não é necessário registrar novamente as condições ambientais.</strong></p>';
+    return '<div class="alerta alerta-amarelo cr-lembrete">💡 Se o monitoramento for realizado na mesma data e no mesmo período (diurno, vespertino ou noturno) do ponto 1, <strong>não é necessário registrar novamente as condições ambientais.</strong></div>';
   }
 
   function htmlChecagem(titulo, prefixo) {
