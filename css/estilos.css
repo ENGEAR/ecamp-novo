@@ -366,6 +366,7 @@ textarea { resize: vertical; font-family: inherit; }
 }
 .cr-paginacao { margin: 14px 0 4px; }
 .cr-resultado-checagem { font-size: 0.95rem; min-height: 1.2em; }
+.cr-resultado-checagem:empty { min-height: 0; }
 
 /* ---------- Canvas da sala ---------- */
 .canvas-barra { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
