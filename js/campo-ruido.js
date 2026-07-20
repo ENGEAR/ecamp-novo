@@ -1096,6 +1096,7 @@ EC.campoRuido = (function () {
         ? htmlChecks(['Monitorar e registrar temperatura, umidade e vento de forma contínua'], 'climacont')
         : htmlClima(false)) +
       lembreteClima(ehPonto1) +
+      '<p class="grupo-checks-titulo">🔊 Fontes percebidas</p>' +
       '<label>Fontes percebidas da EMPRESA<input type="text" data-campo="fontesEmpresa"></label>' +
       '<label>Fontes percebidas do AMBIENTE<input type="text" data-campo="fontesAmbiente"></label>' +
       htmlChecagem('Checagem final', 'chkFim') +
