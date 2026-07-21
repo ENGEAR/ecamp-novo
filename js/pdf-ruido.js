@@ -548,9 +548,23 @@ EC.pdf = (function () {
         if (!itens) { tituloSecao('Monitoramento'); kv('Registro', 'sem itens preenchidos'); return; }
         var count = parseInt(geral.qtdePontos || geral.qtdeVeiculos || geral.qtdeAmbientes, 10) || itens.arr.length;
         var qtd = Math.min(itens.arr.length, count);
+        // CECAV (vibração) agora pode ter medições por PERÍODO (diurno/noturno).
+        var PER_ORDEM = ['diurno', 'noturno'], PER_NOME = { diurno: 'Diurno', noturno: 'Noturno' };
         for (var i = 0; i < qtd; i++) {
           tituloSecao(itens.rotulo + ' ' + (i + 1));
-          renderCampos(itens.arr[i] || {});
+          var it = itens.arr[i] || {};
+          if (it.periodos && typeof it.periodos === 'object') {
+            var ids = PER_ORDEM.filter(function (id) { return it.periodos[id]; });
+            if (ids.length) {
+              var varios = ids.length > 1;
+              ids.forEach(function (id) {
+                if (varios) subtitulo('Período: ' + (PER_NOME[id] || id));
+                renderCampos(it.periodos[id] || {});
+              });
+              continue;
+            }
+          }
+          renderCampos(it);
         }
       }
 
