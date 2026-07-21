@@ -210,6 +210,7 @@ EC.foto = (function () {
           }
           linhasCarimbo.push(opcoes.tipo || '—');
           linhasCarimbo.push((opcoes.rotuloPonto || 'Ponto') + ' ' + (opcoes.ponto || '—'));
+          if (opcoes.periodo) linhasCarimbo.push('Período: ' + opcoes.periodo);
           if (!daFototeca) linhasCarimbo.push(dataHoraBR(agora));
           desenharCarimbo(ctx, largura, altura, linhasCarimbo);
           desenharMarcaDagua(ctx, largura, altura);
@@ -217,7 +218,9 @@ EC.foto = (function () {
           const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
           fotos.push({
             nomeArquivo: 'OS_' + (opcoes.os || 'SEM-OS') + '_' + (opcoes.tipo || 'SEM-TIPO') + '_'
-              + (opcoes.ponto || 'P0') + '_' + carimboDataHora(agora) + '_F' + doisDigitos(fotos.length + 1) + '.jpg',
+              + (opcoes.ponto || 'P0') + '_'
+              + (opcoes.periodo ? String(opcoes.periodo).replace(/\s+/g, '-') + '_' : '')
+              + carimboDataHora(agora) + '_F' + doisDigitos(fotos.length + 1) + '.jpg',
             base64: dataUrl.split(',')[1],
             dataUrl: dataUrl,
             capturadaEm: agora.toISOString(),

@@ -759,6 +759,7 @@ EC.campoRuido = (function () {
       projeto: ctx.estado.os.projeto,
       tipo: TIPOS_CARIMBO[campo().subtipo],
       ponto: 'P' + String(numeroPonto).padStart(2, '0') + (sufixoJanela ? ' ' + sufixoJanela : ''),
+      periodo: rotuloPeriodo(periodoExibido),
       rotulo: rotulo,
       fotoInicial: alvo[chave] || null,
       obterUtm: function () {
