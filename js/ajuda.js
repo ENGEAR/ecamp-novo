@@ -39,7 +39,7 @@ EC.ajuda = (function () {
 
       secao('Primeiros passos') +
       topico('📲 Instalar no celular', ul([
-        '<strong>Android (Chrome):</strong> menu ⋮ → “Adicionar à tela de início”.',
+        '<strong>Android (Chrome):</strong> menu ⋮ → “Adicionar à tela de início” ou “Instalar e colocar atalho”.',
         '<strong>iPhone (Safari):</strong> botão Compartilhar → “Adicionar à Tela de Início”.',
         'O <strong>primeiro acesso precisa de internet</strong>; depois o app abre e funciona offline.'
       ])) +
