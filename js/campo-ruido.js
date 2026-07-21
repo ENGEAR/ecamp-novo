@@ -902,9 +902,9 @@ EC.campoRuido = (function () {
     const nenhum = periodosMarcados(g).length === 0;
     div.innerHTML =
       '<p class="grupo-checks-titulo">🕒 Períodos monitorados' + (nenhum ? ' <span style="color:var(--vermelho)">(obrigatório)</span>' : '') + '</p>' +
-      '<div class="cr-periodos-sel" style="display:flex;flex-wrap:wrap;gap:18px;align-items:center">' + PERIODOS.map(function (p) {
+      '<div class="cr-periodos-sel" style="display:flex;justify-content:space-between;gap:6px;align-items:center;font-size:13px">' + PERIODOS.map(function (p) {
         const on = g.periodos.indexOf(p.id) !== -1;
-        return '<label class="check-campo" style="display:inline-flex;align-items:center;gap:6px;margin:0"><input type="checkbox" data-periodo-sel="' + p.id + '"' + (on ? ' checked' : '') + '><span>' + p.nome + '</span></label>';
+        return '<label class="check-campo" style="display:inline-flex;align-items:center;gap:4px;margin:0;white-space:nowrap"><input type="checkbox" data-periodo-sel="' + p.id + '"' + (on ? ' checked' : '') + '><span>' + p.nome + '</span></label>';
       }).join('') + '</div>' +
       (g.periodos.indexOf('outro') !== -1
         ? '<label style="margin-top:8px;display:block">Descreva o período “Outro”<input type="text" data-periodo-outro placeholder="ex.: madrugada, pico da manhã…"></label>'
