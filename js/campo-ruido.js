@@ -427,7 +427,6 @@ EC.campoRuido = (function () {
         grupoChecksIdx('ferro', [3, 4], 'condições ambientais');
         reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento');
       }
-      reqVal('observacoes', 'observações');
     } else if (subtipo === 'aeronautico') {
       if ((geral || {}).finalidade === AERO_OPERACIONAL) {
         grupoChecks('estacao', 1, 'estação meteorológica funcionando');
@@ -435,7 +434,6 @@ EC.campoRuido = (function () {
         grupoChecks('aero', CHECKS_PONTO_AERO_RECEPTORES.length, 'checks do ponto');
         if (climaObrig) { reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento'); }
       }
-      reqVal('observacoes', 'observações');
     } else {
       // externo
       grupoChecks('pos', POSICIONAMENTO_EXTERNO_PADRAO.length, 'posicionamento do microfone');
@@ -445,7 +443,6 @@ EC.campoRuido = (function () {
         else { reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento'); }
       }
       reqVal('fontesEmpresa', 'fontes da empresa'); reqVal('fontesAmbiente', 'fontes do ambiente');
-      reqVal('observacoes', 'observações');
     }
 
     // Checagem final: obrigatória só no último ponto (Total). Foto da tela final só
