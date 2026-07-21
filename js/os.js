@@ -92,8 +92,19 @@ EC.os = (function () {
   }
 
   // Busca a lista fresca no servidor e atualiza o cache. Best-effort (offline: ignora).
+  // Manda o token da sessão (Authorization) para o servidor filtrar as OS do usuário
+  // (bloqueio da Etapa 3: técnico só recebe as OS dele).
   async function atualizarDoServidor() {
-    var resp = await fetch(ROTA_OS, { headers: { 'x-ecamp-token': TOKEN } });
+    var headers = { 'x-ecamp-token': TOKEN };
+    try {
+      var cli = EC.auth && EC.auth.cliente ? EC.auth.cliente() : null;
+      if (cli) {
+        var s = await cli.auth.getSession();
+        var at = s && s.data && s.data.session && s.data.session.access_token;
+        if (at) headers['Authorization'] = 'Bearer ' + at;
+      }
+    } catch (e) { /* sem sessão: o servidor devolve vazio (fail-closed) */ }
+    var resp = await fetch(ROTA_OS, { headers: headers });
     var corpo = await resp.json();
     if (!resp.ok || !corpo.ok) throw new Error(corpo.erro || ('HTTP ' + resp.status));
     if (Array.isArray(corpo.os)) EC.storage.salvar(CH_LISTA, corpo.os);
