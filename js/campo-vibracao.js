@@ -156,6 +156,55 @@ EC.campoVibracao = (function () {
     temporizadorSalvar = setTimeout(salvar, 400);
   }
 
+  // ===== PERÍODO (diurno/noturno) — SÓ no CECAV =====
+  // Cada ponto tem uma medição COMPLETA por período (mesma ideia do Ruído).
+  // Estrutura: ponto.periodos[periodo] = { todos os campos da medição }. Registro
+  // antigo (campos no topo do ponto) migra para o 1º período ao abrir. Fora do
+  // CECAV o ponto continua PLANO (sem períodos).
+  const PERIODOS = [
+    { id: 'diurno', icone: '☀️', nome: 'Diurno' },
+    { id: 'noturno', icone: '🌙', nome: 'Noturno' }
+  ];
+  let periodoExibido = 'diurno';
+  function rotuloPeriodo(id) { const p = PERIODOS.filter(function (x) { return x.id === id; })[0]; return p ? p.nome : id; }
+  function ehCecavAtivo() { return !!(ctx && ehCecav(ctx.estado)); }
+  function periodosAtivos(geral) {
+    const g = geral || (ctx && campo().geral) || {};
+    const marcados = Array.isArray(g.periodos) ? g.periodos : [];
+    const lista = PERIODOS.filter(function (x) { return marcados.indexOf(x.id) !== -1; }).map(function (x) { return x.id; });
+    return lista.length ? lista : ['diurno'];
+  }
+  function garantirPeriodos(ponto, p0) {
+    if (!ponto.periodos) {
+      ponto.periodos = {};
+      const chaves = Object.keys(ponto).filter(function (k) { return k !== 'periodos'; });
+      if (chaves.length) { // migra o formato antigo (campos no topo) para o 1º período
+        const alvo = p0 || periodosAtivos()[0];
+        const m = ponto.periodos[alvo] = {};
+        chaves.forEach(function (k) { m[k] = ponto[k]; delete ponto[k]; });
+      }
+    }
+    return ponto.periodos;
+  }
+  function medPer(ponto, periodo, p0) {
+    garantirPeriodos(ponto, p0 || periodo);
+    return (ponto.periodos[periodo] = ponto.periodos[periodo] || {});
+  }
+  // Objeto de medição "ativo": no CECAV é o do período exibido; senão o ponto (plano).
+  function alvoPonto(ponto) { return ehCecavAtivo() ? medPer(ponto, periodoExibido) : ponto; }
+  function medComDados(ponto, periodo) {
+    const m = (ponto.periodos || {})[periodo];
+    if (!m) return false;
+    return Object.keys(m).some(function (k) {
+      const v = m[k];
+      if (v == null) return false;
+      if (typeof v === 'string') return v.trim() !== '';
+      if (Array.isArray(v)) return v.length > 0;
+      if (typeof v === 'object') return Object.keys(v).length > 0;
+      return !!v;
+    });
+  }
+
   function htmlChecks(itens, prefixo) {
     return itens.map(function (texto, i) {
       return '<label class="linha-check check-campo"><input type="checkbox" data-check="' + prefixo + i + '"><span>' + texto + '</span></label>';
@@ -211,6 +260,39 @@ EC.campoVibracao = (function () {
 
   /* ===== Campos gerais ===== */
 
+  // Seletor de PERÍODOS do CECAV (diurno/noturno). Campanha nova = ambos por
+  // padrão; registro antigo (dados no topo do ponto) = só diurno (não força noturno).
+  function renderizarPeriodos() {
+    const div = $('#cv-periodos');
+    if (!div) return;
+    const g = campo().geral;
+    if (!Array.isArray(g.periodos) || !g.periodos.length) {
+      const temAntigo = (campo().pontos || []).some(function (p) { return p && !p.periodos && Object.keys(p).length; });
+      g.periodos = temAntigo ? ['diurno'] : ['diurno', 'noturno'];
+    }
+    div.innerHTML =
+      '<p class="grupo-checks-titulo">🕒 Período de monitoramento</p>' +
+      '<div style="display:flex;gap:18px;align-items:center">' + PERIODOS.map(function (p) {
+        const on = g.periodos.indexOf(p.id) !== -1;
+        return '<label class="check-campo" style="display:inline-flex;align-items:center;gap:6px;margin:0"><input type="checkbox" data-periodo-sel="' + p.id + '"' + (on ? ' checked' : '') + '><span>' + p.nome + '</span></label>';
+      }).join('') + '</div>' +
+      '<p class="texto-apoio">Cada ponto terá uma medição completa em cada período marcado.</p>';
+    div.querySelectorAll('[data-periodo-sel]').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        const id = cb.dataset.periodoSel;
+        let lista = (campo().geral.periodos || []).slice();
+        if (cb.checked) { if (lista.indexOf(id) === -1) lista.push(id); }
+        else { lista = lista.filter(function (x) { return x !== id; }); }
+        if (!lista.length) { lista = [id]; cb.checked = true; if (EC.app && EC.app.mostrarToast) EC.app.mostrarToast('Marque ao menos um período.'); }
+        campo().geral.periodos = lista;
+        if (periodosAtivos().indexOf(periodoExibido) === -1) periodoExibido = periodosAtivos()[0];
+        salvar();
+        renderizarPeriodos();
+        renderizarPonto(pontoExibido);
+      });
+    });
+  }
+
   function renderizarGeral() {
     const area = $('#cv-geral');
     const g = campo().geral;
@@ -223,7 +305,7 @@ EC.campoVibracao = (function () {
       (cecav
         ? '<label>Fonte de vibração<select data-campo="fonteVibracaoGeral"><option value="">Selecione…</option>' +
           Object.keys(FONTES_CECAV).map(function (n) { return '<option>' + n + '</option>'; }).join('') +
-          '</select></label><div id="cv-aviso-fonte"></div>'
+          '</select></label><div id="cv-aviso-fonte"></div><div id="cv-periodos"></div>'
         : '') +
       '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>' +
       (previstoPontos != null && previstoPontos !== '' ? '<p class="texto-apoio">Previsto na OS: ' + previstoPontos + ' ponto(s).</p>' : '') +
@@ -233,6 +315,7 @@ EC.campoVibracao = (function () {
       (cecav ? htmlChecks([CFG_SOLO_CONTINUO], 'solocont') : '');
     if (g.qtdePontos === undefined) g.qtdePontos = previstoPontos;
     vincular(area, g);
+    renderizarPeriodos();
 
     // CECAV: aviso conforme a fonte escolhida; trocar a fonte muda a estrutura
     // dos pontos (checks de caverna, condições da medição, 3 medições).
@@ -307,10 +390,26 @@ EC.campoVibracao = (function () {
     const ponto = campo().pontos[n - 1];
     if (!ponto) { area.innerHTML = ''; return; }
 
+    const cecav = ehCecavAtivo();
+    const periodos = periodosAtivos();
+    if (cecav && periodos.indexOf(periodoExibido) === -1) periodoExibido = periodos[0];
+    const alvo = alvoPonto(ponto); // no CECAV = a medição do período; senão o próprio ponto
+
+    // Abas de PERÍODO (CECAV, só se houver mais de um período marcado).
+    let abasPeriodo = '';
+    if (cecav && periodos.length > 1) {
+      abasPeriodo = '<p class="grupo-checks-titulo">Período</p><div class="grade-tipos cv-periodo-abas">' + periodos.map(function (pid) {
+        const P = PERIODOS.filter(function (x) { return x.id === pid; })[0] || { icone: '', nome: pid };
+        const cheio = medComDados(ponto, pid) ? ' ✓' : '';
+        return '<button type="button" class="card-tipo cv-periodo-aba' + (periodoExibido === pid ? ' card-tipo-ativo' : '') +
+          '" data-periodo="' + pid + '"><span class="card-tipo-icone">' + P.icone + '</span><span>' + P.nome + cheio + '</span></button>';
+      }).join('') + '</div>';
+    }
+
     const fonte = cfgFonte(ctx.estado);
     const tresMedicoes = !!(fonte && fonte.medicoes === 3);
     const html =
-      '<div class="cartao-ponto"><h2>Ponto P' + n + '</h2>' +
+      '<div class="cartao-ponto"><h2>Ponto P' + n + '</h2>' + abasPeriodo +
       (tresMedicoes ? '<p class="texto-apoio">⚠️ Esta fonte exige <strong>3 medições</strong> neste ponto: preencha a 1ª medição completa abaixo — a 2ª e a 3ª estão no fim da página.</p><p class="grupo-checks-titulo">1ª medição</p>' : '') +
       // 1. Identificação
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
@@ -349,10 +448,19 @@ EC.campoVibracao = (function () {
       '</div>';
     area.innerHTML = html;
 
-    vincular(area, ponto);
-    renderMedicoes(area, ponto);
-    const gpsInstancia = montarGps(area, ponto);
-    montarFoto(area, '.cv-foto-ponto', ponto, 'fotoPonto', '📷 Foto do ponto (obrigatória)', gpsInstancia, n);
+    // Abas de período (CECAV): trocar redesenha o ponto na medição daquele período.
+    area.querySelectorAll('.cv-periodo-aba').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (periodoExibido === b.dataset.periodo) return;
+        periodoExibido = b.dataset.periodo;
+        renderizarPonto(n);
+      });
+    });
+
+    vincular(area, alvo);
+    renderMedicoes(area, alvo);
+    const gpsInstancia = montarGps(area, alvo);
+    montarFoto(area, '.cv-foto-ponto', alvo, 'fotoPonto', '📷 Foto do ponto (obrigatória)', gpsInstancia, n);
 
     // instalação do geofone: mostra os checks da opção escolhida (uma das três)
     const selGeo = area.querySelector('[data-campo="instalGeofone"]');
@@ -361,7 +469,7 @@ EC.campoVibracao = (function () {
       const cfg = INSTAL_GEOFONE[selGeo.value];
       if (cfg) {
         divGeo.innerHTML = '<p class="grupo-checks-titulo">⚙️ Instalação do geofone — ' + selGeo.value.toLowerCase() + '</p>' + htmlChecks(cfg.checks, cfg.prefixo);
-        vincular(divGeo, ponto);
+        vincular(divGeo, alvo);
       } else {
         divGeo.innerHTML = '';
       }
@@ -375,7 +483,7 @@ EC.campoVibracao = (function () {
     function descricao() {
       if (seletor.value === 'Sim') {
         divDesc.innerHTML = '<label>Descreva a intercorrência<textarea rows="2" data-campo="intercorrenciaDesc"></textarea></label>';
-        vincular(divDesc, ponto);
+        vincular(divDesc, alvo);
       } else {
         divDesc.innerHTML = '';
       }
@@ -451,14 +559,15 @@ EC.campoVibracao = (function () {
 
   /* ===== Validação ===== */
 
-  function itensFaltandoDoPonto(ponto, estado) {
-    ponto = ponto || {};
+  // Faltas de UMA medição (o ponto plano, ou a medição de um período no CECAV).
+  function faltasMedicao(med, estado) {
+    med = med || {};
     const falta = [];
     const reqVal = function (chave, rotulo) {
-      const v = ponto[chave];
+      const v = med[chave];
       if (v === undefined || v === null || String(v).trim() === '') falta.push(rotulo);
     };
-    const checks = ponto.checks || {};
+    const checks = med.checks || {};
     const grupoChecks = function (prefixo, qtde, rotulo) {
       let n = 0;
       for (let i = 0; i < qtde; i++) if (!checks[prefixo + i]) n++;
@@ -468,32 +577,51 @@ EC.campoVibracao = (function () {
     reqVal('horaInicial', 'hora inicial');
     reqVal('nome', 'nome do ponto');
     if (((estado && estado.equipamentos) || []).length) reqVal('equipamento', 'equipamento utilizado');
-    if (!ponto.gps) falta.push('GPS');
+    if (!med.gps) falta.push('GPS');
     reqVal('fonteVibracao', 'fonte de vibração');
     reqVal('instalGeofone', 'instalação do geofone');
-    const cfgGeo = INSTAL_GEOFONE[ponto.instalGeofone];
-    if (cfgGeo) grupoChecks(cfgGeo.prefixo, cfgGeo.checks.length, 'instalação do geofone (' + ponto.instalGeofone.toLowerCase() + ')');
+    const cfgGeo = INSTAL_GEOFONE[med.instalGeofone];
+    if (cfgGeo) grupoChecks(cfgGeo.prefixo, cfgGeo.checks.length, 'instalação do geofone (' + med.instalGeofone.toLowerCase() + ')');
     grupoChecks('autoverif', 1, 'auto verificação');
-    if (!EC.foto.tem(ponto.fotoPonto)) falta.push('foto do ponto');
+    if (!EC.foto.tem(med.fotoPonto)) falta.push('foto do ponto');
     grupoChecks('monit', CHECKS_MONITORAMENTO.length, 'durante o monitoramento');
     reqVal('intercorrencia', 'intercorrências');
-    if (ponto.intercorrencia === 'Sim') reqVal('intercorrenciaDesc', 'descrição da intercorrência');
+    if (med.intercorrencia === 'Sim') reqVal('intercorrenciaDesc', 'descrição da intercorrência');
     // CECAV: condições da medição (bloqueiam) + 2ª/3ª medições quando a fonte exige.
     const f = cfgFonte(estado);
     if (f && f.checksFonte.length) grupoChecks('fonteChk', f.checksFonte.length, 'condições da medição');
     if (f && f.medicoes === 3) {
       for (let k = 2; k <= 3; k++) {
-        const med = (ponto.medicoes || [])[k - 2] || {};
-        const mch = med.checks || {};
-        if (!String(med.horaInicial || '').trim()) falta.push(k + 'ª medição: hora inicial');
+        const m2 = (med.medicoes || [])[k - 2] || {};
+        const mch = m2.checks || {};
+        if (!String(m2.horaInicial || '').trim()) falta.push(k + 'ª medição: hora inicial');
         if (!mch.autoverif0) falta.push(k + 'ª medição: auto verificação');
-        if (!String(med.intercorrencia || '').trim()) falta.push(k + 'ª medição: intercorrências');
-        if (med.intercorrencia === 'Sim' && !String(med.intercorrenciaDesc || '').trim()) falta.push(k + 'ª medição: descrição da intercorrência');
+        if (!String(m2.intercorrencia || '').trim()) falta.push(k + 'ª medição: intercorrências');
+        if (m2.intercorrencia === 'Sim' && !String(m2.intercorrenciaDesc || '').trim()) falta.push(k + 'ª medição: descrição da intercorrência');
       }
     }
     // Hora final é opcional (como a hora de término no ruído).
     // Checks de local/geofone/microfone são situacionais → não bloqueiam.
     return falta;
+  }
+
+  // No CECAV valida cada PERÍODO ativo (prefixando o rótulo quando há mais de um);
+  // fora do CECAV valida o ponto plano.
+  function itensFaltandoDoPonto(ponto, estado) {
+    ponto = ponto || {};
+    if (ehCecav(estado)) {
+      const falta = [];
+      const periodos = periodosAtivos((estado.campo || {}).geral);
+      const p0 = periodos[0];
+      const varios = periodos.length > 1;
+      periodos.forEach(function (pid) {
+        const med = medPer(ponto, pid, p0);
+        const pref = varios ? (rotuloPeriodo(pid) + ' · ') : '';
+        faltasMedicao(med, estado).forEach(function (x) { falta.push(pref + x); });
+      });
+      return falta;
+    }
+    return faltasMedicao(ponto, estado);
   }
 
   function itensFaltando(estado) {
@@ -532,6 +660,7 @@ EC.campoVibracao = (function () {
     // Marca o subtipo no registro (o SGP distingue CECAV da NBR 9653 por aqui).
     if (ehCecav(ctx.estado)) ctx.estado.campo.subtipo = 'cecav';
     pontoExibido = 1;
+    periodoExibido = periodosAtivos()[0];
 
     container.innerHTML =
       '<div id="cv-geral"></div>' +
