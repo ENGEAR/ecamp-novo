@@ -38,6 +38,7 @@ EC.os = (function () {
   var CH_LISTA = 'os:lista';
   var CH_ANDAMENTO = 'os:andamento';
   var CH_RECENTES = 'os:recentes';
+  var CH_SESSAO_EXPIRADA = 'os:sessaoExpirada';
   var MAX_RECENTES = 10;
 
   function ler(chave, padrao) {
@@ -92,21 +93,71 @@ EC.os = (function () {
   }
 
   // Busca a lista fresca no servidor e atualiza o cache. Best-effort (offline: ignora).
+  // Devolve um access_token VÁLIDO para mandar ao servidor. O getSession pode
+  // devolver um token JÁ VENCIDO (o app fica dias sem primeiro plano e o
+  // auto-refresh do supabase-js não chegou a rodar) — então, se estiver perto de
+  // vencer ou já vencido, renovamos na hora. Assim o técnico não precisa deslogar.
+  async function tokenValido(cli) {
+    var s = await cli.auth.getSession();
+    var sess = s && s.data && s.data.session;
+    if (!sess) return '';
+    var agora = Math.floor(Date.now() / 1000);
+    var venceEm = sess.expires_at || 0;
+    if (!venceEm || (venceEm - agora) < 90) {
+      try {
+        var r = await cli.auth.refreshSession();
+        if (r && r.data && r.data.session) sess = r.data.session;
+      } catch (e) { /* offline/refresh falhou: usa o token atual mesmo */ }
+    }
+    return (sess && sess.access_token) || '';
+  }
+
+  function sessaoExpirada() { return !!EC.storage.ler(CH_SESSAO_EXPIRADA); }
+
   // Manda o token da sessão (Authorization) para o servidor filtrar as OS do usuário
   // (bloqueio da Etapa 3: técnico só recebe as OS dele).
+  //
+  // ROBUSTEZ (2026-07-21): antes o app confiava no token do getSession (podia
+  // estar vencido) e, se o servidor respondesse "sem sessão", SOBRESCREVIA a
+  // lista com vazio — o técnico perdia todas as OS e precisava deslogar/logar.
+  // Agora: (1) renova o token antes de enviar; (2) se ainda vier "sem sessão",
+  // tenta renovar UMA vez e refazer; (3) se mesmo assim não houver sessão, NUNCA
+  // apaga a lista local — mantém as OS que o técnico já tinha e marca o estado.
   async function atualizarDoServidor() {
-    var headers = { 'x-ecamp-token': TOKEN };
-    try {
-      var cli = EC.auth && EC.auth.cliente ? EC.auth.cliente() : null;
-      if (cli) {
-        var s = await cli.auth.getSession();
-        var at = s && s.data && s.data.session && s.data.session.access_token;
-        if (at) headers['Authorization'] = 'Bearer ' + at;
-      }
-    } catch (e) { /* sem sessão: o servidor devolve vazio (fail-closed) */ }
-    var resp = await fetch(ROTA_OS, { headers: headers });
-    var corpo = await resp.json();
-    if (!resp.ok || !corpo.ok) throw new Error(corpo.erro || ('HTTP ' + resp.status));
+    var cli = EC.auth && EC.auth.cliente ? EC.auth.cliente() : null;
+
+    async function buscar(token) {
+      var headers = { 'x-ecamp-token': TOKEN };
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+      var resp = await fetch(ROTA_OS, { headers: headers });
+      var corpo = await resp.json();
+      if (!resp.ok || !corpo.ok) throw new Error(corpo.erro || ('HTTP ' + resp.status));
+      return corpo;
+    }
+
+    var token = '';
+    try { if (cli) token = await tokenValido(cli); } catch (e) { token = ''; }
+
+    var corpo = await buscar(token);
+
+    // Servidor não reconheceu a sessão: força uma renovação e tenta de novo.
+    if (corpo.semSessao && cli) {
+      var novo = '';
+      try {
+        var r = await cli.auth.refreshSession();
+        novo = (r && r.data && r.data.session && r.data.session.access_token) || '';
+      } catch (e) { novo = ''; }
+      if (novo) { try { corpo = await buscar(novo); } catch (e) { /* mantém corpo anterior */ } }
+    }
+
+    if (corpo.semSessao) {
+      // Sessão realmente expirada (refresh token morto). NÃO zera a lista: mantém
+      // o cache e sinaliza que precisa reautenticar (a tela avisa, sem perder OS).
+      EC.storage.salvar(CH_SESSAO_EXPIRADA, true);
+      return { ok: true, os: lista(), andamento: andamento(), semSessao: true };
+    }
+
+    EC.storage.remover(CH_SESSAO_EXPIRADA);
     if (Array.isArray(corpo.os)) EC.storage.salvar(CH_LISTA, corpo.os);
     if (Array.isArray(corpo.andamento)) EC.storage.salvar(CH_ANDAMENTO, corpo.andamento);
     return corpo;
@@ -345,9 +396,11 @@ EC.os = (function () {
   }
 
   // Devolve o cache imediatamente e dispara a atualização em segundo plano.
+  // O callback recebe (lista, info) — info.semSessao avisa a tela que a sessão
+  // expirou (para pedir novo login) SEM que a lista tenha sido apagada.
   function carregar(aoAtualizar) {
-    atualizarDoServidor().then(function () {
-      if (typeof aoAtualizar === 'function') aoAtualizar(lista());
+    atualizarDoServidor().then(function (corpo) {
+      if (typeof aoAtualizar === 'function') aoAtualizar(lista(), { semSessao: !!(corpo && corpo.semSessao) });
     }).catch(function () { /* offline/erro: fica com o cache */ });
     return lista();
   }
@@ -355,6 +408,7 @@ EC.os = (function () {
   return {
     carregar: carregar,
     lista: lista,
+    sessaoExpirada: sessaoExpirada,
     andamento: andamento,
     recentes: recentes,
     marcarRecente: marcarRecente,

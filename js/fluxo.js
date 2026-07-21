@@ -350,6 +350,12 @@ EC.fluxo = (function () {
   // aparelho) + "Todas as OS" (ou "Minhas OS", se o usuário for restrito).
   function pintarOs(termo) {
     termo = termo || '';
+    // Aviso de sessão expirada (a lista NÃO é apagada — só avisa para reautenticar).
+    const avisoSessao = $('os-sessao-aviso');
+    if (avisoSessao) {
+      const expirou = EC.os && EC.os.sessaoExpirada && EC.os.sessaoExpirada();
+      avisoSessao.classList.toggle('oculto', !expirou);
+    }
     const blocoAnd = $('os-andamento-bloco');
     const blocoRec = $('os-recentes-bloco');
     const tituloTodas = $('os-todas-titulo');
