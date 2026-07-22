@@ -340,7 +340,10 @@ EC.fluxo = (function () {
   function restrito() { return !!(EC.os && EC.os.escopoAtual && !EC.os.escopoAtual().tudo); }
   // Mensagem de "nada aqui" sensível ao escopo do usuário.
   function vazioOs() {
-    return restrito()
+    // Se o servidor já respondeu (mesmo com 0 OS), a lista real está vazia porque
+    // o técnico não está escalado — não é falta de internet nem OS de exemplo.
+    var carregou = EC.os && EC.os.jaCarregou && EC.os.jaCarregou();
+    return carregou
       ? '<p class="texto-apoio">Você não tem OS escaladas na agenda. Fale com a logística para ser incluído no serviço.</p>'
       : '<p class="texto-apoio">Nenhuma OS disponível. Conecte à internet para baixar as OS.</p>';
   }

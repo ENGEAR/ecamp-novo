@@ -39,6 +39,7 @@ EC.os = (function () {
   var CH_ANDAMENTO = 'os:andamento';
   var CH_RECENTES = 'os:recentes';
   var CH_SESSAO_EXPIRADA = 'os:sessaoExpirada';
+  var CH_CARREGADO = 'os:carregado'; // já baixou a lista real do servidor ao menos 1x
   var MAX_RECENTES = 10;
 
   function ler(chave, padrao) {
@@ -46,10 +47,16 @@ EC.os = (function () {
     return v == null ? padrao : v;
   }
 
+  // Já baixou a lista real do servidor (mesmo que tenha voltado com 0 OS)?
+  function jaCarregou() { return !!ler(CH_CARREGADO, false); }
+
   function lista() {
     var l = ler(CH_LISTA, null);
+    // Se o servidor JÁ respondeu (mesmo com 0 OS), a lista real é a verdade —
+    // nunca mostrar os exemplos (senão o técnico sem OS na agenda vê OS falsas).
+    if (jaCarregou()) return Array.isArray(l) ? l : [];
     if (l && l.length) return l;
-    return EC.osMock || []; // 1º uso sem internet: mostra os exemplos
+    return EC.osMock || []; // só no 1º uso, antes de baixar do servidor
   }
 
   function andamento() { return ler(CH_ANDAMENTO, []) || []; }
@@ -158,7 +165,10 @@ EC.os = (function () {
     }
 
     EC.storage.remover(CH_SESSAO_EXPIRADA);
-    if (Array.isArray(corpo.os)) EC.storage.salvar(CH_LISTA, corpo.os);
+    if (Array.isArray(corpo.os)) {
+      EC.storage.salvar(CH_LISTA, corpo.os);
+      EC.storage.salvar(CH_CARREGADO, true); // marca que a lista real (mesmo vazia) já veio
+    }
     if (Array.isArray(corpo.andamento)) EC.storage.salvar(CH_ANDAMENTO, corpo.andamento);
     return corpo;
   }
@@ -409,6 +419,7 @@ EC.os = (function () {
     carregar: carregar,
     lista: lista,
     sessaoExpirada: sessaoExpirada,
+    jaCarregou: jaCarregou,
     andamento: andamento,
     recentes: recentes,
     marcarRecente: marcarRecente,
