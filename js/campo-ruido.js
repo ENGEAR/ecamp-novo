@@ -12,7 +12,7 @@
  *   - ferroviário/aeronáutico: checks de instalação conforme a finalidade.
  *   - aeronáutico operacional: sem clima digitado (a estação meteorológica
  *     registra) — confirmado com a Raisa em 12/06/2026.
- *   - alerta de diferença entre checagens ≥ 0,5 dB e de vento ≥ 5 m/s.
+ *   - alerta de diferença entre checagens > 0,5 dB (0,50 exato é aprovado) e de vento ≥ 5 m/s.
  *
  * Interface (namespace global EC.campoRuido):
  *   EC.campoRuido.renderizar(container, ctx)
@@ -613,7 +613,7 @@ EC.campoRuido = (function () {
   // Lembretes do escopo de ruído (série de pontos próximos: checagem/clima podem
   // ser feitos uma vez para o conjunto). Textos definidos com a Raisa.
   var LEMBRETE_CHECAGEM =
-    '<div class="alerta alerta-amarelo cr-lembrete">💡 Para uma série de pontos próximos, a checagem inicial e final pode ser realizada para o conjunto de medições, e não necessariamente em cada ponto. Entretanto, se a diferença entre as checagens inicial e final for ≥ 0,5 dB, todas as medições da série deverão ser repetidas. Por precaução, recomenda-se realizar a checagem em cada ponto.</div>';
+    '<div class="alerta alerta-amarelo cr-lembrete">💡 Para uma série de pontos próximos, a checagem inicial e final pode ser realizada para o conjunto de medições, e não necessariamente em cada ponto. Entretanto, se a diferença entre as checagens inicial e final for maior que 0,5 dB, todas as medições da série deverão ser repetidas. Por precaução, recomenda-se realizar a checagem em cada ponto.</div>';
   // Mesmo lembrete abaixo da checagem INICIAL, só nos pontos ≠ 1 (intermediários e último).
   function lembreteChecagemIni(ehPonto1) { return ehPonto1 ? '' : LEMBRETE_CHECAGEM; }
   function lembreteClima(ehPonto1) {
@@ -709,7 +709,7 @@ EC.campoRuido = (function () {
 
   // Validação da SÉRIE: no ÚLTIMO ponto (Total) de uma série com mais de 1 ponto,
   // compara a checagem FINAL deste ponto com a checagem INICIAL do PRIMEIRO ponto.
-  // Se a diferença for ≥ 0,5 dB, exibe o alerta (repetir todas as medições da série).
+  // Se a diferença for > 0,5 dB (0,50 exato passa), exibe o alerta (repetir toda a série).
   function ativarAlertaSerie(elemento, ponto, janela, n, total) {
     const cont = elemento.querySelector('.cr-alerta-serie');
     if (!cont) return;

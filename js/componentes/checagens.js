@@ -3,14 +3,16 @@
  *
  * Regra: cada checagem tem um sinal (+/-) e um valor em dB. O sinal é aplicado
  * ao valor, calcula-se diff = round(|fim − ini| × 100) / 100 e, se
- * diff ≥ 0,5 dB, exibe-se o alerta vermelho pedindo para repetir o
+ * diff > 0,5 dB, exibe-se o alerta vermelho pedindo para repetir o
  * monitoramento. Dispara ao digitar o valor OU ao alterar o sinal.
- * Exemplo da especificação: ini = −0,10 e fim = +0,45 → diff = 0,55 → ALERTA.
+ * ATENÇÃO ao limite (definido pela Raisa em 2026-07-22): 0,50 dB EXATO está
+ * DENTRO do limite; só ACIMA de 0,5 dB é que reprova (é `>`, não `>=`).
+ * Exemplo: ini = −0,10 e fim = +0,45 → diff = 0,55 → ALERTA (0,55 > 0,5).
  *
  * Interface (namespace global EC.checagens):
  *   EC.checagens.calcular(sinalIni, valorIni, sinalFim, valorFim) → { diff, alerta }
  *     sinal : '+' ou '-' ; valor : número em dB (sempre positivo no campo)
- *     diff  : número com 2 casas ; alerta : true se diff ≥ 0,5
+ *     diff  : número com 2 casas ; alerta : true se diff > 0,5 (0,50 é aprovado)
  *     (função pura — os formulários podem usá-la com seus próprios campos)
  *   EC.checagens.criar(container, opcoes) → instância
  *     container        : HTMLElement; desenha checagem inicial + final + alerta
@@ -30,7 +32,7 @@ EC.checagens = (function () {
     const iniReal = (sinalIni === '-' ? -1 : 1) * valorIni;
     const fimReal = (sinalFim === '-' ? -1 : 1) * valorFim;
     const diff = Math.round(Math.abs(fimReal - iniReal) * 100) / 100;
-    return { diff: diff, alerta: diff >= LIMITE_DB };
+    return { diff: diff, alerta: diff > LIMITE_DB };
   }
 
   function blocoChecagem(titulo, classe) {

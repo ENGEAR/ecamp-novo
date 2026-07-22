@@ -235,7 +235,8 @@ EC.pdf = (function () {
     var fim = parseFloat(String(p.chkFimValor || '').replace(',', '.')) * (p.chkFimSinal === '-' ? -1 : 1);
     if (isNaN(ini) || isNaN(fim)) return '';
     var d = Math.abs(fim - ini);
-    return d.toFixed(2).replace('.', ',') + ' dB' + (d >= 0.5 ? '  (ACIMA de 0,5 dB - fora do limite)' : '  (dentro do limite)');
+    // Limite: 0,50 dB EXATO está DENTRO; só ACIMA de 0,5 dB reprova (regra da Raisa, 2026-07-22).
+    return d.toFixed(2).replace('.', ',') + ' dB' + (d > 0.5 ? '  (ACIMA de 0,5 dB - fora do limite)' : '  (dentro do limite)');
   }
   function gpsTexto(p) {
     var g = p.gps || {}, u = g.utm || {};
