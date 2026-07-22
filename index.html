@@ -67,6 +67,29 @@
       </div>
     </section>
 
+    <!-- ======= Tela: criar a própria senha (primeiro acesso) ======= -->
+    <section id="tela-trocar-senha" class="tela oculto">
+      <div class="cartao cartao-login">
+        <img src="public/logo-recortada.png" class="logo-login" alt="eCamp — ENGEAR Laboratório">
+        <div class="alerta alerta-amarelo" style="margin-bottom:14px">Sua senha atual é temporária. Crie a sua própria senha para continuar.</div>
+        <p class="texto-apoio" id="ts-email" style="text-align:center;margin-top:-6px"></p>
+        <form id="form-trocar-senha" autocomplete="on">
+          <label>Nova senha
+            <input type="password" id="ts-senha" placeholder="mínimo 8 caracteres" autocomplete="new-password" required>
+          </label>
+          <label>Repita a nova senha
+            <input type="password" id="ts-confirma" placeholder="digite de novo" autocomplete="new-password" required>
+          </label>
+          <label class="linha-check">
+            <input type="checkbox" id="ts-ver-senha">
+            <span>Mostrar senha</span>
+          </label>
+          <div id="ts-erro" class="alerta alerta-vermelho oculto"></div>
+          <button type="submit" class="botao botao-primario botao-largo" id="ts-salvar">Salvar nova senha</button>
+        </form>
+      </div>
+    </section>
+
     <!-- ======= Tela de Escolha da ação ======= -->
     <section id="tela-acao" class="tela oculto">
       <div id="lembrete-area"></div>
@@ -85,6 +108,9 @@
     <section id="tela-os" class="tela oculto">
       <div class="cartao">
         <h1>📋 Escolha a OS</h1>
+        <div id="os-sessao-aviso" class="oculto" style="background:#fff4e5;border:1px solid #f0b775;color:#8a4b00;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:14px;line-height:1.35">
+          ⚠️ <b>Sua sessão expirou.</b> Suas OS continuam salvas aqui. Para atualizar a lista, toque no seu perfil (canto superior) → <b>Sair</b> e entre de novo.
+        </div>
         <input type="text" id="os-busca" placeholder="🔎 Buscar por número ou cliente" autocomplete="off">
         <div id="os-andamento-bloco" class="os-bloco oculto">
           <p class="os-secao-titulo">▶️ Em andamento</p>

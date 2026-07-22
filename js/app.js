@@ -168,6 +168,8 @@
     if (EC.agenda && EC.agenda.carregarLembretes) EC.agenda.carregarLembretes();
     // SGQ: avisa no sino se há documento para baixar (ou com versão nova).
     if (EC.biblioteca && EC.biblioteca.atualizarSino) EC.biblioteca.atualizarSino();
+    // Pagamento recebido: avisa o solicitante quando a Logística registrou o pagamento.
+    if (EC.reembolso && EC.reembolso.verificarPagamentos) EC.reembolso.verificarPagamentos();
     // Extrato geral (todas as solicitações): só Financeiro/Logística/admin.
     var pap = sessao.papeis || [];
     var ehGestor = pap.indexOf('financeiro') !== -1 || pap.indexOf('logistica') !== -1 || pap.indexOf('admin') !== -1;
@@ -221,6 +223,11 @@
       // Entra direto com e-mail + senha. A senha é gerida pelo admin no SGP
       // (inicial padrão campo26*; redefinida quando a pessoa pedir).
       const conta = await EC.auth.entrar(email, senha);
+      // Primeiro acesso: senha temporária → obriga a criar a própria senha antes de entrar.
+      if (conta.senhaTemporaria) {
+        prepararTrocaSenha(conta, email, $('login-salvar').checked);
+        return;
+      }
       salvarSessao(conta);
       if ($('login-salvar').checked) EC.storage.salvar(CHAVE_CREDENCIAIS, { email: email, senha: senha });
       else EC.storage.remover(CHAVE_CREDENCIAIS);
@@ -236,6 +243,54 @@
   // "Mostrar senha"
   $('login-ver-senha').addEventListener('change', function () {
     $('login-senha').type = this.checked ? 'text' : 'password';
+  });
+
+  /* ---- Primeiro acesso: criar a própria senha (senha temporária) ---- */
+  // Guarda o que precisamos para concluir o login depois de trocar a senha.
+  var trocaPendente = null; // { conta, email, salvar }
+
+  function prepararTrocaSenha(conta, email, salvar) {
+    trocaPendente = { conta: conta, email: email, salvar: salvar };
+    $('ts-email').textContent = email;
+    $('ts-senha').value = '';
+    $('ts-confirma').value = '';
+    $('ts-erro').classList.add('oculto');
+    $('header').classList.add('oculto');
+    $('barra-pendencias').classList.add('oculto');
+    mostrarTela('tela-trocar-senha');
+  }
+
+  $('ts-ver-senha').addEventListener('change', function () {
+    var t = this.checked ? 'text' : 'password';
+    $('ts-senha').type = t;
+    $('ts-confirma').type = t;
+  });
+
+  $('form-trocar-senha').addEventListener('submit', async function (evento) {
+    evento.preventDefault();
+    $('ts-erro').classList.add('oculto');
+    if (!trocaPendente) { prepararLogin(); return; }
+    var nova = $('ts-senha').value;
+    var confirma = $('ts-confirma').value;
+    if (nova.length < 8) { mostrarErroLogin('ts-erro', 'A nova senha deve ter ao menos 8 caracteres.'); return; }
+    if (nova !== confirma) { mostrarErroLogin('ts-erro', 'As senhas não conferem.'); return; }
+    var botao = $('ts-salvar');
+    botao.disabled = true; botao.textContent = 'Salvando…';
+    try {
+      await EC.auth.trocarSenha(nova);
+      var p = trocaPendente;
+      trocaPendente = null;
+      // Sessão + credenciais salvas passam a usar a nova senha.
+      p.conta.senhaTemporaria = false;
+      salvarSessao(p.conta);
+      if (p.salvar) EC.storage.salvar(CHAVE_CREDENCIAIS, { email: p.email, senha: nova });
+      else EC.storage.remover(CHAVE_CREDENCIAIS);
+      entrarNoApp();
+    } catch (e) {
+      mostrarErroLogin('ts-erro', e.message);
+    } finally {
+      botao.disabled = false; botao.textContent = 'Salvar nova senha';
+    }
   });
 
   /* ============ Conta (iniciais → Sair) e Ajuda (❓) ============ */
@@ -448,18 +503,18 @@
     else abrirOverlay('📚 Biblioteca', '<p class="overlay-vazio">Biblioteca indisponível.</p>');
   });
 
-  /* ============ Sino único (Aprovações + Lembretes + SGQ) ============ */
-  // Cada módulo (aprovacoes.js, agenda.js, biblioteca.js) reporta sua própria
-  // contagem aqui — um só sino, um só total. Se só UMA fonte tiver conteúdo,
-  // vai direto pra ela (sem etapa no meio, igual sempre foi); com mais de uma
-  // ao mesmo tempo, mostra as listas JÁ ABERTAS no mesmo lugar — sem precisar
-  // escolher primeiro.
-  const sinoContagens = { aprovacoes: 0, lembretes: 0, sgq: 0 };
+  /* ============ Sino único (Aprovações + Pagamentos + Lembretes + SGQ) ============ */
+  // Cada módulo (aprovacoes.js, reembolso.js, agenda.js, biblioteca.js) reporta
+  // sua própria contagem aqui — um só sino, um só total. Se só UMA fonte tiver
+  // conteúdo, vai direto pra ela (sem etapa no meio, igual sempre foi); com mais
+  // de uma ao mesmo tempo, mostra as listas JÁ ABERTAS no mesmo lugar — sem
+  // precisar escolher primeiro.
+  const sinoContagens = { aprovacoes: 0, pagamentos: 0, lembretes: 0, sgq: 0 };
   const sinoMostrarSempre = { aprovacoes: false }; // aprovações aparece p/ quem tem o papel, mesmo com 0
   function atualizarSino(chave, n, mostrarSempre) {
     sinoContagens[chave] = n;
     if (mostrarSempre !== undefined) sinoMostrarSempre[chave] = mostrarSempre;
-    const total = sinoContagens.aprovacoes + sinoContagens.lembretes + sinoContagens.sgq;
+    const total = sinoContagens.aprovacoes + sinoContagens.pagamentos + sinoContagens.lembretes + sinoContagens.sgq;
     const algumaFonteRelevante = sinoMostrarSempre.aprovacoes || total > 0;
     const botao = $('btn-aprovacoes');
     botao.classList.toggle('oculto', !algumaFonteRelevante);
@@ -470,12 +525,14 @@
 
   async function abrirMenuSino() {
     const querAprov = sinoMostrarSempre.aprovacoes;
+    const querPagos = sinoContagens.pagamentos > 0;
     const querLemb = sinoContagens.lembretes > 0;
     const querSgq = sinoContagens.sgq > 0;
-    const fontes = (querAprov ? 1 : 0) + (querLemb ? 1 : 0) + (querSgq ? 1 : 0);
+    const fontes = (querAprov ? 1 : 0) + (querPagos ? 1 : 0) + (querLemb ? 1 : 0) + (querSgq ? 1 : 0);
     if (fontes === 0) return;
     if (fontes === 1) {
       if (querAprov && EC.aprovacoes && EC.aprovacoes.abrir) EC.aprovacoes.abrir();
+      else if (querPagos && EC.reembolso && EC.reembolso.abrirPagosSino) EC.reembolso.abrirPagosSino();
       else if (querLemb && EC.agenda && EC.agenda.abrirVistos) EC.agenda.abrirVistos();
       else if (querSgq && EC.biblioteca && EC.biblioteca.abrir) EC.biblioteca.abrir();
       return;
@@ -502,6 +559,10 @@
         partes.push('<p class="dg-secao">🔧 Aprovações de logística (0)</p><p class="texto-apoio">Nada pendente.</p>');
       }
     }
+    if (querPagos && EC.reembolso && EC.reembolso.obterPagosParaSino) {
+      partes.push('<p class="dg-secao">💰 Pagamentos recebidos (' + sinoContagens.pagamentos + ')</p>' +
+        EC.reembolso.obterPagosParaSino());
+    }
     if (querLemb && EC.agenda && EC.agenda.obterVistosParaSino) {
       partes.push('<p class="dg-secao">📅 Lembretes de serviço (' + sinoContagens.lembretes + ')</p>' +
         '<p class="texto-apoio">Você tem os seguintes serviços agendados:</p>' + EC.agenda.obterVistosParaSino());
@@ -512,6 +573,11 @@
         '<div class="overlay-item sino-sgq" role="button" tabindex="0">📥 ' + n + ' documento(s) para baixar ou atualizar no aparelho — toque para abrir a Biblioteca.</div>');
     }
     $('overlay-conteudo').innerHTML = partes.join('');
+    if (querPagos && EC.reembolso) {
+      // Liga os cliques ANTES de marcar como visto (marcar esvazia a lista interna).
+      if (EC.reembolso.ligarCliquePagos) EC.reembolso.ligarCliquePagos();
+      if (EC.reembolso.marcarPagosVistos) EC.reembolso.marcarPagosVistos();
+    }
     const itemSgq = document.querySelector('#overlay-conteudo .sino-sgq');
     if (itemSgq) itemSgq.addEventListener('click', function () {
       fecharOverlay();
@@ -552,8 +618,10 @@
 
   window.addEventListener('online', function () {
     atualizarBarraPendencias();
-    // Voltou a internet: reconfere na API se há documento novo do SGQ.
+    // Voltou a internet: reconfere na API se há documento novo do SGQ e se
+    // algum pagamento foi registrado enquanto estava offline.
     if (sessaoAtual() && EC.biblioteca && EC.biblioteca.atualizarSino) EC.biblioteca.atualizarSino();
+    if (sessaoAtual() && EC.reembolso && EC.reembolso.verificarPagamentos) EC.reembolso.verificarPagamentos();
     mostrarToast('✅ Conexão restabelecida.');
   });
   window.addEventListener('offline', function () {

@@ -54,6 +54,9 @@
 
     var user = r.data.user;
     var nome = (user.email || email).split('@')[0];
+    // Primeiro acesso: a conta foi criada/redefinida pelo admin com senha temporária.
+    // A pessoa é obrigada a criar a própria senha (mesma regra do SGP).
+    var senhaTemporaria = !!(user.user_metadata && user.user_metadata.senha_temporaria === true);
 
     // Nome e situação da conta — mesma tabela de usuários do SGP.
     // A consulta do Supabase é "thenable" mas NÃO tem .catch; por isso usamos
@@ -73,7 +76,24 @@
       if (perfil.nome) nome = perfil.nome;
     }
 
-    return { nome: nome, email: user.email || email, papeis: await meusPapeis() };
+    return { nome: nome, email: user.email || email, papeis: await meusPapeis(), senhaTemporaria: senhaTemporaria };
+  }
+
+  /**
+   * Troca a senha do usuário logado e desliga a marca de senha temporária.
+   * Usado no primeiro acesso (obrigatório). Exige internet.
+   */
+  async function trocarSenha(novaSenha) {
+    var sb = obterCliente();
+    if (!sb) throw new Error('🛑 Sem conexão para salvar a nova senha. Tente com internet.');
+    var r = await sb.auth.updateUser({ password: novaSenha, data: { senha_temporaria: false } })
+      .catch(function (e) { return { error: e }; });
+    if (r.error) {
+      var m = String(r.error.message || '');
+      if (m.indexOf('different from the old') !== -1) return Promise.reject(new Error('A nova senha precisa ser diferente da temporária.'));
+      if (m.indexOf('Failed to fetch') !== -1 || m.indexOf('NetworkError') !== -1 || m.indexOf('Load failed') !== -1) return Promise.reject(new Error('📡 Sem conexão para salvar a nova senha.'));
+      return Promise.reject(new Error('Não foi possível salvar a nova senha: ' + m));
+    }
   }
 
   /**
@@ -104,5 +124,5 @@
 
   window.EC = window.EC || {};
   // cliente: outros módulos (ex.: Agenda) usam a MESMA conexão autenticada.
-  EC.auth = { entrar: entrar, sair: sair, cliente: obterCliente, meusPapeis: meusPapeis };
+  EC.auth = { entrar: entrar, sair: sair, cliente: obterCliente, meusPapeis: meusPapeis, trocarSenha: trocarSenha };
 })();

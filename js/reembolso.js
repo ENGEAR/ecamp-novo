@@ -2787,6 +2787,85 @@ EC.reembolso = (function () {
     } catch (e) { /* offline/erro: fica com o cache */ }
   }
 
+  /* ============ Aviso de pagamento recebido (sino 🔔) ============ */
+  // Quando a Logística/Financeiro registra o pagamento, o SOLICITANTE é avisado
+  // no sino do topo na próxima abertura do app. O "já vi" fica no aparelho:
+  // abrir a lista de pagamentos (ou a tela de Reembolso, onde o status 💰 Pago
+  // já aparece) limpa o aviso.
+  var CH_PAGOS_VISTOS = 'logistica:pagosVistos';
+  var pagosNovos = []; // pagamentos ainda não vistos (alimenta o sino)
+
+  function lerPagosVistos(nome) {
+    var v = EC.storage.ler(CH_PAGOS_VISTOS);
+    return (v && v.solicitante === nome && Array.isArray(v.codigos)) ? v : null;
+  }
+
+  async function verificarPagamentos() {
+    var nome = sessionNome();
+    if (!nome) return;
+    try {
+      var corpo = await getJson(BASE + '/lista?solicitante=' + encodeURIComponent(nome));
+      EC.storage.salvar(CH_LISTA, { solicitante: nome, pedidos: corpo.pedidos || [] });
+    } catch (e) { /* offline/erro: segue com o cache local */ }
+    var pagos = listaEmCache().filter(function (p) { return p.status === 'pago'; });
+    var vistos = lerPagosVistos(nome);
+    if (!vistos) {
+      // Primeira vez neste aparelho (ou trocou de usuário): não avisa o que já
+      // estava pago antes — só pagamentos registrados daqui pra frente.
+      EC.storage.salvar(CH_PAGOS_VISTOS, { solicitante: nome, codigos: pagos.map(function (p) { return p.codigo; }) });
+      pagosNovos = [];
+    } else {
+      pagosNovos = pagos.filter(function (p) { return vistos.codigos.indexOf(p.codigo) === -1; });
+    }
+    if (EC.app && EC.app.atualizarSino) EC.app.atualizarSino('pagamentos', pagosNovos.length);
+  }
+
+  function marcarPagosVistos() {
+    if (!pagosNovos.length) return;
+    var nome = sessionNome();
+    var vistos = lerPagosVistos(nome) || { solicitante: nome, codigos: [] };
+    pagosNovos.forEach(function (p) { if (vistos.codigos.indexOf(p.codigo) === -1) vistos.codigos.push(p.codigo); });
+    EC.storage.salvar(CH_PAGOS_VISTOS, vistos);
+    pagosNovos = [];
+    if (EC.app && EC.app.atualizarSino) EC.app.atualizarSino('pagamentos', 0);
+  }
+
+  // HTML dos pagamentos novos — usado na lista própria e no sino combinado do
+  // app.js. Cada item é clicável e abre o extrato da solicitação paga.
+  function htmlPagosSino() {
+    return pagosNovos.map(function (p) {
+      var valor = p.valor_solicitado != null ? p.valor_solicitado : p.valor_total;
+      return '<div class="overlay-item overlay-item-clicavel sino-pago-item" role="button" tabindex="0" data-codigo="' + (p.codigo || '') + '">' +
+        '💰 <strong>' + moedaBR(valor) + '</strong> — OS ' + (p.os || '?') + (p.projeto ? ' · ' + p.projeto : '') +
+        '<br><span class="rotulo-apoio">Pago em ' + dataBR(p.pago_em) + (p.forma_pagamento ? ' · ' + p.forma_pagamento : '') + '</span></div>';
+    }).join('');
+  }
+
+  // Toque num item (na lista própria ou no sino combinado): fecha o aviso e
+  // abre a solicitação paga — com Minhas solicitações pintada por trás, para o
+  // Voltar do extrato cair no lugar certo.
+  function ligarCliquePagos() {
+    document.querySelectorAll('.sino-pago-item').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var codigo = el.dataset.codigo;
+        EC.app.fecharOverlay();
+        abrir();
+        var p = listaEmCache().filter(function (x) { return x.codigo === codigo; })[0];
+        if (p) abrirExtrato(p, false);
+      });
+    });
+  }
+
+  // Sino com só esta fonte: abre a lista de pagamentos direto.
+  function abrirPagosSino() {
+    var html = htmlPagosSino() || '<p class="overlay-vazio">Nada por aqui.</p>';
+    EC.app.abrirOverlay('💰 Pagamentos recebidos',
+      '<p class="texto-apoio"><b>A Logística registrou o pagamento de:</b></p>' + html +
+      '<p class="texto-apoio" style="margin-top:8px">Toque num item para ver os detalhes e o comprovante.</p>');
+    ligarCliquePagos();
+    marcarPagosVistos();
+  }
+
   /* ============ Inicialização / navegação ============ */
 
   function iniciar() {
@@ -2871,9 +2950,19 @@ EC.reembolso = (function () {
     enviarPendentes(true);
     atualizarListaDoServidor();
     atualizarContexto();
+    // Na tela o status 💰 Pago já aparece — o aviso do sino não precisa mais.
+    marcarPagosVistos();
   }
 
   window.addEventListener('online', function () { enviarPendentes(true); });
 
-  return { abrir: abrir, extratoGeral: extratoGeral };
+  return {
+    abrir: abrir,
+    extratoGeral: extratoGeral,
+    verificarPagamentos: verificarPagamentos,
+    abrirPagosSino: abrirPagosSino,
+    obterPagosParaSino: htmlPagosSino,
+    ligarCliquePagos: ligarCliquePagos,
+    marcarPagosVistos: marcarPagosVistos
+  };
 })();
