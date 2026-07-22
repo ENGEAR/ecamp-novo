@@ -331,6 +331,42 @@ EC.campoRuido = (function () {
     return Math.min(20, Math.max(1, parseInt(campo().geral.qtdePontos, 10) || 0));
   }
 
+  /* ---------- Séries de checagem (blocos de no máximo 10 pontos) ----------
+   * Regra da Raisa (2026-07-22): a série "checagem inicial → checagem final" é
+   * limitada a 10 pontos. Quando há mais, os pontos são divididos em blocos
+   * EQUILIBRADOS (nº de blocos = arredonda p/ cima total/10; tamanhos o mais
+   * iguais possível). Ex.: 14 → 1-7 e 8-14; 21 → 1-7, 8-14, 15-21; 25 → 1-9,
+   * 10-17, 18-25. Escolhido em vez de "10 em 10" porque este criava bloco órfão
+   * de 1 ponto (21 → …, 21) e concentrava o retrabalho em 10 pontos.
+   * Em cada bloco: checagem INICIAL obrigatória no 1º ponto e FINAL no último.
+   */
+  const MAX_PONTOS_SERIE = 10;
+
+  function blocosDaSerie(total) {
+    const n = Math.max(0, parseInt(total, 10) || 0);
+    if (!n) return [];
+    const k = Math.ceil(n / MAX_PONTOS_SERIE);
+    const base = Math.floor(n / k);
+    const resto = n % k;
+    const blocos = [];
+    let ini = 1;
+    for (let i = 0; i < k; i++) {
+      const tam = base + (i < resto ? 1 : 0);
+      blocos.push({ ini: ini, fim: ini + tam - 1 });
+      ini += tam;
+    }
+    return blocos;
+  }
+
+  // Bloco a que pertence o ponto n (1-based). Devolve null se fora do intervalo.
+  function blocoDoPonto(n, total) {
+    const bs = blocosDaSerie(total);
+    for (let i = 0; i < bs.length; i++) {
+      if (n >= bs[i].ini && n <= bs[i].fim) return { ini: bs[i].ini, fim: bs[i].fim, indice: i, qtde: bs.length };
+    }
+    return null;
+  }
+
   function ehLongaDuracao() {
     const s = ctx.estado.servico || {};
     return /longa\s*dura/i.test((s.metodo || '') + ' ' + (s.periodo || ''));
@@ -362,17 +398,19 @@ EC.campoRuido = (function () {
   }
 
   // Itens em branco de UMA janela (Total ou Residual), conforme o subtipo.
-  // Regra do escopo (2026-07): a checagem INICIAL só é obrigatória no ponto 1 e a
-  // FINAL só no último ponto (na janela Total). Nos demais pontos são opcionais; a
+  // Regra do escopo (2026-07): a checagem INICIAL só é obrigatória no 1º ponto de
+  // cada SÉRIE e a FINAL só no último ponto da série (na janela Total). A série é
+  // limitada a 10 pontos (ver blocosDaSerie) — com ≤10 pontos há uma série só, e aí
+  // é o ponto 1 e o último ponto, como antes. Nos demais pontos são opcionais; a
   // foto da tela só é cobrada QUANDO a checagem correspondente estiver preenchida.
-  // As condições ambientais (clima) só são obrigatórias no ponto 1. Tudo isso vale
-  // só na Total — na Residual (ehPonto1/ehUltimo=false) checagem e clima são livres.
-  function faltasJanela(subtipo, j, longa, geral, janela, ehPonto1, ehUltimo) {
+  // As condições ambientais (clima) só são obrigatórias no ponto 1 da OS (NÃO por
+  // série). Tudo isso vale só na Total — na Residual (flags=false) tudo é livre.
+  function faltasJanela(subtipo, j, longa, geral, janela, ehInicioSerie, ehFimSerie, ehPonto1) {
     j = j || {};
     const falta = [];
     const ehTotal = janela === 'total';
-    const iniObrig = ehTotal && ehPonto1;
-    const fimObrig = ehTotal && ehUltimo;
+    const iniObrig = ehTotal && ehInicioSerie;
+    const fimObrig = ehTotal && ehFimSerie;
     const climaObrig = ehTotal && ehPonto1;
     const reqVal = function (chave, rotulo) {
       const v = j[chave];
@@ -398,7 +436,7 @@ EC.campoRuido = (function () {
     if (!j.gps) falta.push('GPS');
     // Checagem inicial: obrigatória só no ponto 1 (Total). A foto da tela inicial é
     // cobrada sempre que a checagem inicial estiver preenchida.
-    if (iniObrig) reqVal('chkIniValor', 'checagem inicial (ponto 1)');
+    if (iniObrig) reqVal('chkIniValor', 'checagem inicial (1º ponto da série)');
     if (preenchido('chkIniValor') && !EC.foto.tem(j.fotoTelaIni)) falta.push('foto da tela (checagem inicial)');
     if (!EC.foto.tem(j.fotoPonto)) falta.push('foto do ponto');
 
@@ -447,7 +485,7 @@ EC.campoRuido = (function () {
 
     // Checagem final: obrigatória só no último ponto (Total). Foto da tela final só
     // é cobrada quando a checagem final estiver preenchida. Uniforme a todos os subtipos.
-    if (fimObrig) reqVal('chkFimValor', 'checagem final (último ponto)');
+    if (fimObrig) reqVal('chkFimValor', 'checagem final (último ponto da série)');
     if (preenchido('chkFimValor') && !EC.foto.tem(j.fotoTelaFim)) falta.push('foto da tela (checagem final)');
 
     return falta;
@@ -459,21 +497,26 @@ EC.campoRuido = (function () {
     ponto = ponto || {};
     const falta = [];
     const ehPonto1 = indice === 0;
-    const ehUltimo = indice === (total - 1);
+    // Série (bloco de no máx. 10 pontos): a checagem inicial é cobrada no 1º ponto
+    // do bloco e a final no último ponto do bloco. Com ≤10 pontos há um bloco só,
+    // então cai no ponto 1 e no último ponto — igual à regra anterior.
+    const b = blocoDoPonto(indice + 1, total);
+    const ehInicioSerie = !!b && (indice + 1) === b.ini;
+    const ehFimSerie = !!b && (indice + 1) === b.fim;
     const periodos = periodosAtivos(geral);
     const p0 = periodos[0];
     const varios = periodos.length > 1;
     periodos.forEach(function (pid) {
       const med = medPer(ponto, pid, p0);
       const pref = varios ? (rotuloPeriodo(pid, geral) + ' · ') : '';
-      faltasJanela(subtipo, med.total, longaDuracao, geral, 'total', ehPonto1, ehUltimo).forEach(function (x) { falta.push(pref + 'Total: ' + x); });
+      faltasJanela(subtipo, med.total, longaDuracao, geral, 'total', ehInicioSerie, ehFimSerie, ehPonto1).forEach(function (x) { falta.push(pref + 'Total: ' + x); });
       const justif = med.justificativaResidual && String(med.justificativaResidual).trim();
       if (!justif) {
         if (!janelaTemDados(med.residual)) {
           falta.push(pref + 'Residual: medir OU escrever a justificativa');
         } else {
-          // Residual nunca é ponto1/último para efeito de checagem/clima (regra só na Total).
-          faltasJanela(subtipo, med.residual, longaDuracao, geral, 'residual', false, false).forEach(function (x) { falta.push(pref + 'Residual: ' + x); });
+          // Residual nunca cobra checagem/clima (a regra vale só na janela Total).
+          faltasJanela(subtipo, med.residual, longaDuracao, geral, 'residual', false, false, false).forEach(function (x) { falta.push(pref + 'Residual: ' + x); });
         }
       }
     });
@@ -613,9 +656,9 @@ EC.campoRuido = (function () {
   // Lembretes do escopo de ruído (série de pontos próximos: checagem/clima podem
   // ser feitos uma vez para o conjunto). Textos definidos com a Raisa.
   var LEMBRETE_CHECAGEM =
-    '<div class="alerta alerta-amarelo cr-lembrete">💡 Para uma série de pontos próximos, a checagem inicial e final pode ser realizada para o conjunto de medições, e não necessariamente em cada ponto. Entretanto, se a diferença entre as checagens inicial e final for maior que 0,5 dB, todas as medições da série deverão ser repetidas. Por precaução, recomenda-se realizar a checagem em cada ponto.</div>';
-  // Mesmo lembrete abaixo da checagem INICIAL, só nos pontos ≠ 1 (intermediários e último).
-  function lembreteChecagemIni(ehPonto1) { return ehPonto1 ? '' : LEMBRETE_CHECAGEM; }
+    '<div class="alerta alerta-amarelo cr-lembrete">💡 Para uma série de pontos próximos, a checagem inicial e final pode ser realizada para o conjunto de medições, e não necessariamente em cada ponto. A série é limitada a <strong>10 pontos</strong> — acima disso os pontos são divididos em séries menores, cada uma com a sua checagem inicial e final. Se a diferença entre as checagens inicial e final for maior que 0,5 dB, todas as medições daquela série deverão ser repetidas. Por precaução, recomenda-se realizar a checagem em cada ponto.</div>';
+  // Mesmo lembrete abaixo da checagem INICIAL, só nos pontos que NÃO iniciam uma série.
+  function lembreteChecagemIni(ehInicioSerie) { return ehInicioSerie ? '' : LEMBRETE_CHECAGEM; }
   function lembreteClima(ehPonto1) {
     if (ehPonto1) return '';
     return '<div class="alerta alerta-amarelo cr-lembrete">💡 Se o monitoramento for realizado na mesma data e no mesmo período (diurno, vespertino ou noturno) do ponto 1, <strong>não é necessário registrar novamente as condições ambientais.</strong></div>';
@@ -707,16 +750,24 @@ EC.campoRuido = (function () {
     avaliar();
   }
 
-  // Validação da SÉRIE: no ÚLTIMO ponto (Total) de uma série com mais de 1 ponto,
-  // compara a checagem FINAL deste ponto com a checagem INICIAL do PRIMEIRO ponto.
-  // Se a diferença for > 0,5 dB (0,50 exato passa), exibe o alerta (repetir toda a série).
+  // Validação da SÉRIE: no ÚLTIMO ponto DO BLOCO (janela Total), compara a checagem
+  // FINAL deste ponto com a checagem INICIAL do PRIMEIRO ponto DO MESMO BLOCO.
+  // A série é limitada a 10 pontos (blocosDaSerie) — com ≤10 pontos há um bloco só
+  // e isso equivale a "ponto 1 → último ponto". Se a diferença for > 0,5 dB (0,50
+  // exato passa), alerta pedindo para repetir as medições DAQUELE bloco.
   function ativarAlertaSerie(elemento, ponto, janela, n, total) {
     const cont = elemento.querySelector('.cr-alerta-serie');
     if (!cont) return;
-    if (janela !== 'total' || total <= 1 || n !== total) { cont.innerHTML = ''; return; }
-    const primeiro = listaPontos()[0];
+    const b = blocoDoPonto(n, total);
+    // Só no último ponto do bloco, e só se o bloco tiver mais de um ponto.
+    if (janela !== 'total' || !b || b.ini === b.fim || n !== b.fim) { cont.innerHTML = ''; return; }
+    const primeiro = listaPontos()[b.ini - 1];
     const ini = primeiro ? medPer(primeiro, periodoExibido).total : null;
     const fimAlvo = medPer(ponto, periodoExibido).total;
+    // Nomeia a série quando há mais de um bloco (ex.: "Série 2 de 3 · pontos 8–14").
+    const nomeSerie = b.qtde > 1
+      ? 'Série ' + (b.indice + 1) + ' de ' + b.qtde + ' (pontos ' + b.ini + '–' + b.fim + ')'
+      : 'Série (pontos ' + b.ini + '–' + b.fim + ')';
     const num = function (v) {
       if (v === undefined || v === null || String(v).trim() === '') return null;
       const x = parseFloat(String(v).replace(',', '.'));
@@ -729,10 +780,12 @@ EC.campoRuido = (function () {
       const r = EC.checagens.calcular((ini && ini.chkIniSinal) || '+', vIni, fimAlvo.chkFimSinal || '+', vFim);
       const texto = r.diff.toFixed(2).replace('.', ',');
       if (r.alerta) {
-        cont.innerHTML = '<div class="alerta alerta-vermelho">🛑 <strong>Diferença da série = ' + texto +
-          ' dB (limite: 0,5 dB)</strong> — checagem inicial do ponto 1 → checagem final do último ponto. Será necessário <strong>repetir todas as medições da série</strong>.</div>';
+        cont.innerHTML = '<div class="alerta alerta-vermelho">🛑 <strong>' + nomeSerie + ': diferença = ' + texto +
+          ' dB (limite: 0,5 dB)</strong> — checagem inicial do ponto ' + b.ini + ' → checagem final do ponto ' + b.fim +
+          '. Será necessário <strong>repetir as medições dos pontos ' + b.ini + ' a ' + b.fim + '</strong>.</div>';
       } else {
-        cont.innerHTML = '<div class="alerta alerta-info">✅ Diferença da série (ponto 1 → último ponto) = <strong>' + texto + ' dB</strong> — dentro do limite (0,5 dB).</div>';
+        cont.innerHTML = '<div class="alerta alerta-info">✅ <strong>' + nomeSerie + '</strong>: diferença (ponto ' + b.ini +
+          ' → ponto ' + b.fim + ') = <strong>' + texto + ' dB</strong> — dentro do limite (0,5 dB).</div>';
       }
     }
     const inpFim = elemento.querySelector('[data-campo="chkFimValor"]');
@@ -1208,7 +1261,7 @@ EC.campoRuido = (function () {
 
   // Campos de UMA janela (Total ou Residual) do externo — SEM equipamentos, que
   // é do ponto (compartilhado). É a cópia completa dos campos de medição.
-  function htmlCamposJanelaExterno(ehPonto1) {
+  function htmlCamposJanelaExterno(ehPonto1, ehInicioSerie) {
     return (
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
@@ -1218,7 +1271,7 @@ EC.campoRuido = (function () {
       htmlChecks(['Se monitoramento em fachada: distância mínima de 1 m da fachada (opcional)'], 'posfachada') +
       '<p class="grupo-checks-titulo">⚙️ Montagem do equipamento</p>' + htmlChecks(checksMontagemExterno(ehLongaDuracao()), 'mont') +
       htmlChecagem('Checagem inicial', 'chkIni') +
-      lembreteChecagemIni(ehPonto1) +
+      lembreteChecagemIni(ehInicioSerie) +
       '<div class="cr-foto-tela-ini"></div>' +
       '<div class="cr-foto-ponto"></div>' +
       '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' +
@@ -1242,7 +1295,7 @@ EC.campoRuido = (function () {
 
   // Interno (10151/10152): cada janela é uma medição completa (clima + checagem
   // em cada). Os grupos Ltot/Lres saíram — as janelas Total/Residual já são isso.
-  function htmlCamposJanelaInterno(subtipo, ehPonto1) {
+  function htmlCamposJanelaInterno(subtipo, ehPonto1, ehInicioSerie) {
     return (
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       '<label>Nome do ponto<input type="text" data-campo="nome"></label>' +
@@ -1252,7 +1305,7 @@ EC.campoRuido = (function () {
       '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' + htmlClima(true) +
       lembreteClima(ehPonto1) +
       htmlChecagem('Checagem inicial', 'chkIni') +
-      lembreteChecagemIni(ehPonto1) +
+      lembreteChecagemIni(ehInicioSerie) +
       '<div class="cr-foto-tela-ini"></div>' +
       '<div class="cr-foto-ponto"></div>' +
       '<label>Eventualidade<select data-campo="eventualidade"><option value="">Selecione…</option><option>Não</option><option>Sim</option></select></label>' +
@@ -1266,7 +1319,7 @@ EC.campoRuido = (function () {
     );
   }
 
-  function htmlCamposJanelaFerro(janela, ehPonto1) {
+  function htmlCamposJanelaFerro(janela, ehPonto1, ehInicioSerie) {
     // Checks do ponto por finalidade/janela. CHECKS_PONTO_FERRO: 0/1 som
     // residual, 2 som da passagem, 3/4 condições ambientais (clima).
     //  • PASSAGEM: Total = som da passagem [2] + clima [3,4] + campo caract.;
@@ -1292,7 +1345,7 @@ EC.campoRuido = (function () {
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       '<div class="cr-gps"></div>' +
       htmlChecagem('Checagem inicial', 'chkIni') +
-      lembreteChecagemIni(ehPonto1) +
+      lembreteChecagemIni(ehInicioSerie) +
       '<div class="cr-foto-tela-ini"></div>' +
       checksPonto +
       (passagem && total
@@ -1312,14 +1365,14 @@ EC.campoRuido = (function () {
     );
   }
 
-  function htmlCamposJanelaAero(ehPonto1) {
+  function htmlCamposJanelaAero(ehPonto1, ehInicioSerie) {
     const operacional = campo().geral.finalidade === AERO_OPERACIONAL;
     return (
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       '<div class="cr-gps"></div>' +
       htmlChecagem('Checagem inicial', 'chkIni') +
-      lembreteChecagemIni(ehPonto1) +
+      lembreteChecagemIni(ehInicioSerie) +
       '<div class="cr-foto-tela-ini"></div>' +
       '<div class="cr-foto-ponto"></div>' +
       (operacional
@@ -1339,11 +1392,11 @@ EC.campoRuido = (function () {
   }
 
   // Campos da janela conforme o subtipo do ruído.
-  function htmlCamposJanela(subtipo, janela, ehPonto1) {
-    if (ehInterno(subtipo)) return htmlCamposJanelaInterno(subtipo, ehPonto1);
-    if (subtipo === 'ferroviario') return htmlCamposJanelaFerro(janela, ehPonto1);
-    if (subtipo === 'aeronautico') return htmlCamposJanelaAero(ehPonto1);
-    return htmlCamposJanelaExterno(ehPonto1);
+  function htmlCamposJanela(subtipo, janela, ehPonto1, ehInicioSerie) {
+    if (ehInterno(subtipo)) return htmlCamposJanelaInterno(subtipo, ehPonto1, ehInicioSerie);
+    if (subtipo === 'ferroviario') return htmlCamposJanelaFerro(janela, ehPonto1, ehInicioSerie);
+    if (subtipo === 'aeronautico') return htmlCamposJanelaAero(ehPonto1, ehInicioSerie);
+    return htmlCamposJanelaExterno(ehPonto1, ehInicioSerie);
   }
 
   // true se a janela tem algum dado relevante preenchido (para o status da aba
@@ -1427,7 +1480,15 @@ EC.campoRuido = (function () {
       html += '<div class="alerta alerta-info">🔇 <strong>Residual</strong> — opcional. Se NÃO for medir, escreva a justificativa abaixo e deixe o resto em branco.</div>' +
         '<label>Justificativa (se não medir o residual)<textarea rows="2" data-justif="1" placeholder="Ex.: não foi possível desligar/afastar a fonte."></textarea></label>';
     }
-    html += htmlCamposJanela(sub, janela, n === 1);
+    // Clima segue o ponto 1 da OS; o lembrete de checagem segue a SÉRIE (bloco).
+    const bSerie = blocoDoPonto(n, totalPontosCtx());
+    // Com mais de uma série, diz ao técnico em qual ele está e onde checar.
+    if (janela === 'total' && bSerie && bSerie.qtde > 1) {
+      html += '<div class="alerta alerta-info">📎 <strong>Série ' + (bSerie.indice + 1) + ' de ' + bSerie.qtde +
+        '</strong> — pontos <strong>' + bSerie.ini + ' a ' + bSerie.fim + '</strong>. Nesta série, a checagem inicial é no ponto ' +
+        bSerie.ini + ' e a final no ponto ' + bSerie.fim + '.</div>';
+    }
+    html += htmlCamposJanela(sub, janela, n === 1, !!bSerie && n === bSerie.ini);
     wrap.innerHTML = html;
 
     const taj = wrap.querySelector('[data-justif]');
@@ -1504,6 +1565,9 @@ EC.campoRuido = (function () {
     SUBTIPOS: SUBTIPOS,
     FOTOS_POR_SUBTIPO: FOTOS_POR_SUBTIPO,
     pontoAtualIncompleto: pontoAtualIncompleto,
-    itensFaltando: itensFaltando
+    itensFaltando: itensFaltando,
+    // Expostos para o laudo/testes: divisão das séries de checagem (máx. 10 pontos).
+    blocosDaSerie: blocosDaSerie,
+    blocoDoPonto: blocoDoPonto
   };
 })();
