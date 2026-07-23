@@ -10,6 +10,9 @@
  * e entra direto — sem obrigar a criar senha própria.
  *
  * Regra espelhada do SGP: conta desativada (usuarios.ativo = false) → não entra.
+ * E não basta barrar no login: quem sai da empresa também perde o app JÁ ABERTO
+ * no aparelho. Por isso existe `revalidar()`, que o app chama a cada abertura
+ * com internet para derrubar a sessão de uma conta desativada.
  *
  * O primeiro acesso precisa de internet. Depois, a sessão fica guardada no
  * aparelho e o app continua abrindo offline como sempre.
@@ -116,6 +119,52 @@
     }
   }
 
+  /**
+   * Reconfere a conta NO SERVIDOR (precisa de internet). É o que garante que
+   * quem foi desligado da empresa perde o app no aparelho — antes, a conta só
+   * era conferida no LOGIN, e quem já estava logado seguia usando para sempre.
+   *
+   * Devolve:
+   *   'ok'         — conta existe e está ativa
+   *   'desativado' — usuarios.ativo = false (pessoa desligada/bloqueada)
+   *   'semSessao'  — o servidor recusou a sessão (login banido, senha trocada…)
+   *   'indefinido' — NÃO deu para conferir (offline, servidor fora, erro de rede)
+   *
+   * REGRA DE OURO: só 'desativado'/'semSessao' derrubam alguém, e ambos vêm de
+   * uma resposta EXPLÍCITA do servidor. Falta de internet nunca desloga — o app
+   * é offline-first e o técnico não pode perder o acesso no meio do campo.
+   */
+  async function revalidar() {
+    var sb = obterCliente();
+    if (!sb) return 'indefinido';
+    if (navigator && navigator.onLine === false) return 'indefinido';
+
+    var u;
+    try {
+      u = await sb.auth.getUser();
+    } catch (e) {
+      return 'indefinido'; // exceção de rede
+    }
+    if (u && u.error) {
+      // Erro COM status HTTP 4xx = o servidor respondeu e recusou (sessão morta,
+      // conta banida). Sem status (ou 5xx) = rede/servidor: não derruba.
+      var st = u.error.status || 0;
+      return (st >= 400 && st < 500) ? 'semSessao' : 'indefinido';
+    }
+    var user = u && u.data ? u.data.user : null;
+    if (!user) return 'semSessao'; // sessão não existe mais no servidor
+
+    // Situação da conta — mesma checagem do login.
+    try {
+      var q = await sb.from('usuarios').select('ativo').eq('id', user.id).single();
+      if (q && q.data && q.data.ativo === false) return 'desativado';
+      if (q && q.error) return 'indefinido'; // não conseguiu ler: não derruba
+    } catch (e) {
+      return 'indefinido';
+    }
+    return 'ok';
+  }
+
   /** Sai da conta (ignora falhas de rede — a sessão local é apagada pelo app). */
   async function sair() {
     var sb = obterCliente();
@@ -124,5 +173,5 @@
 
   window.EC = window.EC || {};
   // cliente: outros módulos (ex.: Agenda) usam a MESMA conexão autenticada.
-  EC.auth = { entrar: entrar, sair: sair, cliente: obterCliente, meusPapeis: meusPapeis, trocarSenha: trocarSenha };
+  EC.auth = { entrar: entrar, sair: sair, cliente: obterCliente, meusPapeis: meusPapeis, trocarSenha: trocarSenha, revalidar: revalidar };
 })();

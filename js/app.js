@@ -191,6 +191,8 @@
     var ehGestor = pap.indexOf('financeiro') !== -1 || pap.indexOf('logistica') !== -1 || pap.indexOf('admin') !== -1;
     $('btn-extrato-geral').classList.toggle('oculto', !ehGestor);
     mostrarTela('tela-acao');
+    // Conta ainda vale? (só com internet; quem foi desligado cai fora aqui)
+    revalidarConta(true);
   }
 
   function prepararLogin() {
@@ -208,6 +210,46 @@
       $('login-salvar').checked = false;
     }
     mostrarTela('tela-login');
+  }
+
+  /* ---- Conta desligada: derruba a sessão do aparelho ---- */
+  // Quem sai da empresa não pode continuar usando o app. Como o e-CAMP é
+  // offline-first, a sessão fica guardada no celular e antes só era conferida
+  // no LOGIN — ou seja, um desligado seguia com o app funcionando. Agora o app
+  // RECONFERE a conta toda vez que abre com internet (e quando a internet
+  // volta) e derruba na hora se ela foi desativada.
+  //
+  // Cuidados: (1) só derruba com resposta EXPLÍCITA do servidor — falta de
+  // internet nunca desloga; (2) antes de sair, tenta subir o que está na fila,
+  // para não deixar trabalho de campo preso no aparelho; (3) NADA é apagado
+  // (rascunhos e histórico continuam no aparelho).
+  var revalidando = false;
+  var ultimaRevalidacao = 0;
+  const INTERVALO_REVALIDACAO = 5 * 60 * 1000; // no máximo 1 checagem a cada 5 min
+
+  async function revalidarConta(forcar) {
+    if (revalidando || !sessaoAtual()) return;
+    if (!(EC.auth && EC.auth.revalidar)) return;
+    var agora = Date.now();
+    if (!forcar && agora - ultimaRevalidacao < INTERVALO_REVALIDACAO) return;
+    ultimaRevalidacao = agora;
+    revalidando = true;
+    var situacao = 'indefinido';
+    try { situacao = await EC.auth.revalidar(); } catch (e) { situacao = 'indefinido'; }
+    revalidando = false;
+    if (situacao === 'ok' || situacao === 'indefinido') return;
+
+    // Última tentativa de salvar o que ainda não subiu (a fila usa o token do
+    // app, então funciona mesmo com a conta já bloqueada).
+    try { if (EC.sync && EC.sync.sincronizarPendentes) await EC.sync.sincronizarPendentes(); } catch (e) { /* segue */ }
+
+    EC.storage.remover(CHAVE_SESSAO);
+    EC.storage.remover(CHAVE_CREDENCIAIS); // senão o login salvo tentaria entrar de novo sozinho
+    try { EC.auth.sair(); } catch (e) { /* ignora */ }
+    prepararLogin();
+    mostrarErroLogin('login-erro', situacao === 'desativado'
+      ? '🚫 Seu acesso foi desativado. Fale com o administrador do sistema.'
+      : '🔒 Sua sessão expirou ou foi encerrada. Entre novamente.');
   }
 
   function mostrarErroLogin(elemento, mensagem) {
@@ -638,7 +680,15 @@
     // algum pagamento foi registrado enquanto estava offline.
     if (sessaoAtual() && EC.biblioteca && EC.biblioteca.atualizarSino) EC.biblioteca.atualizarSino();
     if (sessaoAtual() && EC.reembolso && EC.reembolso.verificarPagamentos) EC.reembolso.verificarPagamentos();
+    // Voltou a internet: reconfere se a conta ainda tem acesso.
+    revalidarConta(true);
     mostrarToast('✅ Conexão restabelecida.');
+  });
+
+  // O app fica aberto em 2º plano no celular por dias. Ao voltar para a tela,
+  // reconfere a conta (no máximo 1 vez a cada 5 min, para não pesar).
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') revalidarConta(false);
   });
   window.addEventListener('offline', function () {
     atualizarBarraPendencias();
