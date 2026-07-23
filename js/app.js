@@ -690,6 +690,14 @@
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'visible') revalidarConta(false);
   });
+
+  // E também de tempos em tempos com o app ABERTO NA FRENTE: sem isso, quem
+  // ficasse horas preenchendo um serviço sem sair do app nunca seria conferido
+  // (não há abertura, nem 'online', nem troca de tela para disparar a checagem).
+  // Só roda com a tela visível, para não gastar bateria/dados em 2º plano.
+  setInterval(function () {
+    if (document.visibilityState === 'visible') revalidarConta(true);
+  }, INTERVALO_REVALIDACAO);
   window.addEventListener('offline', function () {
     atualizarBarraPendencias();
     mostrarToast('📡 Sem conexão — o app continua funcionando offline.');
