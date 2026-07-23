@@ -230,13 +230,15 @@ EC.pdf = (function () {
     if (valor === undefined || valor === null || String(valor).trim() === '') return '—';
     return (sinal === '-' ? '-' : '+') + ' ' + String(valor) + ' dB';
   }
+  // Usa a MESMA regra da coleta (EC.checagens): arredonda em 2 casas e reprova só
+  // ACIMA de 0,5 dB (0,50 exato está dentro). Sem isso o laudo divergiria do app.
   function diferencaChecagens(p) {
-    var ini = parseFloat(String(p.chkIniValor || '').replace(',', '.')) * (p.chkIniSinal === '-' ? -1 : 1);
-    var fim = parseFloat(String(p.chkFimValor || '').replace(',', '.')) * (p.chkFimSinal === '-' ? -1 : 1);
-    if (isNaN(ini) || isNaN(fim)) return '';
-    var d = Math.abs(fim - ini);
-    // Limite: 0,50 dB EXATO está DENTRO; só ACIMA de 0,5 dB reprova (regra da Raisa, 2026-07-22).
-    return d.toFixed(2).replace('.', ',') + ' dB' + (d > 0.5 ? '  (ACIMA de 0,5 dB - fora do limite)' : '  (dentro do limite)');
+    var vi = parseFloat(String(p.chkIniValor || '').replace(',', '.'));
+    var vf = parseFloat(String(p.chkFimValor || '').replace(',', '.'));
+    if (isNaN(vi) || isNaN(vf)) return '';
+    var r = EC.checagens.calcular(p.chkIniSinal || '+', vi, p.chkFimSinal || '+', vf);
+    return r.diff.toFixed(2).replace('.', ',') + ' dB' +
+      (r.alerta ? '  (ACIMA de 0,5 dB - fora do limite)' : '  (dentro do limite)');
   }
   function gpsTexto(p) {
     var g = p.gps || {}, u = g.utm || {};
@@ -500,6 +502,62 @@ EC.pdf = (function () {
         if (!temJanelas) { medicaoRuido(p); return; } // rascunho MUITO antigo (flat)
         janelasDaMedicao(p, '');
       }
+      /* ---------- Validação das SÉRIES de checagem ----------
+       * A série (inicial do 1º ponto → final do último ponto) é limitada a 10
+       * pontos; acima disso os pontos são divididos em blocos equilibrados
+       * (EC.checagens.blocosDaSerie — mesma divisão usada na coleta). Se a
+       * diferença passar de 0,5 dB, TODAS as medições daquela série devem ser
+       * repetidas. Vale POR PERÍODO. No interno, as séries são por ambiente.
+       */
+      function totalDoPonto(p, id) {
+        if (!p) return null;
+        if (id !== null && p.periodos && typeof p.periodos === 'object') {
+          return (p.periodos[id] && p.periodos[id].total) || null;
+        }
+        return (p.total && typeof p.total === 'object') ? p.total : null;
+      }
+      function seriesDeChecagem(pontos, total, geral) {
+        var blocos = EC.checagens.blocosDaSerie(total);
+        if (!blocos.length) return [];
+        var ids = [];
+        for (var i = 0; i < total; i++) {
+          var pp = pontos[i];
+          if (pp && pp.periodos && typeof pp.periodos === 'object') {
+            PERIODO_ORDEM.forEach(function (id) { if (pp.periodos[id] && ids.indexOf(id) === -1) ids.push(id); });
+          }
+        }
+        var usaPeriodo = ids.length > 0;
+        if (!usaPeriodo) ids = [null];
+        var out = [];
+        ids.forEach(function (id) {
+          blocos.forEach(function (b, bi) {
+            var tIni = totalDoPonto(pontos[b.ini - 1], id);
+            var tFim = totalDoPonto(pontos[b.fim - 1], id);
+            var vi = parseFloat(String((tIni && tIni.chkIniValor) || '').replace(',', '.'));
+            var vf = parseFloat(String((tFim && tFim.chkFimValor) || '').replace(',', '.'));
+            var rot = EC.checagens.rotuloSerie({ ini: b.ini, fim: b.fim, indice: bi, qtde: blocos.length });
+            var pre = usaPeriodo ? (rotuloPeriodoPdf(id, geral) + ' — ') : '';
+            var texto;
+            if (isNaN(vi) || isNaN(vf)) {
+              texto = 'checagem inicial e/ou final não informada';
+            } else {
+              var r = EC.checagens.calcular((tIni && tIni.chkIniSinal) || '+', vi, (tFim && tFim.chkFimSinal) || '+', vf);
+              texto = r.diff.toFixed(2).replace('.', ',') + ' dB — ' + (r.alerta
+                ? 'FORA do limite (0,5 dB): repetir as medições dos pontos ' + b.ini + ' a ' + b.fim
+                : 'dentro do limite (0,5 dB)');
+            }
+            out.push({ rotulo: pre + rot, texto: texto });
+          });
+        });
+        return out;
+      }
+      function secaoSeries(pontos, total, geral) {
+        var itens = seriesDeChecagem(pontos, total, geral);
+        if (!itens.length) return;
+        tituloSecao('Validação das séries de checagem');
+        itens.forEach(function (it) { kv(it.rotulo, it.texto); });
+      }
+
       function corpoRuido() {
         var campo = reg.campo || {};
         var geralRuido = campo.geral || {};
@@ -521,12 +579,15 @@ EC.pdf = (function () {
             var pts = amb.pontos || [];
             var tp = Math.min(pts.length, Math.max(0, parseInt(amb.pontosCalculados, 10) || pts.length));
             for (var i = 0; i < tp; i++) { gN++; pontoRuido(pts[i] || {}, gN, geralRuido); }
+            // No interno a série é por AMBIENTE (igual à coleta).
+            secaoSeries(pts, tp, geralRuido);
           }
           return;
         }
         var pontos = campo.pontos || [];
         var total = Math.min(pontos.length, Math.max(1, parseInt(geralRuido.qtdePontos, 10) || pontos.length));
         for (var k = 0; k < total; k++) pontoRuido(pontos[k] || {}, k + 1, geralRuido);
+        secaoSeries(pontos, total, geralRuido);
       }
 
       /* ---------- Corpo GENÉRICO (demais serviços) ---------- */

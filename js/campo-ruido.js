@@ -332,40 +332,12 @@ EC.campoRuido = (function () {
   }
 
   /* ---------- Séries de checagem (blocos de no máximo 10 pontos) ----------
-   * Regra da Raisa (2026-07-22): a série "checagem inicial → checagem final" é
-   * limitada a 10 pontos. Quando há mais, os pontos são divididos em blocos
-   * EQUILIBRADOS (nº de blocos = arredonda p/ cima total/10; tamanhos o mais
-   * iguais possível). Ex.: 14 → 1-7 e 8-14; 21 → 1-7, 8-14, 15-21; 25 → 1-9,
-   * 10-17, 18-25. Escolhido em vez de "10 em 10" porque este criava bloco órfão
-   * de 1 ponto (21 → …, 21) e concentrava o retrabalho em 10 pontos.
+   * A REGRA MORA EM js/componentes/checagens.js (EC.checagens), porque o laudo
+   * (pdf-ruido.js) precisa exatamente da mesma divisão. Aqui só reexportamos.
    * Em cada bloco: checagem INICIAL obrigatória no 1º ponto e FINAL no último.
    */
-  const MAX_PONTOS_SERIE = 10;
-
-  function blocosDaSerie(total) {
-    const n = Math.max(0, parseInt(total, 10) || 0);
-    if (!n) return [];
-    const k = Math.ceil(n / MAX_PONTOS_SERIE);
-    const base = Math.floor(n / k);
-    const resto = n % k;
-    const blocos = [];
-    let ini = 1;
-    for (let i = 0; i < k; i++) {
-      const tam = base + (i < resto ? 1 : 0);
-      blocos.push({ ini: ini, fim: ini + tam - 1 });
-      ini += tam;
-    }
-    return blocos;
-  }
-
-  // Bloco a que pertence o ponto n (1-based). Devolve null se fora do intervalo.
-  function blocoDoPonto(n, total) {
-    const bs = blocosDaSerie(total);
-    for (let i = 0; i < bs.length; i++) {
-      if (n >= bs[i].ini && n <= bs[i].fim) return { ini: bs[i].ini, fim: bs[i].fim, indice: i, qtde: bs.length };
-    }
-    return null;
-  }
+  function blocosDaSerie(total) { return EC.checagens.blocosDaSerie(total); }
+  function blocoDoPonto(n, total) { return EC.checagens.blocoDoPonto(n, total); }
 
   function ehLongaDuracao() {
     const s = ctx.estado.servico || {};

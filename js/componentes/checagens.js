@@ -28,6 +28,51 @@ EC.checagens = (function () {
 
   const LIMITE_DB = 0.5;
 
+  /* ---------- Séries de checagem (blocos de no máximo 10 pontos) ----------
+   * Regra da Raisa (2026-07-22): a série "checagem inicial → checagem final" é
+   * limitada a 10 pontos. Acima disso os pontos são divididos em blocos
+   * EQUILIBRADOS: nº de blocos = arredonda p/ cima total/10, tamanhos o mais
+   * iguais possível. Ex.: 14 → 1-7 e 8-14; 21 → 1-7, 8-14, 15-21; 25 → 1-9,
+   * 10-17, 18-25. (Preferido ao "10 em 10", que criava bloco órfão de 1 ponto.)
+   * FICA AQUI porque a coleta (campo-ruido) e o laudo (pdf-ruido) precisam da
+   * MESMA divisão — duplicar a regra faria os dois divergirem.
+   * ATENÇÃO: o SGP tem uma cópia equivalente em src/lib/monitoramento/mapear.ts
+   * (outro projeto); mudou aqui, mude lá.
+   */
+  const MAX_PONTOS_SERIE = 10;
+
+  function blocosDaSerie(total) {
+    const n = Math.max(0, parseInt(total, 10) || 0);
+    if (!n) return [];
+    const k = Math.ceil(n / MAX_PONTOS_SERIE);
+    const base = Math.floor(n / k);
+    const resto = n % k;
+    const blocos = [];
+    let ini = 1;
+    for (let i = 0; i < k; i++) {
+      const tam = base + (i < resto ? 1 : 0);
+      blocos.push({ ini: ini, fim: ini + tam - 1 });
+      ini += tam;
+    }
+    return blocos;
+  }
+
+  // Bloco a que pertence o ponto n (1-based). null se fora do intervalo.
+  function blocoDoPonto(n, total) {
+    const bs = blocosDaSerie(total);
+    for (let i = 0; i < bs.length; i++) {
+      if (n >= bs[i].ini && n <= bs[i].fim) return { ini: bs[i].ini, fim: bs[i].fim, indice: i, qtde: bs.length };
+    }
+    return null;
+  }
+
+  // Rótulo curto da série, ex.: "Série 2 de 3 (pontos 8–14)" ou "Série (pontos 1–7)".
+  function rotuloSerie(b) {
+    if (!b) return '';
+    const faixa = 'pontos ' + b.ini + '–' + b.fim;
+    return b.qtde > 1 ? 'Série ' + (b.indice + 1) + ' de ' + b.qtde + ' (' + faixa + ')' : 'Série (' + faixa + ')';
+  }
+
   function calcular(sinalIni, valorIni, sinalFim, valorFim) {
     const iniReal = (sinalIni === '-' ? -1 : 1) * valorIni;
     const fimReal = (sinalFim === '-' ? -1 : 1) * valorFim;
@@ -113,5 +158,13 @@ EC.checagens = (function () {
     };
   }
 
-  return { criar: criar, calcular: calcular };
+  return {
+    criar: criar,
+    calcular: calcular,
+    LIMITE_DB: LIMITE_DB,
+    MAX_PONTOS_SERIE: MAX_PONTOS_SERIE,
+    blocosDaSerie: blocosDaSerie,
+    blocoDoPonto: blocoDoPonto,
+    rotuloSerie: rotuloSerie
+  };
 })();
