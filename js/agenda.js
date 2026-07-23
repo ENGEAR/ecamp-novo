@@ -100,7 +100,7 @@
         (q.data || []).forEach(function (r) { if (r.papel && r.papel.codigo) codigos.push(r.papel.codigo); });
       } catch (e) { /* sem papéis */ }
       var souAdmin = codigos.indexOf('admin') !== -1;
-      var podeEditar = souAdmin || ['agenda', 'comercial', 'operacional'].some(function (c) { return codigos.indexOf(c) !== -1; });
+      var podeEditar = souAdmin || ['agenda', 'comercial', 'operacional', 'logistica'].some(function (c) { return codigos.indexOf(c) !== -1; });
       var podeFerias = souAdmin;
       if (!podeFerias) {
         try {
@@ -150,8 +150,16 @@
     // OS (mesma consulta do SGP): para vincular no agendamento e para o alerta.
     try {
       var o = await cli.from('ordens_servico')
-        .select('id, numero, proposta_id, cliente_nome, municipio, uf, servico, detalhes, proposta:proposta_id(status)')
+        .select('id, numero, proposta_id, cliente_nome, municipio, uf, servico, detalhes')
         .order('numero', { ascending: false });
+      // Quais OS contam como "aceitas" — via função no banco (os_aceitas), porque
+      // ler propostas exige acesso comercial e quem só tem o papel 'agenda'
+      // (ex.: operacional/logística) ficava sem o alerta "OS sem agendamento".
+      var idsAceitas = {};
+      try {
+        var acc = await cli.rpc('os_aceitas');
+        (acc.data || []).forEach(function (r) { idsAceitas[r.id] = true; });
+      } catch (e) { /* sem a função, nada é considerado aceito */ }
       oss = (o.data || []).map(function (x) {
         var det = x.detalhes || {};
         return {
@@ -160,7 +168,7 @@
           servico: x.servico || '', projeto: det.projeto || null,
           nCampanhas: Number(det.nCampanhas) || 1,
           // Só OS de proposta ACEITA (ou sem proposta vinculada) contam como pendência.
-          aceita: !x.proposta_id || !!(x.proposta && x.proposta.status === 'ACEITA')
+          aceita: !!idsAceitas[x.id]
         };
       });
     } catch (e) { oss = []; }
