@@ -39,6 +39,19 @@
     <button type="button" id="pendencias-sincronizar" class="botao botao-mini">🔄 Sincronizar</button>
   </div>
 
+  <!-- ======= Aviso de endereço não-oficial =======
+       O navegador guarda os rascunhos SEPARADOS POR ENDEREÇO. Como o app responde
+       em mais de um endereço do Vercel, quem abre pelo antigo vê o app "vazio" e
+       acha que perdeu os dados. NÃO redirecionamos de propósito: o redirect
+       impediria o app de carregar aqui e deixaria os rascunhos DESTE endereço
+       inacessíveis. Então avisamos e pedimos para sincronizar antes de migrar. -->
+  <div id="aviso-endereco" class="oculto" style="background:#fdecea;border-bottom:2px solid #d93025;color:#8a1c12;padding:10px 12px;font-size:13.5px;line-height:1.4">
+    ⚠️ <strong>Você está num endereço antigo do e-CAMP.</strong>
+    O endereço oficial é <strong>ecamp-engear.vercel.app</strong>.
+    <br>Os rascunhos ficam salvos <strong>no endereço em que foram feitos</strong>. Antes de mudar,
+    abra cada serviço aberto aqui e toque em <strong>“Salvar rascunho”</strong> — assim tudo (inclusive as fotos) sobe para o servidor.
+  </div>
+
   <main id="conteudo">
 
     <!-- ======= Tela de Login ======= -->

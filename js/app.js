@@ -72,6 +72,22 @@
     }
   }
 
+  /* ============ Aviso de endereço não-oficial ============ */
+  // O app responde em mais de um endereço do Vercel (apelidos criados junto com o
+  // projeto). O navegador guarda os rascunhos SEPARADOS POR ENDEREÇO — então quem
+  // abre pelo endereço antigo vê o app "vazio" e acha que perdeu tudo (foi o que
+  // aconteceu em 2026-07-23). Aqui só AVISAMOS: redirecionar deixaria os rascunhos
+  // deste endereço inacessíveis, porque o app nem chegaria a carregar para sincronizar.
+  const HOST_OFICIAL = 'ecamp-engear.vercel.app';
+  function avisarEndereco() {
+    const aviso = $('aviso-endereco');
+    if (!aviso) return;
+    const h = (location.hostname || '').toLowerCase();
+    // Local/preview (localhost, 127.0.0.1, file://) nunca mostra o aviso.
+    const ehLocal = !h || h === 'localhost' || h === '127.0.0.1' || h.indexOf('192.168.') === 0;
+    if (!ehLocal && h !== HOST_OFICIAL) aviso.classList.remove('oculto');
+  }
+
   /* ============ Service worker (PWA) ============ */
   if ('serviceWorker' in navigator) {
     // Só recarrega quando uma ATUALIZAÇÃO assume o controle (não na 1ª instalação).
@@ -656,6 +672,7 @@
   /* ============ Inicialização ============ */
   garantirPersistencia();
   mostrarVersao();
+  avisarEndereco();
   if (EC.agenda) EC.agenda._ligar();
   // Limpeza da época do login antigo (nome + senha única do app).
   EC.storage.remover('sessao:senhaSalva');

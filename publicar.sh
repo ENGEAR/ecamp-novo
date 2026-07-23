@@ -20,7 +20,11 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-PROD_URL="https://ecamp-omega.vercel.app"
+# Endereço OFICIAL do e-CAMP (decisão da Raisa, 2026-07-23). O projeto responde em
+# mais de um apelido do Vercel (ecamp-omega, ecamp-engear...), e como o navegador
+# guarda os rascunhos SEPARADOS POR ENDEREÇO, técnico que abre pelo apelido errado
+# vê o app vazio. Este é o endereço que a equipe usa e que conferimos no deploy.
+PROD_URL="https://ecamp-engear.vercel.app"
 ok()   { printf '\033[32m%s\033[0m\n' "$1"; }
 die()  { printf '\033[31m🛑 %s\033[0m\n' "$1" >&2; exit 1; }
 ver_de_sw() { grep -oE 'ecamp-v[0-9]+\.[0-9]+\.[0-9]+' "$1" 2>/dev/null | head -1 | sed 's/ecamp-v//'; }
