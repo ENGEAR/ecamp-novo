@@ -64,6 +64,17 @@ EC.ajuda = (function () {
         'O <strong>logo</strong> volta para a tela inicial.'
       ])) +
 
+      secao('Boas práticas importantes') +
+      topico('⭐ Leia antes de ir a campo', ul([
+        '📱 Utilize sempre o <strong>aplicativo instalado na tela inicial</strong> do seu celular. Caso tenha qualquer dificuldade de acesso ou funcionamento, entre em contato conosco imediatamente.',
+        '💾 Clique em <strong>“Salvar rascunho”</strong> sempre que preencher informações. Esse procedimento evita a perda de dados em caso de fechamento do aplicativo ou qualquer imprevisto.',
+        '📄 Sempre que a opção de gerar o PDF estiver disponível, gere o arquivo e envie <strong>imediatamente</strong> para o grupo de WhatsApp do monitoramento (quando houver) ou diretamente para o seu supervisor. Esse procedimento é essencial para manter um backup seguro das informações coletadas.',
+        '📷 Tire as fotos sempre pela <strong>câmera do app</strong> — é o que garante o carimbo de data/hora e coordenada. Foto escolhida da galeria não leva carimbo.',
+        '📡 Ao voltar do campo, abra o app <strong>com internet</strong> e confira se não ficou nada pendente na barra do topo (toque em “🔄 Sincronizar” se aparecer o aviso).',
+        '🔋 Leve carregador ou power bank, principalmente em serviços de longa duração.'
+      ]) +
+        '<div class="alerta alerta-amarelo">📲 <strong>Use sempre o mesmo aparelho</strong> para o preenchimento dos dados. Mesmo utilizando o mesmo login, as informações ficam armazenadas <strong>localmente no dispositivo</strong> e não são sincronizadas entre diferentes aparelhos — trocar de celular durante o monitoramento pode resultar na perda dos dados salvos. Pelo mesmo motivo, <strong>não limpe os dados do navegador nem desinstale o app</strong> enquanto houver algo pendente de sincronização.</div>') +
+
       secao('Fazer um serviço (campo)') +
       topico('🛠️ Passo a passo (1 a 10)', ol([
         '<strong>Escolher a OS</strong> — busque pelo número ou cliente do serviço que você está designado a fazer.',
