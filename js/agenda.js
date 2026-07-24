@@ -524,7 +524,7 @@
   }
 
   /* ============ Modal (novo / editar / leitura) ============ */
-  var mEv = null, mNovo = false, mTecs = [], mDataFim = '', mBuscaOS = '', mAvisoOS = '';
+  var mEv = null, mNovo = false, mTecs = [], mDataFim = '', mBuscaOS = '', mAvisoOS = '', mBuscaTec = '';
 
   function abrirModal(ev, novo) {
     mEv = JSON.parse(JSON.stringify(ev)); // cópia — só grava ao salvar
@@ -533,6 +533,7 @@
     mDataFim = ev.data;
     mBuscaOS = '';
     mAvisoOS = '';
+    mBuscaTec = '';
     renderModal();
     $('agd-modal').classList.remove('oculto');
     document.body.style.overflow = 'hidden';
@@ -582,13 +583,14 @@
       }
     }
 
+    // Técnicos: chips do que está selecionado + busca (lupa) + lista suspensa
+    // filtrada. Preenchida por atualizarTecnicos() (não redesenha o modal todo,
+    // pra não perder o foco/texto da busca).
     var tecsHtml = catTecnicos.length === 0
       ? '<p class="texto-apoio">Nenhum técnico cadastrado (a lista é gerida no SGP).</p>'
-      : '<div class="ecagd-tecs">' + catTecnicos.map(function (c) {
-          var on = mTecs.some(function (t) { return t.nome === c.nome; });
-          return '<button type="button" class="ecagd-tec' + (on ? ' on' : '') + '" data-nome="' + esc(c.nome) + '" data-tipo="' + esc(c.tipo) + '">' +
-            (on ? '✓ ' : '') + esc(nomeCurto(c.nome)) + ' <small>' + esc(c.vinculo || (c.tipo === 'freelancer' ? 'Freelancer' : 'CLT')) + '</small></button>';
-        }).join('') + '</div>';
+      : '<div class="ecagd-tec-sel" id="agdm-tec-sel"></div>' +
+        '<input type="text" id="agdm-tec-busca" class="ecagd-tec-busca" placeholder="🔍 Buscar técnico…" value="' + esc(mBuscaTec) + '" autocomplete="off">' +
+        '<div class="ecagd-tec-lista" id="agdm-tec-lista"></div>';
 
     var statusOpts = Object.keys(STATUS).map(function (k) {
       return '<option value="' + k + '"' + (k === st ? ' selected' : '') + '>' + esc(STATUS[k].label) + '</option>';
@@ -657,7 +659,7 @@
           '</div>' +
           datas +
           '<label>Status<select id="agdm-status">' + statusOpts + '</select></label>' +
-          '<p class="dg-secao">Técnicos' + (mTecs.length ? ' (' + mTecs.length + ' selecionado' + (mTecs.length === 1 ? '' : 's') + ')' : '') + '</p>' +
+          '<p class="dg-secao">Técnicos <span id="agdm-tec-count" class="ecagd-tec-count"></span></p>' +
           tecsHtml +
           '<label>Observações<textarea id="agdm-obs" rows="2">' + esc(mEv.observacoes) + '</textarea></label>' +
         '</fieldset>' +
@@ -701,16 +703,10 @@
     $('agdm-fechar').addEventListener('click', fecharModal);
     if ($('agdm-fechar2')) $('agdm-fechar2').addEventListener('click', fecharModal);
     if ($('agdm-cancelar')) $('agdm-cancelar').addEventListener('click', fecharModal);
-    Array.prototype.forEach.call(document.querySelectorAll('#agd-modal .ecagd-tec'), function (b) {
-      b.addEventListener('click', function () {
-        var nome = b.getAttribute('data-nome'), tipo = b.getAttribute('data-tipo');
-        var i = -1;
-        mTecs.forEach(function (t, j) { if (t.nome === nome) i = j; });
-        if (i >= 0) mTecs.splice(i, 1); else mTecs.push({ nome: nome, tipo: tipo });
-        colherCampos();
-        renderModal();
-      });
-    });
+    if ($('agdm-tec-busca')) {
+      $('agdm-tec-busca').addEventListener('input', function () { mBuscaTec = this.value; atualizarTecnicos(); });
+      atualizarTecnicos();
+    }
     if ($('agdm-salvar')) $('agdm-salvar').addEventListener('click', salvarModal);
     if ($('agdm-excluir')) $('agdm-excluir').addEventListener('click', function () { colherCampos(); renderModal('', true); });
     if ($('agdm-del-nao')) $('agdm-del-nao').addEventListener('click', function () { renderModal(); });
@@ -754,6 +750,41 @@
       : '<div class="ecagd-os-item vazio">Nenhuma OS encontrada.</div>';
     Array.prototype.forEach.call(res.querySelectorAll('.ecagd-os-item[data-i]'), function (el) {
       el.addEventListener('click', function () { escolherOS(achadas[Number(el.getAttribute('data-i'))]); });
+    });
+  }
+
+  // Técnicos: desenha os chips selecionados + a lista suspensa filtrada pela
+  // busca, sem redesenhar o modal (mantém o foco do campo de busca).
+  function atualizarTecnicos() {
+    var sel = $('agdm-tec-sel'), lista = $('agdm-tec-lista'), cnt = $('agdm-tec-count');
+    if (!sel || !lista) return;
+    if (cnt) cnt.textContent = mTecs.length ? '(' + mTecs.length + ' selecionado' + (mTecs.length === 1 ? '' : 's') + ')' : '';
+    sel.innerHTML = mTecs.length
+      ? mTecs.map(function (t) { return '<span class="ecagd-tec-chip" data-rem="' + esc(t.nome) + '">' + esc(nomeCurto(t.nome)) + ' <b>✕</b></span>'; }).join('')
+      : '<span class="ecagd-tec-vazio">Nenhum técnico selecionado ainda.</span>';
+    var q = (mBuscaTec || '').trim().toLowerCase();
+    var disp = catTecnicos.filter(function (c) {
+      if (mTecs.some(function (t) { return t.nome === c.nome; })) return false; // já selecionado
+      return !q || c.nome.toLowerCase().indexOf(q) !== -1;
+    });
+    lista.innerHTML = disp.length
+      ? disp.map(function (c) {
+          return '<div class="ecagd-tec-item" data-add="' + esc(c.nome) + '" data-tipo="' + esc(c.tipo) + '">' +
+            esc(nomeCurto(c.nome)) + ' <small>' + esc(c.vinculo || (c.tipo === 'freelancer' ? 'Freelancer' : 'CLT')) + '</small></div>';
+        }).join('')
+      : '<div class="ecagd-tec-item vazio">' + (q ? 'Nenhum técnico encontrado.' : 'Todos já foram selecionados.') + '</div>';
+    Array.prototype.forEach.call(sel.querySelectorAll('[data-rem]'), function (el) {
+      el.addEventListener('click', function () {
+        var nome = el.getAttribute('data-rem');
+        mTecs = mTecs.filter(function (t) { return t.nome !== nome; });
+        atualizarTecnicos();
+      });
+    });
+    Array.prototype.forEach.call(lista.querySelectorAll('[data-add]'), function (el) {
+      el.addEventListener('click', function () {
+        mTecs.push({ nome: el.getAttribute('data-add'), tipo: el.getAttribute('data-tipo') });
+        atualizarTecnicos();
+      });
     });
   }
 

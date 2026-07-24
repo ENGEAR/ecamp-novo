@@ -996,21 +996,35 @@ textarea { resize: vertical; font-family: inherit; }
 #agd-modal { position: fixed; inset: 0; z-index: 300; }
 #agd-modal.oculto { display: none; }
 .ecagd-m-fundo { position: absolute; inset: 0; background: rgba(22, 39, 110, 0.45); }
-.ecagd-m-caixa { position: absolute; inset: 0; overflow-y: auto; padding: 18px 12px; display: flex; align-items: flex-start; justify-content: center; }
+/* -webkit-overflow-scrolling: momentum no iOS; padding-bottom com a faixa de
+   segurança + folga p/ o último botão (Salvar) nunca ficar cortado embaixo. */
+.ecagd-m-caixa { position: absolute; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px 12px calc(40px + env(safe-area-inset-bottom)); display: flex; align-items: flex-start; justify-content: center; }
 .ecagd-m-caixa .cartao { position: relative; width: 100%; max-width: 480px; margin: 0; }
 .ecagd-m-topo { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .ecagd-m-topo h2 { margin: 0; font-size: 1.15rem; }
 .ecagd-m-topo button { background: none; border: none; font-size: 20px; color: var(--cinza-texto); cursor: pointer; padding: 4px 8px; }
 .ecagd-m-os { font-size: 0.88rem; color: var(--cinza-texto); margin-bottom: 8px; }
 #agdm-campos { border: 0; margin: 0; padding: 0; min-width: 0; }
-.ecagd-tecs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-.ecagd-tec {
-  display: inline-flex; align-items: center; gap: 5px; font-size: 0.82rem; font-weight: 600;
-  border-radius: 20px; padding: 7px 12px; cursor: pointer;
-  border: 1px solid var(--cinza-borda); background: var(--cinza-fundo); color: var(--cinza-texto);
+/* Técnicos: chips selecionados + busca (lupa) + lista suspensa filtrada. */
+.ecagd-tec-count { font-weight: 400; color: var(--cinza-texto); font-size: 0.82rem; }
+.ecagd-tec-sel { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.ecagd-tec-vazio { color: var(--cinza-texto); font-size: 0.82rem; font-style: italic; }
+.ecagd-tec-chip {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600;
+  border-radius: 20px; padding: 5px 6px 5px 11px; cursor: pointer;
+  border: 1px solid var(--azul); background: var(--azul-claro); color: var(--azul-escuro);
 }
-.ecagd-tec.on { border-color: var(--azul); background: var(--azul-claro); color: var(--azul-escuro); }
-.ecagd-tec small { font-weight: 400; opacity: 0.8; }
+.ecagd-tec-chip b { font-weight: 700; opacity: 0.7; }
+.ecagd-tec-busca { width: 100%; margin-bottom: 6px; }
+.ecagd-tec-lista { max-height: 190px; overflow-y: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--cinza-borda); border-radius: 8px; margin-bottom: 10px; }
+.ecagd-tec-item {
+  padding: 10px 12px; cursor: pointer; font-size: 0.9rem; color: var(--texto);
+  border-bottom: 1px solid var(--cinza-borda);
+}
+.ecagd-tec-item:last-child { border-bottom: none; }
+.ecagd-tec-item:active { background: var(--azul-claro); }
+.ecagd-tec-item small { color: var(--cinza-texto); font-size: 0.78rem; }
+.ecagd-tec-item.vazio { color: var(--cinza-texto); cursor: default; font-style: italic; }
 .ecagd-m-excluir { background: var(--vermelho-claro); border-radius: 10px; padding: 10px 12px; margin-top: 8px; color: var(--vermelho); font-size: 0.92rem; }
 .ecagd-m-escopo { background: var(--azul-claro); border-radius: 10px; padding: 10px 12px; margin-top: 8px; color: var(--azul-escuro); font-size: 0.92rem; }
 
