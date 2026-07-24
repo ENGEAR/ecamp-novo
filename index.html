@@ -406,13 +406,13 @@
 
           <div id="rb-veic-bloco" class="oculto">
             <p class="dg-secao">Gastos do veículo</p>
-            <label>⛽ Abastecimento (R$)<input type="number" id="rb-veic-abastecimento" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+            <label>⛽ Abastecimento<input type="text" id="rb-veic-abastecimento" inputmode="numeric" class="rb-moeda" placeholder="R$ 0,00"></label>
             <p class="rb-sub">Evidências do abastecimento <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
             <div id="rb-anexos-abastecimento"></div>
-            <label>🔩 Compra de peças (R$)<input type="number" id="rb-veic-pecas" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+            <label>🔩 Compra de peças<input type="text" id="rb-veic-pecas" inputmode="numeric" class="rb-moeda" placeholder="R$ 0,00"></label>
             <p class="rb-sub">Evidências das peças <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
             <div id="rb-anexos-pecas"></div>
-            <label>🛠️ Manutenção (R$)<input type="number" id="rb-veic-manutencao" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+            <label>🛠️ Manutenção<input type="text" id="rb-veic-manutencao" inputmode="numeric" class="rb-moeda" placeholder="R$ 0,00"></label>
             <p class="rb-sub">Evidências da manutenção <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
             <div id="rb-anexos-manutencao"></div>
           </div>
@@ -480,7 +480,7 @@
                   <option value="diesel">Diesel</option>
                 </select>
               </label>
-              <label>Preço por litro (R$)<input type="number" id="rb-preco-litro" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+              <label>Preço por litro<input type="text" id="rb-preco-litro" inputmode="numeric" class="rb-moeda" placeholder="R$ 0,00"></label>
             </div>
             <div id="rb-teto-alerta" class="alerta alerta-vermelho oculto"></div>
             <div id="rb-teto-just" class="oculto">
@@ -494,14 +494,14 @@
 
           <div id="rb-pedagio-bloco">
           <p class="dg-secao">Pedágio</p>
-          <label>Valor total de pedágio (R$)<input type="number" id="rb-pedagio" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+          <label>Valor total de pedágio<input type="text" id="rb-pedagio" inputmode="numeric" class="rb-moeda" placeholder="R$ 0,00"></label>
           <p class="rb-sub">Evidências de pedágio <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
           <div id="rb-anexos-pedagio"></div>
           </div>
 
           <div id="rb-outros-bloco" class="oculto">
           <p class="dg-secao">Outros gastos</p>
-          <label>💠 Outros gastos (R$)<input type="number" id="rb-outros-valor" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+          <label>💠 Outros gastos<input type="text" id="rb-outros-valor" inputmode="numeric" class="rb-moeda" placeholder="R$ 0,00"></label>
           <label>Justificativa dos outros gastos <span class="rotulo-apoio">(explique o que foi)</span><textarea id="rb-outros-just" rows="2" placeholder="Ex.: estacionamento, material de apoio…"></textarea></label>
           <p class="rb-sub">Evidências dos outros gastos <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
           <div id="rb-anexos-outros"></div>
@@ -531,7 +531,7 @@
             <div id="rb-adiant-campos" class="oculto">
               <div class="grade-2">
                 <label>Data do adiantamento<input type="date" id="rb-adiant-data"></label>
-                <label>Valor do adiantamento (R$)<input type="number" id="rb-adiant-valor" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+                <label>Valor do adiantamento<input type="text" id="rb-adiant-valor" inputmode="numeric" class="rb-moeda" placeholder="R$ 0,00"></label>
               </div>
             </div>
             <div id="rb-pagar" class="rb-total oculto"></div>

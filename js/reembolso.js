@@ -474,7 +474,7 @@ EC.reembolso = (function () {
     var diasDeslocamento = diasDeslocVal();
     var servicoPuro = servicoPuroVal();
     var diarias = diariasVal();
-    var preco = parseFloat($('rb-preco-litro').value) || 0;
+    var preco = lerMoeda('rb-preco-litro');
     var consumo = consumoAtual();
     var dist = distanciaAtual();
     var r2 = function (x) { return Math.round(x * 100) / 100; };
@@ -515,7 +515,7 @@ EC.reembolso = (function () {
       jantar = r2(Number(v.jantar) * diasRef.length);
       lanche = r2(Number(v.lanche) * diasDeslocamento);
     }
-    var pedagio = r2(parseFloat($('rb-pedagio').value) || 0);
+    var pedagio = r2(lerMoeda('rb-pedagio'));
     var alimentacao = r2(almoco + jantar + lanche);
 
     return {
@@ -535,8 +535,9 @@ EC.reembolso = (function () {
   // Novo valor proposto no ajuste (ou null se não é ajuste / vazio)
   function valorProposto(chave) {
     if (decisao(chave) !== 'ajuste') return null;
-    var v = parseFloat($('rb-novoval-' + chave).value);
-    return v >= 0 && !isNaN(v) ? Math.round(v * 100) / 100 : null;
+    // Campo mascarado: vazio = null (não é proposta); "R$ 0,00" = proposta de 0.
+    var raw = ($('rb-novoval-' + chave).value || '').replace(/\D/g, '');
+    return raw ? Math.round(parseInt(raw, 10)) / 100 : null;
   }
 
   // Total da logística: calculado, substituindo pelos novos valores propostos
@@ -570,17 +571,47 @@ EC.reembolso = (function () {
     var m = document.querySelector('input[name="rb-adiant"]:checked');
     return !!m && m.value === 'sim';
   }
-  function adiantamentoVal() {
-    if (!adiantamentoAtivo()) return 0;
-    var v = parseFloat($('rb-adiant-valor').value);
-    return v > 0 ? Math.round(v * 100) / 100 : 0;
+  // ===== Campos monetários (máscara R$ + leitura) =====
+  // O usuário digita só números; os dígitos entram como CENTAVOS e o campo
+  // formata sozinho (R$ 1.234,56). A leitura tira tudo que não é dígito.
+  function mascararMoeda(el) {
+    if (!el) return;
+    var d = (el.value || '').replace(/\D/g, '');
+    el.value = d ? 'R$ ' + (parseInt(d, 10) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
+  }
+  function lerMoeda(id) {
+    var d = ($(id).value || '').replace(/\D/g, '');
+    return d ? Math.round(parseInt(d, 10)) / 100 : 0;
+  }
+  // Liga a máscara a um campo monetário (formata a cada digitação; chama `extra` depois).
+  function ligarMoeda(id, extra) {
+    var el = $(id);
+    if (!el) return;
+    el.addEventListener('input', function () { mascararMoeda(el); if (extra) extra(); });
+  }
+  // Preenche um campo monetário a partir de um valor salvo, aceitando tanto o
+  // formato novo (já mascarado "R$ 1.234,56") quanto o antigo de rascunhos
+  // anteriores (número puro "1234.56" / "100"). Vazio/0 → campo em branco.
+  function porMoeda(id, salvo) {
+    var el = $(id);
+    if (!el) return;
+    var s = String(salvo == null ? '' : salvo).trim();
+    if (!s) { el.value = ''; return; }
+    var num;
+    // Novo (mascarado): dígitos = centavos. Antigo (type=number): float com ponto.
+    if (/[R$.,]/.test(s) && s.indexOf('R$') !== -1) { var d = s.replace(/\D/g, ''); num = d ? parseInt(d, 10) / 100 : 0; }
+    else { num = parseFloat(s) || 0; }
+    el.value = num > 0 ? 'R$ ' + num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
   }
 
-  // Valor monetário de um campo (0 se vazio/inválido).
-  function valMon(id) {
-    var v = parseFloat($(id).value);
-    return v > 0 ? Math.round(v * 100) / 100 : 0;
+  function adiantamentoVal() {
+    if (!adiantamentoAtivo()) return 0;
+    return lerMoeda('rb-adiant-valor');
   }
+
+  // Valor monetário de um campo (0 se vazio). Os campos são mascarados (R$),
+  // então é a mesma leitura de lerMoeda.
+  function valMon(id) { return lerMoeda(id); }
   // "Outros gastos" (existe nos três tipos; soma no total).
   function outrosVal() { return valMon('rb-outros-valor'); }
 
@@ -950,7 +981,7 @@ EC.reembolso = (function () {
         '    <label class="linha-check"><input type="radio" name="rb-dec-' + it.chave + '" value="ajuste"><span>Solicitar ajuste</span></label>' +
         '  </div>' +
         '  <div class="rb-ajuste oculto" id="rb-ajuste-' + it.chave + '">' +
-        '    <label>Novo valor proposto (R$)<input type="number" id="rb-novoval-' + it.chave + '" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>' +
+        '    <label>Novo valor proposto<input type="text" id="rb-novoval-' + it.chave + '" inputmode="numeric" class="rb-moeda" placeholder="R$ 0,00"></label>' +
         '    <label>Justificativa do ajuste<textarea id="rb-just-' + it.chave + '" rows="2" placeholder="Explique o que precisa ser ajustado"></textarea></label>' +
         '    <p class="rb-sub">Evidências do ajuste <span class="rotulo-apoio">(fotos ou PDF)</span></p>' +
         '    <div id="rb-anexos-ajuste_' + it.chave + '"></div>' +
@@ -980,7 +1011,7 @@ EC.reembolso = (function () {
           pintarValores();
         });
       });
-      $('rb-novoval-' + it.chave).addEventListener('input', pintarValores);
+      ligarMoeda('rb-novoval-' + it.chave, pintarValores);
     });
   }
 
@@ -1198,7 +1229,7 @@ EC.reembolso = (function () {
   }
 
   function pintarTeto() {
-    var preco = parseFloat($('rb-preco-litro').value) || 0;
+    var preco = lerMoeda('rb-preco-litro');
     var teto = tetoDoCombustivel();
     var estourou = preco > 0 && $('rb-combustivel').value && preco > teto;
     $('rb-teto-alerta').classList.toggle('oculto', !estourou);
@@ -1309,11 +1340,11 @@ EC.reembolso = (function () {
       atualizarBotaoComplemento();
       escolherTipo(r.tipo || 'viagem');
       if (r.eventoDias) $('rb-evento-dias').value = r.eventoDias;
-      if (r.veicAbastecimento) $('rb-veic-abastecimento').value = r.veicAbastecimento;
-      if (r.veicPecas) $('rb-veic-pecas').value = r.veicPecas;
-      if (r.veicManutencao) $('rb-veic-manutencao').value = r.veicManutencao;
+      porMoeda('rb-veic-abastecimento', r.veicAbastecimento);
+      porMoeda('rb-veic-pecas', r.veicPecas);
+      porMoeda('rb-veic-manutencao', r.veicManutencao);
       if (r.compKmFinal) $('rb-comp-kmfinal').value = r.compKmFinal;
-      if (r.outrosValor) $('rb-outros-valor').value = r.outrosValor;
+      porMoeda('rb-outros-valor', r.outrosValor);
       if (r.outrosJust) $('rb-outros-just').value = r.outrosJust;
       if (r.veiculo) {
         var radio = document.querySelector('input[name="rb-veiculo"][value="' + r.veiculo + '"]');
@@ -1336,12 +1367,12 @@ EC.reembolso = (function () {
       var radAd = document.querySelector('input[name="rb-adiant"][value="' + (r.adiantAtivo ? 'sim' : 'nao') + '"]');
       if (radAd) radAd.checked = true;
       $('rb-adiant-data').value = r.adiantData || '';
-      $('rb-adiant-valor').value = r.adiantValor || '';
+      porMoeda('rb-adiant-valor', r.adiantValor);
       $('rb-combustivel').value = r.tipoCombustivel || '';
-      $('rb-preco-litro').value = r.precoLitro || '';
+      porMoeda('rb-preco-litro', r.precoLitro);
       $('rb-km-atual').value = r.kmAtual || '';
       $('rb-comb-justificativa').value = r.combJustificativa || '';
-      $('rb-pedagio').value = r.pedagio || '';
+      porMoeda('rb-pedagio', r.pedagio);
       $('rb-percentual').value = r.percentual || '100';
 
       montarValores(r.anexos || {}); // recria os itens + anexos com as evidências salvas
@@ -1351,7 +1382,7 @@ EC.reembolso = (function () {
         if (radio) radio.checked = true;
         $('rb-ajuste-' + it.chave).classList.toggle('oculto', dec !== 'ajuste');
         $('rb-just-' + it.chave).value = (r.justificativas || {})[it.chave] || '';
-        $('rb-novoval-' + it.chave).value = (r.novosValores || {})[it.chave] || '';
+        porMoeda('rb-novoval-' + it.chave, (r.novosValores || {})[it.chave]);
       });
 
       pintarTeto();
@@ -1592,7 +1623,7 @@ EC.reembolso = (function () {
     if (!solicitante) return mostrarErro('Sua sessão expirou — entre de novo no app.');
     if (!veiculo()) return mostrarErro('Responda: o veículo é da ENGEAR ou do colaborador?');
 
-    var preco = parseFloat($('rb-preco-litro').value) || 0;
+    var preco = lerMoeda('rb-preco-litro');
     var tipoComb = $('rb-combustivel').value;
     if (preco > 0 && !tipoComb) return mostrarErro('Escolha o tipo de combustível (gasolina ou diesel).');
     if (tipoComb && !(preco > 0)) return mostrarErro('Informe o preço por litro do combustível.');
@@ -1668,7 +1699,7 @@ EC.reembolso = (function () {
       precoLitro: preco > 0 ? preco : null,
       combustivelJustificativa: $('rb-comb-justificativa').value.trim(),
       kmAtual: parseFloat(String($('rb-km-atual').value).replace(',', '.')) || null,
-      valorPedagio: parseFloat($('rb-pedagio').value) || 0,
+      valorPedagio: lerMoeda('rb-pedagio'),
       distanciaManual: distanciaAtual(),
       // trajeto (a distância vem sempre do cálculo origem→destino, nunca da OS)
       origemCidade: $('rb-origem-cidade').value.trim() || null,
@@ -3052,23 +3083,27 @@ EC.reembolso = (function () {
       // lembrete e a justificativa aparecem em pintarTeto().
       pintarTeto(); pintarValores();
     });
-    $('rb-preco-litro').addEventListener('input', function () { pintarTeto(); pintarValores(); });
+    ligarMoeda('rb-preco-litro', function () { pintarTeto(); pintarValores(); });
     $('rb-distancia').addEventListener('input', pintarValores);
     $('rb-origem-cidade').addEventListener('input', agendarCalculo);
     $('rb-destino-cidade').addEventListener('input', agendarCalculo);
     $('rb-origem-uf').addEventListener('change', calcularDistancia);
     $('rb-destino-uf').addEventListener('change', calcularDistancia);
-    $('rb-pedagio').addEventListener('input', pintarValores);
+    ligarMoeda('rb-pedagio', pintarValores);
     $('rb-percentual').addEventListener('input', pintarValores);
     // Tipo do reembolso (Viagem / Eventos / Veículos) + campos dos novos tipos
     document.querySelectorAll('.rb-tipo-btn').forEach(function (b) {
       b.addEventListener('click', function () { escolherTipo(b.dataset.tipo); salvarRascunhoLogo(); });
     });
-    ['rb-evento-dias', 'rb-veic-abastecimento', 'rb-veic-pecas', 'rb-veic-manutencao', 'rb-outros-valor', 'rb-comp-kmfinal']
+    // Campos NÃO monetários (dias/km): input simples.
+    ['rb-evento-dias', 'rb-comp-kmfinal']
       .forEach(function (id) { $(id).addEventListener('input', pintarValores); });
+    // Campos monetários do reembolso de serviços: máscara R$ + recálculo.
+    ['rb-veic-abastecimento', 'rb-veic-pecas', 'rb-veic-manutencao', 'rb-outros-valor']
+      .forEach(function (id) { ligarMoeda(id, pintarValores); });
     $('rb-chegada-casa').addEventListener('input', pintarValores);
     document.querySelectorAll('input[name="rb-adiant"]').forEach(function (r) { r.addEventListener('change', pintarValores); });
-    $('rb-adiant-valor').addEventListener('input', pintarValores);
+    ligarMoeda('rb-adiant-valor', pintarValores);
     // Datas da viagem editáveis: ao mudar, recalcula os dias e o resumo/valores.
     ['rb-ida', 'rb-servico-inicio', 'rb-servico-fim', 'rb-volta'].forEach(function (id) {
       $(id).addEventListener('change', function () {
