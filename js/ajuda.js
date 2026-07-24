@@ -89,6 +89,12 @@ EC.ajuda = (function () {
         '<strong>Revisão</strong> — oportunidade de revisar o preenchimento. O ícone 🟡 significa que dados em branco não bloqueiam a opção de salvar · O ícone 🔴 indica que a informação é de preenchimento obrigatório, o que impede salvar.',
         '<strong>Finalizar</strong> — “Salvar registro”. O <strong>PDF é gerado</strong> e deve ser encaminhado no WhatsApp imediatamente para o diretor técnico ou grupo designado ao envio de informações.'
       ])) +
+      topico('💾 Botão de salvar (o disquete)', ul([
+        'Na tela de campo, um botão de <strong>disquete (💾)</strong> fica fixo no canto inferior direito e acompanha a rolagem — sempre à mão, mesmo descendo ou subindo a tela.',
+        'Toque nele para <strong>enviar ao servidor</strong> tudo o que você preencheu — <strong>inclusive as fotos</strong>. É o mesmo que “Salvar rascunho”.',
+        '🟡 <strong>Amarelo (piscando):</strong> há preenchimento <strong>ainda não enviado</strong> — está salvo só no celular. <strong>Toque no disquete.</strong>',
+        '🔵 <strong>Azul:</strong> está tudo em dia, nada pendente para enviar.'
+      ]) + '<div class="alerta alerta-amarelo">⚠️ O app só envia ao servidor quando você toca em <strong>Salvar rascunho</strong> (o disquete) ou quando <strong>Finaliza</strong>. O “Próximo →” manda só os dados, <strong>sem as fotos</strong>. Regra simples: <strong>se o disquete estiver amarelo, toque nele.</strong></div>') +
       topico('🧭 Tipos de serviço', '<p class="texto-apoio">Cada tipo tem o seu formulário, mas a lógica é a mesma (pontos → GPS → checagens → fotos → condições).</p>' + ul([
         '<strong>Ruído</strong> — externo, interno, ferroviário e aeronáutico.',
         '<strong>Vibração</strong> — detonação, cavernas/grutas, áreas habitadas.',
