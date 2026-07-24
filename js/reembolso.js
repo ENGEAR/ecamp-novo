@@ -2801,7 +2801,19 @@ EC.reembolso = (function () {
   // e o mesmo /enviar (o servidor identifica pelo tipo 'outros_gastos').
   var ogAnexos = null; // uploaders desta tela (separados do form de serviços)
 
-  function ogValMon(id) { var v = parseFloat($(id).value); return v > 0 ? Math.round(v * 100) / 100 : 0; }
+  // Campos monetários: o usuário digita só números e o valor aparece formatado
+  // (R$ 1.234,56). Os dígitos são tratados como CENTAVOS (padrão de caixa/POS).
+  function ogMascaraMoeda(el) {
+    var d = (el.value || '').replace(/\D/g, '');
+    if (!d) { el.value = ''; return; }
+    var num = parseInt(d, 10) / 100;
+    el.value = 'R$ ' + num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  // Lê o valor numérico (reais) de um campo monetário mascarado.
+  function ogValMon(id) {
+    var d = ($(id).value || '').replace(/\D/g, '');
+    return d ? Math.round(parseInt(d, 10)) / 100 : 0;
+  }
   function ogTotal() {
     return Math.round((ogValMon('og-abastecimento') + ogValMon('og-pecas') + ogValMon('og-manutencao') +
       ogValMon('og-pedagio') + ogValMon('og-outros')) * 100) / 100;
@@ -2908,7 +2920,7 @@ EC.reembolso = (function () {
     $('og-cancelar').addEventListener('click', function () { EC.app.mostrarTela('tela-reembolso-menu'); pintarLista(); });
     $('og-enviar').addEventListener('click', enviarOutros);
     ['og-abastecimento', 'og-pecas', 'og-manutencao', 'og-pedagio', 'og-outros'].forEach(function (id) {
-      $(id).addEventListener('input', ogPintarTotal);
+      $(id).addEventListener('input', function () { ogMascaraMoeda($(id)); ogPintarTotal(); });
     });
   }
 

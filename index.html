@@ -313,23 +313,23 @@
           <label>Solicitante <span class="rotulo-apoio">(quem está lançando)</span><input type="text" id="og-solicitante" readonly></label>
 
           <p class="dg-secao">Gastos do veículo</p>
-          <label>⛽ Abastecimento (R$)<input type="number" id="og-abastecimento" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+          <label>⛽ Abastecimento<input type="text" id="og-abastecimento" inputmode="numeric" class="og-moeda" placeholder="R$ 0,00"></label>
           <p class="rb-sub">Evidências do abastecimento <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
           <div id="og-anexos-abastecimento"></div>
-          <label>🔩 Compra de peças (R$)<input type="number" id="og-pecas" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+          <label>🔩 Compra de peças<input type="text" id="og-pecas" inputmode="numeric" class="og-moeda" placeholder="R$ 0,00"></label>
           <p class="rb-sub">Evidências das peças <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
           <div id="og-anexos-pecas"></div>
-          <label>🛠️ Manutenção (R$)<input type="number" id="og-manutencao" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+          <label>🛠️ Manutenção<input type="text" id="og-manutencao" inputmode="numeric" class="og-moeda" placeholder="R$ 0,00"></label>
           <p class="rb-sub">Evidências da manutenção <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
           <div id="og-anexos-manutencao"></div>
 
           <p class="dg-secao">Pedágio</p>
-          <label>Valor total de pedágio (R$)<input type="number" id="og-pedagio" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+          <label>Valor total de pedágio<input type="text" id="og-pedagio" inputmode="numeric" class="og-moeda" placeholder="R$ 0,00"></label>
           <p class="rb-sub">Evidências de pedágio <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
           <div id="og-anexos-pedagio"></div>
 
           <p class="dg-secao">Outros gastos</p>
-          <label>💠 Outros gastos (R$)<input type="number" id="og-outros" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+          <label>💠 Outros gastos<input type="text" id="og-outros" inputmode="numeric" class="og-moeda" placeholder="R$ 0,00"></label>
           <label>Justificativa dos outros gastos <span class="rotulo-apoio">(explique o que foi)</span><textarea id="og-outros-just" rows="2" placeholder="Ex.: estacionamento, material de apoio…"></textarea></label>
           <p class="rb-sub">Evidências dos outros gastos <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
           <div id="og-anexos-outros"></div>
