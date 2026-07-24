@@ -1842,7 +1842,8 @@ EC.reembolso = (function () {
     for (var i = 0; i < chaves.length; i++) {
       var pedido = null;
       try { pedido = await EC.db.get(LOJA_PENDENTES, chaves[i]); } catch (e) { pedido = null; }
-      if (!pedido || !pedido.codigo || (!pedido.osId && !pedido._saldo)) {
+      // Válidos na fila: com OS (serviços), de saldo, ou avulso (outros gastos).
+      if (!pedido || !pedido.codigo || (!pedido.osId && !pedido._saldo && pedido.tipo !== 'outros_gastos')) {
         try { await EC.db.remove(LOJA_PENDENTES, chaves[i]); } catch (e) { /* ok */ }
         continue;
       }
@@ -1905,11 +1906,13 @@ EC.reembolso = (function () {
     var t = p.tipo || 'viagem';
     var tipoTxt = t === 'evento' ? '<span class="rotulo-apoio">🔊 Evento</span> · '
       : t === 'veiculo' ? '<span class="rotulo-apoio">🚗 Veículos</span> · '
-      : t === 'complemento' ? '<span class="rotulo-apoio">➕ Complemento</span> · ' : '';
+      : t === 'complemento' ? '<span class="rotulo-apoio">➕ Complemento</span> · '
+      : t === 'outros_gastos' ? '<span class="rotulo-apoio">💠 Outros gastos</span> · ' : '';
     var parcelaTxt = tipoTxt + (parcelaN ? '<span class="rotulo-apoio">' + parcelaN + 'ª parcela</span> · ' : '');
     return (
       '<button type="button" class="rb-pedido rb-pedido-click" data-codigo="' + (p.codigo || '') + '">' +
-      '  <div class="rb-pedido-topo"><span class="os-numero">OS ' + (p.os || '?') + '</span>' +
+      '  <div class="rb-pedido-topo"><span class="os-numero">' +
+      (t === 'outros_gastos' ? '💠 Outros gastos' : 'OS ' + (p.os || '?')) + '</span>' +
       '    <span class="rb-status ' + st.cls + '">' + st.txt + '</span></div>' +
       projeto +
       (mostrarDesignado && p.designado ? '<div class="os-resumo">👷 ' + p.designado + '</div>' : '') +
@@ -1930,8 +1933,10 @@ EC.reembolso = (function () {
     var area = $('rb-lista');
     if (!area) return;
     atualizarSaldoBtn();
-    var fila = await pedidosPendentes();
-    var enviados = listaEmCache();
+    // "Outros gastos" (avulso) tem lista própria — não entra no reembolso de serviços.
+    var naoAvulso = function (p) { return p.tipo !== 'outros_gastos'; };
+    var fila = (await pedidosPendentes()).filter(naoAvulso);
+    var enviados = listaEmCache().filter(naoAvulso);
     var codigosFila = fila.map(function (p) { return p.codigo; });
     enviados = enviados.filter(function (p) { return codigosFila.indexOf(p.codigo) === -1; });
 
@@ -2137,7 +2142,8 @@ EC.reembolso = (function () {
     return (
       // (o banner azul do tipo foi removido a pedido — o extrato começa em "Quem")
       '<p class="dg-secao">Quem</p><div class="rb-resumo-auto">' +
-        linha('Solicitante', p.solicitante || '—') + linha('Designado', (p.designado || '—') + ' · ' + cat) +
+        linha('Solicitante', p.solicitante || '—') +
+        (t === 'outros_gastos' ? '' : linha('Designado', (p.designado || '—') + ' · ' + cat)) +
         kmLinha +
       '</div>' +
       '<p class="dg-secao">Valores</p>' + (valores || '<p class="texto-apoio">—</p>') + just +
@@ -2149,7 +2155,7 @@ EC.reembolso = (function () {
   // Reaproveitado pelo extrato e pela tela de saldo pendente.
   function renderResumoPedido(p) {
     var t = p.tipo || 'viagem';
-    if (t === 'evento' || t === 'veiculo' || t === 'complemento') return renderResumoSimples(p, t);
+    if (t === 'evento' || t === 'veiculo' || t === 'complemento' || t === 'outros_gastos') return renderResumoSimples(p, t);
     var tipo = p.solicitante_tipo === 'freelancer' ? 'Freelancer' : (p.solicitante_tipo === 'clt' ? 'CLT' : '—');
     var comb = p.tipo_combustivel ? (p.tipo_combustivel === 'diesel' ? 'Diesel' : 'Gasolina') : null;
     var trajeto = (p.origem_cidade || p.destino_cidade)
@@ -2285,7 +2291,8 @@ EC.reembolso = (function () {
     }).join('');
 
     $('rb-extrato').innerHTML =
-      '<div class="rb-pedido-topo" style="margin-bottom:10px;"><span class="os-numero">OS ' + (p.os || '?') + '</span>' +
+      '<div class="rb-pedido-topo" style="margin-bottom:10px;"><span class="os-numero">' +
+      (p.tipo === 'outros_gastos' ? '💠 Outros gastos' : 'OS ' + (p.os || '?')) + '</span>' +
       '<span class="rb-status ' + st.cls + '">' + st.txt + '</span></div>' +
       (p.cliente ? '<div class="os-resumo" style="margin-bottom:4px;">' + p.cliente + '</div>' : '') +
       (p.projeto ? '<div class="os-resumo" style="margin-bottom:8px;">📁 ' + p.projeto + '</div>' : '') +
@@ -2784,7 +2791,163 @@ EC.reembolso = (function () {
       var corpo = await getJson(BASE + '/lista?solicitante=' + encodeURIComponent(nome));
       EC.storage.salvar(CH_LISTA, { solicitante: nome, pedidos: corpo.pedidos || [] });
       pintarLista();
+      pintarOutrosLista();
     } catch (e) { /* offline/erro: fica com o cache */ }
+  }
+
+  /* ============ OUTROS GASTOS (gasto avulso, sem OS) ============ */
+  // Fluxo próprio e ISOLADO do reembolso de serviços: não tem OS/campanha/
+  // designado. O dono é o solicitante (usuário logado). Pagamento único (100%).
+  // Reusa a estrutura de Veículos (abastecimento/peças/manutenção/pedágio/outros)
+  // e o mesmo /enviar (o servidor identifica pelo tipo 'outros_gastos').
+  var ogAnexos = null; // uploaders desta tela (separados do form de serviços)
+
+  function ogValMon(id) { var v = parseFloat($(id).value); return v > 0 ? Math.round(v * 100) / 100 : 0; }
+  function ogTotal() {
+    return Math.round((ogValMon('og-abastecimento') + ogValMon('og-pecas') + ogValMon('og-manutencao') +
+      ogValMon('og-pedagio') + ogValMon('og-outros')) * 100) / 100;
+  }
+  function ogErro(msg) {
+    var e = $('og-erro');
+    if (!msg) { e.classList.add('oculto'); return; }
+    e.textContent = '🛑 ' + msg; e.classList.remove('oculto');
+  }
+  function ogPintarTotal() {
+    var t = ogTotal(), el = $('og-total');
+    if (!el) return;
+    if (t > 0) { el.innerHTML = 'Total: <strong>' + moedaBR(t) + '</strong>'; el.classList.remove('oculto'); }
+    else el.classList.add('oculto');
+  }
+
+  // Menu inicial do reembolso: Serviços × Outros gastos.
+  function abrirMenu() {
+    iniciar();
+    EC.app.mostrarTela('tela-reembolso-menu');
+  }
+
+  // Lista dos MEUS lançamentos avulsos (fila offline + cache do servidor).
+  async function pintarOutrosLista() {
+    var area = $('og-lista');
+    if (!area) return;
+    var soAvulso = function (p) { return p.tipo === 'outros_gastos'; };
+    var fila = (await pedidosPendentes()).filter(soAvulso);
+    var codigosFila = fila.map(function (p) { return p.codigo; });
+    var enviados = listaEmCache().filter(soAvulso).filter(function (p) { return codigosFila.indexOf(p.codigo) === -1; });
+    var meus = fila.map(function (p) { return { p: p, pend: true }; })
+      .concat(enviados.map(function (p) { return { p: p, pend: false }; }));
+    meus.sort(function (a, b) { return String(b.p.created_at || b.p.criadoEm || '').localeCompare(String(a.p.created_at || a.p.criadoEm || '')); });
+    if (!meus.length) {
+      area.innerHTML = '<p class="texto-apoio">Nenhum lançamento ainda. Toque em "Novo gasto" para começar.</p>';
+      return;
+    }
+    var porCodigo = {};
+    meus.forEach(function (it) { porCodigo[it.p.codigo] = it; });
+    area.innerHTML = meus.map(function (it) {
+      var p = it.p;
+      var st = it.pend ? { txt: '📴 Aguardando envio', cls: 'rb-aguardando' } : (STATUS[p.status] || { txt: p.status, cls: 'rb-aguardando' });
+      var total = p.valor_total != null ? p.valor_total : p.valorTotal;
+      return '<button type="button" class="rb-pedido rb-pedido-click" data-codigo="' + (p.codigo || '') + '">' +
+        '<div class="rb-pedido-topo"><span class="os-numero">💠 Outros gastos</span>' +
+        '<span class="rb-status ' + st.cls + '">' + st.txt + '</span></div>' +
+        '<div class="os-resumo">' + dataBR(p.created_at || p.criadoEm) + '</div>' +
+        '<div class="rb-pedido-linha"><strong>' + moedaBR(total) + '</strong></div>' +
+        '</button>';
+    }).join('');
+    area.querySelectorAll('.rb-pedido-click[data-codigo]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var it = porCodigo[el.dataset.codigo];
+        if (it) abrirExtrato(it.p, it.pend);
+      });
+    });
+  }
+
+  function abrirOutros() {
+    iniciar();
+    EC.app.mostrarTela('tela-outros');
+    pintarOutrosLista();
+    enviarPendentes(true);
+    atualizarListaDoServidor();
+  }
+
+  function abrirOutrosNovo() {
+    EC.app.mostrarTela('tela-outros-novo');
+    window.scrollTo(0, 0);
+    $('og-solicitante').value = sessionNome();
+    ['og-abastecimento', 'og-pecas', 'og-manutencao', 'og-pedagio', 'og-outros'].forEach(function (id) { $(id).value = ''; });
+    $('og-outros-just').value = '';
+    ogErro(null);
+    $('og-offline').classList.toggle('oculto', navigator.onLine);
+    // (re)cria os uploaders vazios a cada abertura (some as fotos do lançamento anterior)
+    ogAnexos = {
+      abastecimento: criarAnexos($('og-anexos-abastecimento'), {}),
+      pecas: criarAnexos($('og-anexos-pecas'), {}),
+      manutencao: criarAnexos($('og-anexos-manutencao'), {}),
+      pedagio: criarAnexos($('og-anexos-pedagio'), {}),
+      outros: criarAnexos($('og-anexos-outros'), {})
+    };
+    ogPintarTotal();
+  }
+
+  async function enviarOutros() {
+    var solicitante = sessionNome();
+    if (!solicitante) return ogErro('Sua sessão expirou — entre de novo no app.');
+    var ab = ogValMon('og-abastecimento'), pc = ogValMon('og-pecas'), mn = ogValMon('og-manutencao'),
+        pd = ogValMon('og-pedagio'), ou = ogValMon('og-outros');
+    var total = Math.round((ab + pc + mn + pd + ou) * 100) / 100;
+    if (!(total > 0)) return ogErro('Informe pelo menos um valor (abastecimento, peças, manutenção, pedágio ou outros).');
+    if (ou > 0 && !$('og-outros-just').value.trim()) return ogErro('Escreva a justificativa dos outros gastos.');
+    ogErro(null);
+
+    var todosAnexos = [];
+    ['abastecimento', 'pecas', 'manutencao', 'pedagio', 'outros'].forEach(function (b) {
+      if (!ogAnexos || !ogAnexos[b]) return;
+      ogAnexos[b].obter().forEach(function (a) {
+        todosAnexos.push({ bloco: b, nomeArquivo: a.nomeArquivo, base64: a.base64, mime: a.mime });
+      });
+    });
+
+    var pedido = {
+      codigo: 'OG_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+      tipo: 'outros_gastos',
+      solicitante: solicitante,
+      valorAbastecimento: ab, valorPecas: pc, valorManutencao: mn, valorPedagio: pd,
+      valorOutros: ou, outrosJustificativa: $('og-outros-just').value.trim() || null,
+      anexos: todosAnexos,
+      // só para exibir na fila offline / lista local antes de sincronizar:
+      valorTotal: total, valorSolicitado: total, percentual: 100,
+      criadoEm: new Date().toISOString()
+    };
+
+    var botao = $('og-enviar');
+    botao.disabled = true; botao.textContent = '⏳ Enviando…';
+    try {
+      await enviarPedido(pedido);
+      toast('✅ Lançamento enviado! Agora é aguardar a análise da Logística.');
+      atualizarListaDoServidor();
+    } catch (e) {
+      if (e.rejeitado) { botao.disabled = false; botao.textContent = 'Enviar lançamento ✓'; return ogErro(e.message); }
+      try { await EC.db.set(LOJA_PENDENTES, pedido.codigo, pedido); } catch (e2) { /* ok */ }
+      toast('📴 Sem conexão. Lançamento guardado — será enviado quando a internet voltar.');
+    }
+    botao.disabled = false; botao.textContent = 'Enviar lançamento ✓';
+    EC.app.mostrarTela('tela-outros');
+    pintarOutrosLista();
+  }
+
+  var ogLigado = false;
+  function ligarOutros() {
+    if (ogLigado) return;
+    ogLigado = true;
+    $('rbm-servicos').addEventListener('click', abrir);
+    $('rbm-outros').addEventListener('click', abrirOutros);
+    $('rbm-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-acao'); });
+    $('og-novo').addEventListener('click', abrirOutrosNovo);
+    $('og-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-reembolso-menu'); });
+    $('og-cancelar').addEventListener('click', function () { EC.app.mostrarTela('tela-outros'); pintarOutrosLista(); });
+    $('og-enviar').addEventListener('click', enviarOutros);
+    ['og-abastecimento', 'og-pecas', 'og-manutencao', 'og-pedagio', 'og-outros'].forEach(function (id) {
+      $(id).addEventListener('input', ogPintarTotal);
+    });
   }
 
   /* ============ Aviso de pagamento recebido (sino 🔔) ============ */
@@ -2872,10 +3035,12 @@ EC.reembolso = (function () {
     if (iniciado) return;
     iniciado = true;
 
+    ligarOutros();
     fillUFselect('rb-origem-uf');
     fillUFselect('rb-destino-uf');
     $('rb-novo').addEventListener('click', function () { abrirNovo(false); });
-    $('rb-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-acao'); });
+    // Voltar do reembolso de serviços cai no menu (Serviços × Outros gastos).
+    $('rb-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-reembolso-menu'); });
     $('rb-extrato-voltar').addEventListener('click', function () { EC.app.mostrarTela(extratoOrigem || 'tela-reembolso'); });
     // Extrato geral: voltar da tela geral vai para a home (aberto pela home).
     var egV = $('eg-voltar');
@@ -2958,6 +3123,8 @@ EC.reembolso = (function () {
 
   return {
     abrir: abrir,
+    abrirMenu: abrirMenu,
+    abrirOutros: abrirOutros,
     extratoGeral: extratoGeral,
     verificarPagamentos: verificarPagamentos,
     abrirPagosSino: abrirPagosSino,

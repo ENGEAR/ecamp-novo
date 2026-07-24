@@ -271,10 +271,23 @@
       </div>
     </section>
 
+    <!-- ======= Reembolso — menu (Serviços × Outros gastos) ======= -->
+    <section id="tela-reembolso-menu" class="tela oculto">
+      <div class="cartao">
+        <h1>💰 Solicitação de reembolso</h1>
+        <p class="texto-apoio">O que você quer solicitar?</p>
+        <div class="pilha-botoes">
+          <button type="button" class="botao botao-acao" id="rbm-servicos">🧰 Serviços</button>
+          <button type="button" class="botao botao-acao" id="rbm-outros">💠 Outros gastos</button>
+          <button type="button" class="botao botao-secundario" id="rbm-voltar">← Voltar</button>
+        </div>
+      </div>
+    </section>
+
     <!-- ======= Reembolso — minhas solicitações ======= -->
     <section id="tela-reembolso" class="tela oculto">
       <div class="cartao">
-        <h1>💰 Solicitação de reembolso</h1>
+        <h1>🧰 Reembolso de serviços</h1>
         <div class="pilha-botoes">
           <button type="button" class="botao botao-primario" id="rb-novo">➕ Nova solicitação</button>
           <button type="button" class="botao botao-secundario oculto" id="rb-saldo-btn">💠 Serviços com saldo pendente <span id="rb-saldo-badge"></span></button>
@@ -286,6 +299,60 @@
         </div>
         <div id="rb-lista"></div>
         <button type="button" class="botao botao-secundario" id="rb-voltar">← Voltar</button>
+      </div>
+    </section>
+
+    <!-- ======= Outros gastos — lista (avulsos do usuário) ======= -->
+    <section id="tela-outros" class="tela oculto">
+      <div class="cartao">
+        <h1>💠 Outros gastos</h1>
+        <p class="texto-apoio">Gastos avulsos, sem vínculo com uma OS. Passam pela aprovação da Logística.</p>
+        <div class="pilha-botoes">
+          <button type="button" class="botao botao-primario" id="og-novo">➕ Novo gasto</button>
+        </div>
+        <p class="os-secao-titulo">Meus lançamentos</p>
+        <div id="og-lista"></div>
+        <button type="button" class="botao botao-secundario" id="og-voltar">← Voltar</button>
+      </div>
+    </section>
+
+    <!-- ======= Outros gastos — novo lançamento (avulso) ======= -->
+    <section id="tela-outros-novo" class="tela oculto">
+      <div class="cartao">
+        <h1>💠 Novo gasto avulso</h1>
+        <div id="og-offline" class="alerta alerta-vermelho oculto">📡 Sem internet. Para enviar é preciso conexão — ou o lançamento fica guardado e sobe sozinho quando a internet voltar.</div>
+        <div id="og-form">
+          <label>Solicitante <span class="rotulo-apoio">(quem está lançando)</span><input type="text" id="og-solicitante" readonly></label>
+
+          <p class="dg-secao">Gastos do veículo</p>
+          <label>⛽ Abastecimento (R$)<input type="number" id="og-abastecimento" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+          <p class="rb-sub">Evidências do abastecimento <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
+          <div id="og-anexos-abastecimento"></div>
+          <label>🔩 Compra de peças (R$)<input type="number" id="og-pecas" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+          <p class="rb-sub">Evidências das peças <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
+          <div id="og-anexos-pecas"></div>
+          <label>🛠️ Manutenção (R$)<input type="number" id="og-manutencao" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+          <p class="rb-sub">Evidências da manutenção <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
+          <div id="og-anexos-manutencao"></div>
+
+          <p class="dg-secao">Pedágio</p>
+          <label>Valor total de pedágio (R$)<input type="number" id="og-pedagio" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+          <p class="rb-sub">Evidências de pedágio <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
+          <div id="og-anexos-pedagio"></div>
+
+          <p class="dg-secao">Outros gastos</p>
+          <label>💠 Outros gastos (R$)<input type="number" id="og-outros" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+          <label>Justificativa dos outros gastos <span class="rotulo-apoio">(explique o que foi)</span><textarea id="og-outros-just" rows="2" placeholder="Ex.: estacionamento, material de apoio…"></textarea></label>
+          <p class="rb-sub">Evidências dos outros gastos <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
+          <div id="og-anexos-outros"></div>
+
+          <div id="og-total" class="rb-total oculto"></div>
+          <div id="og-erro" class="alerta alerta-vermelho oculto"></div>
+          <div class="pilha-botoes">
+            <button type="button" class="botao botao-primario" id="og-enviar">Enviar lançamento ✓</button>
+            <button type="button" class="botao botao-secundario" id="og-cancelar">← Voltar</button>
+          </div>
+        </div>
       </div>
     </section>
 

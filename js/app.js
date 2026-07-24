@@ -377,7 +377,7 @@
     EC.fluxo.iniciar();
   });
   $('btn-reembolso').addEventListener('click', function () {
-    EC.reembolso.abrir();
+    EC.reembolso.abrirMenu();
   });
   $('btn-agenda-acao').addEventListener('click', function () {
     EC.agenda.abrir();

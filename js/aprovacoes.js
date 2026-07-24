@@ -42,7 +42,9 @@ EC.aprovacoes = (function () {
     viagem:      ['combustivel', 'aluguel', 'pedagio', 'hospedagem', 'mao_obra', 'almoco', 'jantar', 'lanche', 'outros'],
     evento:      ['mao_obra', 'outros'],
     veiculo:     ['combustivel', 'pecas', 'manutencao', 'pedagio', 'outros'],
-    complemento: ['outros']
+    complemento: ['outros'],
+    // Avulso: mesmos itens ajustáveis do veículo (abastecimento reusa valor_combustivel).
+    outros_gastos: ['combustivel', 'pecas', 'manutencao', 'pedagio', 'outros']
   };
   function rotDeCampo(campo) {
     for (var k in CAMPOS_ITEM) if (CAMPOS_ITEM[k].campo === campo) return CAMPOS_ITEM[k].rotulo;
@@ -162,15 +164,18 @@ EC.aprovacoes = (function () {
       ? '<span class="rb-status rb-aprovado">✅ Aguardando pagamento</span>'
       : '<span class="rb-status rb-pendente">⏳ Aguardando aprovação</span>';
     var t = s.tipo || 'viagem';
+    var ehAvulso = t === 'outros_gastos';
     var tipoTxt = t === 'evento' ? '<span class="rotulo-apoio">🔊 Evento</span> · '
       : t === 'veiculo' ? '<span class="rotulo-apoio">🚗 Veículos</span> · '
-      : t === 'complemento' ? '<span class="rotulo-apoio">➕ Complemento</span> · ' : '';
+      : t === 'complemento' ? '<span class="rotulo-apoio">➕ Complemento</span> · '
+      : ehAvulso ? '<span class="rotulo-apoio">💠 Outros gastos</span> · ' : '';
+    var cabecalho = ehAvulso ? '💠 Outros gastos' : 'OS ' + esc(s.os);
     return (
       '<button type="button" class="rb-pedido apr-cartao" data-id="' + s.id + '">' +
-      '  <div class="rb-pedido-topo"><span class="os-numero">OS ' + esc(s.os) + '</span>' + chip + '</div>' +
+      '  <div class="rb-pedido-topo"><span class="os-numero">' + cabecalho + '</span>' + chip + '</div>' +
       '  <div class="rb-pedido-linha">' + tipoTxt + '<strong>' + moeda(valor) + '</strong>' + detalhe + '</div>' +
       (s.cliente ? '  <div class="os-resumo">' + esc(s.cliente) + '</div>' : '') +
-      '  <div class="os-resumo">👷 ' + esc(s.designado || '—') + ' · ✍️ ' + esc(s.solicitante || '—') + '</div>' +
+      '  <div class="os-resumo">' + (ehAvulso ? '' : '👷 ' + esc(s.designado || '—') + ' · ') + '✍️ ' + esc(s.solicitante || '—') + '</div>' +
       '</button>'
     );
   }
@@ -297,6 +302,7 @@ EC.aprovacoes = (function () {
   // de viagem, sem base de cálculo automática e sem resumo orçamentário da campanha.
   function renderDetalheSimples(s) {
     var t = s.tipo === 'evento' ? 'evento' : (s.tipo === 'complemento' ? 'complemento' : 'veiculo');
+    var ehAvulso = s.tipo === 'outros_gastos';
     var cat = s.solicitante_tipo === 'freelancer' ? 'Freelancer' : (s.solicitante_tipo === 'clt' ? 'CLT' : '—');
     var itens = t === 'complemento'
       ? [['➕', 'Complemento de combustível (km a mais)', s.valor_combustivel], ['💠', 'Outros gastos', s.valor_outros]]
@@ -347,13 +353,13 @@ EC.aprovacoes = (function () {
       '</div></div>';
 
     return (
-      '<div class="apr-cab"><span class="os-numero">OS ' + esc(s.os) + '</span>' + (s.cliente ? ' · ' + esc(s.cliente) : '') + '</div>' +
+      '<div class="apr-cab"><span class="os-numero">' + (ehAvulso ? '💠 Outros gastos' : 'OS ' + esc(s.os)) + '</span>' + (s.cliente ? ' · ' + esc(s.cliente) : '') + '</div>' +
       (s.projeto ? '<div class="os-resumo" style="margin:-2px 0 8px;">📁 ' + esc(s.projeto) + '</div>' : '') +
-      '<div class="apr-cat">' + (t === 'complemento' ? '➕ Complemento de gastos (OS paga)' : t === 'evento' ? '🔊 Reembolso de EVENTO' : '🚗 Reembolso de VEÍCULOS') + '</div>' +
+      '<div class="apr-cat">' + (ehAvulso ? '💠 Outros gastos (avulso, sem OS)' : t === 'complemento' ? '➕ Complemento de gastos (OS paga)' : t === 'evento' ? '🔊 Reembolso de EVENTO' : '🚗 Reembolso de VEÍCULOS') + '</div>' +
       '<p class="dg-secao">Quem</p>' +
       '<div class="rb-resumo-auto">' +
-        linhaInfo('Solicitante (preencheu)', s.solicitante || '—') +
-        linhaInfo('Designado', (s.designado || '—') + ' · ' + cat) +
+        linhaInfo(ehAvulso ? 'Solicitante' : 'Solicitante (preencheu)', s.solicitante || '—') +
+        (ehAvulso ? '' : linhaInfo('Designado', (s.designado || '—') + ' · ' + cat)) +
         kmInfo +
       '</div>' +
       '<p class="dg-secao">Valores</p>' +
