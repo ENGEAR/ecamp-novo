@@ -57,10 +57,11 @@ EC.ajuda = (function () {
       topico('🔝 O que faz cada ícone', ul([
         '🔔 <strong>Avisos e aprovações</strong> — pagamentos de reembolso, lembretes de serviço e outros avisos.',
         '🕐 <strong>Histórico</strong> — serviços finalizados (últimos 30 dias).',
-        '📝 <strong>Rascunhos</strong> — serviços começados e não finalizados.',
+        '📝 <strong>Rascunhos</strong> — serviços começados e não finalizados. Se continuar um serviço, basta ir no ícone Rascunho, achar o serviço e ir direto nele.',
         '📅 <strong>Agenda</strong> — a sua programação.',
         '📚 <strong>Biblioteca</strong> — normas e procedimentos.',
-        '<strong>Suas iniciais</strong> — abre <em>Ajuda</em> e <em>Sair</em>.',
+        '❓ <strong>Ajuda</strong> — explicações sobre as funcionalidades do e-CAMP.',
+        '<strong>Suas iniciais</strong> — se quiser sair do aplicativo, clique nas iniciais.',
         'O <strong>logo</strong> volta para a tela inicial.'
       ])) +
 
