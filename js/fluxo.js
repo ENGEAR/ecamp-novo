@@ -226,10 +226,15 @@ EC.fluxo = (function () {
     var fab = $('fab-salvar');
     if (fab) fab.classList.toggle('fab-pendente', pendente);
   }
-  // Mostra/oculta o botão flutuante "Salvar rascunho" (só na tela de campo).
+  // Mostra/oculta o botão flutuante "Salvar rascunho".
   function mostrarFabSalvar(mostrar) {
     var fab = $('fab-salvar');
     if (fab) fab.classList.toggle('oculto', !mostrar);
+  }
+  // O FAB aparece a partir da "Seleção de equipamentos" (tela-passo3a) até o fim —
+  // dali em diante já há o que salvar. Antes disso (dados gerais / tipo) não mostra.
+  function telaTemFab(idTela) {
+    return PASSOS.indexOf(idTela) >= PASSOS.indexOf('tela-passo3a');
   }
 
   function servicoDetalhe(campo) {
@@ -246,8 +251,9 @@ EC.fluxo = (function () {
       if (idTela !== 'tela-dados-gerais') estado.iniciado = true;
       salvarEstado();
     }
-    // O botão flutuante "Salvar rascunho" só aparece no campo (renderizarCampo o liga).
-    mostrarFabSalvar(idTela === 'tela-passo4');
+    // O botão flutuante "Salvar rascunho" aparece da Seleção de equipamentos em diante.
+    mostrarFabSalvar(telaTemFab(idTela));
+    atualizarAvisoEnvio(); // reflete o estado (pulsar) do FAB na tela nova
 
     if (idTela === 'tela-dados-gerais') preencherDadosGerais();
     if (idTela === 'tela-tipo') renderizarTipos();
