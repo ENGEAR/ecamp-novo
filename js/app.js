@@ -688,7 +688,11 @@
   // O app fica aberto em 2º plano no celular por dias. Ao voltar para a tela,
   // reconfere a conta (no máximo 1 vez a cada 5 min, para não pesar).
   document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible') revalidarConta(false);
+    if (document.visibilityState !== 'visible') return;
+    revalidarConta(false);
+    // Voltou para a tela: reconfere se caiu algum pagamento (o técnico costuma
+    // deixar o PWA aberto; sem isso o aviso só apareceria num novo login).
+    if (sessaoAtual() && EC.reembolso && EC.reembolso.verificarPagamentos) EC.reembolso.verificarPagamentos();
   });
 
   // E também de tempos em tempos com o app ABERTO NA FRENTE: sem isso, quem
@@ -696,7 +700,9 @@
   // (não há abertura, nem 'online', nem troca de tela para disparar a checagem).
   // Só roda com a tela visível, para não gastar bateria/dados em 2º plano.
   setInterval(function () {
-    if (document.visibilityState === 'visible') revalidarConta(true);
+    if (document.visibilityState !== 'visible') return;
+    revalidarConta(true);
+    if (sessaoAtual() && EC.reembolso && EC.reembolso.verificarPagamentos) EC.reembolso.verificarPagamentos();
   }, INTERVALO_REVALIDACAO);
   window.addEventListener('offline', function () {
     atualizarBarraPendencias();

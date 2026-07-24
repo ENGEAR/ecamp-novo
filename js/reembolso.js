@@ -2869,8 +2869,9 @@ EC.reembolso = (function () {
     pintarLista();
     enviarPendentes(true);
     atualizarListaDoServidor();
-    // A lista (com o status 💰 Pago) já aparece aqui — limpa o aviso do sino.
-    marcarPagosVistos();
+    // O aviso de pagamento no sino NÃO é limpo aqui de propósito: ele só some
+    // quando a pessoa realmente abre o aviso pelo sino (🔔). Assim um pagamento
+    // recém-recebido não desaparece só porque a tela de reembolso foi aberta.
   }
 
   function abrirOutrosNovo() {
@@ -2968,9 +2969,15 @@ EC.reembolso = (function () {
     return (v && v.solicitante === nome && Array.isArray(v.codigos)) ? v : null;
   }
 
+  var ultimaVerifPag = 0;
   async function verificarPagamentos() {
     var nome = sessionNome();
     if (!nome) return;
+    // Throttle: como isto roda ao voltar pra tela e em intervalo, evita buscar
+    // de novo se acabou de conferir (< 15 s) — não pesa em trocas rápidas de app.
+    var agora = Date.now();
+    if (agora - ultimaVerifPag < 15000) return;
+    ultimaVerifPag = agora;
     try {
       var corpo = await getJson(BASE + '/lista?solicitante=' + encodeURIComponent(nome));
       EC.storage.salvar(CH_LISTA, { solicitante: nome, pedidos: corpo.pedidos || [] });
@@ -2978,10 +2985,15 @@ EC.reembolso = (function () {
     var pagos = listaEmCache().filter(function (p) { return p.status === 'pago'; });
     var vistos = lerPagosVistos(nome);
     if (!vistos) {
-      // Primeira vez neste aparelho (ou trocou de usuário): não avisa o que já
-      // estava pago antes — só pagamentos registrados daqui pra frente.
-      EC.storage.salvar(CH_PAGOS_VISTOS, { solicitante: nome, codigos: pagos.map(function (p) { return p.codigo; }) });
-      pagosNovos = [];
+      // Primeira vez neste aparelho (ou trocou de usuário): não despeja o
+      // histórico inteiro no sino, MAS ainda avisa os pagamentos RECENTES
+      // (últimos 7 dias) — senão o pagamento que a pessoa está esperando sumiria
+      // no baseline. Os antigos entram como "vistos".
+      var corte = new Date(); corte.setDate(corte.getDate() - 7);
+      var corteISO = corte.toISOString().slice(0, 10);
+      var antigos = pagos.filter(function (p) { return String(p.pago_em || '') < corteISO; });
+      pagosNovos = pagos.filter(function (p) { return String(p.pago_em || '') >= corteISO; });
+      EC.storage.salvar(CH_PAGOS_VISTOS, { solicitante: nome, codigos: antigos.map(function (p) { return p.codigo; }) });
     } else {
       pagosNovos = pagos.filter(function (p) { return vistos.codigos.indexOf(p.codigo) === -1; });
     }
