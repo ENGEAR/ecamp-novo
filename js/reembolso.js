@@ -1447,7 +1447,7 @@ EC.reembolso = (function () {
         await postJson(BASE + '/cancelar', { codigo: p.codigo, solicitante: sessionNome() });
       }
       toast('🗑️ Solicitação apagada.');
-      EC.app.mostrarTela('tela-reembolso');
+      EC.app.mostrarTela('tela-reembolso-menu');
       atualizarListaDoServidor();
       pintarLista();
     } catch (e) {
@@ -1733,7 +1733,7 @@ EC.reembolso = (function () {
     }
     botao.disabled = false;
     botao.textContent = 'Enviar solicitação ✓';
-    EC.app.mostrarTela('tela-reembolso');
+    EC.app.mostrarTela('tela-reembolso-menu');
     pintarLista();
   }
 
@@ -1824,7 +1824,7 @@ EC.reembolso = (function () {
     }
     botao.disabled = false;
     botao.textContent = 'Enviar solicitação ✓';
-    EC.app.mostrarTela('tela-reembolso');
+    EC.app.mostrarTela('tela-reembolso-menu');
     pintarLista();
   }
 
@@ -1933,15 +1933,14 @@ EC.reembolso = (function () {
     var area = $('rb-lista');
     if (!area) return;
     atualizarSaldoBtn();
-    // "Outros gastos" (avulso) tem lista própria — não entra no reembolso de serviços.
-    var naoAvulso = function (p) { return p.tipo !== 'outros_gastos'; };
-    var fila = (await pedidosPendentes()).filter(naoAvulso);
-    var enviados = listaEmCache().filter(naoAvulso);
+    // Lista UNIFICADA (na tela principal): serviços + outros gastos (avulsos).
+    var fila = await pedidosPendentes();
+    var enviados = listaEmCache();
     var codigosFila = fila.map(function (p) { return p.codigo; });
     enviados = enviados.filter(function (p) { return codigosFila.indexOf(p.codigo) === -1; });
 
     if (!fila.length && !enviados.length) {
-      area.innerHTML = '<p class="texto-apoio">Nenhuma solicitação ainda. Toque em "Nova solicitação" para começar.</p>';
+      area.innerHTML = '<p class="texto-apoio">Nenhuma solicitação ainda. Use "Serviços" ou "Outros gastos" acima para começar.</p>';
       ligarBuscaLista();
       return;
     }
@@ -2243,8 +2242,9 @@ EC.reembolso = (function () {
   function abrirExtrato(p, aguardandoEnvio, soLeitura) {
     EC.app.mostrarTela('tela-reembolso-extrato');
     window.scrollTo(0, 0);
-    // De onde veio (para o botão Voltar): extrato geral (gestor) ou minhas solicitações.
-    extratoOrigem = soLeitura ? 'tela-extrato-geral' : 'tela-reembolso';
+    // De onde veio (para o botão Voltar): extrato geral (gestor) ou a tela
+    // principal do reembolso (lista unificada de serviços + outros gastos).
+    extratoOrigem = soLeitura ? 'tela-extrato-geral' : 'tela-reembolso-menu';
     var total = p.valor_total != null ? p.valor_total : p.valorTotal;
     var pct = p.percentual_solicitado != null ? Number(p.percentual_solicitado) : (p.percentual || 100);
     var solicitado = p.valor_solicitado != null ? p.valor_solicitado : p.valorSolicitado;
@@ -2767,7 +2767,7 @@ EC.reembolso = (function () {
       toast('📴 Sem conexão. Pedido de saldo guardado — será enviado quando a internet voltar.');
     }
     botao.disabled = false; botao.textContent = '💰 Solicitar saldo';
-    EC.app.mostrarTela('tela-reembolso');
+    EC.app.mostrarTela('tela-reembolso-menu');
     pintarLista(); atualizarSaldoBtn();
   }
 
@@ -2791,7 +2791,6 @@ EC.reembolso = (function () {
       var corpo = await getJson(BASE + '/lista?solicitante=' + encodeURIComponent(nome));
       EC.storage.salvar(CH_LISTA, { solicitante: nome, pedidos: corpo.pedidos || [] });
       pintarLista();
-      pintarOutrosLista();
     } catch (e) { /* offline/erro: fica com o cache */ }
   }
 
@@ -2819,57 +2818,20 @@ EC.reembolso = (function () {
     else el.classList.add('oculto');
   }
 
-  // Menu inicial do reembolso: Serviços × Outros gastos.
+  // Tela PRINCIPAL do reembolso: 2 botões (Serviços × Outros gastos) + a lista
+  // UNIFICADA "Minhas solicitações" (serviços + outros gastos avulsos).
   function abrirMenu() {
     iniciar();
     EC.app.mostrarTela('tela-reembolso-menu');
-  }
-
-  // Lista dos MEUS lançamentos avulsos (fila offline + cache do servidor).
-  async function pintarOutrosLista() {
-    var area = $('og-lista');
-    if (!area) return;
-    var soAvulso = function (p) { return p.tipo === 'outros_gastos'; };
-    var fila = (await pedidosPendentes()).filter(soAvulso);
-    var codigosFila = fila.map(function (p) { return p.codigo; });
-    var enviados = listaEmCache().filter(soAvulso).filter(function (p) { return codigosFila.indexOf(p.codigo) === -1; });
-    var meus = fila.map(function (p) { return { p: p, pend: true }; })
-      .concat(enviados.map(function (p) { return { p: p, pend: false }; }));
-    meus.sort(function (a, b) { return String(b.p.created_at || b.p.criadoEm || '').localeCompare(String(a.p.created_at || a.p.criadoEm || '')); });
-    if (!meus.length) {
-      area.innerHTML = '<p class="texto-apoio">Nenhum lançamento ainda. Toque em "Novo gasto" para começar.</p>';
-      return;
-    }
-    var porCodigo = {};
-    meus.forEach(function (it) { porCodigo[it.p.codigo] = it; });
-    area.innerHTML = meus.map(function (it) {
-      var p = it.p;
-      var st = it.pend ? { txt: '📴 Aguardando envio', cls: 'rb-aguardando' } : (STATUS[p.status] || { txt: p.status, cls: 'rb-aguardando' });
-      var total = p.valor_total != null ? p.valor_total : p.valorTotal;
-      return '<button type="button" class="rb-pedido rb-pedido-click" data-codigo="' + (p.codigo || '') + '">' +
-        '<div class="rb-pedido-topo"><span class="os-numero">💠 Outros gastos</span>' +
-        '<span class="rb-status ' + st.cls + '">' + st.txt + '</span></div>' +
-        '<div class="os-resumo">' + dataBR(p.created_at || p.criadoEm) + '</div>' +
-        '<div class="rb-pedido-linha"><strong>' + moedaBR(total) + '</strong></div>' +
-        '</button>';
-    }).join('');
-    area.querySelectorAll('.rb-pedido-click[data-codigo]').forEach(function (el) {
-      el.addEventListener('click', function () {
-        var it = porCodigo[el.dataset.codigo];
-        if (it) abrirExtrato(it.p, it.pend);
-      });
-    });
-  }
-
-  function abrirOutros() {
-    iniciar();
-    EC.app.mostrarTela('tela-outros');
-    pintarOutrosLista();
+    pintarLista();
     enviarPendentes(true);
     atualizarListaDoServidor();
+    // A lista (com o status 💰 Pago) já aparece aqui — limpa o aviso do sino.
+    marcarPagosVistos();
   }
 
   function abrirOutrosNovo() {
+    iniciar();
     EC.app.mostrarTela('tela-outros-novo');
     window.scrollTo(0, 0);
     $('og-solicitante').value = sessionNome();
@@ -2930,20 +2892,20 @@ EC.reembolso = (function () {
       toast('📴 Sem conexão. Lançamento guardado — será enviado quando a internet voltar.');
     }
     botao.disabled = false; botao.textContent = 'Enviar lançamento ✓';
-    EC.app.mostrarTela('tela-outros');
-    pintarOutrosLista();
+    EC.app.mostrarTela('tela-reembolso-menu');
+    pintarLista();
   }
 
   var ogLigado = false;
   function ligarOutros() {
     if (ogLigado) return;
     ogLigado = true;
+    // Serviços → tela de serviços (Nova solicitação + saldo). Outros gastos → vai
+    // direto ao formulário do novo lançamento (a lista já está na tela principal).
     $('rbm-servicos').addEventListener('click', abrir);
-    $('rbm-outros').addEventListener('click', abrirOutros);
+    $('rbm-outros').addEventListener('click', abrirOutrosNovo);
     $('rbm-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-acao'); });
-    $('og-novo').addEventListener('click', abrirOutrosNovo);
-    $('og-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-reembolso-menu'); });
-    $('og-cancelar').addEventListener('click', function () { EC.app.mostrarTela('tela-outros'); pintarOutrosLista(); });
+    $('og-cancelar').addEventListener('click', function () { EC.app.mostrarTela('tela-reembolso-menu'); pintarLista(); });
     $('og-enviar').addEventListener('click', enviarOutros);
     ['og-abastecimento', 'og-pecas', 'og-manutencao', 'og-pedagio', 'og-outros'].forEach(function (id) {
       $(id).addEventListener('input', ogPintarTotal);
@@ -3012,7 +2974,7 @@ EC.reembolso = (function () {
       el.addEventListener('click', function () {
         var codigo = el.dataset.codigo;
         EC.app.fecharOverlay();
-        abrir();
+        abrirMenu();
         var p = listaEmCache().filter(function (x) { return x.codigo === codigo; })[0];
         if (p) abrirExtrato(p, false);
       });
@@ -3108,15 +3070,14 @@ EC.reembolso = (function () {
     $('rb-form').addEventListener('change', salvarRascunhoLogo);
   }
 
+  // Tela de SERVIÇOS: só "Nova solicitação" + "Saldo pendente" (a lista mora na
+  // tela principal). Não pinta lista aqui.
   function abrir() {
     iniciar();
     EC.app.mostrarTela('tela-reembolso');
-    pintarLista();
+    atualizarSaldoBtn();
     enviarPendentes(true);
-    atualizarListaDoServidor();
     atualizarContexto();
-    // Na tela o status 💰 Pago já aparece — o aviso do sino não precisa mais.
-    marcarPagosVistos();
   }
 
   window.addEventListener('online', function () { enviarPendentes(true); });
@@ -3124,7 +3085,6 @@ EC.reembolso = (function () {
   return {
     abrir: abrir,
     abrirMenu: abrirMenu,
-    abrirOutros: abrirOutros,
     extratoGeral: extratoGeral,
     verificarPagamentos: verificarPagamentos,
     abrirPagosSino: abrirPagosSino,
