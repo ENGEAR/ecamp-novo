@@ -2970,9 +2970,18 @@ EC.reembolso = (function () {
   }
 
   var ultimaVerifPag = 0;
+  // Ao mudar a LÓGICA do aviso, limpamos o "visto" UMA vez (guardado por flag),
+  // para pagamentos recentes que ficaram presos como vistos numa versão anterior
+  // reaparecerem. Bump este valor sempre que a regra do aviso mudar.
+  var PAGOS_RESET_V = '2026-07-24b';
   async function verificarPagamentos() {
     var nome = sessionNome();
     if (!nome) return;
+    // Reset único (antes do throttle, para sempre acontecer na 1ª chamada).
+    if (EC.storage.ler('logistica:pagosResetV') !== PAGOS_RESET_V) {
+      EC.storage.remover(CH_PAGOS_VISTOS);
+      EC.storage.salvar('logistica:pagosResetV', PAGOS_RESET_V);
+    }
     // Throttle: como isto roda ao voltar pra tela e em intervalo, evita buscar
     // de novo se acabou de conferir (< 15 s) — não pesa em trocas rápidas de app.
     var agora = Date.now();
