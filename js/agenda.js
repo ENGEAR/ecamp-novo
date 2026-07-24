@@ -233,6 +233,18 @@
     return eventos.some(function (e) { return eventoDaOS(e, o) && e.status === 'reag'; });
   }
 
+  // Dois dias são do MESMO serviço/campanha? (mesmo vínculo de OS/proposta E
+  // mesma campanha). Usado para aplicar uma ação a todos os dias de uma vez.
+  function mesmaCampanha(a, b) {
+    var vinc = (a.proposta_id && a.proposta_id === b.proposta_id) || (a.ordem_servico_id && a.ordem_servico_id === b.ordem_servico_id);
+    return !!vinc && (a.campanha_numero || null) === (b.campanha_numero || null);
+  }
+  // Quantos dias existem na campanha do agendamento em edição (mEv).
+  function nDiasCampanha() {
+    if (!mEv || (!mEv.proposta_id && !mEv.ordem_servico_id)) return 1;
+    return eventos.filter(function (e) { return mesmaCampanha(mEv, e); }).length;
+  }
+
   // Bloqueio (ao salvar): férias × campo do mesmo técnico no mesmo dia.
   function checarBloqueio(ev, dias) {
     var nomes = (ev.tecnicos || []).map(function (t) { return t.nome; });
@@ -532,7 +544,7 @@
     mEv = null;
   }
 
-  function renderModal(mensagemErro, confirmandoExclusao) {
+  function renderModal(mensagemErro, confirmandoExclusao, confirmandoEscopo) {
     var soLeitura = !perms.podeEditar;
     var st = mEv.status || 'prog';
     var podeFerias = perms.podeFerias || mEv.tipo === 'ferias';
@@ -607,8 +619,13 @@
     } else if (confirmandoExclusao) {
       rodape = '<div class="ecagd-m-excluir"><b>Excluir este agendamento?</b><div class="pilha-botoes">' +
         '<button type="button" class="botao botao-secundario" id="agdm-del-um">Excluir só este dia</button>' +
-        ((mEv.proposta_id || mEv.ordem_servico_id) ? '<button type="button" class="botao botao-perigo" id="agdm-del-os">Excluir todos da OS' + (mEv.os ? ' (' + esc(mEv.os) + ')' : '') + '</button>' : '') +
+        (nDiasCampanha() > 1 ? '<button type="button" class="botao botao-perigo" id="agdm-del-camp">Excluir os ' + nDiasCampanha() + ' dias desta campanha</button>' : '') +
         '<button type="button" class="botao botao-secundario" id="agdm-del-nao">Cancelar</button></div></div>';
+    } else if (confirmandoEscopo) {
+      rodape = '<div class="ecagd-m-escopo"><b>Aplicar esta alteração a quê?</b><div class="pilha-botoes">' +
+        '<button type="button" class="botao botao-secundario" id="agdm-esc-um">Só este dia (' + isoParaBR(mEv.data) + ')</button>' +
+        '<button type="button" class="botao botao-primario" id="agdm-esc-camp">Todos os ' + nDiasCampanha() + ' dias desta campanha</button>' +
+        '<button type="button" class="botao botao-secundario" id="agdm-esc-nao">Cancelar</button></div></div>';
     } else {
       rodape = '<div class="pilha-botoes">' +
         '<button type="button" class="botao botao-primario" id="agdm-salvar">Salvar</button>' +
@@ -698,7 +715,10 @@
     if ($('agdm-excluir')) $('agdm-excluir').addEventListener('click', function () { colherCampos(); renderModal('', true); });
     if ($('agdm-del-nao')) $('agdm-del-nao').addEventListener('click', function () { renderModal(); });
     if ($('agdm-del-um')) $('agdm-del-um').addEventListener('click', function () { excluirModal('um'); });
-    if ($('agdm-del-os')) $('agdm-del-os').addEventListener('click', function () { excluirModal('os'); });
+    if ($('agdm-del-camp')) $('agdm-del-camp').addEventListener('click', function () { excluirModal('campanha'); });
+    if ($('agdm-esc-um')) $('agdm-esc-um').addEventListener('click', function () { gravarEdicao('um'); });
+    if ($('agdm-esc-camp')) $('agdm-esc-camp').addEventListener('click', function () { gravarEdicao('campanha'); });
+    if ($('agdm-esc-nao')) $('agdm-esc-nao').addEventListener('click', function () { renderModal(); });
   }
 
   function colherCampos() {
@@ -756,32 +776,45 @@
     renderModal();
   }
 
-  async function salvarModal() {
+  function salvarModal() {
     colherCampos();
     if (mEv.tipo !== 'ferias' && !String(mEv.empresa || '').trim()) { renderModal('Preencha a empresa/cliente.'); return; }
     if (mEv.tipo === 'ferias' && mTecs.length === 0) { renderModal('Férias precisam de pelo menos um técnico selecionado.'); return; }
     var dias = mNovo ? faixaDias(mEv.data, mDataFim) : [mEv.data];
     var bloq = checarBloqueio({ id: mEv.id, tipo: mEv.tipo, tecnicos: mTecs }, dias);
     if (bloq) { renderModal(bloq); return; }
+    // Editando um dia de uma campanha com vários dias: pergunta o alcance.
+    if (!mNovo && nDiasCampanha() > 1) { renderModal('', false, true); return; }
+    gravarEdicao('um');
+  }
 
+  // Grava de fato. escopo: 'um' (só este dia) ou 'campanha' (todos os dias da
+  // mesma OS/proposta+campanha, preservando a data de cada dia). Não recolhe os
+  // campos — usa o que já foi capturado em salvarModal (a tela do escopo não tem
+  // os campos). 'base' não inclui a data nem o vínculo (esses não mudam).
+  async function gravarEdicao(escopo) {
     var cli = sb();
-    var botao = $('agdm-salvar');
-    botao.disabled = true; botao.textContent = 'Salvando…';
+    var botao = $('agdm-salvar'); if (botao) { botao.disabled = true; botao.textContent = 'Salvando…'; }
     try {
       var base = {
         empresa: mEv.empresa, cidade: mEv.cidade || null, uf: mEv.uf || null,
         servico: mEv.servico || null, projeto: mEv.projeto || null,
         status: mEv.status, observacoes: mEv.observacoes || null, tipo: mEv.tipo,
-        tecnicos: mTecs, manual: true, campanha_numero: mEv.campanha_numero || null,
-        proposta_id: mEv.proposta_id || null, ordem_servico_id: mEv.ordem_servico_id || null
+        tecnicos: mTecs, manual: true
       };
       var r;
       if (mNovo) {
-        var linhas = dias.map(function (d) { var l = Object.assign({}, base); l.data = d; return l; });
+        var novo = Object.assign({}, base, { campanha_numero: mEv.campanha_numero || null, proposta_id: mEv.proposta_id || null, ordem_servico_id: mEv.ordem_servico_id || null });
+        var linhas = faixaDias(mEv.data, mDataFim).map(function (d) { var l = Object.assign({}, novo); l.data = d; return l; });
         r = await cli.from('agendamentos').insert(linhas);
+      } else if (escopo === 'campanha' && (mEv.proposta_id || mEv.ordem_servico_id)) {
+        var q = cli.from('agendamentos').update(base);
+        if (mEv.proposta_id) q = q.eq('proposta_id', mEv.proposta_id);
+        else q = q.eq('ordem_servico_id', mEv.ordem_servico_id);
+        q = mEv.campanha_numero != null ? q.eq('campanha_numero', mEv.campanha_numero) : q.is('campanha_numero', null);
+        r = await q;
       } else {
-        var payload = Object.assign({}, base, { data: mEv.data });
-        r = await cli.from('agendamentos').update(payload).eq('id', mEv.id);
+        r = await cli.from('agendamentos').update(Object.assign({}, base, { data: mEv.data })).eq('id', mEv.id);
       }
       if (r.error) throw new Error(r.error.message);
       fecharModal();
@@ -800,11 +833,7 @@
     try {
       // Registra como "dispensados" os dias de proposta que serão apagados
       // (para o SGP não recolocá-los sozinho) — mesma regra do SGP.
-      var apagados = escopo === 'os' && mEv.proposta_id
-        ? eventos.filter(function (x) { return x.proposta_id === mEv.proposta_id; })
-        : escopo === 'os' && mEv.ordem_servico_id
-          ? eventos.filter(function (x) { return x.ordem_servico_id === mEv.ordem_servico_id; })
-          : [mEv];
+      var apagados = escopo === 'campanha' ? eventos.filter(function (x) { return mesmaCampanha(mEv, x); }) : [mEv];
       var disp = apagados.filter(function (x) { return x.proposta_id; }).map(function (x) {
         return { proposta_id: x.proposta_id, campanha_numero: x.campanha_numero || null, data: x.data, tipo: x.tipo || 'servico' };
       });
@@ -812,9 +841,13 @@
         await cli.from('agenda_dispensados').upsert(disp, { onConflict: 'proposta_id,campanha_numero,data,tipo', ignoreDuplicates: true });
       }
       var r;
-      if (escopo === 'os' && mEv.proposta_id) r = await cli.from('agendamentos').delete().eq('proposta_id', mEv.proposta_id);
-      else if (escopo === 'os' && mEv.ordem_servico_id) r = await cli.from('agendamentos').delete().eq('ordem_servico_id', mEv.ordem_servico_id);
-      else r = await cli.from('agendamentos').delete().eq('id', mEv.id);
+      if (escopo === 'campanha' && (mEv.proposta_id || mEv.ordem_servico_id)) {
+        var q = cli.from('agendamentos').delete();
+        if (mEv.proposta_id) q = q.eq('proposta_id', mEv.proposta_id);
+        else q = q.eq('ordem_servico_id', mEv.ordem_servico_id);
+        q = mEv.campanha_numero != null ? q.eq('campanha_numero', mEv.campanha_numero) : q.is('campanha_numero', null);
+        r = await q;
+      } else r = await cli.from('agendamentos').delete().eq('id', mEv.id);
       if (r.error) throw new Error(r.error.message);
       fecharModal();
       EC.app.mostrarToast('🗑️ Agendamento excluído.');
