@@ -3025,7 +3025,7 @@ EC.reembolso = (function () {
     return pagosNovos.map(function (p) {
       var valor = p.valor_solicitado != null ? p.valor_solicitado : p.valor_total;
       return '<div class="overlay-item overlay-item-clicavel sino-pago-item" role="button" tabindex="0" data-codigo="' + (p.codigo || '') + '">' +
-        '💰 <strong>' + moedaBR(valor) + '</strong> — OS ' + (p.os || '?') + (p.projeto ? ' · ' + p.projeto : '') +
+        '💰 <strong>' + moedaBR(valor) + '</strong> — ' + (p.tipo === 'outros_gastos' ? 'Outros gastos' : 'OS ' + (p.os || '?')) + (p.projeto ? ' · ' + p.projeto : '') +
         '<br><span class="rotulo-apoio">Pago em ' + dataBR(p.pago_em) + (p.forma_pagamento ? ' · ' + p.forma_pagamento : '') + '</span></div>';
     }).join('');
   }
