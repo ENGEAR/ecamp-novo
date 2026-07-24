@@ -30,7 +30,9 @@ EC.paginacao = (function () {
     opcoes = opcoes || {};
     const rotulo = opcoes.rotulo || 'P';
     let total = Math.max(1, opcoes.total || 1);
-    let atual = 1;
+    // Ponto inicial (opcional): permite ABRIR num ponto ≠ 1 para continuar de onde
+    // parou. Limitado ao intervalo válido [1, total].
+    let atual = Math.min(Math.max(1, parseInt(opcoes.atual, 10) || 1), total);
 
     function notificar() {
       if (typeof opcoes.aoMudar === 'function') opcoes.aoMudar(atual);

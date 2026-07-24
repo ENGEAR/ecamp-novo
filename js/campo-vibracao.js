@@ -151,6 +151,12 @@ EC.campoVibracao = (function () {
   function $(seletor) { return raiz.querySelector(seletor); }
   function campo() { return ctx.estado.campo; }
   function salvar() { ctx.salvar(); }
+  // Continua do último ponto aberto (ex.: retomar o serviço no dia seguinte).
+  function lembrarPonto(n) { campo().pontoAtual = n; salvar(); }
+  function pontoInicial() {
+    var n = parseInt(campo().pontoAtual, 10);
+    return (n && n > 0) ? n : 1; // renderizarPontos limita ao total depois
+  }
   function salvarDevagar() {
     clearTimeout(temporizadorSalvar);
     temporizadorSalvar = setTimeout(salvar, 400);
@@ -367,9 +373,10 @@ EC.campoVibracao = (function () {
 
     EC.paginacao.criar($('#cv-paginacao'), {
       total: total,
+      atual: pontoExibido,
       // Navegação livre entre pontos (começar em qualquer ponto). A validação das
       // fotos/dados obrigatórios continua na finalização (itensFaltando).
-      aoMudar: function (n) { pontoExibido = n; renderizarPonto(n); }
+      aoMudar: function (n) { pontoExibido = n; lembrarPonto(n); renderizarPonto(n); }
     });
     renderizarPonto(pontoExibido);
   }
@@ -659,7 +666,7 @@ EC.campoVibracao = (function () {
     if (!ctx.estado.campo.pontos) ctx.estado.campo.pontos = [];
     // Marca o subtipo no registro (o SGP distingue CECAV da NBR 9653 por aqui).
     if (ehCecav(ctx.estado)) ctx.estado.campo.subtipo = 'cecav';
-    pontoExibido = 1;
+    pontoExibido = pontoInicial(); // continua do último ponto aberto (não força 1)
     periodoExibido = periodosAtivos()[0];
 
     container.innerHTML =

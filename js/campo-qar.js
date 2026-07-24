@@ -33,6 +33,13 @@ EC.campoQar = (function () {
   function $(seletor) { return raiz.querySelector(seletor); }
   function campo() { return ctx.estado.campo; }
   function salvar() { ctx.salvar(); }
+  // Guarda/recupera o último ponto aberto, para CONTINUAR de onde parou (ex.:
+  // retomar o serviço no dia seguinte) em vez de voltar sempre ao ponto 1.
+  function lembrarPonto(n) { campo().pontoAtual = n; salvar(); }
+  function pontoInicial() {
+    var n = parseInt(campo().pontoAtual, 10);
+    return (n && n > 0) ? n : 1; // renderizarPontos limita ao total depois
+  }
   // Salvar rascunho COMPLETO (aparelho + servidor) — usado pelos botões entre as
   // coletas. Cai no salvar local se o fluxo não passou o salvarRascunho.
   function salvarRascunho() { (ctx.salvarRascunho || ctx.salvar)(); }
@@ -242,7 +249,8 @@ EC.campoQar = (function () {
     // validação final (itensFaltando), não na troca de página.
     EC.paginacao.criar($('#cq-paginacao'), {
       total: total,
-      aoMudar: function (n) { pontoExibido = n; renderizarPonto(n); }
+      atual: pontoExibido,
+      aoMudar: function (n) { pontoExibido = n; lembrarPonto(n); renderizarPonto(n); }
     });
     renderizarPonto(pontoExibido);
   }
@@ -425,7 +433,7 @@ EC.campoQar = (function () {
     if (!ctx.estado.campo) ctx.estado.campo = { geral: {}, pontos: [] };
     if (!ctx.estado.campo.geral) ctx.estado.campo.geral = {};
     if (!ctx.estado.campo.pontos) ctx.estado.campo.pontos = [];
-    pontoExibido = 1;
+    pontoExibido = pontoInicial(); // continua do último ponto aberto (não força 1)
     container.innerHTML =
       '<div id="cq-geral"></div>' +
       '<div id="cq-paginacao" class="cr-paginacao"></div>' +

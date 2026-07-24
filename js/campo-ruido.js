@@ -596,6 +596,12 @@ EC.campoRuido = (function () {
 
   function salvar() { ctx.salvar(); }
 
+  // Continua do último ponto/ambiente aberto (ex.: retomar o serviço no dia
+  // seguinte) em vez de voltar sempre ao ponto 1. Guardado no rascunho.
+  function lembrarPonto(n) { campo().pontoAtual = n; salvar(); }
+  function lembrarAmbiente(n) { campo().ambienteAtual = n; salvar(); }
+  function inicial(valor) { var n = parseInt(valor, 10); return (n && n > 0) ? n : 1; }
+
   function salvarDevagar() {
     clearTimeout(temporizadorSalvar);
     temporizadorSalvar = setTimeout(salvar, 400);
@@ -1118,9 +1124,12 @@ EC.campoRuido = (function () {
     EC.paginacao.criar(pager, {
       total: total,
       rotulo: 'Ambiente ',
+      atual: ambienteExibido,
       aoMudar: function (n) {
         ambienteExibido = n;
+        lembrarAmbiente(n);
         pontoExibido = 1;
+        lembrarPonto(1); // ambiente novo começa no ponto 1
         janelaExibida = 'total';
         renderizarAmbiente(n);
       }
@@ -1220,10 +1229,12 @@ EC.campoRuido = (function () {
     pontoExibido = Math.min(pontoExibido, total);
     EC.paginacao.criar($('#cr-paginacao'), {
       total: total,
+      atual: pontoExibido,
       // Navegação livre entre pontos (começar em qualquer ponto). A validação dos
       // dados/fotos obrigatórios continua na finalização (itensFaltando).
       aoMudar: function (n) {
         pontoExibido = n;
+        lembrarPonto(n);
         janelaExibida = 'total'; // cada ponto abre na janela Total
         renderizarPonto(n);
       }
@@ -1506,8 +1517,10 @@ EC.campoRuido = (function () {
     ctx = contexto;
     raiz = container;
     if (!ctx.estado.campo) ctx.estado.campo = { subtipo: null, geral: {}, pontos: [] };
-    pontoExibido = 1;
-    ambienteExibido = 1;
+    // Continua do último ponto/ambiente aberto (não força o ponto 1). renderizarPontos
+    // e renderizarAmbientes limitam ao total depois.
+    pontoExibido = inicial(ctx.estado.campo.pontoAtual);
+    ambienteExibido = inicial(ctx.estado.campo.ambienteAtual);
     janelaExibida = 'total'; // nunca reabrir na Residual (o form do interno é idêntico e confunde)
     periodoExibido = periodosAtivos()[0];
 
