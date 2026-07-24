@@ -211,12 +211,26 @@
     return m;
   }
 
-  // Pendência: OS (de proposta ACEITA) que ainda não têm NENHUM dia na agenda.
+  // Um evento pertence a esta OS? (pela OS vinculada ou pela proposta)
+  function eventoDaOS(e, o) {
+    return e.ordem_servico_id === o.id || (o.proposta_id && e.proposta_id === o.proposta_id);
+  }
+
+  // Pendência: OS (de proposta ACEITA) que não têm NENHUM dia AGENDADO. Um dia
+  // com status "reagendamento pendente" (reag) NÃO conta como agendado — a data
+  // caiu e precisa ser remarcada. Então uma OS que só tem dias reag volta p/ cá.
   function osSemAgenda() {
     return oss.filter(function (o) {
-      return o.aceita && ocultas.indexOf(o.id) === -1 &&
-        !eventos.some(function (e) { return e.ordem_servico_id === o.id || (o.proposta_id && e.proposta_id === o.proposta_id); });
+      if (!o.aceita || ocultas.indexOf(o.id) !== -1) return false;
+      var temDiaAtivo = eventos.some(function (e) { return eventoDaOS(e, o) && e.status !== 'reag'; });
+      return !temDiaAtivo;
     });
+  }
+
+  // A OS voltou à lista porque teve um dia REAGENDADO (e não porque nunca foi
+  // agendada)? Usado para mostrar a observação da data antiga.
+  function osFoiReagendada(o) {
+    return eventos.some(function (e) { return eventoDaOS(e, o) && e.status === 'reag'; });
   }
 
   // Bloqueio (ao salvar): férias × campo do mesmo técnico no mesmo dia.
@@ -451,7 +465,9 @@
           return '<div class="ecagd-ospend">' +
             '<div><b>' + esc(o.numero) + '</b> — ' + esc(o.empresa) +
             (o.projeto ? '<br><small>📁 ' + esc(o.projeto) + '</small>' : '') +
-            '<br><small>' + esc([[o.cidade, o.uf].filter(Boolean).join('/'), o.servico].filter(Boolean).join(' · ')) + '</small></div>' +
+            '<br><small>' + esc([[o.cidade, o.uf].filter(Boolean).join('/'), o.servico].filter(Boolean).join(' · ')) + '</small>' +
+            (osFoiReagendada(o) ? '<div class="ecagd-ospend-reag">🔁 A data de monitoramento antiga teve que ser reagendada</div>' : '') +
+            '</div>' +
             '<div class="ecagd-ospend-acoes">' +
               '<button type="button" class="botao botao-primario botao-mini" data-ag="' + i + '">📅 Agendar</button>' +
               '<button type="button" class="botao botao-secundario botao-mini" data-disp="' + i + '">✕ Dispensar</button>' +
