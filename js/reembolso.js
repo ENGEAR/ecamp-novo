@@ -1907,12 +1907,12 @@ EC.reembolso = (function () {
     var tipoTxt = t === 'evento' ? '<span class="rotulo-apoio">🔊 Evento</span> · '
       : t === 'veiculo' ? '<span class="rotulo-apoio">🚗 Veículos</span> · '
       : t === 'complemento' ? '<span class="rotulo-apoio">➕ Complemento</span> · '
-      : t === 'outros_gastos' ? '<span class="rotulo-apoio">💠 Outros gastos</span> · ' : '';
+      : t === 'outros_gastos' ? '<span class="rotulo-apoio">💸 Outros gastos</span> · ' : '';
     var parcelaTxt = tipoTxt + (parcelaN ? '<span class="rotulo-apoio">' + parcelaN + 'ª parcela</span> · ' : '');
     return (
       '<button type="button" class="rb-pedido rb-pedido-click" data-codigo="' + (p.codigo || '') + '">' +
       '  <div class="rb-pedido-topo"><span class="os-numero">' +
-      (t === 'outros_gastos' ? '💠 Outros gastos' : 'OS ' + (p.os || '?')) + '</span>' +
+      (t === 'outros_gastos' ? '💸 Outros gastos' : 'OS ' + (p.os || '?')) + '</span>' +
       '    <span class="rb-status ' + st.cls + '">' + st.txt + '</span></div>' +
       projeto +
       (mostrarDesignado && p.designado ? '<div class="os-resumo">👷 ' + p.designado + '</div>' : '') +
@@ -2292,7 +2292,7 @@ EC.reembolso = (function () {
 
     $('rb-extrato').innerHTML =
       '<div class="rb-pedido-topo" style="margin-bottom:10px;"><span class="os-numero">' +
-      (p.tipo === 'outros_gastos' ? '💠 Outros gastos' : 'OS ' + (p.os || '?')) + '</span>' +
+      (p.tipo === 'outros_gastos' ? '💸 Outros gastos' : 'OS ' + (p.os || '?')) + '</span>' +
       '<span class="rb-status ' + st.cls + '">' + st.txt + '</span></div>' +
       (p.cliente ? '<div class="os-resumo" style="margin-bottom:4px;">' + p.cliente + '</div>' : '') +
       (p.projeto ? '<div class="os-resumo" style="margin-bottom:8px;">📁 ' + p.projeto + '</div>' : '') +
