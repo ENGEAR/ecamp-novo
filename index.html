@@ -220,6 +220,14 @@
       <div class="cartao">
         <p class="fase-tag fase-campo">📡 Em campo</p>
         <h1>📡 Monitoramento em campo</h1>
+        <!-- Aviso de dados/fotos ainda NÃO enviados ao servidor. O preenchimento
+             fica salvo no aparelho na hora, mas só sobe ao servidor (com as FOTOS)
+             quando o técnico toca em "Salvar rascunho" ou Finaliza. Este aviso
+             deixa isso óbvio (antes, dados/fotos ficavam presos no celular). -->
+        <div id="campo-aviso-envio" class="oculto" style="background:#fff4e5;border:1px solid #f0b775;color:#8a4b00;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13.5px;line-height:1.4">
+          <div>⚠️ <strong>Você tem preenchimentos ainda não enviados ao servidor</strong> (inclui as fotos). Eles estão salvos só neste celular.</div>
+          <button type="button" id="campo-enviar-agora" class="botao botao-rascunho" style="margin-top:8px">💾 Salvar rascunho (enviar agora)</button>
+        </div>
         <div id="campo-conteudo"></div>
         <div id="campo-bloqueio"></div>
         <div id="passo4-nav"></div>

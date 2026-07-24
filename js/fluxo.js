@@ -175,24 +175,52 @@ EC.fluxo = (function () {
       campo: null,
       passoAtual: 'tela-dados-gerais',
       iniciado: false, // vira true ao avançar da 1ª tela ou salvar rascunho
-      atualizadoEm: agora.toISOString()
+      atualizadoEm: agora.toISOString(),
+      // Começa "em dia" (nada preenchido ainda) — o aviso de não-enviado só liga
+      // após a 1ª alteração real (atualizadoEm passa a ser > enviadoEm).
+      enviadoEm: agora.toISOString()
     };
   }
 
-  function salvarEstado() {
+  // semBump=true persiste SEM avançar `atualizadoEm` — usado para gravar a marca
+  // de "enviado" (enviadoEm) sem que isso conte como uma nova alteração pendente.
+  function salvarEstado(semBump) {
     if (!estado) return false;
     // Só marca a OS como "em andamento" (grava rascunho) DEPOIS que o técnico
     // realmente começa: avançar da 1ª tela ou tocar em "Salvar rascunho" liga
     // `estado.iniciado`. Assim, abrir uma OS por engano e voltar NÃO deixa rastro.
     if (!estado.iniciado) return false;
-    estado.atualizadoEm = new Date().toISOString();
+    if (!semBump) estado.atualizadoEm = new Date().toISOString();
     var chave = chaveServico(estado.osNumero, estado.servicoIndice);
     // Rascunho COMPLETO (com fotos) no IndexedDB — aguenta o tamanho e permite
     // continuar offline depois sem perder as fotos.
     if (EC.db) EC.db.set('rascunhos', chave, estado).catch(function () { /* ok */ });
     // Versão LEVE no localStorage (status na lista de serviços + restauração
     // básica), SEM fotos, para não estourar a memória. semFotos() está abaixo.
-    return EC.storage.salvar(chave, semFotos(estado));
+    var ok = EC.storage.salvar(chave, semFotos(estado));
+    if (!semBump) atualizarAvisoEnvio();
+    return ok;
+  }
+
+  /* ===== Aviso de "ainda não enviado ao servidor" =====
+   * O preenchimento é salvo no aparelho na hora, mas só SOBE ao servidor (com as
+   * FOTOS) quando o técnico toca em "Salvar rascunho" ou Finaliza. Antes, dados e
+   * fotos ficavam presos no celular sem ninguém perceber (caso do Edgar). Marcamos
+   * `estado.enviadoEm` a cada envio completo e comparamos com `atualizadoEm`. */
+  function temPendenciaEnvio() {
+    return !!(estado && estado.iniciado &&
+      (!estado.enviadoEm || String(estado.atualizadoEm || '') > String(estado.enviadoEm)));
+  }
+  // Chamado após um envio COMPLETO (Salvar rascunho / Finalizar): zera a pendência.
+  function marcarEnviado() {
+    if (!estado) return;
+    estado.enviadoEm = estado.atualizadoEm || new Date().toISOString();
+    salvarEstado(true); // persiste a marca sem bumpar o tempo
+    atualizarAvisoEnvio();
+  }
+  function atualizarAvisoEnvio() {
+    var aviso = $('campo-aviso-envio');
+    if (aviso) aviso.classList.toggle('oculto', !temPendenciaEnvio());
   }
 
   function servicoDetalhe(campo) {
@@ -1097,6 +1125,7 @@ EC.fluxo = (function () {
       area.innerHTML = '<p class="texto-grande">🚧 Em construção.</p>' +
         '<p>O formulário de campo de <strong>' + nomeTipo(estado.tipo) + '</strong> entra na Fase 4. O tipo Ruído já está completo — ele é o piloto.</p>';
     }
+    atualizarAvisoEnvio(); // reflete pendências ao (re)abrir o campo
   }
 
   /* ---------- Revisão ---------- */
@@ -1374,6 +1403,7 @@ EC.fluxo = (function () {
         }
       });
     }
+    marcarEnviado(); // finalizar envia tudo (com fotos): zera o aviso de "não enviado"
 
     // 2) Guarda uma cópia LEVE no histórico do aparelho (sem o base64 das fotos —
     //    elas já foram para o servidor), para NÃO estourar a memória do navegador.
@@ -1467,6 +1497,7 @@ EC.fluxo = (function () {
       registro.finalizar = false;
       EC.sync.sincronizarRascunho(registro);
     }
+    marcarEnviado(); // envio completo (com fotos): zera o aviso de "não enviado"
     return ok;
   }
 
@@ -1498,6 +1529,12 @@ EC.fluxo = (function () {
   }
 
   function inicializarTelas() {
+    // Botão do aviso "não enviado": faz o envio completo (com fotos) na hora.
+    var btnEnviar = $('campo-enviar-agora');
+    if (btnEnviar) btnEnviar.addEventListener('click', function () {
+      aoSalvarRascunho();
+      EC.app.mostrarToast('💾 Enviando ao servidor…');
+    });
     $('os-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-acao'); });
     $('servicos-os-voltar').addEventListener('click', function () {
       renderizarListaOs();
