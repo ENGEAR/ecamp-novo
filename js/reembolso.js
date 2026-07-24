@@ -52,7 +52,7 @@ EC.reembolso = (function () {
     viagem: '🧳 Viagem: opção para solicitar a previsão de despesas de viagens destinadas à execução de serviços de monitoramento.',
     complemento: '➕ Complemento: opção para solicitar um valor complementar referente a despesas não previstas na solicitação inicial da viagem.',
     evento: '🔊 Eventos: opção para solicitar o pagamento do valor acordado para a realização de monitoramentos em eventos, como shows, partidas esportivas, feiras, entre outros.',
-    veiculo: '📦 Outros: opção para solicitar o reembolso ou pagamento de despesas do serviço não cobertas pelos outros tipos, como abastecimento, peças, manutenção, pedágios e outros custos associados.'
+    veiculo: '📦 Outros do Serviço: opção para solicitar o reembolso ou pagamento de despesas do serviço não cobertas pelos outros tipos, como abastecimento, peças, manutenção, pedágios e outros custos associados.'
   };
 
   var ctx = null;          // contexto do servidor: { valores, os: [...] }
@@ -1606,7 +1606,7 @@ EC.reembolso = (function () {
 
   async function enviarFormulario() {
     if (!osSel) return mostrarErro('Busque e escolha a Ordem de Serviço.');
-    if (!tipoSel) return mostrarErro('Escolha o tipo de reembolso: Viagem, Eventos ou Outros.');
+    if (!tipoSel) return mostrarErro('Escolha o tipo de reembolso: Viagem, Eventos ou Outros do Serviço.');
     if (osSel.campanhas.length === 0) {
       return mostrarErro('Esta OS ainda não tem o serviço na Agenda — peça para incluir a programação (dias e técnicos) primeiro.');
     }
@@ -1936,7 +1936,7 @@ EC.reembolso = (function () {
       ? '<div class="rb-motivo">Observação da Logística: ' + p.observacao_logistica + '</div>' : '';
     var t = p.tipo || 'viagem';
     var tipoTxt = t === 'evento' ? '<span class="rotulo-apoio">🔊 Evento</span> · '
-      : t === 'veiculo' ? '<span class="rotulo-apoio">📦 Outros</span> · '
+      : t === 'veiculo' ? '<span class="rotulo-apoio">📦 Outros do Serviço</span> · '
       : t === 'complemento' ? '<span class="rotulo-apoio">➕ Complemento</span> · '
       : t === 'outros_gastos' ? '<span class="rotulo-apoio">💸 Outros gastos</span> · ' : '';
     var parcelaTxt = tipoTxt + (parcelaN ? '<span class="rotulo-apoio">' + parcelaN + 'ª parcela</span> · ' : '');

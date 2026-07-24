@@ -166,7 +166,7 @@ EC.aprovacoes = (function () {
     var t = s.tipo || 'viagem';
     var ehAvulso = t === 'outros_gastos';
     var tipoTxt = t === 'evento' ? '<span class="rotulo-apoio">🔊 Evento</span> · '
-      : t === 'veiculo' ? '<span class="rotulo-apoio">📦 Outros</span> · '
+      : t === 'veiculo' ? '<span class="rotulo-apoio">📦 Outros do Serviço</span> · '
       : t === 'complemento' ? '<span class="rotulo-apoio">➕ Complemento</span> · '
       : ehAvulso ? '<span class="rotulo-apoio">💸 Outros gastos</span> · ' : '';
     var cabecalho = ehAvulso ? '💸 Outros gastos' : 'OS ' + esc(s.os);
@@ -355,7 +355,7 @@ EC.aprovacoes = (function () {
     return (
       '<div class="apr-cab"><span class="os-numero">' + (ehAvulso ? '💸 Outros gastos' : 'OS ' + esc(s.os)) + '</span>' + (s.cliente ? ' · ' + esc(s.cliente) : '') + '</div>' +
       (s.projeto ? '<div class="os-resumo" style="margin:-2px 0 8px;">📁 ' + esc(s.projeto) + '</div>' : '') +
-      '<div class="apr-cat">' + (ehAvulso ? '💸 Outros gastos (avulso, sem OS)' : t === 'complemento' ? '➕ Complemento de gastos (OS paga)' : t === 'evento' ? '🔊 Reembolso de EVENTO' : '📦 Reembolso — Outros') + '</div>' +
+      '<div class="apr-cat">' + (ehAvulso ? '💸 Outros gastos (avulso, sem OS)' : t === 'complemento' ? '➕ Complemento de gastos (OS paga)' : t === 'evento' ? '🔊 Reembolso de EVENTO' : '📦 Reembolso — Outros do Serviço') + '</div>' +
       '<p class="dg-secao">Quem</p>' +
       '<div class="rb-resumo-auto">' +
         linhaInfo(ehAvulso ? 'Solicitante' : 'Solicitante (preencheu)', s.solicitante || '—') +
