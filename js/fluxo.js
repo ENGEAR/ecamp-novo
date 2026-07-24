@@ -219,8 +219,17 @@ EC.fluxo = (function () {
     atualizarAvisoEnvio();
   }
   function atualizarAvisoEnvio() {
+    var pendente = temPendenciaEnvio();
     var aviso = $('campo-aviso-envio');
-    if (aviso) aviso.classList.toggle('oculto', !temPendenciaEnvio());
+    if (aviso) aviso.classList.toggle('oculto', !pendente);
+    // O botão flutuante fica amarelo/pulsando quando há algo não enviado.
+    var fab = $('fab-salvar');
+    if (fab) fab.classList.toggle('fab-pendente', pendente);
+  }
+  // Mostra/oculta o botão flutuante "Salvar rascunho" (só na tela de campo).
+  function mostrarFabSalvar(mostrar) {
+    var fab = $('fab-salvar');
+    if (fab) fab.classList.toggle('oculto', !mostrar);
   }
 
   function servicoDetalhe(campo) {
@@ -237,6 +246,8 @@ EC.fluxo = (function () {
       if (idTela !== 'tela-dados-gerais') estado.iniciado = true;
       salvarEstado();
     }
+    // O botão flutuante "Salvar rascunho" só aparece no campo (renderizarCampo o liga).
+    mostrarFabSalvar(idTela === 'tela-passo4');
 
     if (idTela === 'tela-dados-gerais') preencherDadosGerais();
     if (idTela === 'tela-tipo') renderizarTipos();
@@ -274,6 +285,7 @@ EC.fluxo = (function () {
     if (estado && telaExibida === 'tela-dados-gerais') { coletarDadosGerais(); salvarEstado(); }
     estado = null;
     telaExibida = null; // evita que o próximo irPara colete da tela antiga
+    mostrarFabSalvar(false); // saiu do serviço: some o botão flutuante
     if (multiServico) {
       renderizarServicos(osAtual);
       EC.app.mostrarTela('tela-servicos-os');
@@ -1125,7 +1137,8 @@ EC.fluxo = (function () {
       area.innerHTML = '<p class="texto-grande">🚧 Em construção.</p>' +
         '<p>O formulário de campo de <strong>' + nomeTipo(estado.tipo) + '</strong> entra na Fase 4. O tipo Ruído já está completo — ele é o piloto.</p>';
     }
-    atualizarAvisoEnvio(); // reflete pendências ao (re)abrir o campo
+    mostrarFabSalvar(true);   // botão flutuante visível no campo
+    atualizarAvisoEnvio();    // reflete pendências ao (re)abrir o campo (aviso + FAB)
   }
 
   /* ---------- Revisão ---------- */
@@ -1529,12 +1542,16 @@ EC.fluxo = (function () {
   }
 
   function inicializarTelas() {
-    // Botão do aviso "não enviado": faz o envio completo (com fotos) na hora.
-    var btnEnviar = $('campo-enviar-agora');
-    if (btnEnviar) btnEnviar.addEventListener('click', function () {
+    // Botão do aviso "não enviado" + botão flutuante: ambos fazem o envio COMPLETO
+    // (com fotos) na hora.
+    function salvarRascunhoAgora() {
       aoSalvarRascunho();
       EC.app.mostrarToast('💾 Enviando ao servidor…');
-    });
+    }
+    var btnEnviar = $('campo-enviar-agora');
+    if (btnEnviar) btnEnviar.addEventListener('click', salvarRascunhoAgora);
+    var fab = $('fab-salvar');
+    if (fab) fab.addEventListener('click', salvarRascunhoAgora);
     $('os-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-acao'); });
     $('servicos-os-voltar').addEventListener('click', function () {
       renderizarListaOs();

@@ -1072,6 +1072,7 @@ textarea { resize: vertical; font-family: inherit; }
   font-size: 0.9rem;
 }
 .ecagd-ospend small { color: var(--cinza-texto); }
+.ecagd-ospend-reag { margin-top: 6px; color: #8a4b00; background: var(--amarelo-claro); border-radius: 6px; padding: 4px 8px; font-size: 0.8rem; font-weight: 600; }
 .ecagd-ospend-acoes { display: flex; gap: 6px; flex-wrap: wrap; }
 .ecagd-os-ok { color: var(--verde); }
 .ecagd-os-item {
@@ -1431,3 +1432,30 @@ textarea { resize: vertical; font-family: inherit; }
   background: var(--verde); cursor: pointer;
 }
 .ecagd-lembrete-ciente:active { opacity: 0.85; }
+
+/* ===== Botão flutuante "Salvar rascunho" (fixo, acompanha a rolagem) ===== */
+.fab-salvar {
+  position: fixed;
+  right: 16px;
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px)); /* acima do rodapé fixo */
+  z-index: 1400;
+  width: 60px; height: 60px;
+  border: none; border-radius: 50%;
+  background: var(--azul-escuro); color: #fff;
+  font-size: 26px; line-height: 1;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+}
+.fab-salvar:active { transform: scale(0.93); }
+/* Quando há preenchimento não enviado: destaca em amarelo e pulsa. */
+.fab-salvar.fab-pendente {
+  background: var(--amarelo); color: #6e5a00;
+  animation: fabPulsar 1.6s ease-in-out infinite;
+}
+@keyframes fabPulsar {
+  0%, 100% { box-shadow: 0 4px 14px rgba(242, 194, 0, 0.45); }
+  50%      { box-shadow: 0 4px 22px rgba(242, 194, 0, 0.95); }
+}
+@media (prefers-reduced-motion: reduce) { .fab-salvar.fab-pendente { animation: none; } }
