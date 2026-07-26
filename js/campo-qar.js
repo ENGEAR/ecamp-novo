@@ -277,9 +277,18 @@ EC.campoQar = (function () {
       lblNum('↑ Para cima', 'col800sobe_' + sufixo) + lblNum('↓ Para baixo', 'col800desce_' + sufixo) + '</div>';
   }
 
+  // Nº da 1ª coleta DESTE registro (padrão 1). Revezamento em serviço longo:
+  // se outro técnico já fez as coletas 1–3 deste ponto (registro dele), quem
+  // assume começa na 4 — a numeração segue no app, no PDF e na planilha, sem
+  // duplicar números no mesmo ponto.
+  function primeiraColetaDe(ponto) {
+    return Math.max(1, parseInt(ponto.primeiraColeta, 10) || 1);
+  }
+
   function renderColetas(area, ponto) {
     const div = area.querySelector('#cq-coletas');
     const n = Math.min(20, Math.max(0, parseInt(ponto.qtdeColetas, 10) || 0));
+    const ini = primeiraColetaDe(ponto);
     ponto.coletas = ponto.coletas || [];
     while (ponto.coletas.length < n) ponto.coletas.push({});
     let html = '';
@@ -287,7 +296,7 @@ EC.campoQar = (function () {
     // coleta — para ir resguardando os dados em serviços que duram dias.
     if (n > 0) html += htmlAcoesColeta();
     for (let k = 0; k < n; k++) {
-      html += '<div class="cartao-coleta"><h3>' + (k + 1) + 'ª coleta</h3>' +
+      html += '<div class="cartao-coleta"><h3>' + (k + ini) + 'ª coleta</h3>' +
         '<p class="grupo-checks-titulo">Dados iniciais</p>' +
         htmlBlocoColeta('ini', '<label>Código do filtro<input type="text" data-campo="codigoFiltro"></label>') +
         '<p class="grupo-checks-titulo">Dados finais</p>' + htmlBlocoColeta('fim') + '</div>';
@@ -340,6 +349,8 @@ EC.campoQar = (function () {
       '<label>Validade da calibração (em meses)<input type="number" min="0" step="1" inputmode="numeric" data-campo="validadeCalib"></label>' +
       // Coletas
       '<label>Quantas coletas neste ponto?<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdeColetas"></label>' +
+      '<label>Nº da primeira coleta<input type="number" min="1" max="99" inputmode="numeric" placeholder="1" data-campo="primeiraColeta"></label>' +
+      '<p class="texto-apoio">Revezamento: se outro técnico já fez as primeiras coletas deste ponto (no registro dele), continue a numeração — ex.: ele fez 1 a 3, você começa na 4. Se o serviço é todo seu, deixe em branco (começa na 1).</p>' +
       '<div id="cq-coletas"></div>' +
       // Finalização
       '<label>Hora final<input type="time" data-campo="horaFinal"></label>' +
@@ -354,6 +365,10 @@ EC.campoQar = (function () {
     area.querySelector('[data-campo="qtdeColetas"]').addEventListener('input', function () {
       renderColetas(area, ponto);
       atualizarAvisoCarvao(area);
+    });
+    // Mudou o nº da 1ª coleta → renumera os cartões (4ª, 5ª, …).
+    area.querySelector('[data-campo="primeiraColeta"]').addEventListener('input', function () {
+      renderColetas(area, ponto);
     });
     // Aviso do carvão: atualiza ao render e quando trocam o AGV.
     atualizarAvisoCarvao(area);
@@ -395,6 +410,7 @@ EC.campoQar = (function () {
 
     const nColetas = Math.min(20, Math.max(0, parseInt(ponto.qtdeColetas, 10) || 0));
     if (!nColetas) { falta.push('quantidade de coletas'); return falta; }
+    const iniColeta = primeiraColetaDe(ponto); // numeração contínua no revezamento
     (ponto.coletas || []).slice(0, nColetas).forEach(function (col, k) {
       col = col || {};
       ['ini', 'fim'].forEach(function (suf) {
@@ -404,7 +420,7 @@ EC.campoQar = (function () {
          ['vento_' + suf, 'vento'], ['tempo_' + suf, 'como está o tempo']
         ].forEach(function (par) {
           const v = col[par[0]];
-          if (v === undefined || v === null || String(v).trim() === '') falta.push((k + 1) + 'ª coleta: ' + par[1] + ' ' + rotPer);
+          if (v === undefined || v === null || String(v).trim() === '') falta.push((k + iniColeta) + 'ª coleta: ' + par[1] + ' ' + rotPer);
         });
       });
     });

@@ -130,7 +130,7 @@ EC.pdf = (function () {
     horaTermino: 'Hora de término', observacoes: 'Observações', temperatura: 'Temperatura',
     umidade: 'Umidade', vento: 'Vento', objetivo: 'Objetivo', finalidade: 'Finalidade',
     qtdePontos: 'Qtd. de pontos', qtdeVeiculos: 'Qtd. de veículos', qtdeAmbientes: 'Qtd. de ambientes',
-    qtdeColetas: 'Qtd. de coletas', justificativaPontos: 'Justificativa dos pontos',
+    qtdeColetas: 'Qtd. de coletas', primeiraColeta: 'Nº da primeira coleta', justificativaPontos: 'Justificativa dos pontos',
     tipoEquip: 'Tipo de equipamento', numeroEquip: 'Nº do equipamento', instalGeofone: 'Instalação do geofone',
     fonteVibracao: 'Fonte de vibração', intercorrencia: 'Intercorrência', intercorrenciaDesc: 'Descrição da intercorrência',
     placa: 'Placa', ano: 'Ano', endereco: 'Endereço', validadeCalib: 'Validade da calibração (em meses)',
@@ -430,7 +430,10 @@ EC.pdf = (function () {
         if (gps) { kv('UTM', utmDe(gps)); kvSe('Endereço (GPS)', gps.endereco); }
         listas.forEach(function (par) {
           var sub = subRotulo(par[0]);
-          par[1].forEach(function (it, j) { subtitulo(sub + ' ' + (j + 1)); renderCampos(it); });
+          // Coletas seguem a numeração do revezamento (Nº da primeira coleta):
+          // se o técnico começou na 4ª, o PDF mostra "Coleta 4", "Coleta 5"…
+          var base = (par[0] === 'coletas') ? (Math.max(1, parseInt(obj.primeiraColeta, 10) || 1) - 1) : 0;
+          par[1].forEach(function (it, j) { subtitulo(sub + ' ' + (j + 1 + base)); renderCampos(it); });
         });
         if (fotos.length) {
           subtitulo('Fotos');
