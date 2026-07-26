@@ -454,6 +454,11 @@
         (it.completo ? '' : '<br><small>⚠️ registro antigo — o PDF sai sem as fotos</small>') +
         '<div class="overlay-item-acoes">' +
         '<button type="button" class="botao botao-secundario hist-pdf" data-cod="' + it.cod + '">📄 Gerar PDF</button>' +
+        // Reenviar ao servidor: só faz sentido quando temos o registro COMPLETO
+        // (com fotos) no aparelho. Serve quando a finalização não chegou ao
+        // servidor (ex.: finalizou sem internet e a fila se perdeu) — o serviço
+        // aparece "Concluído" no app mas fica "Incompleto" na planilha.
+        (it.completo ? '<button type="button" class="botao botao-secundario hist-reenviar" data-cod="' + it.cod + '" title="Reenviar ao servidor (dados e fotos)">📤 Reenviar</button>' : '') +
         '<button type="button" class="botao botao-perigo hist-excluir" data-cod="' + it.cod + '" title="Excluir do aparelho">🗑️</button>' +
         '</div></div>';
     }
@@ -489,6 +494,23 @@
             return Promise.resolve(EC.pdf.gerar(it.reg));
           })
             .catch(function () { mostrarToast('Não foi possível gerar o PDF. Tente de novo.'); })
+            .then(function () { b.disabled = false; b.textContent = rotulo; });
+        });
+      });
+      lista.querySelectorAll('.hist-reenviar').forEach(function (b) {
+        b.addEventListener('click', function () {
+          const it = mapa[b.dataset.cod];
+          if (!it || !it.reg) return;
+          if (!EC.sync || !EC.sync.sincronizarRegistro) { mostrarToast('Sincronização indisponível.'); return; }
+          b.disabled = true;
+          const rotulo = b.textContent;
+          b.textContent = '⏳ Reenviando…';
+          // Reenvia o registro COMPLETO (com fotos) como FINALIZADO. O servidor é
+          // idempotente pelo rascunhoId → atualiza o MESMO monitoramento (não
+          // duplica) e marca como finalizado. Em falha de rede, enfileira e sobe
+          // sozinho depois (sincronizarRegistro já dá o toast e trata a fila).
+          Promise.resolve(EC.sync.sincronizarRegistro(it.reg))
+            .catch(function () { /* já enfileirado/avisado */ })
             .then(function () { b.disabled = false; b.textContent = rotulo; });
         });
       });
