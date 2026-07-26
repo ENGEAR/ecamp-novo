@@ -418,6 +418,54 @@ EC.sync = (function () {
     return resposta.blob();
   }
 
+  /* ===== Preparo de laboratório (bastão lab → campo) =====
+   * O laboratório preenche o pré-campo e ENVIA para um técnico designado; só o
+   * celular dele recebe a oferta, e ele aceita explicitamente. Pacote fechado,
+   * numa direção só — NÃO é o rascunho colaborativo antigo (removido). */
+  var ROTA_PREPARO = BASE + '/preparo';
+
+  async function getJsonPreparo(url) {
+    var resposta = await fetch(url, { headers: await cabecalhos() });
+    var corpo = {};
+    try { corpo = await resposta.json(); } catch (e) { /* vazio */ }
+    if (!resposta.ok || !corpo.ok) throw new Error(corpo.erro || ('HTTP ' + resposta.status));
+    return corpo;
+  }
+
+  // Quem pode receber o preparo: técnicos na AGENDA da OS → [{nome, email, temEmail}]
+  async function tecnicosDaOs(numeroOs) {
+    var corpo = await getJsonPreparo(ROTA_PREPARO + '?tecnicos=1&os=' + encodeURIComponent(numeroOs));
+    return corpo.tecnicos || [];
+  }
+
+  // Envia o preparo (estado SEM fotos) para o designado. Exige internet + sessão.
+  async function enviarPreparo(dados) {
+    return postJson(ROTA_PREPARO, {
+      acao: 'enviar',
+      os: dados.os,
+      servicoRef: dados.servicoRef,
+      escopo: dados.escopo || '',
+      destinatarioNome: dados.destinatarioNome,
+      destinatarioEmail: dados.destinatarioEmail,
+      estado: dados.estado
+    });
+  }
+
+  // Preparos pendentes PARA MIM (o servidor casa pelo e-mail do login).
+  async function meusPreparos() {
+    var corpo = await getJsonPreparo(ROTA_PREPARO + '?meus=1');
+    return corpo.preparos || [];
+  }
+
+  // Etiquetas leves da OS ("📦 Preparado para Fulano"), sem o estado.
+  async function etiquetasPreparo(numeroOs) {
+    var corpo = await getJsonPreparo(ROTA_PREPARO + '?os=' + encodeURIComponent(numeroOs));
+    return corpo.etiquetas || [];
+  }
+
+  async function aceitarPreparo(id) { return postJson(ROTA_PREPARO, { acao: 'aceitar', id: id }); }
+  async function cancelarPreparo(id) { return postJson(ROTA_PREPARO, { acao: 'cancelar', id: id }); }
+
   return {
     enviar: enviar,
     enviarPdf: enviarPdf,
@@ -433,6 +481,12 @@ EC.sync = (function () {
     liberarTrava: liberarTrava,
     sincronizarPendentes: sincronizarPendentes,
     buscarBiblioteca: buscarBiblioteca,
-    baixarDocumentoBiblioteca: baixarDocumentoBiblioteca
+    baixarDocumentoBiblioteca: baixarDocumentoBiblioteca,
+    tecnicosDaOs: tecnicosDaOs,
+    enviarPreparo: enviarPreparo,
+    meusPreparos: meusPreparos,
+    etiquetasPreparo: etiquetasPreparo,
+    aceitarPreparo: aceitarPreparo,
+    cancelarPreparo: cancelarPreparo
   };
 })();

@@ -526,7 +526,7 @@ EC.fluxo = (function () {
         return (
           '<button type="button" class="os-item servico-item" data-indice="' + o.i + '">' +
           '  <span class="os-numero">▶️ ' + o.s.escopo + '</span>' + info +
-          '  ' + SELO[st] +
+          '  ' + SELO[st] + etiquetaPreparoHtml(os.numero, o.i) +
           '</button>'
         );
       }).join('');
@@ -541,6 +541,9 @@ EC.fluxo = (function () {
         aoTocarServico(os, parseInt(item.dataset.indice, 10));
       });
     });
+
+    // Etiquetas "📦 Preparado para Fulano": melhor esforço, repinta se mudou.
+    atualizarEtiquetasPreparo(os);
   }
 
   // Decide se abre direto, ou pergunta (continuar/reiniciar/refazer).
@@ -587,9 +590,10 @@ EC.fluxo = (function () {
           });
         }
         // Limpa o rascunho LOCAL e começa um novo (o servidor guardou o antigo).
+        // Sem rascunho local, um preparo do laboratório volta a poder ser oferecido.
         EC.storage.remover(chaveServico(os.numero, indice));
         if (EC.db) EC.db.remove('rascunhos', chaveServico(os.numero, indice)).catch(function () {});
-        abrirServico(os, indice, null);
+        abrirNovoOuPreparo(os, indice);
       });
       return;
     }
@@ -611,7 +615,9 @@ EC.fluxo = (function () {
       return;
     }
 
-    abrirServico(os, indice, null);
+    // Serviço nunca começado NESTE aparelho: se o laboratório preparou para
+    // mim, o app oferece começar a partir do preparo (aceite explícito).
+    abrirNovoOuPreparo(os, indice);
   }
 
   // Descarta um serviço aberto por engano: apaga o rascunho local, tira dos
@@ -1091,6 +1097,207 @@ EC.fluxo = (function () {
       linhaResumo('Período', servicoDetalhe('periodo')) +
       linhaResumo('Equipamentos', equip ? equip + ' selecionado(s)' : '—') +
       linhaResumo('Pré-campo', pendentesPre === 0 ? '✓ obrigatórios conferidos' : 'falta(m) ' + pendentesPre + ' item(ns)');
+  }
+
+  /* ---------- Preparo de laboratório: enviar para outro técnico ----------
+   * Bastão lab → campo (decisão da Raisa 2026-07-26): quem preparou o pré-campo
+   * ENVIA o pacote para UM técnico designado (só quem está na Agenda da OS —
+   * fora dela o técnico nem vê a OS no app). Só o celular do designado recebe a
+   * oferta; ele aceita explicitamente. NÃO é o rascunho colaborativo antigo:
+   * sem edição simultânea, uma direção só, consumido uma vez. */
+  function escPrep(s) { return escDg(s); }
+
+  function enviarParaOCampo() {
+    if (!estado) return;
+    if (!navigator.onLine) { EC.app.mostrarToast('📡 Enviar o preparo precisa de internet.'); return; }
+    // O botão fica DEPOIS das travas do pré-campo, então o pacote sai completo.
+    estado.iniciado = true;
+    salvarEstado();
+
+    EC.app.abrirOverlay('📦 Enviar para o campo', '<p class="texto-apoio">Buscando os técnicos da Agenda desta OS…</p>');
+    EC.sync.tecnicosDaOs(estado.osNumero).then(function (tecnicos) {
+      if (!tecnicos.length) {
+        EC.app.abrirOverlay('📦 Enviar para o campo',
+          '<p>Nenhum técnico escalado na <strong>Agenda</strong> desta OS.</p>' +
+          '<p class="texto-apoio">Peça à logística para escalar o técnico na Agenda primeiro — quem está fora dela não vê a OS no aplicativo.</p>');
+        return;
+      }
+      var html = '<p>Quem vai <strong>executar</strong> este serviço em campo?</p>' +
+        tecnicos.map(function (t, i) {
+          if (!t.temEmail) {
+            return '<div class="overlay-item" style="opacity:.55">🚫 ' + escPrep(t.nome) +
+              ' <span class="texto-apoio">(sem acesso ao app — avise a administração)</span></div>';
+          }
+          return '<label class="overlay-item" style="display:flex;align-items:center;gap:10px;cursor:pointer">' +
+            '<input type="radio" name="prep-dest" value="' + i + '"> 👷 ' + escPrep(t.nome) + '</label>';
+        }).join('') +
+        '<div class="pilha-botoes" style="margin-top:12px">' +
+        '  <button type="button" class="botao botao-primario" id="prep-confirmar">📦 Enviar preparo</button>' +
+        '  <button type="button" class="botao botao-secundario" id="prep-cancelar">Cancelar</button>' +
+        '</div>' +
+        '<p class="texto-apoio" style="margin-top:8px">Só o celular da pessoa escolhida recebe este preparo. Ela começa direto do campo, sem redigitar o que você preencheu.</p>';
+      EC.app.abrirOverlay('📦 Enviar para o campo', html);
+      $('prep-cancelar').addEventListener('click', EC.app.fecharOverlay);
+      $('prep-confirmar').addEventListener('click', function () {
+        var marcado = document.querySelector('input[name="prep-dest"]:checked');
+        if (!marcado) { EC.app.mostrarToast('Escolha quem vai executar.'); return; }
+        var dest = tecnicos[parseInt(marcado.value, 10)];
+        var botao = $('prep-confirmar');
+        botao.disabled = true; botao.textContent = 'Enviando…';
+        // O pacote viaja SEM fotos e abre no checkpoint (o designado revisa e vai ao campo).
+        var pacote = semFotos(estado);
+        pacote.passoAtual = 'tela-checkpoint';
+        EC.sync.enviarPreparo({
+          os: estado.osNumero,
+          servicoRef: estado.servicoId,
+          escopo: servicoDetalhe('escopo'),
+          destinatarioNome: dest.nome,
+          destinatarioEmail: dest.email,
+          estado: pacote
+        }).then(function () {
+          EC.app.fecharOverlay();
+          EC.app.mostrarToast('📦 Preparo enviado para ' + dest.nome + '.');
+        }).catch(function (e) {
+          botao.disabled = false; botao.textContent = '📦 Enviar preparo';
+          EC.app.mostrarToast('🛑 Não foi possível enviar: ' + e.message);
+        });
+      });
+    }).catch(function (e) {
+      EC.app.abrirOverlay('📦 Enviar para o campo',
+        '<p>🛑 Não foi possível buscar os técnicos: ' + escPrep(e.message) + '</p>' +
+        '<p class="texto-apoio">Verifique a internet e tente de novo.</p>');
+    });
+  }
+
+  /* ---------- Preparo de laboratório: receber (oferta + aceite) ----------
+   * REGRA DURA (lição do incidente de 2026-07-15): o rascunho LOCAL nunca é
+   * sobrescrito — o preparo só é OFERECIDO quando não há rascunho local (ou
+   * depois de um "Reiniciar", que arquiva o antigo antes). O aceite é explícito
+   * e o rascunhoId é NOVO, deste aparelho (cada técnico dono do seu). */
+
+  const CH_PREPAROS_MEUS = 'preparos:meus';
+  function chaveEtiquetas(numeroOs) { return 'preparos:os_' + numeroOs; }
+
+  // Baixa os preparos destinados A MIM, guarda no aparelho e reporta no sino.
+  // Best-effort: sem internet mantém o cache que já tinha.
+  function verificarPreparos() {
+    if (!(EC.sync && EC.sync.meusPreparos)) return Promise.resolve();
+    return EC.sync.meusPreparos().then(function (lista) {
+      EC.storage.salvar(CH_PREPAROS_MEUS, lista || []);
+      if (EC.app && EC.app.atualizarSino) EC.app.atualizarSino('preparos', (lista || []).length);
+      return lista;
+    }).catch(function () { /* offline: fica o cache */ });
+  }
+
+  function preparoDoServico(numeroOs, indice) {
+    const alvo = servicoId(numeroOs, indice);
+    const lista = EC.storage.ler(CH_PREPAROS_MEUS) || [];
+    for (let i = 0; i < lista.length; i++) {
+      if (lista[i] && lista[i].servico_ref === alvo) return lista[i];
+    }
+    return null;
+  }
+
+  function removerPreparoDoCache(id) {
+    const lista = (EC.storage.ler(CH_PREPAROS_MEUS) || []).filter(function (p) { return p && p.id !== id; });
+    EC.storage.salvar(CH_PREPAROS_MEUS, lista);
+    if (EC.app && EC.app.atualizarSino) EC.app.atualizarSino('preparos', lista.length);
+  }
+
+  // Abre um serviço NOVO: se houver preparo do laboratório PARA MIM, oferece
+  // começar a partir dele; senão (ou se recusar), começa do zero como sempre.
+  function abrirNovoOuPreparo(os, indice) {
+    const prep = preparoDoServico(os.numero, indice);
+    if (!prep) { abrirServico(os, indice, null); return; }
+
+    const quando = prep.criado_em ? new Date(prep.criado_em).toLocaleString('pt-BR') : '';
+    EC.app.abrirOverlay('📦 Serviço preparado para você',
+      '<p><strong>' + escDg(prep.preparado_por || 'O laboratório') + '</strong> preparou este serviço' +
+      (quando ? ' em ' + quando : '') + ': dados gerais, tipo, equipamentos e pré-campo já preenchidos.</p>' +
+      '<div class="pilha-botoes">' +
+      '  <button type="button" class="botao botao-primario" id="prep-aceitar">🚀 Começar a partir do preparo</button>' +
+      '  <button type="button" class="botao botao-secundario" id="prep-zero">Começar do zero (ignorar o preparo)</button>' +
+      '</div>' +
+      '<p class="texto-apoio" style="margin-top:8px">Ao aceitar, o serviço vira SEU neste aparelho — você pode revisar e corrigir qualquer etapa antes de ir ao campo.</p>');
+    $('prep-aceitar').addEventListener('click', function () {
+      EC.app.fecharOverlay();
+      comecarDoPreparo(os, indice, prep);
+    });
+    $('prep-zero').addEventListener('click', function () {
+      EC.app.fecharOverlay();
+      abrirServico(os, indice, null);
+    });
+  }
+
+  function comecarDoPreparo(os, indice, prep) {
+    // Marca o aceite no servidor (best-effort: se a internet falhar agora, o
+    // preparo continua pendente lá — inofensivo, pois o rascunho local passa a
+    // existir e ele sempre vence; a etiqueta some no próximo aceite com rede).
+    if (EC.sync && EC.sync.aceitarPreparo) EC.sync.aceitarPreparo(prep.id).catch(function () { /* ok */ });
+    removerPreparoDoCache(prep.id);
+
+    const e = prep.estado || {};
+    e.rascunhoId = gerarRascunhoId();     // NOVO id deste aparelho (dono = quem aceitou)
+    e.passoAtual = e.passoAtual || 'tela-checkpoint';
+    e.iniciado = true;
+    abrirServico(os, indice, e);
+    EC.app.mostrarToast('📦 Preparo de ' + (prep.preparado_por || 'laboratório') + ' carregado — o serviço agora é seu.');
+  }
+
+  // ---- Sino: "serviços preparados para você" ----
+  function obterPreparosParaSino() {
+    const lista = EC.storage.ler(CH_PREPAROS_MEUS) || [];
+    if (!lista.length) return '<p class="texto-apoio">Nenhum serviço preparado no momento.</p>';
+    return lista.map(function (p) {
+      const m = String(p.servico_ref || '').match(/__s(\d+)$/);
+      const indice = m ? m[1] : '0';
+      return '<button type="button" class="overlay-item" style="width:100%;text-align:left;cursor:pointer" ' +
+        'onclick="EC.fluxo.abrirPreparo(\'' + escDg(p.os) + '\',' + indice + ')">' +
+        '📦 OS ' + escDg(p.os) + ' · ' + escDg(p.escopo || 'serviço') +
+        ' <span class="texto-apoio">— preparado por ' + escDg(p.preparado_por || '—') + '</span></button>';
+    }).join('');
+  }
+  function abrirPreparosSino() {
+    EC.app.abrirOverlay('📦 Preparados para você', obterPreparosParaSino());
+  }
+  // Sai do sino direto para o serviço (cai na MESMA oferta de aceite).
+  // Se a lista de OS ainda não foi baixada neste aparelho (ex.: tocou no sino
+  // antes de abrir "Serviços"), baixa primeiro e tenta de novo. O carregar NÃO
+  // chama o callback em erro de rede — por isso o temporizador de 7 s garante
+  // que o toque nunca morre em silêncio (o continuarRascunho avisa se faltar).
+  function abrirPreparo(numeroOs, indice) {
+    EC.app.fecharOverlay();
+    var i = parseInt(indice, 10) || 0;
+    if (EC.os && EC.os.osPorNumero && EC.os.osPorNumero(numeroOs)) { continuarRascunho(numeroOs, i); return; }
+    EC.app.mostrarToast('🔄 Buscando a OS…');
+    var feito = false;
+    function seguir() { if (feito) return; feito = true; continuarRascunho(numeroOs, i); }
+    if (EC.os && EC.os.carregar) EC.os.carregar(seguir); else { seguir(); return; }
+    setTimeout(seguir, 7000);
+  }
+
+  // ---- Etiqueta "📦 Preparado para Fulano" nos cards de serviço ----
+  // Melhor esforço: baixa as etiquetas da OS e repinta a lista se mudou algo.
+  function atualizarEtiquetasPreparo(os) {
+    if (!(EC.sync && EC.sync.etiquetasPreparo) || !navigator.onLine) return;
+    EC.sync.etiquetasPreparo(os.numero).then(function (etiquetas) {
+      const antes = JSON.stringify(EC.storage.ler(chaveEtiquetas(os.numero)) || []);
+      EC.storage.salvar(chaveEtiquetas(os.numero), etiquetas || []);
+      if (JSON.stringify(etiquetas || []) !== antes && !$('tela-servicos-os').classList.contains('oculto')) {
+        renderizarServicos(os); // repinta com as etiquetas frescas
+      }
+    }).catch(function () { /* offline/erro: fica como está */ });
+  }
+
+  function etiquetaPreparoHtml(numeroOs, indice) {
+    const alvo = servicoId(numeroOs, indice);
+    const etiquetas = EC.storage.ler(chaveEtiquetas(numeroOs)) || [];
+    for (let i = 0; i < etiquetas.length; i++) {
+      if (etiquetas[i] && etiquetas[i].servico_ref === alvo) {
+        return ' <span class="servico-status status-andamento">📦 p/ ' + escDg(etiquetas[i].destinatario_nome || '—') + '</span>';
+      }
+    }
+    return '';
   }
 
   /* ---------- Monitoramento em campo ---------- */
@@ -1621,6 +1828,7 @@ EC.fluxo = (function () {
       salvarPreparacaoRascunho(); // preparação segura (aparelho + servidor) antes do campo
       irPara('tela-passo4');
     });
+    $('checkpoint-enviar').addEventListener('click', enviarParaOCampo);
     $('checkpoint-salvar').addEventListener('click', salvarPreparacaoRascunho);
     $('checkpoint-voltar').addEventListener('click', function () { irPara('tela-passo3b'); });
     montarNavegacao('tela-passo4', {
@@ -1715,5 +1923,13 @@ EC.fluxo = (function () {
     aoTocarServico(os, indice);
   }
 
-  return { iniciar: iniciar, continuarRascunho: continuarRascunho };
+  return {
+    iniciar: iniciar,
+    continuarRascunho: continuarRascunho,
+    // Preparo de laboratório (bastão lab → campo)
+    verificarPreparos: verificarPreparos,
+    obterPreparosParaSino: obterPreparosParaSino,
+    abrirPreparosSino: abrirPreparosSino,
+    abrirPreparo: abrirPreparo
+  };
 })();

@@ -186,6 +186,8 @@
     if (EC.biblioteca && EC.biblioteca.atualizarSino) EC.biblioteca.atualizarSino();
     // Pagamento recebido: avisa o solicitante quando a Logística registrou o pagamento.
     if (EC.reembolso && EC.reembolso.verificarPagamentos) EC.reembolso.verificarPagamentos();
+    // Preparo de laboratório: há serviço preparado esperando por mim?
+    if (EC.fluxo && EC.fluxo.verificarPreparos) EC.fluxo.verificarPreparos();
     // Extrato geral (todas as solicitações): só Financeiro/Logística/admin.
     var pap = sessao.papeis || [];
     var ehGestor = pap.indexOf('financeiro') !== -1 || pap.indexOf('logistica') !== -1 || pap.indexOf('admin') !== -1;
@@ -567,12 +569,12 @@
   // conteúdo, vai direto pra ela (sem etapa no meio, igual sempre foi); com mais
   // de uma ao mesmo tempo, mostra as listas JÁ ABERTAS no mesmo lugar — sem
   // precisar escolher primeiro.
-  const sinoContagens = { aprovacoes: 0, pagamentos: 0, lembretes: 0, sgq: 0 };
+  const sinoContagens = { aprovacoes: 0, pagamentos: 0, lembretes: 0, sgq: 0, preparos: 0 };
   const sinoMostrarSempre = { aprovacoes: false }; // aprovações aparece p/ quem tem o papel, mesmo com 0
   function atualizarSino(chave, n, mostrarSempre) {
     sinoContagens[chave] = n;
     if (mostrarSempre !== undefined) sinoMostrarSempre[chave] = mostrarSempre;
-    const total = sinoContagens.aprovacoes + sinoContagens.pagamentos + sinoContagens.lembretes + sinoContagens.sgq;
+    const total = sinoContagens.aprovacoes + sinoContagens.pagamentos + sinoContagens.lembretes + sinoContagens.sgq + sinoContagens.preparos;
     const algumaFonteRelevante = sinoMostrarSempre.aprovacoes || total > 0;
     const botao = $('btn-aprovacoes');
     botao.classList.toggle('oculto', !algumaFonteRelevante);
@@ -586,13 +588,15 @@
     const querPagos = sinoContagens.pagamentos > 0;
     const querLemb = sinoContagens.lembretes > 0;
     const querSgq = sinoContagens.sgq > 0;
-    const fontes = (querAprov ? 1 : 0) + (querPagos ? 1 : 0) + (querLemb ? 1 : 0) + (querSgq ? 1 : 0);
+    const querPrep = sinoContagens.preparos > 0;
+    const fontes = (querAprov ? 1 : 0) + (querPagos ? 1 : 0) + (querLemb ? 1 : 0) + (querSgq ? 1 : 0) + (querPrep ? 1 : 0);
     if (fontes === 0) return;
     if (fontes === 1) {
       if (querAprov && EC.aprovacoes && EC.aprovacoes.abrir) EC.aprovacoes.abrir();
       else if (querPagos && EC.reembolso && EC.reembolso.abrirPagosSino) EC.reembolso.abrirPagosSino();
       else if (querLemb && EC.agenda && EC.agenda.abrirVistos) EC.agenda.abrirVistos();
       else if (querSgq && EC.biblioteca && EC.biblioteca.abrir) EC.biblioteca.abrir();
+      else if (querPrep && EC.fluxo && EC.fluxo.abrirPreparosSino) EC.fluxo.abrirPreparosSino();
       return;
     }
 
@@ -629,6 +633,10 @@
       const n = sinoContagens.sgq;
       partes.push('<p class="dg-secao">📚 Biblioteca (' + n + ')</p>' +
         '<div class="overlay-item sino-sgq" role="button" tabindex="0">📥 ' + n + ' documento(s) para baixar ou atualizar no aparelho — toque para abrir a Biblioteca.</div>');
+    }
+    if (querPrep && EC.fluxo && EC.fluxo.obterPreparosParaSino) {
+      partes.push('<p class="dg-secao">📦 Preparados para você (' + sinoContagens.preparos + ')</p>' +
+        EC.fluxo.obterPreparosParaSino());
     }
     $('overlay-conteudo').innerHTML = partes.join('');
     if (querPagos && EC.reembolso) {
@@ -680,6 +688,7 @@
     // algum pagamento foi registrado enquanto estava offline.
     if (sessaoAtual() && EC.biblioteca && EC.biblioteca.atualizarSino) EC.biblioteca.atualizarSino();
     if (sessaoAtual() && EC.reembolso && EC.reembolso.verificarPagamentos) EC.reembolso.verificarPagamentos();
+    if (sessaoAtual() && EC.fluxo && EC.fluxo.verificarPreparos) EC.fluxo.verificarPreparos();
     // Voltou a internet: reconfere se a conta ainda tem acesso.
     revalidarConta(true);
     mostrarToast('✅ Conexão restabelecida.');
