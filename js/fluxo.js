@@ -285,6 +285,23 @@ EC.fluxo = (function () {
     EC.sync.sincronizarRascunhoDados(registro);
   }
 
+  // Auto-envio PERIÓDICO dos dados (caso Edgar, OS 26133, 2026-07-26): quem
+  // digitava dentro da tela de campo e saía do app sem avançar/salvar ficava com
+  // os dados SÓ no aparelho — o auto-envio acima só dispara ao trocar de tela.
+  // Agora, com um serviço aberto, internet e algo alterado desde o último envio,
+  // os DADOS (sem fotos) sobem sozinhos a cada 4 min. Silencioso e best-effort;
+  // as fotos continuam indo no "Salvar rascunho"/Finalizar. Só roda com a tela
+  // visível (não gasta bateria em 2º plano).
+  var marcaUltimoAutoPush = '';
+  setInterval(function () {
+    if (!estado || !estado.iniciado || !estado.tipo) return;
+    if (!navigator.onLine || document.visibilityState !== 'visible') return;
+    var marca = estado.atualizadoEm || '';
+    if (marca === marcaUltimoAutoPush) return; // nada mudou desde o último envio
+    marcaUltimoAutoPush = marca;
+    autoPushDados();
+  }, 4 * 60 * 1000);
+
   // Sair do primeiro passo do serviço: volta à lista de serviços (OS com vários)
   // ou à lista de OS (OS com um único serviço).
   function voltarDoServico() {
@@ -1722,6 +1739,21 @@ EC.fluxo = (function () {
       const registro = montarRegistro();
       registro.finalizar = false;
       EC.sync.sincronizarRascunho(registro);
+      // PDF PARCIAL automático (pedido da Raisa, 2026-07-26): todo Salvar
+      // rascunho com dados de campo também gera um PDF do que já está
+      // preenchido e o sobe ao SharePoint — mais um resguardo em serviços
+      // longos, sem o técnico precisar lembrar do botão. Nome FIXO por serviço
+      // (sobrescreve o anterior, não acumula) e fora da lista local de PDFs.
+      // Silencioso e best-effort: falha aqui não atrapalha o salvamento.
+      if (estado.tipo && estado.campo && navigator.onLine &&
+          EC.pdf && EC.pdf.suporta && EC.pdf.suporta(registro) && EC.pdf.gerarSalvar) {
+        try {
+          var nomeParcial = String(registro.codificacao || '')
+            .replace(/_\d{8}_\d{6}$/, '') + '_RASCUNHO.pdf';
+          Promise.resolve(EC.pdf.gerarSalvar(registro, { nome: nomeParcial, semSalvarLocal: true }))
+            .catch(function () { /* best-effort */ });
+        } catch (e) { /* best-effort */ }
+      }
     }
     marcarEnviado(); // envio completo (com fotos): zera o aviso de "não enviado"
     return ok;

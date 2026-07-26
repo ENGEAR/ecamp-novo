@@ -332,7 +332,13 @@ EC.pdf = (function () {
   // Gera o PDF e o GUARDA (aparelho + SharePoint), sem abrir o compartilhar.
   // Devolve { blob, nome } — o compartilhar precisa de um toque do usuário
   // (restrição do navegador), então fica para o botão da tela.
-  function gerarSalvar(reg) {
+  //
+  // opcoes (usadas pelo PDF PARCIAL automático do "Salvar rascunho"):
+  //   nome           — nome fixo do arquivo (sobrescreve o mesmo no SharePoint,
+  //                    em vez de acumular um PDF novo a cada salvamento);
+  //   semSalvarLocal — não entra na lista local de PDFs do aparelho (é backup
+  //                    de servidor, não um PDF que o técnico foi buscar).
+  function gerarSalvar(reg, opcoes) {
     var Ctor = window.jspdf && window.jspdf.jsPDF;
     if (!Ctor) { if (EC.app) EC.app.mostrarToast('Biblioteca de PDF não carregou.'); return Promise.reject(); }
 
@@ -720,9 +726,9 @@ EC.pdf = (function () {
       }
 
       /* ---------- Salvar no app (o compartilhar fica com o chamador) ---------- */
-      var nome = nomeArquivo(reg);
+      var nome = (opcoes && opcoes.nome) || nomeArquivo(reg);
       var blob = doc.output('blob');
-      salvarPdf(reg, blob, nome); // guarda no aparelho (best-effort, não bloqueia)
+      if (!(opcoes && opcoes.semSalvarLocal)) salvarPdf(reg, blob, nome); // guarda no aparelho (best-effort)
       // Sobe para o SharePoint (pasta "PDFs Campo") — em paralelo, best-effort.
       try { if (EC.sync && EC.sync.enviarPdf) EC.sync.enviarPdf(nome, blob); } catch (e) { /* best-effort */ }
       return { blob: blob, nome: nome };
