@@ -162,11 +162,13 @@ EC.campoVibracao = (function () {
     temporizadorSalvar = setTimeout(salvar, 400);
   }
 
-  // ===== PERÍODO (diurno/noturno) — SÓ no CECAV =====
+  // ===== PERÍODO (diurno/noturno) — TODOS os escopos de sismografia =====
+  // (Nasceu no CECAV; estendido a todos a pedido da Raisa em 2026-07-26.)
   // Cada ponto tem uma medição COMPLETA por período (mesma ideia do Ruído).
   // Estrutura: ponto.periodos[periodo] = { todos os campos da medição }. Registro
-  // antigo (campos no topo do ponto) migra para o 1º período ao abrir. Fora do
-  // CECAV o ponto continua PLANO (sem períodos).
+  // antigo (campos no topo do ponto) migra para o 1º período ao abrir — rascunho
+  // em andamento não perde nada. Padrão: CECAV novo = ambos; demais = só Diurno
+  // (o técnico marca Noturno quando o serviço tiver).
   const PERIODOS = [
     { id: 'diurno', icone: '☀️', nome: 'Diurno' },
     { id: 'noturno', icone: '🌙', nome: 'Noturno' }
@@ -196,8 +198,9 @@ EC.campoVibracao = (function () {
     garantirPeriodos(ponto, p0 || periodo);
     return (ponto.periodos[periodo] = ponto.periodos[periodo] || {});
   }
-  // Objeto de medição "ativo": no CECAV é o do período exibido; senão o ponto (plano).
-  function alvoPonto(ponto) { return ehCecavAtivo() ? medPer(ponto, periodoExibido) : ponto; }
+  // Objeto de medição "ativo": a medição do período exibido (todos os escopos).
+  // garantirPeriodos migra na hora um rascunho antigo (campos no topo do ponto).
+  function alvoPonto(ponto) { return medPer(ponto, periodoExibido); }
   function medComDados(ponto, periodo) {
     const m = (ponto.periodos || {})[periodo];
     if (!m) return false;
@@ -266,15 +269,17 @@ EC.campoVibracao = (function () {
 
   /* ===== Campos gerais ===== */
 
-  // Seletor de PERÍODOS do CECAV (diurno/noturno). Campanha nova = ambos por
-  // padrão; registro antigo (dados no topo do ponto) = só diurno (não força noturno).
+  // Seletor de PERÍODOS (diurno/noturno) — todos os escopos de sismografia.
+  // Padrão: CECAV novo = ambos (exigência do estudo); demais escopos = só
+  // Diurno (marca Noturno quando o serviço tiver). Registro antigo (dados no
+  // topo do ponto) = só diurno — não força noturno em quem já estava no meio.
   function renderizarPeriodos() {
     const div = $('#cv-periodos');
     if (!div) return;
     const g = campo().geral;
     if (!Array.isArray(g.periodos) || !g.periodos.length) {
       const temAntigo = (campo().pontos || []).some(function (p) { return p && !p.periodos && Object.keys(p).length; });
-      g.periodos = temAntigo ? ['diurno'] : ['diurno', 'noturno'];
+      g.periodos = (temAntigo || !ehCecavAtivo()) ? ['diurno'] : ['diurno', 'noturno'];
     }
     div.innerHTML =
       '<p class="grupo-checks-titulo">🕒 Período de monitoramento</p>' +
@@ -311,8 +316,9 @@ EC.campoVibracao = (function () {
       (cecav
         ? '<label>Fonte de vibração<select data-campo="fonteVibracaoGeral"><option value="">Selecione…</option>' +
           Object.keys(FONTES_CECAV).map(function (n) { return '<option>' + n + '</option>'; }).join('') +
-          '</select></label><div id="cv-aviso-fonte"></div><div id="cv-periodos"></div>'
+          '</select></label><div id="cv-aviso-fonte"></div>'
         : '') +
+      '<div id="cv-periodos"></div>' + // períodos: TODOS os escopos de sismografia
       '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>' +
       (previstoPontos != null && previstoPontos !== '' ? '<p class="texto-apoio">Previsto na OS: ' + previstoPontos + ' ponto(s).</p>' : '') +
       '<div id="cv-just-pontos"></div>' +
@@ -397,14 +403,13 @@ EC.campoVibracao = (function () {
     const ponto = campo().pontos[n - 1];
     if (!ponto) { area.innerHTML = ''; return; }
 
-    const cecav = ehCecavAtivo();
     const periodos = periodosAtivos();
-    if (cecav && periodos.indexOf(periodoExibido) === -1) periodoExibido = periodos[0];
-    const alvo = alvoPonto(ponto); // no CECAV = a medição do período; senão o próprio ponto
+    if (periodos.indexOf(periodoExibido) === -1) periodoExibido = periodos[0];
+    const alvo = alvoPonto(ponto); // a medição do período exibido (todos os escopos)
 
-    // Abas de PERÍODO (CECAV, só se houver mais de um período marcado).
+    // Abas de PERÍODO (todos os escopos; só aparecem com mais de um marcado).
     let abasPeriodo = '';
-    if (cecav && periodos.length > 1) {
+    if (periodos.length > 1) {
       abasPeriodo = '<p class="grupo-checks-titulo">Período</p><div class="grade-tipos cv-periodo-abas">' + periodos.map(function (pid) {
         const P = PERIODOS.filter(function (x) { return x.id === pid; })[0] || { icone: '', nome: pid };
         const cheio = medComDados(ponto, pid) ? ' ✓' : '';
@@ -612,23 +617,21 @@ EC.campoVibracao = (function () {
     return falta;
   }
 
-  // No CECAV valida cada PERÍODO ativo (prefixando o rótulo quando há mais de um);
-  // fora do CECAV valida o ponto plano.
+  // Valida cada PERÍODO ativo do ponto (prefixando o rótulo quando há mais de
+  // um) — todos os escopos de sismografia. Ponto antigo (campos no topo) é
+  // migrado pelo medPer antes de validar, então nada escapa nem se perde.
   function itensFaltandoDoPonto(ponto, estado) {
     ponto = ponto || {};
-    if (ehCecav(estado)) {
-      const falta = [];
-      const periodos = periodosAtivos((estado.campo || {}).geral);
-      const p0 = periodos[0];
-      const varios = periodos.length > 1;
-      periodos.forEach(function (pid) {
-        const med = medPer(ponto, pid, p0);
-        const pref = varios ? (rotuloPeriodo(pid) + ' · ') : '';
-        faltasMedicao(med, estado).forEach(function (x) { falta.push(pref + x); });
-      });
-      return falta;
-    }
-    return faltasMedicao(ponto, estado);
+    const falta = [];
+    const periodos = periodosAtivos((estado.campo || {}).geral);
+    const p0 = periodos[0];
+    const varios = periodos.length > 1;
+    periodos.forEach(function (pid) {
+      const med = medPer(ponto, pid, p0);
+      const pref = varios ? (rotuloPeriodo(pid) + ' · ') : '';
+      faltasMedicao(med, estado).forEach(function (x) { falta.push(pref + x); });
+    });
+    return falta;
   }
 
   function itensFaltando(estado) {
