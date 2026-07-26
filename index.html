@@ -426,6 +426,18 @@
             <div id="rb-comp-info" class="alerta alerta-info oculto"></div>
             <p class="rb-sub">Evidência da quilometragem final <span class="rotulo-apoio">(obrigatório se preencher a km)</span></p>
             <div id="rb-anexos-complemento"></div>
+            <div id="rb-comp-ajuste-bloco" class="oculto">
+              <div class="rb-radios">
+                <label class="linha-check"><input type="radio" name="rb-comp-dec" value="concordo" checked><span>Concordo com o valor calculado</span></label>
+                <label class="linha-check"><input type="radio" name="rb-comp-dec" value="ajuste"><span>Solicitar ajuste</span></label>
+              </div>
+              <div id="rb-comp-ajuste" class="oculto">
+                <label>Novo valor proposto<input type="text" id="rb-comp-novoval" inputmode="numeric" class="rb-moeda" placeholder="R$ 0,00"></label>
+                <label>Justificativa do ajuste<textarea id="rb-comp-just" rows="2" placeholder="Explique o que precisa ser ajustado"></textarea></label>
+                <p class="rb-sub">Evidências do ajuste <span class="rotulo-apoio">(fotos ou PDF)</span></p>
+                <div id="rb-anexos-comp-ajuste"></div>
+              </div>
+            </div>
           </div>
 
           <div id="rb-viagem" class="oculto">

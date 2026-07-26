@@ -553,6 +553,18 @@ EC.reembolso = (function () {
     return raw ? Math.round(parseInt(raw, 10)) / 100 : null;
   }
 
+  // ---- Ajuste do +Complemento (mesmo padrão da Viagem, mas para o valor
+  // calculado automaticamente do combustível dos km a mais). ----
+  function compDecisao() {
+    var m = document.querySelector('input[name="rb-comp-dec"]:checked');
+    return m ? m.value : 'concordo';
+  }
+  function compValorProposto() {
+    if (compDecisao() !== 'ajuste') return null;
+    var raw = ($('rb-comp-novoval').value || '').replace(/\D/g, '');
+    return raw ? Math.round(parseInt(raw, 10)) / 100 : null;
+  }
+
   // Total da logística: calculado, substituindo pelos novos valores propostos
   function totalComAjustes(calc) {
     var total = calc.total;
@@ -1013,7 +1025,9 @@ EC.reembolso = (function () {
       pecas: criarAnexos($('rb-anexos-pecas'), { iniciais: anexosIniciais.pecas, aoMudar: salvarRascunhoLogo }),
       manutencao: criarAnexos($('rb-anexos-manutencao'), { iniciais: anexosIniciais.manutencao, aoMudar: salvarRascunhoLogo }),
       // Evidências do COMPLEMENTO de gastos (OS já paga)
-      complemento: criarAnexos($('rb-anexos-complemento'), { iniciais: anexosIniciais.complemento, aoMudar: salvarRascunhoLogo, carimbar: true, semGaleria: true })
+      complemento: criarAnexos($('rb-anexos-complemento'), { iniciais: anexosIniciais.complemento, aoMudar: salvarRascunhoLogo, carimbar: true, semGaleria: true }),
+      // Evidências do ajuste do valor calculado do complemento
+      comp_ajuste: criarAnexos($('rb-anexos-comp-ajuste'), { iniciais: anexosIniciais.comp_ajuste, aoMudar: salvarRascunhoLogo })
     };
     ITENS.forEach(function (it) {
       anexos['ajuste_' + it.chave] = criarAnexos($('rb-anexos-ajuste_' + it.chave),
@@ -1199,8 +1213,18 @@ EC.reembolso = (function () {
       }
       if (linhas.length) { info.innerHTML = linhas.join('<br>'); info.classList.remove('oculto'); }
       else info.classList.add('oculto');
-      if (c.ok) comps.push('➕ Complemento de combustível (' + c.extra + ' km a mais): ' + moedaBR(c.valor));
-      total = Math.round((c.valor + outros) * 100) / 100;
+      // Ajuste do valor calculado (combustível) — só quando há valor calculado.
+      $('rb-comp-ajuste-bloco').classList.toggle('oculto', !c.ok);
+      var compAjuste = c.ok && compDecisao() === 'ajuste';
+      $('rb-comp-ajuste').classList.toggle('oculto', !compAjuste);
+      var propostoComp = compValorProposto();
+      var valorComb = (compAjuste && propostoComp != null) ? propostoComp : c.valor;
+      if (c.ok) {
+        comps.push(compAjuste && propostoComp != null
+          ? '➕ Complemento de combustível (ajuste solicitado): ' + moedaBR(propostoComp)
+          : '➕ Complemento de combustível (' + c.extra + ' km a mais): ' + moedaBR(c.valor));
+      }
+      total = Math.round((valorComb + outros) * 100) / 100;
       pronto = !!tecSel && !c.erroKm && total > 0;
     } else if (tipoSel === 'evento') {
       var dias = parseInt($('rb-evento-dias').value, 10) || 0;
@@ -1292,6 +1316,9 @@ EC.reembolso = (function () {
       veicPecas: $('rb-veic-pecas').value,
       veicManutencao: $('rb-veic-manutencao').value,
       compKmFinal: $('rb-comp-kmfinal').value,
+      compDec: compDecisao(),
+      compNovoval: $('rb-comp-novoval').value,
+      compJust: $('rb-comp-just').value,
       outrosValor: $('rb-outros-valor').value,
       outrosJust: $('rb-outros-just').value,
       origemCidade: $('rb-origem-cidade').value, origemUf: $('rb-origem-uf').value,
@@ -1357,6 +1384,10 @@ EC.reembolso = (function () {
       porMoeda('rb-veic-pecas', r.veicPecas);
       porMoeda('rb-veic-manutencao', r.veicManutencao);
       if (r.compKmFinal) $('rb-comp-kmfinal').value = r.compKmFinal;
+      var radComp = document.querySelector('input[name="rb-comp-dec"][value="' + (r.compDec === 'ajuste' ? 'ajuste' : 'concordo') + '"]');
+      if (radComp) radComp.checked = true;
+      porMoeda('rb-comp-novoval', r.compNovoval);
+      if (r.compJust) $('rb-comp-just').value = r.compJust;
       porMoeda('rb-outros-valor', r.outrosValor);
       if (r.outrosJust) $('rb-outros-just').value = r.outrosJust;
       if (r.veiculo) {
@@ -1548,6 +1579,12 @@ EC.reembolso = (function () {
     $('rb-veic-abastecimento').value = ''; $('rb-veic-pecas').value = ''; $('rb-veic-manutencao').value = '';
     $('rb-comp-kmfinal').value = ''; $('rb-comp-kminicial').value = '';
     if ($('rb-comp-info')) $('rb-comp-info').classList.add('oculto');
+    // Ajuste do complemento: volta para "concordo" e limpa proposto/justificativa.
+    var compConcordo = document.querySelector('input[name="rb-comp-dec"][value="concordo"]');
+    if (compConcordo) compConcordo.checked = true;
+    if ($('rb-comp-novoval')) $('rb-comp-novoval').value = '';
+    if ($('rb-comp-just')) $('rb-comp-just').value = '';
+    if ($('rb-comp-ajuste-bloco')) $('rb-comp-ajuste-bloco').classList.add('oculto');
     compViagem = null;
     $('rb-outros-valor').value = ''; $('rb-outros-just').value = '';
     var radAdNao = document.querySelector('input[name="rb-adiant"][value="nao"]');
@@ -1792,7 +1829,15 @@ EC.reembolso = (function () {
     if (tipoSel === 'complemento') {
       var c = calcularComplemento();
       if (c.erroKm) return mostrarErro(c.msg || 'Confira a quilometragem informada.');
-      total = Math.round((c.valor + outros) * 100) / 100;
+      // Ajuste do valor calculado do combustível (mesmo padrão da Viagem).
+      var compAjuste = c.ok && compDecisao() === 'ajuste';
+      var propostoComp = compValorProposto();
+      if (compAjuste) {
+        if (propostoComp == null) return mostrarErro('Você pediu ajuste do complemento — informe o novo valor proposto (R$).');
+        if (!$('rb-comp-just').value.trim()) return mostrarErro('Você pediu ajuste do complemento — escreva a justificativa.');
+      }
+      var valorComb = compAjuste ? propostoComp : c.valor;
+      total = Math.round((valorComb + outros) * 100) / 100;
       if (!(total > 0)) return mostrarErro('Informe a quilometragem a mais e/ou um valor em outros gastos.');
       if (c.ok && anexos.complemento.obter().length === 0) return mostrarErro('Anexe a foto da quilometragem final (obrigatória para o complemento por km).');
       if (outros > 0 && !$('rb-outros-just').value.trim()) return mostrarErro('Escreva a justificativa dos outros gastos.');
@@ -1800,6 +1845,11 @@ EC.reembolso = (function () {
       // branco), vai null e o servidor cobra só os outros gastos.
       extra.kmFinal = c.ok ? c.final : null;
       blocos = ['complemento', 'outros'];
+      if (compAjuste) {
+        // O valor proposto entra no total no servidor; o ajuste fica gravado.
+        extra.ajustes = [{ item: 'transporte', justificativa: $('rb-comp-just').value.trim(), valorProposto: propostoComp }];
+        blocos.push('comp_ajuste');
+      }
     } else if (tipoSel === 'evento') {
       var dias = parseInt($('rb-evento-dias').value, 10) || 0;
       if (!(dias >= 1)) return mostrarErro('Informe quantos dias de serviço (1 ou mais).');
@@ -3135,6 +3185,12 @@ EC.reembolso = (function () {
     // Campos monetários do reembolso de serviços: máscara R$ + recálculo.
     ['rb-veic-abastecimento', 'rb-veic-pecas', 'rb-veic-manutencao', 'rb-outros-valor']
       .forEach(function (id) { ligarMoeda(id, pintarValores); });
+    // Ajuste do valor calculado do +Complemento: rádios + valor proposto (máscara).
+    document.querySelectorAll('input[name="rb-comp-dec"]').forEach(function (r) {
+      r.addEventListener('change', function () { pintarValores(); salvarRascunhoLogo(); });
+    });
+    ligarMoeda('rb-comp-novoval', pintarValores);
+    $('rb-comp-just').addEventListener('input', salvarRascunhoLogo);
     $('rb-chegada-casa').addEventListener('input', pintarValores);
     document.querySelectorAll('input[name="rb-adiant"]').forEach(function (r) { r.addEventListener('change', pintarValores); });
     ligarMoeda('rb-adiant-valor', pintarValores);

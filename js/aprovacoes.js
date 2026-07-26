@@ -300,7 +300,7 @@ EC.aprovacoes = (function () {
 
   // Detalhe de EVENTOS, VEÍCULOS e COMPLEMENTO: pagamento único (100%), sem datas
   // de viagem, sem base de cálculo automática e sem resumo orçamentário da campanha.
-  function renderDetalheSimples(s) {
+  function renderDetalheSimples(s, ajustes) {
     var t = s.tipo === 'evento' ? 'evento' : (s.tipo === 'complemento' ? 'complemento' : 'veiculo');
     var ehAvulso = s.tipo === 'outros_gastos';
     var cat = s.solicitante_tipo === 'freelancer' ? 'Freelancer' : (s.solicitante_tipo === 'clt' ? 'CLT' : '—');
@@ -340,6 +340,14 @@ EC.aprovacoes = (function () {
     if (Number(s.valor_outros) > 0 && s.outros_justificativa) {
       outrosJust += '<div class="apr-just">💠 Justificativa dos outros gastos: ' + esc(s.outros_justificativa) + '</div>';
     }
+    // Ajuste do valor calculado pedido pelo técnico (hoje: complemento).
+    var ajHtml = (ajustes && ajustes.length)
+      ? '<p class="dg-secao">Ajuste solicitado pelo técnico</p>' + ajustes.map(function (a) {
+          return '<div class="apr-ajuste"><strong>' + esc(ITENS_ROTULO[a.item] || a.item) + '</strong>: calculado ' +
+            moeda(a.valor_calculado) + ' → proposto <b>' + moeda(a.valor_proposto) + '</b>' +
+            (a.justificativa ? '<br><span class="rotulo-apoio">' + esc(a.justificativa) + '</span>' : '') + '</div>';
+        }).join('')
+      : '';
 
     // Pagamento único (100%): o adiantamento desconta por inteiro.
     var adiant = Number(s.adiantamento_valor) || 0;
@@ -365,12 +373,13 @@ EC.aprovacoes = (function () {
       '<p class="dg-secao">Valores</p>' +
       '<div class="apr-valores">' + valoresHtml + '</div>' +
       outrosJust +
+      ajHtml +
       hero
     );
   }
 
   function renderDetalhe(s, ajustes) {
-    if ((s.tipo || 'viagem') !== 'viagem') return renderDetalheSimples(s);
+    if ((s.tipo || 'viagem') !== 'viagem') return renderDetalheSimples(s, ajustes);
     var tipo = s.solicitante_tipo === 'freelancer' ? 'Freelancer' : (s.solicitante_tipo === 'clt' ? 'CLT' : '—');
     var alimentacao = Number(s.valor_almoco || 0) + Number(s.valor_jantar || 0) + Number(s.valor_lanche || 0);
     // ajuste por item (traz o valor calculado e o proposto)
