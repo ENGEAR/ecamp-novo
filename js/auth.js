@@ -165,6 +165,38 @@
     return 'ok';
   }
 
+  /**
+   * Devolve um access_token (JWT) VÁLIDO da sessão, para mandar ao servidor no
+   * header Authorization. É a IDENTIDADE real do usuário (o servidor confia
+   * nisto, não no nome guardado no aparelho). Renova na hora se estiver perto de
+   * vencer — o app fica dias em 2º plano e o auto-refresh do supabase-js pode não
+   * ter rodado. Devolve '' se não há sessão / está offline (o chamador manda só
+   * o x-ecamp-token; o servidor tolera enquanto os apps não atualizam).
+   *
+   * Mesma lógica do os.js (tokenValido) — centralizada aqui para os demais
+   * módulos (sync, reembolso, equipamentos) reusarem sem duplicar.
+   */
+  async function tokenValido() {
+    var sb = obterCliente();
+    if (!sb) return '';
+    try {
+      var s = await sb.auth.getSession();
+      var sess = s && s.data && s.data.session;
+      if (!sess) return '';
+      var agora = Math.floor(Date.now() / 1000);
+      var venceEm = sess.expires_at || 0;
+      if (!venceEm || (venceEm - agora) < 90) {
+        try {
+          var r = await sb.auth.refreshSession();
+          if (r && r.data && r.data.session) sess = r.data.session;
+        } catch (e) { /* offline/refresh falhou: usa o token atual mesmo */ }
+      }
+      return (sess && sess.access_token) || '';
+    } catch (e) {
+      return '';
+    }
+  }
+
   /** Sai da conta (ignora falhas de rede — a sessão local é apagada pelo app). */
   async function sair() {
     var sb = obterCliente();
@@ -173,5 +205,5 @@
 
   window.EC = window.EC || {};
   // cliente: outros módulos (ex.: Agenda) usam a MESMA conexão autenticada.
-  EC.auth = { entrar: entrar, sair: sair, cliente: obterCliente, meusPapeis: meusPapeis, trocarSenha: trocarSenha, revalidar: revalidar };
+  EC.auth = { entrar: entrar, sair: sair, cliente: obterCliente, meusPapeis: meusPapeis, trocarSenha: trocarSenha, revalidar: revalidar, tokenValido: tokenValido };
 })();

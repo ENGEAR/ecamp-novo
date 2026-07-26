@@ -35,7 +35,14 @@ EC.equip = (function () {
   }
 
   async function atualizarDoServidor() {
-    var resp = await fetch(ROTA_EQUIP, { headers: { 'x-ecamp-token': TOKEN } });
+    // Porta (x-ecamp-token) + identidade real (Authorization: Bearer <JWT>).
+    // Offline/sem sessão manda só o token — o servidor tolera na Etapa 2.
+    var headers = { 'x-ecamp-token': TOKEN };
+    try {
+      var t = (EC.auth && EC.auth.tokenValido) ? await EC.auth.tokenValido() : '';
+      if (t) headers['Authorization'] = 'Bearer ' + t;
+    } catch (e) { /* sem sessão/offline */ }
+    var resp = await fetch(ROTA_EQUIP, { headers: headers });
     var corpo = await resp.json();
     if (!resp.ok || !corpo.ok) throw new Error(corpo.erro || ('HTTP ' + resp.status));
     if (corpo.equipamentos) EC.storage.salvar(CH_LISTA, corpo.equipamentos);

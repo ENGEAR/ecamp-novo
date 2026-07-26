@@ -48,11 +48,24 @@ EC.sync = (function () {
     } catch (e) { /* ok */ }
   }
 
+  // Monta os cabeçalhos das chamadas ao SGP: a "porta" (x-ecamp-token) + a
+  // IDENTIDADE real do usuário (Authorization: Bearer <JWT da sessão>). O
+  // servidor confia no JWT, não no nome guardado no aparelho. Sem sessão/offline
+  // vai só o token — o servidor tolera enquanto os apps não atualizam (Etapa 2).
+  async function cabecalhos(extra) {
+    var h = Object.assign({ 'x-ecamp-token': TOKEN }, extra || {});
+    try {
+      var t = (EC.auth && EC.auth.tokenValido) ? await EC.auth.tokenValido() : '';
+      if (t) h['Authorization'] = 'Bearer ' + t;
+    } catch (e) { /* sem sessão/offline: manda só o token */ }
+    return h;
+  }
+
   // POST JSON com o token. Lança erro em falha (err.naoSuportado=true se 422).
   async function postJson(url, dados) {
     var resposta = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-ecamp-token': TOKEN },
+      headers: await cabecalhos({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(dados)
     });
     var corpo = {};
@@ -178,7 +191,7 @@ EC.sync = (function () {
     try {
       var resposta = await fetch(ROTA_PDF + '?nome=' + encodeURIComponent(nome || 'Relatorio.pdf'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/pdf', 'x-ecamp-token': TOKEN },
+        headers: await cabecalhos({ 'Content-Type': 'application/pdf' }),
         body: blob
       });
       var corpo = {};
@@ -272,7 +285,7 @@ EC.sync = (function () {
     var q = '?os=' + encodeURIComponent(os) +
       '&escopo=' + encodeURIComponent(escopo || '') +
       '&servico=' + encodeURIComponent(servico || '');
-    var resposta = await fetch(ROTA_RASCUNHO + q, { headers: { 'x-ecamp-token': TOKEN } });
+    var resposta = await fetch(ROTA_RASCUNHO + q, { headers: await cabecalhos() });
     var corpo = {};
     try { corpo = await resposta.json(); } catch (e) { /* vazio */ }
     if (!resposta.ok || !corpo.ok) throw new Error(corpo.erro || ('HTTP ' + resposta.status));
@@ -283,7 +296,7 @@ EC.sync = (function () {
   // tela de serviços para marcar quais a equipe já começou e por quem. Devolve
   // [{ rascunhoId, servicoId, escopo, tecnico, atualizadoEm }]. Erro se offline.
   async function listarRascunhos(os) {
-    var resposta = await fetch(ROTA_RASCUNHO + '?lista=1&os=' + encodeURIComponent(os), { headers: { 'x-ecamp-token': TOKEN } });
+    var resposta = await fetch(ROTA_RASCUNHO + '?lista=1&os=' + encodeURIComponent(os), { headers: await cabecalhos() });
     var corpo = {};
     try { corpo = await resposta.json(); } catch (e) { /* vazio */ }
     if (!resposta.ok || !corpo.ok) throw new Error(corpo.erro || ('HTTP ' + resposta.status));
@@ -384,7 +397,7 @@ EC.sync = (function () {
   // Lista de documentos ativos (só metadados). Lança erro se offline/falhar.
   async function buscarBiblioteca() {
     var resposta = await fetch(BASE_BIBLIOTECA + '/lista', {
-      headers: { 'x-ecamp-token': TOKEN }
+      headers: await cabecalhos()
     });
     var corpo = {};
     try { corpo = await resposta.json(); } catch (e) { /* corpo vazio */ }
@@ -395,7 +408,7 @@ EC.sync = (function () {
   // Bytes do PDF de um documento → Blob. Lança erro se offline/falhar.
   async function baixarDocumentoBiblioteca(id) {
     var resposta = await fetch(BASE_BIBLIOTECA + '/arquivo?id=' + encodeURIComponent(id), {
-      headers: { 'x-ecamp-token': TOKEN }
+      headers: await cabecalhos()
     });
     if (!resposta.ok) {
       var corpo = {};

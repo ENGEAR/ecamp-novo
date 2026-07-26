@@ -152,10 +152,23 @@ EC.reembolso = (function () {
 
   /* ============ HTTP ============ */
 
+  // Cabeçalhos: a "porta" (x-ecamp-token) + a IDENTIDADE real do usuário
+  // (Authorization: Bearer <JWT>). Fecha o furo de pedir o reembolso de outra
+  // pessoa trocando o nome — o servidor passa a confiar no JWT, não no nome do
+  // aparelho. Offline/sem sessão manda só o token (o servidor tolera na Etapa 2).
+  async function cabecalhos(extra) {
+    var h = Object.assign({ 'x-ecamp-token': TOKEN }, extra || {});
+    try {
+      var t = (EC.auth && EC.auth.tokenValido) ? await EC.auth.tokenValido() : '';
+      if (t) h['Authorization'] = 'Bearer ' + t;
+    } catch (e) { /* sem sessão/offline: manda só o token */ }
+    return h;
+  }
+
   async function postJson(url, dados) {
     var resposta = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-ecamp-token': TOKEN },
+      headers: await cabecalhos({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(dados)
     });
     var corpo = {};
@@ -169,7 +182,7 @@ EC.reembolso = (function () {
   }
 
   async function getJson(url) {
-    var resposta = await fetch(url, { headers: { 'x-ecamp-token': TOKEN } });
+    var resposta = await fetch(url, { headers: await cabecalhos() });
     var corpo = await resposta.json();
     if (!resposta.ok || !corpo.ok) throw new Error(corpo.erro || ('HTTP ' + resposta.status));
     return corpo;
