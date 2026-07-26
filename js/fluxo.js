@@ -696,7 +696,10 @@ EC.fluxo = (function () {
     estado.servico = fresh.servico;
     if (estado.dadosGerais.qtdePontosOS === undefined) estado.dadosGerais.qtdePontosOS = os.servicos[indice].qtdePontos;
     if (estado.dadosGerais.justificativaPontos === undefined) estado.dadosGerais.justificativaPontos = '';
-    salvarEstado();
+    // ABRIR/continuar o serviço não é preenchimento do técnico — persiste a
+    // reidratação SEM acender o aviso de "não enviado" (senão ele acendia só de
+    // reabrir o serviço, mesmo com tudo já salvo).
+    salvarEstado(true);
     irPara(estado.passoAtual || 'tela-dados-gerais');
   }
 
