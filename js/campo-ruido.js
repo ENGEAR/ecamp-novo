@@ -598,7 +598,7 @@ EC.campoRuido = (function () {
 
   // Continua do último ponto/ambiente aberto (ex.: retomar o serviço no dia
   // seguinte) em vez de voltar sempre ao ponto 1. Guardado no rascunho.
-  function lembrarPonto(n) { campo().pontoAtual = n; salvar(); }
+  function lembrarPonto(n) { campo().pontoAtual = n; ((ctx && ctx.salvarSemMarcar) || salvar)(); } // navegação: não acende o aviso de "não enviado"
   function lembrarAmbiente(n) { campo().ambienteAtual = n; salvar(); }
   function inicial(valor) { var n = parseInt(valor, 10); return (n && n > 0) ? n : 1; }
 

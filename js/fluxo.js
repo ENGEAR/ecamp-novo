@@ -184,6 +184,10 @@ EC.fluxo = (function () {
 
   // semBump=true persiste SEM avançar `atualizadoEm` — usado para gravar a marca
   // de "enviado" (enviadoEm) sem que isso conte como uma nova alteração pendente.
+  // salvarSemMarcar é a versão para NAVEGAÇÃO (trocar de tela/ponto): persiste,
+  // mas não acende o aviso de "não enviado" — os módulos de campo a usam no
+  // "lembrar o ponto aberto".
+  function salvarSemMarcar() { salvarEstado(true); }
   function salvarEstado(semBump) {
     if (!estado) return false;
     // Só marca a OS como "em andamento" (grava rascunho) DEPOIS que o técnico
@@ -244,12 +248,17 @@ EC.fluxo = (function () {
   /* ---------- Navegação ---------- */
 
   function irPara(idTela) {
-    if (estado && telaExibida === 'tela-dados-gerais') coletarDadosGerais();
+    const saiuDosDadosGerais = (estado && telaExibida === 'tela-dados-gerais');
+    if (saiuDosDadosGerais) coletarDadosGerais();
     if (estado) {
       estado.passoAtual = idTela;
       // Sair da 1ª tela para qualquer outra = o técnico começou de fato.
       if (idTela !== 'tela-dados-gerais') estado.iniciado = true;
-      salvarEstado();
+      // NAVEGAR não é alteração de conteúdo: salva SEM acender o aviso de
+      // "não enviado" (reclamação da Raisa 2026-07-26 — o aviso aparecia só de
+      // entrar na tela de campo, com tudo já salvo). Exceção: saindo dos dados
+      // gerais, os campos editáveis de lá podem ter mudado → conta como alteração.
+      salvarEstado(!saiuDosDadosGerais);
     }
     // O botão flutuante "Salvar rascunho" aparece da Seleção de equipamentos em diante.
     mostrarFabSalvar(telaTemFab(idTela));
@@ -1343,9 +1352,9 @@ EC.fluxo = (function () {
     $('campo-bloqueio').innerHTML = '';
     const area = $('campo-conteudo');
     if (estado.tipo === 'ruido') {
-      EC.campoRuido.renderizar(area, { estado: estado, salvar: salvarEstado });
+      EC.campoRuido.renderizar(area, { estado: estado, salvar: salvarEstado, salvarSemMarcar: salvarSemMarcar });
     } else if (estado.tipo === 'sismo') {
-      EC.campoVibracao.renderizar(area, { estado: estado, salvar: salvarEstado });
+      EC.campoVibracao.renderizar(area, { estado: estado, salvar: salvarEstado, salvarSemMarcar: salvarSemMarcar });
     } else if (estado.tipo === 'qar' && qarParticulado()) {
       // salvarRascunho = salvar COMPLETO (aparelho + servidor), usado pelos
       // botões de "Salvar rascunho" entre as coletas (resguarda em serviços longos).
@@ -1354,15 +1363,16 @@ EC.fluxo = (function () {
       EC.campoQar.renderizar(area, {
         estado: estado,
         salvar: salvarEstado,
+        salvarSemMarcar: salvarSemMarcar,
         salvarRascunho: aoSalvarRascunho,
         gerarPdf: function () { salvarEstado(); return EC.pdf && EC.pdf.gerar(montarRegistro()); }
       });
     } else if (estado.tipo === 'opacidade') {
-      EC.campoOpacidade.renderizar(area, { estado: estado, salvar: salvarEstado });
+      EC.campoOpacidade.renderizar(area, { estado: estado, salvar: salvarEstado, salvarSemMarcar: salvarSemMarcar });
     } else if (estado.tipo === 'qarint') {
-      EC.campoQarInterno.renderizar(area, { estado: estado, salvar: salvarEstado });
+      EC.campoQarInterno.renderizar(area, { estado: estado, salvar: salvarEstado, salvarSemMarcar: salvarSemMarcar });
     } else if (estado.tipo === 'outro') {
-      EC.campoOutro.renderizar(area, { estado: estado, salvar: salvarEstado });
+      EC.campoOutro.renderizar(area, { estado: estado, salvar: salvarEstado, salvarSemMarcar: salvarSemMarcar });
     } else {
       area.innerHTML = '<p class="texto-grande">🚧 Em construção.</p>' +
         '<p>O formulário de campo de <strong>' + nomeTipo(estado.tipo) + '</strong> entra na Fase 4. O tipo Ruído já está completo — ele é o piloto.</p>';

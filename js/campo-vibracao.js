@@ -152,7 +152,7 @@ EC.campoVibracao = (function () {
   function campo() { return ctx.estado.campo; }
   function salvar() { ctx.salvar(); }
   // Continua do último ponto aberto (ex.: retomar o serviço no dia seguinte).
-  function lembrarPonto(n) { campo().pontoAtual = n; salvar(); }
+  function lembrarPonto(n) { campo().pontoAtual = n; ((ctx && ctx.salvarSemMarcar) || salvar)(); } // navegação: não acende o aviso de "não enviado"
   function pontoInicial() {
     var n = parseInt(campo().pontoAtual, 10);
     return (n && n > 0) ? n : 1; // renderizarPontos limita ao total depois
