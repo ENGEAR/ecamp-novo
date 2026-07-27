@@ -298,10 +298,18 @@ EC.fluxo = (function () {
   // digitava dentro da tela de campo e saía do app sem avançar/salvar ficava com
   // os dados SÓ no aparelho — o auto-envio acima só dispara ao trocar de tela.
   // Agora, com um serviço aberto, internet e algo alterado desde o último envio,
-  // os DADOS (sem fotos) sobem sozinhos a cada 4 min. Silencioso e best-effort;
-  // as fotos continuam indo no "Salvar rascunho"/Finalizar. Só roda com a tela
-  // visível (não gasta bateria em 2º plano).
+  // os DADOS (sem fotos) sobem sozinhos. Silencioso e best-effort; as fotos
+  // continuam indo no "Salvar rascunho"/Finalizar. Só roda com a tela visível
+  // (não gasta bateria em 2º plano).
+  //
+  // INTERVALO: 15 min (era 4). A conta da Vercel é do plano GRÁTIS e bateu 100%
+  // da cota mensal de processamento em 2026-07-26 — se estourar, os projetos são
+  // PAUSADOS e o sistema sai do ar. 15 min continua cobrindo o caso do Edgar
+  // (perder no máximo o preenchimento dos últimos minutos) com ~4× menos
+  // chamadas ao servidor. Trocar de tela e "Salvar rascunho" seguem enviando na
+  // hora, então o resguardo real é bem mais frequente que o relógio.
   var marcaUltimoAutoPush = '';
+  var INTERVALO_AUTO_PUSH = 15 * 60 * 1000;
   setInterval(function () {
     if (!estado || !estado.iniciado || !estado.tipo) return;
     if (!navigator.onLine || document.visibilityState !== 'visible') return;
@@ -309,7 +317,7 @@ EC.fluxo = (function () {
     if (marca === marcaUltimoAutoPush) return; // nada mudou desde o último envio
     marcaUltimoAutoPush = marca;
     autoPushDados();
-  }, 4 * 60 * 1000);
+  }, INTERVALO_AUTO_PUSH);
 
   // Sair do primeiro passo do serviço: volta à lista de serviços (OS com vários)
   // ou à lista de OS (OS com um único serviço).
@@ -1742,6 +1750,21 @@ EC.fluxo = (function () {
 
   /* ---------- Amarração dos botões ---------- */
 
+  // Espaçamento do PDF parcial automático: 1 a cada 30 min POR SERVIÇO. A marca
+  // vive no próprio rascunho (sobrevive a fechar o app) e não conta como
+  // alteração pendente — por isso grava com salvarEstado(true).
+  const INTERVALO_PDF_PARCIAL = 30 * 60 * 1000;
+  function pdfParcialVencido() {
+    if (!estado) return false;
+    const ultimo = Date.parse(estado.pdfParcialEm || '') || 0;
+    return (Date.now() - ultimo) >= INTERVALO_PDF_PARCIAL;
+  }
+  function marcarPdfParcial() {
+    if (!estado) return;
+    estado.pdfParcialEm = new Date().toISOString();
+    salvarEstado(true);
+  }
+
   function aoSalvarRascunho() {
     if (estado && telaExibida === 'tela-dados-gerais') coletarDadosGerais();
     if (estado) estado.iniciado = true; // salvar rascunho conta como iniciar
@@ -1752,17 +1775,23 @@ EC.fluxo = (function () {
       const registro = montarRegistro();
       registro.finalizar = false;
       EC.sync.sincronizarRascunho(registro);
-      // PDF PARCIAL automático (pedido da Raisa, 2026-07-26): todo Salvar
-      // rascunho com dados de campo também gera um PDF do que já está
-      // preenchido e o sobe ao SharePoint — mais um resguardo em serviços
-      // longos, sem o técnico precisar lembrar do botão. Nome FIXO por serviço
-      // (sobrescreve o anterior, não acumula) e fora da lista local de PDFs.
-      // Silencioso e best-effort: falha aqui não atrapalha o salvamento.
-      if (estado.tipo && estado.campo && navigator.onLine &&
+      // PDF PARCIAL automático (pedido da Raisa, 2026-07-26): o Salvar rascunho
+      // com dados de campo também gera um PDF do que já está preenchido e o
+      // sobe ao SharePoint — resguardo em serviços longos, sem depender de o
+      // técnico lembrar do botão. Nome FIXO por serviço (sobrescreve, não
+      // acumula) e fora da lista local. Silencioso e best-effort.
+      //
+      // ESPAÇADO em 30 min por serviço (2026-07-27): gerar+subir PDF é a
+      // operação mais cara do fluxo e a conta da Vercel (plano grátis) bateu a
+      // cota mensal de processamento. Quem salva várias vezes seguidas (o normal
+      // entre coletas) sobe 1 PDF a cada meia hora, não um por toque. O botão
+      // "📄 PDF" do QAR continua gerando NA HORA quando o técnico pede.
+      if (estado.tipo && estado.campo && navigator.onLine && pdfParcialVencido() &&
           EC.pdf && EC.pdf.suporta && EC.pdf.suporta(registro) && EC.pdf.gerarSalvar) {
         try {
           var nomeParcial = String(registro.codificacao || '')
             .replace(/_\d{8}_\d{6}$/, '') + '_RASCUNHO.pdf';
+          marcarPdfParcial();
           Promise.resolve(EC.pdf.gerarSalvar(registro, { nome: nomeParcial, semSalvarLocal: true }))
             .catch(function () { /* best-effort */ });
         } catch (e) { /* best-effort */ }

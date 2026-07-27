@@ -79,13 +79,46 @@
   // aconteceu em 2026-07-23). Aqui só AVISAMOS: redirecionar deixaria os rascunhos
   // deste endereço inacessíveis, porque o app nem chegaria a carregar para sincronizar.
   const HOST_OFICIAL = 'ecamp-engear.vercel.app';
+  function ehEnderecoLocal() {
+    const h = (location.hostname || '').toLowerCase();
+    return !h || h === 'localhost' || h === '127.0.0.1' || h.indexOf('192.168.') === 0;
+  }
   function avisarEndereco() {
     const aviso = $('aviso-endereco');
     if (!aviso) return;
     const h = (location.hostname || '').toLowerCase();
     // Local/preview (localhost, 127.0.0.1, file://) nunca mostra o aviso.
-    const ehLocal = !h || h === 'localhost' || h === '127.0.0.1' || h.indexOf('192.168.') === 0;
-    if (!ehLocal && h !== HOST_OFICIAL) aviso.classList.remove('oculto');
+    if (!ehEnderecoLocal() && h !== HOST_OFICIAL) aviso.classList.remove('oculto');
+  }
+
+  /* ============ Aviso: celular no NAVEGADOR (não no app instalado) ============ */
+  // Mesma armadilha do endereço, por outro caminho: no celular, o NAVEGADOR e o
+  // app instalado (ícone na tela de início) guardam os rascunhos em áreas
+  // SEPARADAS. Quem preenche num e abre no outro vê o serviço vazio e acha que
+  // perdeu tudo — foi exatamente o que aconteceu com o Edgar (OS 26133,
+  // 2026-07-26): parte do preenchimento ficou no Safari e parte no app.
+  //
+  // Só avisa em CELULAR: no computador do laboratório (preparo de serviço,
+  // aprovações) usar o navegador é o normal e não há ícone para instalar.
+  function ehAppInstalado() {
+    // display-mode: standalone → aberto pelo ícone (PWA). navigator.standalone
+    // é o equivalente antigo do iOS (Safari), que ainda vale em iPhone.
+    const porMedia = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+    return !!(porMedia || navigator.standalone === true);
+  }
+  function ehCelular() {
+    // Toque + tela estreita. Evita marcar como celular um notebook com tela
+    // sensível ao toque (que tem tela larga e não instala o app).
+    const temToque = (navigator.maxTouchPoints || 0) > 0 || 'ontouchstart' in window;
+    const telaEstreita = Math.min(window.screen.width, window.screen.height) <= 820;
+    return temToque && telaEstreita;
+  }
+  function avisarNavegador() {
+    const aviso = $('aviso-navegador');
+    if (!aviso) return;
+    if (ehEnderecoLocal()) return;              // preview/desenvolvimento: nunca
+    if (ehAppInstalado() || !ehCelular()) return;
+    aviso.classList.remove('oculto');
   }
 
   /* ============ Service worker (PWA) ============ */
@@ -768,6 +801,7 @@
   garantirPersistencia();
   mostrarVersao();
   avisarEndereco();
+  avisarNavegador();
   if (EC.agenda) EC.agenda._ligar();
   // Limpeza da época do login antigo (nome + senha única do app).
   EC.storage.remover('sessao:senhaSalva');
