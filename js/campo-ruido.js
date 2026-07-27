@@ -452,7 +452,10 @@ EC.campoRuido = (function () {
         if (longa) grupoChecks('climacont', 1, 'monitoramento contínuo de temperatura/umidade/vento');
         else { reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento'); }
       }
-      reqVal('fontesEmpresa', 'fontes da empresa'); reqVal('fontesAmbiente', 'fontes do ambiente');
+      // Fonte da EMPRESA só na Total (na Residual a fonte está desligada; o campo
+      // nem aparece). A do AMBIENTE vale nas duas janelas.
+      if (ehTotal) reqVal('fontesEmpresa', 'fontes da empresa');
+      reqVal('fontesAmbiente', 'fontes do ambiente');
     }
 
     // Checagem final: obrigatória só no último ponto (Total). Foto da tela final só
@@ -1244,7 +1247,21 @@ EC.campoRuido = (function () {
 
   // Campos de UMA janela (Total ou Residual) do externo — SEM equipamentos, que
   // é do ponto (compartilhado). É a cópia completa dos campos de medição.
-  function htmlCamposJanelaExterno(ehPonto1, ehInicioSerie) {
+  // Botão (só na RESIDUAL) que copia do Total do MESMO ponto/período as condições
+  // ambientais (temp/umidade/vento) e a fonte percebida do AMBIENTE — desde que
+  // Total e Residual estejam a ≤ 6 h um do outro (pela Hora inicial). Pedido da
+  // Raisa (2026-07-27): na residual a fonte da EMPRESA não faz sentido (fonte
+  // desligada), então some; o resto se repete e vale ser puxado.
+  function htmlBotaoPuxarTotal() {
+    return (
+      '<div class="cr-puxar-total" style="margin:8px 0">' +
+      '<button type="button" class="botao botao-secundario" id="cr-btn-puxar-total" style="width:100%">↩️ Puxar condições e fontes do Total</button>' +
+      '<p class="texto-apoio" id="cr-puxar-total-hint" style="margin:4px 2px 0"></p></div>'
+    );
+  }
+
+  function htmlCamposJanelaExterno(janela, ehPonto1, ehInicioSerie) {
+    const residual = janela === 'residual';
     return (
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
@@ -1257,13 +1274,15 @@ EC.campoRuido = (function () {
       lembreteChecagemIni(ehInicioSerie) +
       '<div class="cr-foto-tela-ini"></div>' +
       '<div class="cr-foto-ponto"></div>' +
+      (residual ? htmlBotaoPuxarTotal() : '') +
       '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' +
       (ehLongaDuracao()
         ? htmlChecks(['Monitorar e registrar temperatura, umidade e vento de forma contínua'], 'climacont')
         : htmlClima(false)) +
       lembreteClima(ehPonto1) +
       '<p class="grupo-checks-titulo">🔊 Fontes percebidas</p>' +
-      '<label>Fontes percebidas da EMPRESA<input type="text" data-campo="fontesEmpresa"></label>' +
+      // Na RESIDUAL a fonte da EMPRESA não entra (fonte desligada) — só a do AMBIENTE.
+      (residual ? '' : '<label>Fontes percebidas da EMPRESA<input type="text" data-campo="fontesEmpresa"></label>') +
       '<label>Fontes percebidas do AMBIENTE<input type="text" data-campo="fontesAmbiente"></label>' +
       htmlChecagem('Checagem final', 'chkFim') +
       '<div class="cr-resultado-checagem"></div>' +
@@ -1379,7 +1398,7 @@ EC.campoRuido = (function () {
     if (ehInterno(subtipo)) return htmlCamposJanelaInterno(subtipo, ehPonto1, ehInicioSerie);
     if (subtipo === 'ferroviario') return htmlCamposJanelaFerro(janela, ehPonto1, ehInicioSerie);
     if (subtipo === 'aeronautico') return htmlCamposJanelaAero(ehPonto1, ehInicioSerie);
-    return htmlCamposJanelaExterno(ehPonto1, ehInicioSerie);
+    return htmlCamposJanelaExterno(janela, ehPonto1, ehInicioSerie);
   }
 
   // true se a janela tem algum dado relevante preenchido (para o status da aba
@@ -1503,6 +1522,66 @@ EC.campoRuido = (function () {
       seletorEvent.addEventListener('change', descEvent);
       descEvent();
     }
+
+    // Botão "Puxar do Total" (só existe na residual do externo).
+    const btnPuxar = wrap.querySelector('#cr-btn-puxar-total');
+    if (btnPuxar) ligarPuxarTotal(btnPuxar, wrap, n, ponto, med, alvo);
+  }
+
+  // "HH:MM" → minutos do dia (ou null). difHoras trata a virada da meia-noite
+  // (ex.: Total 23:00 e Residual 01:00 = 2 h, não 22 h).
+  function parseHM(s) {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || '').trim());
+    if (!m) return null;
+    const h = +m[1], mi = +m[2];
+    if (h > 23 || mi > 59) return null;
+    return h * 60 + mi;
+  }
+  function difHoras(h1, h2) {
+    const a = parseHM(h1), b = parseHM(h2);
+    if (a == null || b == null) return null;
+    let d = Math.abs(a - b);
+    if (d > 12 * 60) d = 24 * 60 - d;
+    return d / 60;
+  }
+  function formataDif(h) {
+    const mins = Math.round(h * 60), H = Math.floor(mins / 60), M = mins % 60;
+    return H > 0 ? (H + ' h' + (M ? (' ' + M + ' min') : '')) : (M + ' min');
+  }
+  // Copia do Total (mesmo ponto/período) as condições ambientais e a fonte do
+  // ambiente para a Residual — liberado só com Total preenchido e ≤ 6 h de
+  // diferença pela Hora inicial. Reavalia quando a hora da residual muda.
+  function ligarPuxarTotal(btn, wrap, n, ponto, med, alvo) {
+    const hint = wrap.querySelector('#cr-puxar-total-hint');
+    const CAMPOS = ['temperatura', 'umidade', 'vento', 'fontesAmbiente'];
+    function situacao() {
+      const t = med.total || {};
+      if (!janelaTemDados(t)) return { ok: false, msg: 'Preencha o Total deste ponto/período primeiro.' };
+      if (!t.horaInicial || !alvo.horaInicial) return { ok: false, msg: 'Informe a Hora inicial no Total e na Residual (janela de 6 h).' };
+      const dif = difHoras(t.horaInicial, alvo.horaInicial);
+      if (dif == null) return { ok: false, msg: 'Hora inicial inválida.' };
+      if (dif > 6) return { ok: false, msg: 'Total e Residual a ' + formataDif(dif) + ' de diferença (> 6 h) — não é seguro repetir as condições.' };
+      return { ok: true, msg: 'Copia temperatura, umidade, vento e a fonte do ambiente do Total (Δ ' + formataDif(dif) + ').' };
+    }
+    function atualizar() {
+      const s = situacao();
+      btn.disabled = !s.ok;
+      if (hint) hint.textContent = s.msg;
+    }
+    atualizar();
+    const inpHora = wrap.querySelector('[data-campo="horaInicial"]');
+    if (inpHora) inpHora.addEventListener('input', atualizar);
+    btn.addEventListener('click', function () {
+      const s = situacao();
+      if (!s.ok) { EC.app.mostrarToast(s.msg); return; }
+      const t = med.total || {};
+      CAMPOS.forEach(function (k) {
+        if (t[k] !== undefined && t[k] !== null && String(t[k]).trim() !== '') alvo[k] = t[k];
+      });
+      salvar();
+      renderizarJanela(n, ponto, 'residual'); // re-renderiza p/ os inputs mostrarem os valores
+      EC.app.mostrarToast('Condições e fonte do ambiente puxadas do Total.');
+    });
   }
 
   function renderizarPonto(n) {

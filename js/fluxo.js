@@ -1811,20 +1811,83 @@ EC.fluxo = (function () {
     return limpar('OS ' + os + ' - ' + escopo + ' - ' + faixa) + '.pdf';
   }
 
-  // Botão "📤 Enviar PDF parcial" (campo): gera NA HORA o PDF acumulado (tudo
-  // preenchido até aqui), com o nome pelos pontos, e abre o compartilhar (WhatsApp).
-  // Sem throttle — é um toque do técnico. Para todos os tipos.
+  // O PDF parcial só deve conter pontos COMPLETOS (pedido da Raisa, 2026-07-27:
+  // "gere só quando todos os dados obrigatórios do ponto estiverem preenchidos —
+  // testei e enviou sem foto"). Reaproveita a validação da finalização
+  // (bloqueiosSalvar → itensFaltando), que já marca cada unidade incompleta com
+  // um prefixo ("P3: …", "V2: …", "A1: …", "Ambiente 1 (…): …"). O parcial é o
+  // PREFIXO de unidades completas: vai até a 1ª unidade incompleta (exclusive),
+  // preservando a numeração e a ordem de campo. Vale para todos os tipos.
+  function infoParcial() {
+    var tipo = estado.tipo, campo = estado.campo || {};
+    if (tipo === 'opacidade') return { chave: 'qtdeVeiculos', colecao: 'veiculos', max: 50, re: /^V(\d+)\b/ };
+    if (tipo === 'qarint') return { chave: 'qtdeAmbientes', colecao: 'ambientes', max: 20, re: /^A(\d+)\b/ };
+    if (tipo === 'ruido' && (campo.subtipo === 'interno10151' || campo.subtipo === 'interno10152')) {
+      return { chave: 'qtdeAmbientes', colecao: 'ambientes', max: 20, re: /^Ambiente (\d+)\b/ };
+    }
+    if (tipo === 'ruido' || tipo === 'sismo' || (tipo === 'qar' && qarParticulado())) {
+      return { chave: 'qtdePontos', colecao: 'pontos', max: 20, re: /^P(\d+)\b/ };
+    }
+    return null; // "outro" / qar não-particulado: sem validação por ponto → sem trava.
+  }
+  // Quantas unidades (pontos/veículos/ambientes) completas cabem no parcial.
+  // k = 0  → nada pronto (nem a 1ª unidade); k = null → tipo sem validação (gera tudo).
+  function limiteParcial() {
+    var info = infoParcial();
+    if (!info) return { info: null, k: null, faltas: [] };
+    var faltas = bloqueiosSalvar() || [];
+    var campo = estado.campo || {};
+    var planejado = Math.min(info.max, Math.max(1, parseInt((campo.geral || {})[info.chave], 10) || 0));
+    var comDados = (campo[info.colecao] || []).length; // guarda contra campo vazio
+    var menor = Infinity;
+    faltas.forEach(function (s) { var m = info.re.exec(String(s)); if (m) menor = Math.min(menor, parseInt(m[1], 10)); });
+    // Sem unidade incompleta: ou está tudo completo (gera o planejado, limitado ao
+    // que tem dados) — faltas só "gerais" (ex.: objetivo) não travam o parcial.
+    if (menor === Infinity) return { info: info, k: Math.min(planejado, comDados), faltas: [] };
+    // Itens que faltam NA 1ª unidade incompleta (folha após o último ": ") p/ avisar.
+    var faltasUnidade = [];
+    faltas.forEach(function (s) {
+      var m = info.re.exec(String(s));
+      if (!m || parseInt(m[1], 10) !== menor) return;
+      var partes = String(s).split(': '); var folha = partes[partes.length - 1].trim();
+      if (folha && faltasUnidade.indexOf(folha) === -1) faltasUnidade.push(folha);
+    });
+    return { info: info, k: menor - 1, faltas: faltasUnidade };
+  }
+  // Cópia do registro com a coleção truncada em k unidades (sem mexer no estado).
+  function registroParcial(registro, lim) {
+    if (!lim || !lim.info || lim.k == null) return registro;
+    var campo = registro.campo || {};
+    var campoCopia = Object.assign({}, campo);
+    campoCopia.geral = Object.assign({}, campo.geral || {});
+    campoCopia[lim.info.colecao] = (campo[lim.info.colecao] || []).slice(0, lim.k);
+    campoCopia.geral[lim.info.chave] = lim.k;
+    var copia = Object.assign({}, registro);
+    copia.campo = campoCopia;
+    return copia;
+  }
+
+  // Botão "📤 Enviar PDF parcial" (campo): gera NA HORA o PDF acumulado (só os
+  // pontos COMPLETOS até aqui), com o nome pelos pontos, e abre o compartilhar
+  // (WhatsApp). Sem throttle — é um toque do técnico. Para todos os tipos.
   function enviarPdfParcial(btn) {
     if (!estado) return;
     var registro = montarRegistro();
     if (!(EC.pdf && EC.pdf.gerarSalvar && EC.pdf.suporta && EC.pdf.suporta(registro))) {
       EC.app.mostrarToast('Este serviço ainda não gera PDF.'); return;
     }
+    var lim = limiteParcial();
+    if (lim.info && (lim.k == null || lim.k < 1)) {
+      var det = (lim.faltas && lim.faltas.length) ? (' Falta: ' + lim.faltas.join(', ') + '.') : '';
+      EC.app.mostrarToast('Complete os dados obrigatórios do ponto antes de gerar o PDF parcial.' + det);
+      return;
+    }
+    var registroP = registroParcial(registro, lim);
     var rot = btn ? btn.textContent : '';
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando…'; }
     // semSalvarLocal: é um parcial para enviar, não um registro finalizado no Histórico.
-    Promise.resolve(EC.pdf.gerarSalvar(registro, { nome: nomePdfParcial(registro), semSalvarLocal: true }))
-      .then(function (res) { return EC.pdf.compartilharPdf(res, registro.os && registro.os.numero); })
+    Promise.resolve(EC.pdf.gerarSalvar(registroP, { nome: nomePdfParcial(registroP), semSalvarLocal: true }))
+      .then(function (res) { return EC.pdf.compartilharPdf(res, registroP.os && registroP.os.numero); })
       .catch(function () { EC.app.mostrarToast('Não consegui gerar o PDF parcial. Tente de novo.'); })
       .then(function () { if (btn) { btn.disabled = false; btn.textContent = rot; } });
   }
@@ -1860,10 +1923,17 @@ EC.fluxo = (function () {
       if (estado.tipo && estado.campo && navigator.onLine && pdfParcialVencido() &&
           EC.pdf && EC.pdf.suporta && EC.pdf.suporta(registro) && EC.pdf.gerarSalvar) {
         try {
-          var nomeParcial = nomePdfParcial(registro);
-          marcarPdfParcial();
-          Promise.resolve(EC.pdf.gerarSalvar(registro, { nome: nomeParcial, semSalvarLocal: true }))
-            .catch(function () { /* best-effort */ });
+          // Só sobe o parcial se houver ≥1 ponto COMPLETO (ou tipo sem validação):
+          // nunca gera um PDF com ponto sem foto/dado obrigatório. Se ainda não há
+          // ponto pronto, não consome o intervalo — tenta de novo no próximo save.
+          var lim = limiteParcial();
+          if (!lim.info || (lim.k != null && lim.k >= 1)) {
+            var registroP = registroParcial(registro, lim);
+            var nomeParcial = nomePdfParcial(registroP);
+            marcarPdfParcial();
+            Promise.resolve(EC.pdf.gerarSalvar(registroP, { nome: nomeParcial, semSalvarLocal: true }))
+              .catch(function () { /* best-effort */ });
+          }
         } catch (e) { /* best-effort */ }
       }
     }
