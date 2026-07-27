@@ -639,13 +639,22 @@
   }
 
   async function abrirMenuSino() {
+    // Reconfere no servidor as fontes "vivas" ao ABRIR o sino, para não mostrar um
+    // aviso já resolvido — ex.: um preparo RE-DESIGNADO a outro técnico deixa de
+    // aparecer para o técnico antigo assim que ele abre o sino (o servidor já
+    // cancelou o anterior). Best-effort: offline usa o cache.
+    if (sessaoAtual() && EC.fluxo && EC.fluxo.verificarPreparos) {
+      try { await EC.fluxo.verificarPreparos(); } catch (e) { /* offline: usa o cache */ }
+    }
     const querAprov = sinoMostrarSempre.aprovacoes;
     const querPagos = sinoContagens.pagamentos > 0;
     const querLemb = sinoContagens.lembretes > 0;
     const querSgq = sinoContagens.sgq > 0;
     const querPrep = sinoContagens.preparos > 0;
     const fontes = (querAprov ? 1 : 0) + (querPagos ? 1 : 0) + (querLemb ? 1 : 0) + (querSgq ? 1 : 0) + (querPrep ? 1 : 0);
-    if (fontes === 0) return;
+    // Tocou no sino mas não há mais nada (ex.: o preparo foi re-designado): avisa,
+    // em vez de não fazer nada.
+    if (fontes === 0) { mostrarToast('✅ Nada pendente por aqui.'); return; }
     if (fontes === 1) {
       if (querAprov && EC.aprovacoes && EC.aprovacoes.abrir) EC.aprovacoes.abrir();
       else if (querPagos && EC.reembolso && EC.reembolso.abrirPagosSino) EC.reembolso.abrirPagosSino();
