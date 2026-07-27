@@ -754,9 +754,11 @@
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState !== 'visible') return;
     revalidarConta(false);
-    // Voltou para a tela: reconfere se caiu algum pagamento (o técnico costuma
-    // deixar o PWA aberto; sem isso o aviso só apareceria num novo login).
+    // Voltou para a tela: reconfere se caiu algum pagamento OU um preparo de
+    // serviço designado (o técnico costuma deixar o PWA aberto; sem isso o aviso
+    // só apareceria num novo login).
     if (sessaoAtual() && EC.reembolso && EC.reembolso.verificarPagamentos) EC.reembolso.verificarPagamentos();
+    if (sessaoAtual() && EC.fluxo && EC.fluxo.verificarPreparos) EC.fluxo.verificarPreparos();
   });
 
   // E também de tempos em tempos com o app ABERTO NA FRENTE: sem isso, quem
@@ -767,6 +769,7 @@
     if (document.visibilityState !== 'visible') return;
     revalidarConta(true);
     if (sessaoAtual() && EC.reembolso && EC.reembolso.verificarPagamentos) EC.reembolso.verificarPagamentos();
+    if (sessaoAtual() && EC.fluxo && EC.fluxo.verificarPreparos) EC.fluxo.verificarPreparos();
   }, INTERVALO_REVALIDACAO);
   window.addEventListener('offline', function () {
     atualizarBarraPendencias();
