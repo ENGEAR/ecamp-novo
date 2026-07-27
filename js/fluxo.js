@@ -1406,6 +1406,7 @@ EC.fluxo = (function () {
     }
     mostrarFabSalvar(true);   // botão flutuante visível no campo
     atualizarAvisoEnvio();    // reflete pendências ao (re)abrir o campo (aviso + FAB)
+    atualizarBotaoParcial();  // botão "Enviar PDF parcial" (se o tipo gera PDF)
   }
 
   /* ---------- Revisão ---------- */
@@ -1781,6 +1782,60 @@ EC.fluxo = (function () {
     salvarEstado(true);
   }
 
+  // Nome do PDF PARCIAL pelos NOMES dos pontos preenchidos (pedido da Raisa,
+  // 2026-07-27). Como o parcial é ACUMULADO (contém tudo até aqui), usa o
+  // primeiro e o último ponto COM NOME: "OS 26133 - Sismografia - parcial Ar 01
+  // a Ar 02.pdf" (1 ponto só = "parcial Ar 01"). Vale para todos os tipos.
+  function nomesDosPontos(registro) {
+    var campo = registro.campo || {};
+    var sub = campo.subtipo || '';
+    var itens;
+    if (sub === 'interno10151' || sub === 'interno10152' || registro.tipo === 'qarint') {
+      itens = [];
+      (campo.ambientes || []).forEach(function (a) { (((a || {}).pontos) || []).forEach(function (p) { itens.push(p); }); });
+    } else if (registro.tipo === 'opacidade') {
+      itens = campo.veiculos || [];
+    } else {
+      itens = campo.pontos || [];
+    }
+    return itens.map(function (p) { return p && String(p.nome || '').trim(); }).filter(Boolean);
+  }
+  function nomePdfParcial(registro) {
+    var os = (registro.os && registro.os.numero) || '';
+    var escopo = (registro.servico && registro.servico.escopo) || nomeTipo(registro.tipo) || '';
+    var nomes = nomesDosPontos(registro);
+    var faixa = !nomes.length ? 'parcial'
+      : nomes.length === 1 ? ('parcial ' + nomes[0])
+        : ('parcial ' + nomes[0] + ' a ' + nomes[nomes.length - 1]);
+    var limpar = function (s) { return String(s).replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim(); };
+    return limpar('OS ' + os + ' - ' + escopo + ' - ' + faixa) + '.pdf';
+  }
+
+  // Botão "📤 Enviar PDF parcial" (campo): gera NA HORA o PDF acumulado (tudo
+  // preenchido até aqui), com o nome pelos pontos, e abre o compartilhar (WhatsApp).
+  // Sem throttle — é um toque do técnico. Para todos os tipos.
+  function enviarPdfParcial(btn) {
+    if (!estado) return;
+    var registro = montarRegistro();
+    if (!(EC.pdf && EC.pdf.gerarSalvar && EC.pdf.suporta && EC.pdf.suporta(registro))) {
+      EC.app.mostrarToast('Este serviço ainda não gera PDF.'); return;
+    }
+    var rot = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando…'; }
+    // semSalvarLocal: é um parcial para enviar, não um registro finalizado no Histórico.
+    Promise.resolve(EC.pdf.gerarSalvar(registro, { nome: nomePdfParcial(registro), semSalvarLocal: true }))
+      .then(function (res) { return EC.pdf.compartilharPdf(res, registro.os && registro.os.numero); })
+      .catch(function () { EC.app.mostrarToast('Não consegui gerar o PDF parcial. Tente de novo.'); })
+      .then(function () { if (btn) { btn.disabled = false; btn.textContent = rot; } });
+  }
+  // Mostra o botão de PDF parcial só na tela de campo e quando o tipo gera PDF.
+  function atualizarBotaoParcial() {
+    var b = $('campo-enviar-parcial');
+    if (!b) return;
+    var ok = !!(estado && EC.pdf && EC.pdf.suporta && EC.pdf.suporta(montarRegistro()));
+    b.classList.toggle('oculto', !ok);
+  }
+
   function aoSalvarRascunho() {
     if (estado && telaExibida === 'tela-dados-gerais') coletarDadosGerais();
     if (estado) estado.iniciado = true; // salvar rascunho conta como iniciar
@@ -1805,8 +1860,7 @@ EC.fluxo = (function () {
       if (estado.tipo && estado.campo && navigator.onLine && pdfParcialVencido() &&
           EC.pdf && EC.pdf.suporta && EC.pdf.suporta(registro) && EC.pdf.gerarSalvar) {
         try {
-          var nomeParcial = String(registro.codificacao || '')
-            .replace(/_\d{8}_\d{6}$/, '') + '_RASCUNHO.pdf';
+          var nomeParcial = nomePdfParcial(registro);
           marcarPdfParcial();
           Promise.resolve(EC.pdf.gerarSalvar(registro, { nome: nomeParcial, semSalvarLocal: true }))
             .catch(function () { /* best-effort */ });
@@ -1855,6 +1909,8 @@ EC.fluxo = (function () {
     if (btnEnviar) btnEnviar.addEventListener('click', salvarRascunhoAgora);
     var fab = $('fab-salvar');
     if (fab) fab.addEventListener('click', salvarRascunhoAgora);
+    var btnParcial = $('campo-enviar-parcial');
+    if (btnParcial) btnParcial.addEventListener('click', function () { enviarPdfParcial(btnParcial); });
     // A visibilidade do FAB por tela é decidida DENTRO do EC.app.mostrarTela
     // (app.js, TELAS_FAB) — único ponto por onde toda troca de tela passa.
 
