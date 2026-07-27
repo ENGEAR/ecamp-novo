@@ -1144,6 +1144,22 @@ EC.fluxo = (function () {
    * sem edição simultânea, uma direção só, consumido uma vez. */
   function escPrep(s) { return escDg(s); }
 
+  // Só quem está escalado na Agenda desta OS pode ir DIRETO ao campo (coletar).
+  // Quem preparou mas NÃO está na Agenda (ex.: logística/admin) precisa DESIGNAR
+  // um técnico via "Enviar para o campo". Devolve Promise<true=escalado |
+  // false=não escalado | null=não deu para verificar (offline/sem sessão)>.
+  // Em null NÃO bloqueia — um técnico de campo legítimo pode estar offline.
+  function souTecnicoDaOs() {
+    var sessao = EC.storage.ler('sessao:atual') || {};
+    var meuEmail = String(sessao.email || '').trim().toLowerCase();
+    if (!meuEmail || !navigator.onLine || !(EC.sync && EC.sync.tecnicosDaOs)) return Promise.resolve(null);
+    return EC.sync.tecnicosDaOs(estado.osNumero).then(function (tecnicos) {
+      return (tecnicos || []).some(function (t) {
+        return String((t && t.email) || '').trim().toLowerCase() === meuEmail;
+      });
+    }).catch(function () { return null; });
+  }
+
   function enviarParaOCampo() {
     if (!estado) return;
     if (!navigator.onLine) { EC.app.mostrarToast('📡 Enviar o preparo precisa de internet.'); return; }
@@ -1899,8 +1915,28 @@ EC.fluxo = (function () {
       }
     });
     $('checkpoint-ir').addEventListener('click', function () {
-      salvarPreparacaoRascunho(); // preparação segura (aparelho + servidor) antes do campo
-      irPara('tela-passo4');
+      var btn = $('checkpoint-ir');
+      var rotulo = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Verificando…';
+      souTecnicoDaOs().then(function (escalado) {
+        btn.disabled = false; btn.textContent = rotulo;
+        // Não está escalado na Agenda desta OS → não vai direto; tem que designar.
+        if (escalado === false) {
+          EC.app.abrirOverlay('👷 Designe o técnico do campo',
+            '<p>Você <strong>não está escalado na Agenda</strong> desta OS, então não pode ir direto ao campo.</p>' +
+            '<p class="texto-apoio">Use <strong>“📦 Enviar para o campo — outro técnico”</strong> para designar quem vai executar, ou peça à logística para te escalar na Agenda desta OS.</p>' +
+            '<div class="pilha-botoes" style="margin-top:12px">' +
+            '  <button type="button" class="botao botao-designar" id="desig-enviar">📦 Enviar para o campo</button>' +
+            '  <button type="button" class="botao botao-secundario" id="desig-fechar">Fechar</button>' +
+            '</div>');
+          $('desig-enviar').addEventListener('click', function () { EC.app.fecharOverlay(); enviarParaOCampo(); });
+          $('desig-fechar').addEventListener('click', EC.app.fecharOverlay);
+          return;
+        }
+        // escalado === true (ok) ou null (offline/sem verificação: não bloqueia o técnico de campo).
+        salvarPreparacaoRascunho(); // preparação segura (aparelho + servidor) antes do campo
+        irPara('tela-passo4');
+      });
     });
     $('checkpoint-enviar').addEventListener('click', enviarParaOCampo);
     $('checkpoint-salvar').addEventListener('click', salvarPreparacaoRascunho);

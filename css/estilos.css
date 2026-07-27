@@ -598,6 +598,11 @@ textarea { resize: vertical; font-family: inherit; }
 /* ---------- Componente Navegação ---------- */
 .comp-navegacao { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
 .botao-rascunho { background: var(--verde-claro); color: var(--verde); border: 1px solid var(--verde); width: 100%; }
+/* "Enviar para o campo — outro técnico": verde SÓLIDO para destacar como a ação
+   principal de designar, distinta do azul (Ir para o campo) e do verde-claro
+   contornado (Salvar rascunho). */
+.botao-designar { background: var(--verde); color: #fff; border: 1px solid var(--verde); width: 100%; }
+.botao-designar:active { opacity: 0.85; }
 .botao-rascunho-ok { background: var(--verde); color: #fff; }
 .nav-linha { display: flex; gap: 10px; }
 .nav-linha .botao { flex: 1; }
