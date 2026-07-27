@@ -2167,8 +2167,40 @@ EC.reembolso = (function () {
     var p = (sessao().papeis) || [];
     return p.indexOf('financeiro') !== -1 || p.indexOf('logistica') !== -1 || p.indexOf('admin') !== -1;
   }
+  function egEsc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  // Popula os selects de Técnico e OS com os valores distintos do extrato,
+  // preservando a seleção atual se ela ainda existir.
+  function popularFiltrosEg() {
+    var selT = $('eg-filtro-tecnico'), selO = $('eg-filtro-os');
+    if (!selT || !selO) return;
+    var tecs = {}, oss = {};
+    egDados.forEach(function (it) {
+      if (it.p.designado) tecs[it.p.designado] = true;
+      if (it.p.os) oss[String(it.p.os)] = true;
+    });
+    var tecList = Object.keys(tecs).sort(function (a, b) { return a.localeCompare(b); });
+    var osList = Object.keys(oss).sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true }); });
+    var tecAtual = selT.value, osAtual = selO.value;
+    selT.innerHTML = '<option value="">Todos os técnicos</option>' +
+      tecList.map(function (t) { return '<option value="' + egEsc(t) + '">' + egEsc(t) + '</option>'; }).join('');
+    selO.innerHTML = '<option value="">Todas as OS</option>' +
+      osList.map(function (o) { return '<option value="' + egEsc(o) + '">OS ' + egEsc(o) + '</option>'; }).join('');
+    if (tecAtual && tecs[tecAtual]) selT.value = tecAtual;
+    if (osAtual && oss[osAtual]) selO.value = osAtual;
+  }
   function renderExtratoGeral() {
-    renderBancoLista($('eg-lista'), $('eg-busca'), egDados, egNumParcela, egPorCodigo,
+    var tec = ($('eg-filtro-tecnico') && $('eg-filtro-tecnico').value) || '';
+    var os = ($('eg-filtro-os') && $('eg-filtro-os').value) || '';
+    var filtrados = (tec || os)
+      ? egDados.filter(function (it) {
+          if (tec && (it.p.designado || '') !== tec) return false;
+          if (os && String(it.p.os || '') !== os) return false;
+          return true;
+        })
+      : egDados;
+    renderBancoLista($('eg-lista'), $('eg-busca'), filtrados, egNumParcela, egPorCodigo,
       function (item) { abrirExtrato(item.p, false, true); }, true);
   }
   async function extratoGeral() {
@@ -2187,9 +2219,15 @@ EC.reembolso = (function () {
       egNumParcela = numeraParcelas(rows);
       egPorCodigo = {};
       egDados.forEach(function (it) { egPorCodigo[it.p.codigo] = it; });
+      popularFiltrosEg();
       renderExtratoGeral();
       var inp = $('eg-busca');
-      if (inp && !egBuscaLigada) { egBuscaLigada = true; inp.addEventListener('input', renderExtratoGeral); }
+      if (inp && !egBuscaLigada) {
+        egBuscaLigada = true;
+        inp.addEventListener('input', renderExtratoGeral);
+        if ($('eg-filtro-tecnico')) $('eg-filtro-tecnico').addEventListener('change', renderExtratoGeral);
+        if ($('eg-filtro-os')) $('eg-filtro-os').addEventListener('change', renderExtratoGeral);
+      }
     } catch (e) {
       if (area) area.innerHTML = '<p class="texto-apoio">⚠️ Não consegui carregar: ' + (e.message || 'erro') + '</p>';
     }
