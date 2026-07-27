@@ -162,12 +162,20 @@
   }
 
   /* ============ Navegação entre telas ============ */
+  // Telas do FLUXO DE SERVIÇO em que o botão flutuante "Salvar rascunho" (💾)
+  // aparece — da Seleção de equipamentos até finalizar. Em QUALQUER outra tela ele
+  // some. Fica AQUI (no único ponto por onde toda troca de tela passa) porque o
+  // header/logo e outros pontos chamam mostrarTela direto — um wrap externo não
+  // pegava esses caminhos e o disquete ficava preso na tela inicial.
+  const TELAS_FAB = ['tela-passo3a', 'tela-passo3b', 'tela-checkpoint', 'tela-passo4', 'tela-revisao', 'tela-passo5'];
   function mostrarTela(id) {
     document.querySelectorAll('.tela').forEach(function (tela) {
       tela.classList.add('oculto');
     });
     $(id).classList.remove('oculto');
     window.scrollTo(0, 0);
+    var fab = $('fab-salvar');
+    if (fab) fab.classList.toggle('oculto', TELAS_FAB.indexOf(id) === -1);
   }
 
   /* ============ Toast de feedback ============ */

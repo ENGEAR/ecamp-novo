@@ -1855,19 +1855,8 @@ EC.fluxo = (function () {
     if (btnEnviar) btnEnviar.addEventListener('click', salvarRascunhoAgora);
     var fab = $('fab-salvar');
     if (fab) fab.addEventListener('click', salvarRascunhoAgora);
-
-    // Autoridade ÚNICA da visibilidade do FAB: envolve o mostrarTela para o botão
-    // aparecer SÓ nas telas de serviço (passo3a→passo5) e sumir em qualquer outra —
-    // inclusive nas saídas que não passam pelo irPara (logo do header, Agenda,
-    // Reembolso, etc.). Assim ele fica "só dentro de Serviços".
-    if (EC.app && EC.app.mostrarTela && !EC.app.mostrarTela._fabWrap) {
-      var _mostrarTelaOrig = EC.app.mostrarTela;
-      EC.app.mostrarTela = function (id) {
-        _mostrarTelaOrig.call(EC.app, id);
-        mostrarFabSalvar(telaTemFab(id));
-      };
-      EC.app.mostrarTela._fabWrap = true;
-    }
+    // A visibilidade do FAB por tela é decidida DENTRO do EC.app.mostrarTela
+    // (app.js, TELAS_FAB) — único ponto por onde toda troca de tela passa.
 
     $('os-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-acao'); });
     $('servicos-os-voltar').addEventListener('click', function () {
