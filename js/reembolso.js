@@ -893,10 +893,25 @@ EC.reembolso = (function () {
     }
     var ehViagem = tipoSel === 'viagem', ehEvento = tipoSel === 'evento',
         ehVeic = tipoSel === 'veiculo', ehComp = tipoSel === 'complemento';
-    $('rb-viagem').classList.toggle('oculto', !(ehViagem && campSel));
-    $('rb-sec-transporte').classList.toggle('oculto', !ehViagem);
-    $('rb-sec-valores').classList.toggle('oculto', !ehViagem);
-    $('rb-pct-viagem').classList.toggle('oculto', !ehViagem);
+    // Trava: designado que já solicitou parte da viagem desta OS/campanha deve
+    // pedir o restante em "Serviços com saldo pendente" — não abrir outra nova.
+    var travarViagem = ehViagem && !!tecSel && !editando && dispCampanha < 100;
+    var mostraViagem = ehViagem && !travarViagem;
+    $('rb-viagem').classList.toggle('oculto', !(mostraViagem && campSel));
+    $('rb-sec-transporte').classList.toggle('oculto', !mostraViagem);
+    $('rb-sec-valores').classList.toggle('oculto', !mostraViagem);
+    $('rb-pct-viagem').classList.toggle('oculto', !mostraViagem);
+    var blq = $('rb-viagem-bloqueio');
+    if (blq) {
+      blq.classList.toggle('oculto', !travarViagem);
+      if (travarViagem) {
+        $('rb-viagem-bloqueio-txt').innerHTML = '🚫 <strong>' + egEsc(tecSel.nome) + '</strong> já tem uma solicitação de viagem nesta OS. ' +
+          'Para pedir o restante (' + dispCampanha + '% faltante), use <strong>Serviços com saldo pendente</strong> — não abra uma nova. ' +
+          'Quando os 100% estiverem pagos, aí sim aparece o +Complemento.';
+      }
+    }
+    // Esconde o botão de enviar quando a viagem está travada.
+    if ($('rb-enviar')) $('rb-enviar').classList.toggle('oculto', travarViagem);
     $('rb-evento-bloco').classList.toggle('oculto', !ehEvento);
     $('rb-veic-bloco').classList.toggle('oculto', !ehVeic);
     $('rb-complemento-bloco').classList.toggle('oculto', !ehComp);
@@ -1666,6 +1681,10 @@ EC.reembolso = (function () {
     }
     if (!tecSel) return mostrarErro('Escolha o designado (o técnico do serviço).');
     if (tipoSel !== 'viagem') return enviarFormularioSimples();
+    // Trava (viagem): já tem solicitação nesta OS/campanha → só pelo Saldo pendente.
+    if (!editando && dispCampanha < 100) {
+      return mostrarErro(tecSel.nome + ' já tem uma solicitação de viagem nesta OS. Peça o restante (' + dispCampanha + '% faltante) em "Serviços com saldo pendente" — não abra uma nova.');
+    }
     if (!diasInfo()) {
       return mostrarErro('Confira as datas da viagem: ida ≤ início do serviço ≤ término ≤ chegada (e todas preenchidas).');
     }
@@ -3173,6 +3192,7 @@ EC.reembolso = (function () {
     var egV = $('eg-voltar');
     if (egV) egV.addEventListener('click', function () { EC.app.mostrarTela('tela-acao'); });
     $('rb-saldo-btn').addEventListener('click', abrirSaldos);
+    if ($('rb-viagem-bloqueio-saldo')) $('rb-viagem-bloqueio-saldo').addEventListener('click', abrirSaldos);
     $('rb-saldo-voltar').addEventListener('click', function () { EC.app.mostrarTela('tela-reembolso'); });
     $('rb-saldo-det-voltar').addEventListener('click', abrirSaldos);
     $('rb-saldo-enviar').addEventListener('click', enviarSaldo);
