@@ -914,7 +914,7 @@ EC.reembolso = (function () {
         $('rb-viagem-bloqueio-txt').innerHTML = '🚫 <strong>' + egEsc(tecSel.nome) + '</strong> já tem uma solicitação de viagem nesta OS. ' +
           'Para pedir o restante (' + dispCampanha + '% faltante), use <strong>Serviços com saldo pendente</strong> — não abra uma nova. ' +
           'Quando os 100% estiverem pagos, aí sim aparece o +Complemento.' +
-          '<br><br>Caso necessite solicitar reembolso <strong>imediato</strong> de outros gastos (compra de equipamentos, insumos, outros), use a opção <strong>"Outros gastos"</strong>.' +
+          '<br><br>Caso necessite solicitar reembolso <strong>imediato</strong> de outros gastos (compra de equipamentos, insumos, outros), use a opção <strong>"Outros do serviço"</strong>.' +
           '<br><br>Gastos extras com quilometragem serão pagos após a chegada em casa e a conferência do hodômetro (<strong>+Complemento</strong>).';
       }
     }
