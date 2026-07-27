@@ -882,6 +882,12 @@ EC.reembolso = (function () {
     if (tipoSel === 'complemento') pintarValores(); // já reflete os dados da viagem baixados
   }
 
+  // Viagem TRAVADA: o designado já solicitou parte da viagem desta OS/campanha
+  // (deve pedir o restante em "Serviços com saldo pendente", não abrir outra).
+  function viagemTravada() {
+    return tipoSel === 'viagem' && !!tecSel && !editando && dispCampanha < 100;
+  }
+
   // Mostra/esconde os blocos do formulário conforme o tipo escolhido.
   function atualizarTipoUI() {
     $('rb-tipo-bloco').classList.toggle('oculto', !osSel);
@@ -895,7 +901,7 @@ EC.reembolso = (function () {
         ehVeic = tipoSel === 'veiculo', ehComp = tipoSel === 'complemento';
     // Trava: designado que já solicitou parte da viagem desta OS/campanha deve
     // pedir o restante em "Serviços com saldo pendente" — não abrir outra nova.
-    var travarViagem = ehViagem && !!tecSel && !editando && dispCampanha < 100;
+    var travarViagem = viagemTravada();
     var mostraViagem = ehViagem && !travarViagem;
     $('rb-viagem').classList.toggle('oculto', !(mostraViagem && campSel));
     $('rb-sec-transporte').classList.toggle('oculto', !mostraViagem);
@@ -907,7 +913,9 @@ EC.reembolso = (function () {
       if (travarViagem) {
         $('rb-viagem-bloqueio-txt').innerHTML = '🚫 <strong>' + egEsc(tecSel.nome) + '</strong> já tem uma solicitação de viagem nesta OS. ' +
           'Para pedir o restante (' + dispCampanha + '% faltante), use <strong>Serviços com saldo pendente</strong> — não abra uma nova. ' +
-          'Quando os 100% estiverem pagos, aí sim aparece o +Complemento.';
+          'Quando os 100% estiverem pagos, aí sim aparece o +Complemento.' +
+          '<br><br>Caso necessite solicitar reembolso <strong>imediato</strong> de outros gastos (compra de equipamentos, insumos, outros), use a opção <strong>"Outros gastos"</strong>.' +
+          '<br><br>Gastos extras com quilometragem serão pagos após a chegada em casa e a conferência do hodômetro (<strong>+Complemento</strong>).';
       }
     }
     // Esconde o botão de enviar quando a viagem está travada.
@@ -915,10 +923,11 @@ EC.reembolso = (function () {
     $('rb-evento-bloco').classList.toggle('oculto', !ehEvento);
     $('rb-veic-bloco').classList.toggle('oculto', !ehVeic);
     $('rb-complemento-bloco').classList.toggle('oculto', !ehComp);
-    $('rb-pedagio-bloco').classList.toggle('oculto', !(ehViagem || ehVeic));
+    // Quando a viagem está travada, NÃO mostra mais nada abaixo do aviso.
+    $('rb-pedagio-bloco').classList.toggle('oculto', !((ehViagem || ehVeic) && !travarViagem));
     // "Outros gastos" aparece em todos os tipos (inclusive complemento, que passou
     // a aceitar despesas não previstas além do combustível dos km a mais).
-    $('rb-outros-bloco').classList.toggle('oculto', !tipoSel);
+    $('rb-outros-bloco').classList.toggle('oculto', !tipoSel || travarViagem);
     if (ehEvento) {
       // Só avisa quando a diária de eventos NÃO está configurada no SGP (sem ela
       // o cálculo fica em zero). Com a diária definida, não mostra nada.
@@ -1060,7 +1069,8 @@ EC.reembolso = (function () {
   function pintarValores() {
     // Eventos, Veículos e Complemento têm cálculo próprio (sem os valores automáticos da viagem).
     if (tipoSel === 'evento' || tipoSel === 'veiculo' || tipoSel === 'complemento') return pintarValoresSimples();
-    if (!tipoSel) {
+    if (!tipoSel || viagemTravada()) {
+      // Sem tipo, ou viagem travada: não mostra Total nem Adiantamento.
       $('rb-total').classList.add('oculto');
       $('rb-pct-bloco').classList.add('oculto');
       return;
