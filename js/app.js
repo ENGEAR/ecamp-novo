@@ -634,13 +634,13 @@
       const aPagar = pend.filter(function (s) { return s.status === 'aguardando_pagamento'; });
       const listar = function (itens) { return itens.map(function (s) { return EC.aprovacoes.cartaoHtml(s); }).join(''); };
       if (aAprovar.length) {
-        partes.push('<p class="dg-secao">🔧 Aprovações de logística (' + aAprovar.length + ')</p>' + listar(aAprovar));
+        partes.push('<p class="dg-secao">✅ Aprovações de reembolso (' + aAprovar.length + ')</p>' + listar(aAprovar));
       }
       if (aPagar.length) {
         partes.push('<p class="dg-secao">💰 Pendências de Pagamento (' + aPagar.length + ')</p>' + listar(aPagar));
       }
       if (!aAprovar.length && !aPagar.length) {
-        partes.push('<p class="dg-secao">🔧 Aprovações de logística (0)</p><p class="texto-apoio">Nada pendente.</p>');
+        partes.push('<p class="dg-secao">✅ Aprovações de reembolso (0)</p><p class="texto-apoio">Nada pendente.</p>');
       }
     }
     if (querPagos && EC.reembolso && EC.reembolso.obterPagosParaSino) {

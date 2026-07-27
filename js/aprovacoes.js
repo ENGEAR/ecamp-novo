@@ -1,14 +1,23 @@
 /**
- * aprovacoes.js — Aprovação de logística DENTRO do e-CAMP
+ * aprovacoes.js — Aprovação de reembolso DENTRO do e-CAMP
  *
- * Quem tem papel 'logistica' (ou admin) no SGP vê um sino no topo e uma tela
- * de Aprovações. Lê e grava DIRETO nas tabelas do SGP com a conta autenticada
- * da pessoa (mesmo padrão da Agenda) — o próprio banco (RLS) garante que só
- * logística/financeiro/admin enxerga e decide.
+ * SEGREGAÇÃO DE FUNÇÕES (decisão da Raisa, 2026-07-26): quem APROVA o reembolso
+ * é o ADMINISTRADOR — a Logística deixou de aprovar (mantendo todo o resto:
+ * extrato geral, saldos, tabela de valores, agenda, campo). Quem PAGA continua
+ * sendo o Financeiro. Assim ninguém executa a logística e aprova o próprio
+ * gasto, e as duas assinaturas do fluxo ficam em pessoas diferentes.
+ *
+ * Quem aprova (admin) ou paga (financeiro) vê o sino no topo e a tela de
+ * Aprovações. Lê e grava DIRETO nas tabelas do SGP com a conta autenticada da
+ * pessoa (mesmo padrão da Agenda) — o banco também barra: um gatilho impede
+ * sair de 'aguardando_logistica' sem ser admin (migração 0140), então a trava
+ * não é só de tela.
  *
  * Fluxo: aguardando_logistica → aprovar (aguardando_pagamento) / rejeitar
  * (rejeitado) / solicitar correção (correcao). Observação obrigatória ao
  * rejeitar ou pedir correção; ao aprovar acima do orçamento previsto, também.
+ * (O nome interno do status continua 'aguardando_logistica' por compatibilidade
+ * com os dados já gravados; na tela, o rótulo é "Aguardando aprovação".)
  *
  * Precisa de internet (fala com o Supabase na hora). Expõe EC.aprovacoes.
  */
@@ -99,15 +108,17 @@ EC.aprovacoes = (function () {
     return partes.join(' + ') || moeda(vu.almoco_clt_util) + '/dia útil';
   }
 
-  function ehLogistica() {
+  // QUEM APROVA: só o ADMINISTRADOR (a Logística não aprova mais — segregação
+  // de funções pedida pela Raisa em 2026-07-26). O banco também barra (0140).
+  function ehAprovador() {
     var p = sessao().papeis || [];
-    return p.indexOf('logistica') !== -1 || p.indexOf('admin') !== -1;
+    return p.indexOf('admin') !== -1;
   }
   function ehFinanceiro() {
     var p = sessao().papeis || [];
     return p.indexOf('financeiro') !== -1 || p.indexOf('admin') !== -1;
   }
-  function podeAlgumaAcao() { return ehLogistica() || ehFinanceiro(); }
+  function podeAlgumaAcao() { return ehAprovador() || ehFinanceiro(); }
 
   // Sessões antigas podem não ter os papéis gravados — busca uma vez.
   async function garantirPapeis() {
@@ -140,7 +151,7 @@ EC.aprovacoes = (function () {
     var mostrar = podeAlgumaAcao();
     var n = 0;
     if (mostrar) {
-      if (ehLogistica()) n += await contarStatus('aguardando_logistica');
+      if (ehAprovador()) n += await contarStatus('aguardando_logistica');
       if (ehFinanceiro()) n += await contarStatus('aguardando_pagamento');
     }
     EC.app.atualizarSino('aprovacoes', n, mostrar);
@@ -194,7 +205,7 @@ EC.aprovacoes = (function () {
     if (!cli) return [];
     try {
       var itens = [];
-      if (ehLogistica()) itens = itens.concat(await buscarStatus(cli, 'aguardando_logistica'));
+      if (ehAprovador()) itens = itens.concat(await buscarStatus(cli, 'aguardando_logistica'));
       if (ehFinanceiro()) itens = itens.concat(await buscarStatus(cli, 'aguardando_pagamento'));
       return itens;
     } catch (e) { return []; }
@@ -211,7 +222,7 @@ EC.aprovacoes = (function () {
     if (!cli) { area.innerHTML = '<p class="texto-apoio">📡 Sem conexão. Abra com internet para ver e decidir.</p>'; return; }
     try {
       var secoes = [];
-      if (ehLogistica()) secoes.push({ titulo: '⏳ Aguardando aprovação da Logística', itens: await buscarStatus(cli, 'aguardando_logistica') });
+      if (ehAprovador()) secoes.push({ titulo: '⏳ Aguardando aprovação', itens: await buscarStatus(cli, 'aguardando_logistica') });
       if (ehFinanceiro()) secoes.push({ titulo: '💰 Aguardando pagamento (Financeiro)', itens: await buscarStatus(cli, 'aguardando_pagamento') });
 
       var totalItens = secoes.reduce(function (t, s) { return t + s.itens.length; }, 0);
@@ -542,7 +553,7 @@ EC.aprovacoes = (function () {
     return (
       titulo +
       // Resumo orçamentário só para a Logística (o Financeiro não vê).
-      (ehLogistica() ? renderOrcamento(orcAtual) : '') +
+      (ehAprovador() ? renderOrcamento(orcAtual) : '') +
       '<p class="dg-secao">Quem</p>' +
       '<div class="rb-resumo-auto">' +
         linhaInfo('Solicitante (preencheu)', s.solicitante || '—') +
@@ -808,7 +819,7 @@ EC.aprovacoes = (function () {
   function mostrarAcoes(s) {
     var bLog = $('apr-acao-logistica'), bPag = $('apr-acao-pagamento');
     bLog.classList.add('oculto'); bPag.classList.add('oculto');
-    if (s.status === 'aguardando_logistica' && ehLogistica()) {
+    if (s.status === 'aguardando_logistica' && ehAprovador()) {
       $('apr-obs').value = '';
       montarAjusteEditor(s);
       bLog.classList.remove('oculto');
