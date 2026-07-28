@@ -5,8 +5,9 @@
  *   • 📷 Tirar foto     — abre a CÂMERA (input com capture); carimbo COMPLETO
  *                         (OS, Projeto, UTM, tipo, ponto, data/hora).
  *   • 🖼️ Buscar da fototeca — abre a GALERIA (input sem capture); carimbo SEM
- *                         UTM e SEM data/hora (a foto antiga não tem a coordenada
- *                         nem o horário do momento) — OS/Projeto/tipo/ponto ficam.
+ *                         data/hora (a foto antiga não tem o horário do momento).
+ *                         A UTM só entra se o técnico já informou a coordenada do
+ *                         ponto (obterUtm com valor) — OS/Projeto/tipo/ponto ficam.
  * Cada foto é redesenhada num canvas, CARIMBADA no canto inferior direito,
  * nomeada e convertida para base64. Galeria de miniaturas com remover em cada.
  *
@@ -180,8 +181,9 @@ EC.foto = (function () {
     botaoTec.addEventListener('click', function () { if (fotos.length < MAX_FOTOS) entradaTec.click(); });
 
     // Processa UM arquivo (câmera ou fototeca). daFototeca=true → o carimbo sai
-    // SEM UTM e SEM data/hora (a foto da galeria não tem a coordenada nem o
-    // horário do momento da coleta); OS, Projeto, tipo e Ponto seguem no carimbo.
+    // SEM data/hora (a foto da galeria não tem o horário do momento); a UTM só
+    // entra se o técnico já tiver informado a coordenada do ponto. OS, Projeto,
+    // tipo e Ponto seguem sempre no carimbo.
     function processarArquivo(arquivo, input, daFototeca) {
       if (!arquivo) return;
       status.textContent = '⏳ Processando a foto…';
@@ -204,9 +206,18 @@ EC.foto = (function () {
           const linhasCarimbo = [];
           linhasCarimbo.push('OS ' + (opcoes.os || '—'));
           if (opcoes.projeto) linhasCarimbo.push('Projeto: ' + opcoes.projeto);
+          // UTM no carimbo: na CÂMERA sempre (coordenada do momento, ou aviso).
+          // Na FOTOTECA a foto antiga não traz coordenada — mas se o técnico já
+          // informou a coordenada do ponto (obterUtm com valor), ela entra
+          // (pedido da Raisa, 2026-07-27). Sem coordenada informada, fica de fora.
+          const textoUtm = (typeof opcoes.obterUtm === 'function' && opcoes.obterUtm()) || '';
+          let utmNoCarimbo = false;
           if (!daFototeca) {
-            const textoUtm = (typeof opcoes.obterUtm === 'function' && opcoes.obterUtm()) || 'UTM não capturado';
+            linhasCarimbo.push('UTM ' + (textoUtm || 'UTM não capturado'));
+            utmNoCarimbo = true;
+          } else if (textoUtm) {
             linhasCarimbo.push('UTM ' + textoUtm);
+            utmNoCarimbo = true;
           }
           linhasCarimbo.push(opcoes.tipo || '—');
           linhasCarimbo.push((opcoes.rotuloPonto || 'Ponto') + ' ' + (opcoes.ponto || '—'));
@@ -230,7 +241,7 @@ EC.foto = (function () {
           renderGaleria();
           atualizarBotao();
           status.textContent = daFototeca
-            ? '✅ Foto da fototeca adicionada — carimbo sem UTM/horário (' + fotos.length + '/' + MAX_FOTOS + ').'
+            ? '✅ Foto da fototeca adicionada — carimbo ' + (utmNoCarimbo ? 'com a coordenada informada, ' : '') + 'sem horário' + (utmNoCarimbo ? '' : '/UTM') + ' (' + fotos.length + '/' + MAX_FOTOS + ').'
             : '✅ Foto carimbada e adicionada (' + fotos.length + '/' + MAX_FOTOS + ').';
           input.value = '';
           notificar();
