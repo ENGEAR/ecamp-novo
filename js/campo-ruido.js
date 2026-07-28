@@ -597,6 +597,98 @@ EC.campoRuido = (function () {
     return lista;
   }
 
+  // ===== PDF PARCIAL por JANELA de medição (ponto × período × total/residual) =====
+  // O parcial cresce medição a medição (pedido da Raisa, 2026-07-27): ao concluir
+  // "diurno total" já sai o PDF; depois "diurno total + residual"; depois "+ noturno
+  // total"; e assim por diante — cada geração sobrescreve a anterior. Uma janela só
+  // entra quando tem dados E está intrinsecamente completa (mesma checagem do
+  // residual: SEM cobrar checagem-final/clima de fechamento, que são do encerramento
+  // do ponto/série). A foto do ponto e os demais obrigatórios da janela continuam
+  // exigidos, então nunca sai janela "sem foto".
+  function longaDoEstado(estado) {
+    const s = (estado && estado.servico) || {};
+    return /longa\s*dura/i.test((s.metodo || '') + ' ' + (s.periodo || ''));
+  }
+  function janelaProntaParcial(subtipo, j, longa, geral, qual) {
+    if (!janelaTemDados(j)) return false;
+    return faltasJanela(subtipo, j, longa, geral, qual, false, false, false).length === 0;
+  }
+  // Cópia do ponto só com as janelas completas (ou null se nenhuma).
+  function pontoParcial(ponto, subtipo, indice, total, geral, longa) {
+    const periodos = periodosAtivos(geral);
+    const p0 = periodos[0];
+    const novo = Object.assign({}, ponto || {});
+    novo.periodos = {};
+    let algum = false;
+    periodos.forEach(function (pid) {
+      const med = medPer(ponto || {}, pid, p0);
+      // O período só entra quando o TOTAL está pronto (residual sozinho não faz
+      // sentido no laudo). O residual soma quando estiver pronto; se não, mantém
+      // a justificativa (o PDF mostra "Residual não medido: …").
+      if (!janelaProntaParcial(subtipo, med.total, longa, geral, 'total')) return;
+      const nm = { total: med.total };
+      if (janelaProntaParcial(subtipo, med.residual, longa, geral, 'residual')) nm.residual = med.residual;
+      else if (med.justificativaResidual) nm.justificativaResidual = med.justificativaResidual;
+      novo.periodos[pid] = nm;
+      algum = true;
+    });
+    return algum ? novo : null;
+  }
+  // Campo só com o que está COMPLETO até agora. Prefixo de pontos (para não gerar
+  // buracos na numeração): para no 1º ponto sem nenhuma janela completa. null se
+  // nada pronto ainda. Vale para externo/ferro/aéreo (pontos) e interno (ambientes).
+  function campoParcial(estado) {
+    const campo = (estado && estado.campo) || {};
+    const subtipo = campo.subtipo;
+    if (!subtipo) return null;
+    const longa = longaDoEstado(estado);
+    const clone = Object.assign({}, campo);
+    clone.geral = Object.assign({}, campo.geral || {});
+    if (ehInterno(subtipo)) {
+      const totalAmb = Math.min(20, Math.max(1, parseInt(clone.geral.qtdeAmbientes, 10) || 0));
+      const ambs = [];
+      for (let a = 0; a < totalAmb; a++) {
+        const amb = (campo.ambientes || [])[a];
+        if (!amb) break;
+        const totalPts = Math.min(20, Math.max(1, parseInt(amb.pontosCalculados, 10) || 0));
+        const pts = [];
+        for (let p = 0; p < totalPts; p++) {
+          const np = pontoParcial((amb.pontos || [])[p], subtipo, p, totalPts, clone.geral, longa);
+          if (!np) break;
+          pts.push(np);
+        }
+        if (!pts.length) break;
+        const na = Object.assign({}, amb); na.pontos = pts; na.pontosCalculados = pts.length;
+        ambs.push(na);
+      }
+      if (!ambs.length) return null;
+      clone.ambientes = ambs; clone.geral.qtdeAmbientes = ambs.length;
+      return clone;
+    }
+    const total = Math.min(20, Math.max(1, parseInt(clone.geral.qtdePontos, 10) || 0));
+    const pts = [];
+    for (let i = 0; i < total; i++) {
+      const np = pontoParcial((campo.pontos || [])[i], subtipo, i, total, clone.geral, longa);
+      if (!np) break;
+      pts.push(np);
+    }
+    if (!pts.length) return null;
+    clone.pontos = pts; clone.geral.qtdePontos = pts.length;
+    return clone;
+  }
+  // Itens que faltam na janela ABERTA agora (para orientar quando nada está pronto).
+  function faltasJanelaAtual(estado) {
+    const campo = (estado && estado.campo) || {};
+    const subtipo = campo.subtipo;
+    if (!subtipo) return [];
+    const ponto = listaPontos()[pontoExibido - 1];
+    if (!ponto) return [];
+    const med = medPer(ponto, periodoExibido);
+    const j = (med && med[janelaExibida]) || {};
+    if (!janelaTemDados(j)) return ['nada preenchido nesta medição ainda'];
+    return faltasJanela(subtipo, j, longaDoEstado(estado), campo.geral, janelaExibida, false, false, false);
+  }
+
   function salvar() { ctx.salvar(); }
 
   // Continua do último ponto/ambiente aberto (ex.: retomar o serviço no dia
@@ -1630,6 +1722,9 @@ EC.campoRuido = (function () {
     FOTOS_POR_SUBTIPO: FOTOS_POR_SUBTIPO,
     pontoAtualIncompleto: pontoAtualIncompleto,
     itensFaltando: itensFaltando,
+    // PDF parcial por janela de medição (ponto×período×total/residual).
+    campoParcial: campoParcial,
+    faltasJanelaAtual: faltasJanelaAtual,
     // Expostos para o laudo/testes: divisão das séries de checagem (máx. 10 pontos).
     blocosDaSerie: blocosDaSerie,
     blocoDoPonto: blocoDoPonto

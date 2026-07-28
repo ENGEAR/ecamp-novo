@@ -1782,33 +1782,14 @@ EC.fluxo = (function () {
     salvarEstado(true);
   }
 
-  // Nome do PDF PARCIAL pelos NOMES dos pontos preenchidos (pedido da Raisa,
-  // 2026-07-27). Como o parcial é ACUMULADO (contém tudo até aqui), usa o
-  // primeiro e o último ponto COM NOME: "OS 26133 - Sismografia - parcial Ar 01
-  // a Ar 02.pdf" (1 ponto só = "parcial Ar 01"). Vale para todos os tipos.
-  function nomesDosPontos(registro) {
-    var campo = registro.campo || {};
-    var sub = campo.subtipo || '';
-    var itens;
-    if (sub === 'interno10151' || sub === 'interno10152' || registro.tipo === 'qarint') {
-      itens = [];
-      (campo.ambientes || []).forEach(function (a) { (((a || {}).pontos) || []).forEach(function (p) { itens.push(p); }); });
-    } else if (registro.tipo === 'opacidade') {
-      itens = campo.veiculos || [];
-    } else {
-      itens = campo.pontos || [];
-    }
-    return itens.map(function (p) { return p && String(p.nome || '').trim(); }).filter(Boolean);
-  }
+  // Nome FIXO por serviço: como a chave no SharePoint é o NOME do arquivo, um nome
+  // estável faz cada geração SOBRESCREVER a anterior — o parcial cresce (mais
+  // medições), mas não acumula arquivos (pedido da Raisa, 2026-07-27).
   function nomePdfParcial(registro) {
     var os = (registro.os && registro.os.numero) || '';
     var escopo = (registro.servico && registro.servico.escopo) || nomeTipo(registro.tipo) || '';
-    var nomes = nomesDosPontos(registro);
-    var faixa = !nomes.length ? 'parcial'
-      : nomes.length === 1 ? ('parcial ' + nomes[0])
-        : ('parcial ' + nomes[0] + ' a ' + nomes[nomes.length - 1]);
     var limpar = function (s) { return String(s).replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim(); };
-    return limpar('OS ' + os + ' - ' + escopo + ' - ' + faixa) + '.pdf';
+    return limpar('OS ' + os + ' - ' + escopo + ' - parcial') + '.pdf';
   }
 
   // O PDF parcial só deve conter pontos COMPLETOS (pedido da Raisa, 2026-07-27:
@@ -1817,15 +1798,13 @@ EC.fluxo = (function () {
   // (bloqueiosSalvar → itensFaltando), que já marca cada unidade incompleta com
   // um prefixo ("P3: …", "V2: …", "A1: …", "Ambiente 1 (…): …"). O parcial é o
   // PREFIXO de unidades completas: vai até a 1ª unidade incompleta (exclusive),
-  // preservando a numeração e a ordem de campo. Vale para todos os tipos.
+  // preservando a numeração e a ordem de campo. O RUÍDO não passa por aqui — ele
+  // tem granularidade fina (por janela) via EC.campoRuido.campoParcial.
   function infoParcial() {
-    var tipo = estado.tipo, campo = estado.campo || {};
+    var tipo = estado.tipo;
     if (tipo === 'opacidade') return { chave: 'qtdeVeiculos', colecao: 'veiculos', max: 50, re: /^V(\d+)\b/ };
     if (tipo === 'qarint') return { chave: 'qtdeAmbientes', colecao: 'ambientes', max: 20, re: /^A(\d+)\b/ };
-    if (tipo === 'ruido' && (campo.subtipo === 'interno10151' || campo.subtipo === 'interno10152')) {
-      return { chave: 'qtdeAmbientes', colecao: 'ambientes', max: 20, re: /^Ambiente (\d+)\b/ };
-    }
-    if (tipo === 'ruido' || tipo === 'sismo' || (tipo === 'qar' && qarParticulado())) {
+    if (tipo === 'sismo' || (tipo === 'qar' && qarParticulado())) {
       return { chave: 'qtdePontos', colecao: 'pontos', max: 20, re: /^P(\d+)\b/ };
     }
     return null; // "outro" / qar não-particulado: sem validação por ponto → sem trava.
@@ -1867,22 +1846,43 @@ EC.fluxo = (function () {
     return copia;
   }
 
-  // Botão "📤 Enviar PDF parcial" (campo): gera NA HORA o PDF acumulado (só os
-  // pontos COMPLETOS até aqui), com o nome pelos pontos, e abre o compartilhar
-  // (WhatsApp). Sem throttle — é um toque do técnico. Para todos os tipos.
-  function enviarPdfParcial(btn) {
-    if (!estado) return;
+  // Registro do PDF parcial: só o que está COMPLETO até agora.
+  //  - RUÍDO: granularidade por JANELA de medição (ponto×período×total/residual);
+  //    cresce a cada janela concluída (EC.campoRuido.campoParcial).
+  //  - demais tipos: prefixo de pontos/veículos/ambientes completos (limiteParcial).
+  // { registro:null, pronto:false, faltas:[…] } quando nada está pronto ainda.
+  function montarRegistroParcial() {
     var registro = montarRegistro();
-    if (!(EC.pdf && EC.pdf.gerarSalvar && EC.pdf.suporta && EC.pdf.suporta(registro))) {
-      EC.app.mostrarToast('Este serviço ainda não gera PDF.'); return;
+    if (estado.tipo === 'ruido' && EC.campoRuido && EC.campoRuido.campoParcial) {
+      var campoF = EC.campoRuido.campoParcial(estado);
+      if (!campoF) {
+        var f = (EC.campoRuido.faltasJanelaAtual && EC.campoRuido.faltasJanelaAtual(estado)) || [];
+        return { registro: null, pronto: false, faltas: f };
+      }
+      var copia = Object.assign({}, registro); copia.campo = campoF;
+      return { registro: copia, pronto: true, faltas: [] };
     }
     var lim = limiteParcial();
-    if (lim.info && (lim.k == null || lim.k < 1)) {
-      var det = (lim.faltas && lim.faltas.length) ? (' Falta: ' + lim.faltas.join(', ') + '.') : '';
-      EC.app.mostrarToast('Complete os dados obrigatórios do ponto antes de gerar o PDF parcial.' + det);
+    if (lim.info && (lim.k == null || lim.k < 1)) return { registro: null, pronto: false, faltas: lim.faltas || [] };
+    return { registro: registroParcial(registro, lim), pronto: true, faltas: [] };
+  }
+
+  // Botão "📤 Enviar PDF parcial" (campo): gera NA HORA o PDF acumulado (só o que
+  // está COMPLETO até aqui — no ruído, cada janela de medição já concluída), com
+  // nome fixo que sobrescreve, e abre o compartilhar (WhatsApp). Sem throttle.
+  function enviarPdfParcial(btn) {
+    if (!estado) return;
+    var base = montarRegistro();
+    if (!(EC.pdf && EC.pdf.gerarSalvar && EC.pdf.suporta && EC.pdf.suporta(base))) {
+      EC.app.mostrarToast('Este serviço ainda não gera PDF.'); return;
+    }
+    var pr = montarRegistroParcial();
+    if (!pr.pronto) {
+      var det = (pr.faltas && pr.faltas.length) ? (' Falta: ' + pr.faltas.slice(0, 4).join(', ') + '.') : '';
+      EC.app.mostrarToast('Complete a medição antes de gerar o PDF parcial.' + det);
       return;
     }
-    var registroP = registroParcial(registro, lim);
+    var registroP = pr.registro;
     var rot = btn ? btn.textContent : '';
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando…'; }
     // semSalvarLocal: é um parcial para enviar, não um registro finalizado no Histórico.
@@ -1923,15 +1923,15 @@ EC.fluxo = (function () {
       if (estado.tipo && estado.campo && navigator.onLine && pdfParcialVencido() &&
           EC.pdf && EC.pdf.suporta && EC.pdf.suporta(registro) && EC.pdf.gerarSalvar) {
         try {
-          // Só sobe o parcial se houver ≥1 ponto COMPLETO (ou tipo sem validação):
-          // nunca gera um PDF com ponto sem foto/dado obrigatório. Se ainda não há
-          // ponto pronto, não consome o intervalo — tenta de novo no próximo save.
-          var lim = limiteParcial();
-          if (!lim.info || (lim.k != null && lim.k >= 1)) {
-            var registroP = registroParcial(registro, lim);
-            var nomeParcial = nomePdfParcial(registroP);
+          // Só sobe o parcial se houver algo COMPLETO (no ruído, ≥1 janela de
+          // medição; nos outros, ≥1 ponto): nunca gera PDF com ponto sem foto/dado
+          // obrigatório. Se nada está pronto, não consome o intervalo — tenta de
+          // novo no próximo save.
+          var pr = montarRegistroParcial();
+          if (pr.pronto && pr.registro) {
+            var nomeParcial = nomePdfParcial(pr.registro);
             marcarPdfParcial();
-            Promise.resolve(EC.pdf.gerarSalvar(registroP, { nome: nomeParcial, semSalvarLocal: true }))
+            Promise.resolve(EC.pdf.gerarSalvar(pr.registro, { nome: nomeParcial, semSalvarLocal: true }))
               .catch(function () { /* best-effort */ });
           }
         } catch (e) { /* best-effort */ }
