@@ -34,11 +34,16 @@ EC.biblioteca = (function () {
 
   var CHAVE_LISTA = 'biblioteca:lista'; // lista de documentos (cache p/ offline)
   var CHAVE_VERSOES = 'biblioteca:versoes'; // id → `arquivo` no momento do download
+  var CHAVE_VISTOS = 'biblioteca:vistos';   // id → true (vídeo/treinamento já aberto)
 
   const TIPOS = [
     { chave: 'legislacao', titulo: 'Legislação', icone: '📕' },
     { chave: 'norma', titulo: 'Normas', icone: '📘' },
-    { chave: 'procedimento', titulo: 'Procedimentos', icone: '📗' }
+    { chave: 'procedimento', titulo: 'Procedimentos', icone: '📗' },
+    // Treinamentos (2026-07-27): materiais e VÍDEOS gravados pela Raisa. Antes o
+    // app nem mostrava este tipo — os documentos existiam no SGP mas não
+    // apareciam aqui. Costumam ser link (vídeo), com ou sem PDF de apoio.
+    { chave: 'treinamento', titulo: 'Treinamentos', icone: '📒' }
   ];
   // Nível atual da navegação. Zerado ao abrir.
   let nivel = { tipo: null, escopo: null };
@@ -47,6 +52,7 @@ EC.biblioteca = (function () {
   let baixados = {};   // id → true (tem o PDF no IndexedDB)
   let baixando = {};   // id → true (download em andamento)
   let versoes = {};    // id → `arquivo` que foi baixado (p/ detectar PDF trocado)
+  let vistos = {};     // id → true (vídeo/treinamento já aberto neste aparelho)
 
   function toast(msg) { if (EC.app && EC.app.mostrarToast) EC.app.mostrarToast(msg); }
 
@@ -142,6 +148,24 @@ EC.biblioteca = (function () {
     try { EC.storage.salvar(CHAVE_VERSOES, versoes); } catch (e) { /* best-effort */ }
   }
 
+  /* ---------- Vídeos/treinamentos JÁ VISTOS neste aparelho ----------
+   * Um vídeo não tem PDF para baixar, então o "falta baixar" não serve para
+   * avisar que chegou treinamento novo. Guardamos quem já foi aberto: o sino
+   * conta os NÃO vistos e some quando o técnico assiste. */
+  function carregarVistos() {
+    try {
+      const v = EC.storage && EC.storage.ler && EC.storage.ler(CHAVE_VISTOS);
+      if (v && typeof v === 'object') vistos = v;
+    } catch (e) { /* segue sem histórico de vistos */ }
+  }
+  function salvarVistos() {
+    try { EC.storage.salvar(CHAVE_VISTOS, vistos); } catch (e) { /* best-effort */ }
+  }
+  // Documentos com vídeo que este aparelho ainda não abriu.
+  function videosNaoVistos() {
+    return docs().filter(function (d) { return d.link && !vistos[d.id]; });
+  }
+
   // PDF trocado no SGP depois que este aparelho baixou? (`arquivo` muda a cada
   // troca). Download antigo, de antes de guardarmos versões, fica como "em dia"
   // — sem versão conhecida não dá para afirmar que mudou.
@@ -150,13 +174,21 @@ EC.biblioteca = (function () {
   }
 
   // Documentos que pedem download: nunca baixados ou com versão nova.
+  // Documento SÓ com link (vídeo) NÃO entra aqui: não há PDF para baixar, então
+  // ele ficaria eternamente "pendente" no sino e no "Baixar todos".
   function pendentesDownload() {
-    return docs().filter(function (d) { return !baixados[d.id] || desatualizado(d); });
+    return docs().filter(function (d) {
+      if (soLink(d)) return false;
+      return !baixados[d.id] || desatualizado(d);
+    });
   }
 
-  // Reporta a contagem ao sino único do app (fonte 'sgq').
+  // Reporta a contagem ao sino único do app (fonte 'sgq'): PDFs a baixar/
+  // atualizar + vídeos de treinamento ainda não assistidos neste aparelho.
   function reportarSino() {
-    if (EC.app && EC.app.atualizarSino) EC.app.atualizarSino('sgq', pendentesDownload().length);
+    if (EC.app && EC.app.atualizarSino) {
+      EC.app.atualizarSino('sgq', pendentesDownload().length + videosNaoVistos().length);
+    }
   }
 
   // Chamada no login e ao voltar a ficar online: atualiza a contagem do sino
@@ -164,6 +196,7 @@ EC.biblioteca = (function () {
   function atualizarSino() {
     carregarListaLocal();
     carregarVersoes();
+    carregarVistos();
     carregarBaixados().then(function () {
       reportarSino();
       return atualizarLista();
@@ -215,9 +248,22 @@ EC.biblioteca = (function () {
 
   // Toque no documento: abre o que já está no aparelho; senão baixa e abre.
   // Com versão nova no servidor e internet, baixa a nova antes de abrir.
+  // Abre o conteúdo externo (vídeo de treinamento) numa aba nova. Sem internet
+  // não há o que fazer: o vídeo mora fora e o app não guarda cópia.
+  function abrirLink(id) {
+    const d = docPorId(id);
+    if (!d || !d.link) return;
+    if (!navigator.onLine) { toast('📡 Sem conexão — o vídeo precisa de internet.'); return; }
+    // Assistiu → sai do sino (e o card perde o selo de novidade).
+    if (!vistos[id]) { vistos[id] = true; salvarVistos(); reportarSino(); pintar(); }
+    window.open(d.link, '_blank', 'noopener');
+  }
+
   function abrirDocumento(id) {
     const d = docPorId(id);
     if (!d || baixando[id]) return;
+    // Documento só com link (vídeo): não há PDF para baixar/abrir.
+    if (soLink(d)) { abrirLink(id); return; }
     EC.db.get('biblioteca', id).catch(function () { return null; }).then(function (blob) {
       if (blob && desatualizado(d) && navigator.onLine) blob = null; // força rebaixar
       if (blob) {
@@ -275,23 +321,43 @@ EC.biblioteca = (function () {
   // Linha do documento: toque abre (baixando antes, se preciso). À direita, o
   // estado: "📥 · 2.1 MB" (falta baixar) · "⏳" (baixando) · "Abrir ›" (+ ✕ para
   // apagar a cópia). `sub` opcional aparece abaixo do título (usado na busca).
+  // Documento SÓ com link (ex.: vídeo de treinamento no YouTube): não há PDF
+  // para baixar — o card abre o link. Precisa de internet, e o card avisa.
+  function soLink(d) { return !!(d.link && !d.arquivo); }
+
   function htmlDoc(d, sub) {
     let acao;
-    if (baixando[d.id]) acao = '<span class="bib-doc-abrir">⏳ Baixando…</span>';
+    if (soLink(d)) {
+      acao = navigator.onLine
+        ? '<span class="bib-doc-abrir">▶️ Assistir</span>'
+        : '<span class="bib-doc-abrir" style="opacity:.6">📡 precisa de internet</span>';
+    }
+    else if (baixando[d.id]) acao = '<span class="bib-doc-abrir">⏳ Baixando…</span>';
     else if (desatualizado(d)) acao = '<span class="bib-doc-abrir">🔄 Nova versão</span>' +
       '<button type="button" class="bib-doc-apagar" data-id="' + escapar(d.id) + '" title="Apagar a cópia offline">✕</button>';
     else if (baixados[d.id]) acao = '<span class="bib-doc-abrir">Abrir ›</span>' +
       '<button type="button" class="bib-doc-apagar" data-id="' + escapar(d.id) + '" title="Apagar a cópia offline">✕</button>';
     else acao = '<span class="bib-doc-abrir">📥' + (d.tamanho ? ' ' + fmtTamanho(d.tamanho) : '') + '</span>';
+    // Documento com PDF E link (ex.: vídeo + roteiro): o card baixa/abre o PDF e
+    // o botão ▶️ ao lado abre o vídeo.
+    var botaoVideo = (d.link && d.arquivo)
+      ? '<button type="button" class="bib-doc-video" data-id="' + escapar(d.id) + '" title="Assistir ao vídeo">▶️</button>'
+      : '';
+    // Selo de novidade: vídeo que este aparelho ainda não abriu (mesma conta do sino).
+    var selo = (d.link && !vistos[d.id])
+      ? ' <small class="bib-doc-sub" style="color:var(--accent2);font-weight:700">• novo</small>'
+      : '';
     return '<div class="bib-doc" data-id="' + escapar(d.id) + '" role="button" tabindex="0">' +
-      '<span class="bib-doc-icone">📄</span>' +
-      '<span class="bib-doc-titulo">' + escapar(d.titulo) + (sub ? '<small class="bib-doc-sub">' + escapar(sub) + '</small>' : '') + '</span>' +
-      acao + '</div>';
+      '<span class="bib-doc-icone">' + (d.link ? '🎬' : '📄') + '</span>' +
+      '<span class="bib-doc-titulo">' + escapar(d.titulo) + selo + (sub ? '<small class="bib-doc-sub">' + escapar(sub) + '</small>' : '') + '</span>' +
+      botaoVideo + acao + '</div>';
   }
 
   /* ---------- Barra "baixar todos" (estado offline da biblioteca) ---------- */
   function htmlBarraOffline() {
-    const total = docs().length;
+    // Conta só o que É baixável: vídeo (link sem PDF) não tem arquivo para
+    // guardar no aparelho e falsearia o "X de Y no aparelho".
+    const total = docs().filter(function (d) { return !soLink(d); }).length;
     if (!total) return '';
     const pend = pendentesDownload();
     if (!pend.length) return '<p class="bib-offline-ok">✓ Biblioteca completa no aparelho — abre sem internet.</p>';
@@ -403,6 +469,10 @@ EC.biblioteca = (function () {
     area.querySelectorAll('.bib-doc').forEach(function (el) {
       el.addEventListener('click', function () { abrirDocumento(el.dataset.id); });
     });
+    // ▶️ ao lado do título (documento com PDF E vídeo): abre só o vídeo.
+    area.querySelectorAll('.bib-doc-video').forEach(function (b) {
+      b.addEventListener('click', function (ev) { ev.stopPropagation(); abrirLink(b.dataset.id); });
+    });
     area.querySelectorAll('.bib-doc-apagar').forEach(function (b) {
       b.addEventListener('click', function (ev) { ev.stopPropagation(); apagarDownload(b.dataset.id); });
     });
@@ -419,6 +489,7 @@ EC.biblioteca = (function () {
     nivel = { tipo: null, escopo: null };
     carregarListaLocal();
     carregarVersoes();
+    carregarVistos();
     EC.app.abrirOverlay('📚 Biblioteca',
       '<label class="overlay-busca"><input type="search" id="bib-busca" placeholder="🔍 Buscar por título, categoria ou norma…" autocomplete="off"></label>' +
       '<div id="bib-area"></div>');
