@@ -495,6 +495,12 @@ EC.aprovacoes = (function () {
     if (Number(s.valor_mao_obra) > 0 && diasMaoObra > 0) {
       bullets.push('Mão de obra: ' + moeda(Math.round(Number(s.valor_mao_obra) / diasMaoObra * 100) / 100) + '/dia');
     }
+    // Aluguel/dia = valor ÷ dias totais da viagem. O R$/dia depende do combustível
+    // do carro (diesel ≠ gasolina), por isso o combustível aparece junto.
+    if (Number(s.valor_aluguel) > 0 && diasMaoObra > 0) {
+      bullets.push('Aluguel do veículo: ' + moeda(Math.round(Number(s.valor_aluguel) / diasMaoObra * 100) / 100) + '/dia' +
+        (comb ? ' (carro a ' + comb.toLowerCase() + ')' : ''));
+    }
     if (Number(s.valor_hospedagem) > 0 && vu.hospedagem_dia != null) {
       bullets.push('Hospedagem: ' + moeda(vu.hospedagem_dia) + '/diária');
     }

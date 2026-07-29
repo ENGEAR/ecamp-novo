@@ -497,7 +497,8 @@ EC.reembolso = (function () {
     // Combustível: (ida+volta + 5 km/dia PURO de serviço) ÷ consumo × preço/L.
     var distComb = dist + 5 * servicoPuro;
     var combustivel = (preco > 0 && distComb > 0 && consumo > 0) ? r2((distComb / consumo) * preco) : 0;
-    var aluguel = veiculo() === 'proprio' ? r2(Number(v.aluguel_veiculo_dia) * diasViagem) : 0;
+    // Aluguel: R$/dia do combustível do carro (diesel ≠ gasolina) × dias de viagem.
+    var aluguel = veiculo() === 'proprio' ? r2(aluguelDia() * diasViagem) : 0;
     // Hospedagem: R$/diária × noites fora (chegada − saída). Mesmo dia → 0.
     var hospedagem = r2(Number(v.hospedagem_dia) * diarias);
     // Mão de obra (CLT e freelancer) = diária × dias TOTAIS da viagem (cada dia
@@ -646,6 +647,17 @@ EC.reembolso = (function () {
     if (!ctx) return 0;
     return $('rb-combustivel').value === 'diesel'
       ? Number(ctx.valores.teto_diesel) : Number(ctx.valores.teto_gasolina);
+  }
+
+  // Aluguel do veículo próprio (R$/dia) do combustível ESCOLHIDO: carro a diesel
+  // e a gasolina têm valores próprios (tela de valores do SGP). Sem combustível
+  // escolhido usa o da gasolina. Contexto antigo em cache (aluguel único) ainda
+  // funciona — cai no valor de antes.
+  function aluguelDia() {
+    if (!ctx) return 0;
+    var v = ctx.valores;
+    var porTipo = $('rb-combustivel').value === 'diesel' ? v.aluguel_diesel_dia : v.aluguel_gasolina_dia;
+    return Number(porTipo) > 0 ? Number(porTipo) : Number(v.aluguel_veiculo_dia) || 0;
   }
 
   // Consumo (km/L) do combustível ESCOLHIDO: gasolina 12 / diesel 10 (da tela
@@ -1119,7 +1131,8 @@ EC.reembolso = (function () {
         ? distTot + ' km (' + distanciaAtual() + ' ida+volta + ' + kmExtra + ' km entre pontos: 5 km × ' + dPuro + ' dia(s) de serviço) ÷ ' +
           consumoAtual() + ' km/L (' + ($('rb-combustivel').value === 'diesel' ? 'diesel' : 'gasolina') + ') × preço do litro'
         : 'informe a distância e o preço do litro'),
-      aluguel: moedaBR(v.aluguel_veiculo_dia) + '/dia × ' + dViagem + ' dia(s) de viagem',
+      aluguel: moedaBR(aluguelDia()) + '/dia × ' + dViagem + ' dia(s) de viagem' +
+        ($('rb-combustivel').value ? ' (carro a ' + $('rb-combustivel').value + ')' : ''),
       hospedagem: moedaBR(v.hospedagem_dia) + '/diária × ' + calc.diarias + ' diária(s) — da saída à chegada' +
         (calc.diarias === 0 ? ' (foi e voltou no mesmo dia: sem hospedagem)' : ''),
       mao_obra: (function () {
@@ -1309,8 +1322,12 @@ EC.reembolso = (function () {
     $('rb-transporte-campos').classList.toggle('oculto', !v);
     var info = $('rb-aluguel-info');
     if (v === 'proprio' && osSel && ctx) {
-      info.textContent = '🚗 Veículo próprio: o aluguel entra sozinho — ' +
-        moedaBR(ctx.valores.aluguel_veiculo_dia) + '/dia × ' + diasViagemVal() + ' dia(s) de viagem.';
+      // O R$/dia depende do combustível do carro — enquanto não escolherem, avisa.
+      var comb = $('rb-combustivel').value;
+      info.textContent = comb
+        ? '🚗 Veículo próprio (carro a ' + comb + '): o aluguel entra sozinho — ' +
+          moedaBR(aluguelDia()) + '/dia × ' + diasViagemVal() + ' dia(s) de viagem.'
+        : '🚗 Veículo próprio: escolha o combustível do carro abaixo — o valor do aluguel depende dele.';
       info.classList.remove('oculto');
     } else {
       info.classList.add('oculto');
@@ -1706,6 +1723,11 @@ EC.reembolso = (function () {
 
     var preco = lerMoeda('rb-preco-litro');
     var tipoComb = $('rb-combustivel').value;
+    // Veículo próprio: o aluguel tem um valor para carro a gasolina e outro para
+    // carro a diesel, então o combustível é obrigatório mesmo sem preço por litro.
+    if (veiculo() === 'proprio' && !tipoComb) {
+      return mostrarErro('Escolha o combustível do carro (gasolina ou diesel) — o valor do aluguel depende dele.');
+    }
     if (preco > 0 && !tipoComb) return mostrarErro('Escolha o tipo de combustível (gasolina ou diesel).');
     if (tipoComb && !(preco > 0)) return mostrarErro('Informe o preço por litro do combustível.');
     if (tipoComb && preco > 0 && distanciaCombustivel() <= 0) {
@@ -3235,7 +3257,8 @@ EC.reembolso = (function () {
       // O usuário digita o preço por litro (não auto-preenche). O teto máximo
       // configurado pela Logística aparece como referência; se passar, o
       // lembrete e a justificativa aparecem em pintarTeto().
-      pintarTeto(); pintarValores();
+      // aoMudarVeiculo() reescreve o aviso do aluguel, que muda com o combustível.
+      pintarTeto(); aoMudarVeiculo();
     });
     ligarMoeda('rb-preco-litro', function () { pintarTeto(); pintarValores(); });
     $('rb-distancia').addEventListener('input', pintarValores);
