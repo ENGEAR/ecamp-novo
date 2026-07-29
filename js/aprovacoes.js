@@ -180,11 +180,14 @@ EC.aprovacoes = (function () {
       : t === 'veiculo' ? '<span class="rotulo-apoio">📦 Outros do Serviço</span> · '
       : t === 'complemento' ? '<span class="rotulo-apoio">➕ Complemento</span> · '
       : ehAvulso ? '<span class="rotulo-apoio">💸 Outros gastos</span> · ' : '';
+    // Campanha: identifica de qual campanha da OS é a solicitação (o avulso não tem).
+    var campTxt = !ehAvulso && s.campanha_numero != null && s.campanha_numero !== ''
+      ? '<span class="rotulo-apoio">Campanha ' + esc(s.campanha_numero) + '</span> · ' : '';
     var cabecalho = ehAvulso ? '💸 Outros gastos' : 'OS ' + esc(s.os);
     return (
       '<button type="button" class="rb-pedido apr-cartao" data-id="' + s.id + '">' +
       '  <div class="rb-pedido-topo"><span class="os-numero">' + cabecalho + '</span>' + chip + '</div>' +
-      '  <div class="rb-pedido-linha">' + tipoTxt + '<strong>' + moeda(valor) + '</strong>' + detalhe + '</div>' +
+      '  <div class="rb-pedido-linha">' + tipoTxt + campTxt + '<strong>' + moeda(valor) + '</strong>' + detalhe + '</div>' +
       (s.cliente ? '  <div class="os-resumo">' + esc(s.cliente) + '</div>' : '') +
       '  <div class="os-resumo">' + (ehAvulso ? '' : '👷 ' + esc(s.designado || '—') + ' · ') + '✍️ ' + esc(s.solicitante || '—') + '</div>' +
       '</button>'
@@ -379,6 +382,9 @@ EC.aprovacoes = (function () {
       '<div class="rb-resumo-auto">' +
         linhaInfo(ehAvulso ? 'Solicitante' : 'Solicitante (preencheu)', s.solicitante || '—') +
         (ehAvulso ? '' : linhaInfo('Designado', (s.designado || '—') + ' · ' + cat)) +
+        // Avulso não tem OS nem campanha; nos demais, identifica de qual campanha é.
+        (ehAvulso || s.campanha_numero == null || s.campanha_numero === ''
+          ? '' : linhaInfo('Campanha', s.campanha_numero)) +
         kmInfo +
       '</div>' +
       '<p class="dg-secao">Valores</p>' +
@@ -568,6 +574,7 @@ EC.aprovacoes = (function () {
       '<div class="apr-cat">' + tipo + '</div>' +
       '<p class="dg-secao">Datas da viagem</p>' +
       '<div class="rb-resumo-auto">' +
+        linhaInfo('Campanha', s.campanha_numero != null && s.campanha_numero !== '' ? s.campanha_numero : '—') +
         linhaInfo('Ida', dataBR(s.data_inicio)) +
         linhaInfo('Início do serviço', dataBR(s.servico_inicio)) +
         linhaInfo('Término do serviço', dataBR(s.servico_fim)) +

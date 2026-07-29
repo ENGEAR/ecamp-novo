@@ -70,6 +70,14 @@ EC.reembolso = (function () {
   function sessao() { return EC.storage.ler('sessao:atual') || {}; }
   function sessionNome() { return (sessao().nome || '').trim(); }
 
+  // Nº da campanha de uma solicitação, venha ela do servidor (campanha_numero)
+  // ou da fila do aparelho, ainda não enviada (campanha). '' quando não tem —
+  // caso do "Outros gastos" avulso, que não é ligado a OS nem a campanha.
+  function campanhaDe(p) {
+    var n = p.campanha_numero != null && p.campanha_numero !== '' ? p.campanha_numero : p.campanha;
+    return n == null || n === '' ? '' : n;
+  }
+
   function moedaBR(v) { return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
   // Formata "AAAA-MM-DD" ou um TIMESTAMP (ex.: created_at) em DD/MM/AAAA. Datas
   // puras (sem hora) vão direto; timestamps são convertidos para o horário de
@@ -2055,7 +2063,11 @@ EC.reembolso = (function () {
       : t === 'veiculo' ? '<span class="rotulo-apoio">📦 Outros do Serviço</span> · '
       : t === 'complemento' ? '<span class="rotulo-apoio">➕ Complemento</span> · '
       : t === 'outros_gastos' ? '<span class="rotulo-apoio">💸 Outros gastos</span> · ' : '';
-    var parcelaTxt = tipoTxt + (parcelaN ? '<span class="rotulo-apoio">' + parcelaN + 'ª parcela</span> · ' : '');
+    // Campanha: a OS pergunta na hora de solicitar, então precisa dar para
+    // identificar depois. Vazia nos avulsos (Outros gastos não tem OS/campanha).
+    var campN = campanhaDe(p);
+    var campTxt = campN !== '' ? '<span class="rotulo-apoio">Campanha ' + campN + '</span> · ' : '';
+    var parcelaTxt = tipoTxt + campTxt + (parcelaN ? '<span class="rotulo-apoio">' + parcelaN + 'ª parcela</span> · ' : '');
     return (
       '<button type="button" class="rb-pedido rb-pedido-click" data-codigo="' + (p.codigo || '') + '">' +
       '  <div class="rb-pedido-topo"><span class="os-numero">' +
@@ -2328,6 +2340,8 @@ EC.reembolso = (function () {
       '<p class="dg-secao">Quem</p><div class="rb-resumo-auto">' +
         linha('Solicitante', p.solicitante || '—') +
         (t === 'outros_gastos' ? '' : linha('Designado', (p.designado || '—') + ' · ' + cat)) +
+        // Avulso não tem OS nem campanha; nos demais, identifica de qual campanha é.
+        (t === 'outros_gastos' || campanhaDe(p) === '' ? '' : linha('Campanha', campanhaDe(p))) +
         kmLinha +
       '</div>' +
       '<p class="dg-secao">Valores</p>' + (valores || '<p class="texto-apoio">—</p>') + just +
@@ -2365,6 +2379,7 @@ EC.reembolso = (function () {
         linha('Solicitante', p.solicitante || '—') + linha('Designado', (p.designado || '—') + ' · ' + tipo) +
       '</div>' +
       '<p class="dg-secao">Datas da viagem</p><div class="rb-resumo-auto">' +
+        linha('Campanha', campanhaDe(p) !== '' ? campanhaDe(p) : '—') +
         linha('Ida', dataBR(p.data_inicio)) + linha('Início do serviço', dataBR(p.servico_inicio)) +
         linha('Término do serviço', dataBR(p.servico_fim)) + linha('Chegada', dataBR(p.data_retorno || p.dataRetorno)) +
         linha('Dias de serviço', p.dias_servico != null ? p.dias_servico : '—') +
