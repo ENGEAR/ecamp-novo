@@ -513,9 +513,8 @@ EC.fluxo = (function () {
     // relatado pela Raisa em 2026-07-27). Agora explica o que houve.
     if (!os.servicos || !os.servicos.length) {
       EC.app.abrirOverlay('OS ' + escDg(os.numero),
-        '<p>Esta OS ainda <strong>não tem serviços cadastrados</strong> — por isso não abre.</p>' +
-        '<p class="texto-apoio">Não é problema do seu aparelho: falta lançar o escopo (Ruído, Vibração, QAR…) na Ordem de Serviço, no sistema do escritório. ' +
-        'Avise a logística/comercial e tente de novo depois.</p>' +
+        '<p>Esta OS ainda <strong>não tem serviços cadastrados. Favor entrar em contato com o comercial da ENGEAR.</strong></p>' +
+        '<p class="texto-apoio">Não é problema do seu aparelho: falta lançar o escopo (Ruído, Vibração, QAR…) na Ordem de Serviço, no sistema do escritório.</p>' +
         '<div class="pilha-botoes"><button type="button" class="botao botao-secundario" id="os-sem-servico-ok">Entendi</button></div>');
       var b = $('os-sem-servico-ok');
       if (b) b.addEventListener('click', EC.app.fecharOverlay);
