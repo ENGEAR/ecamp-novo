@@ -111,10 +111,12 @@ EC.reembolso = (function () {
     var servico = intervaloDatas(sI, sF), total = intervaloDatas(ida, volta);
     var setS = {}; servico.forEach(function (d) { setS[d] = 1; });
     var deslocRaw = total.filter(function (d) { return !setS[d]; }).length;
-    // Deslocamento sempre PAR (ida e volta): nunca 1. Serviço 2 dias ou mais e
-    // deu 1 (volta no último dia de serviço) → vira 2 (sempre lanche de ida e de
-    // volta). Afeta o lanche e a mão de obra (diária × (deslocamento + serviço)).
-    var desloc = (servico.length >= 2 && deslocRaw === 1) ? 2 : deslocRaw;
+    // Serviço de 2 dias ou mais SEMPRE tem ida e volta: o deslocamento nunca é 0
+    // nem 1, é no mínimo 2. Quando a ida cai no 1º dia de serviço e a chegada no
+    // último (as 4 datas "coincidem"), esses dois dias são justamente o de ida e
+    // o de volta — o dia é de serviço E de estrada ao mesmo tempo. Afeta o lanche
+    // (um na ida, um na volta).
+    var desloc = (servico.length >= 2 && deslocRaw < 2) ? 2 : deslocRaw;
     return {
       total: total.length, servicoPuro: servico.length, desloc: desloc,
       noites: diffDias(ida, volta), datasTotal: total
