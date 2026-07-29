@@ -75,6 +75,7 @@
   var ref = new Date();          // mês/semana exibidos
   var visao = 'lista';           // 'mes' | 'semana' | 'lista'
   var diaSel = null;             // dia tocado na grade do mês (ISO)
+  var confDetAberto = false;     // detalhe do aviso de conflito (dias + técnicos) expandido
   var eventos = [];              // todos os agendamentos carregados
   var catTecnicos = [];          // catálogo de técnicos ativos
   var oss = [];                  // ordens de serviço (p/ vincular e p/ o alerta)
@@ -319,7 +320,7 @@
     var tecsDia = {};
     evs.forEach(function (e) { if (e.status !== 'canc') (e.tecnicos || []).forEach(function (t) { tecsDia[t.nome] = 1; }); });
     var temConf = !!conflitos[dia];
-    return '<div class="ecagd-dia' + (temConf ? ' conflito' : '') + '">' +
+    return '<div class="ecagd-dia' + (temConf ? ' conflito' : '') + '" data-dia="' + dia + '">' +
       '<span>' + esc(dataLonga(dia)) + '</span>' +
       '<span class="ecagd-dia-meta">' + evs.length + ' serviço(s) · ' + Object.keys(tecsDia).length + ' técnico(s)' + (temConf ? ' · ⚠' : '') + '</span></div>';
   }
@@ -416,10 +417,31 @@
         : '<div class="ecagd-vazio">🗓️<br><strong>Nenhum agendamento neste mês.</strong></div>';
     }
 
-    // aviso de conflito (sobre os dias visíveis do período atual)
-    var nConf = Object.keys(porDia).filter(function (d) { return conflitos[d]; }).length;
-    $('agd-conflito-aviso').innerHTML = nConf
-      ? '<div class="ecagd-aviso-conflito">⚠ ' + nConf + ' dia(s) com técnico em mais de um serviço. Veja os destaques em vermelho.</div>' : '';
+    // aviso de conflito (sobre os dias visíveis do período atual) — tocável:
+    // abre a lista dos dias com os técnicos repetidos, e tocar num dia leva até ele.
+    var diasConf = Object.keys(porDia).filter(function (d) { return conflitos[d]; }).sort();
+    if (diasConf.length) {
+      $('agd-conflito-aviso').innerHTML =
+        '<button type="button" class="ecagd-aviso-conflito">⚠ ' + diasConf.length +
+          ' dia(s) com técnico em mais de um serviço. <u>' + (confDetAberto ? 'Ocultar' : 'Toque para ver quais') + '</u></button>' +
+        (confDetAberto ? '<div class="ecagd-conflito-det">' + diasConf.map(function (d) {
+          return '<div class="ecagd-conflito-item" data-dia="' + d + '"><b>' + esc(dataLonga(d)) + '</b>' +
+            esc(conflitos[d].map(nomeCurto).join(', ')) + '</div>';
+        }).join('') + '</div>' : '');
+      $('agd-conflito-aviso').querySelector('button').addEventListener('click', function () {
+        confDetAberto = !confDetAberto; render();
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('#agd-conflito-aviso .ecagd-conflito-item'), function (el) {
+        el.addEventListener('click', function () {
+          var d = el.getAttribute('data-dia');
+          if (visao === 'mes' && !buscando) { diaSel = d; render(); }
+          var alvo = document.querySelector('#agd-lista .ecagd-dia[data-dia="' + d + '"]');
+          if (alvo) alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      });
+    } else {
+      $('agd-conflito-aviso').innerHTML = '';
+    }
 
     $('agd-lista').innerHTML = html;
 
