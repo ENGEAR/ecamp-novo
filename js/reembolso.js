@@ -2046,8 +2046,17 @@ EC.reembolso = (function () {
     // que já tinha vindo no adiantamento. Assim não parece que se pagou menos.
     var adiantC = Number(p.adiantamento_valor) || 0;
     var solC = solicitado != null ? Number(solicitado) : Number(total || 0);
+    var devolC = Number(p.devolucao_valor) || 0;   // devolução lançada pela Logística
     var fracaoC = Math.round(adiantC * pct) / 100;              // parte do adiantamento nesta parcela
     var liquidoC = Math.round(solC * 100 - adiantC * pct) / 100; // o que saiu no pagamento
+    // Houve devolução? A tag deixa de ser "Pago" (azul) e vira "Devolvido" (roxo),
+    // senão na lista essas duas situações bem diferentes ficam iguais. Distingue
+    // devolução INTEGRAL (não sobrou nada com o técnico) da parcial.
+    if (devolC > 0 && p.status === 'pago') {
+      st = devolC >= solC - 0.001
+        ? { txt: '↩️ Devolvido', cls: 'rb-devolvido' }
+        : { txt: '↩️ Devolvido em parte', cls: 'rb-devolvido' };
+    }
     var valorTxt = adiantC > 0
       ? '<strong>' + moedaBR(solC) + '</strong> <span class="rotulo-apoio">(' + pct + '%: ' +
         moedaBR(liquidoC) + ' + ' + moedaBR(fracaoC) + ' de adiantamento)</span>'
@@ -2068,12 +2077,11 @@ EC.reembolso = (function () {
     var campN = campanhaDe(p);
     var campTxt = campN !== '' ? '<span class="rotulo-apoio">Campanha ' + campN + '</span> · ' : '';
     var parcelaTxt = tipoTxt + campTxt + (parcelaN ? '<span class="rotulo-apoio">' + parcelaN + 'ª parcela</span> · ' : '');
-    // Devolução lançada pela Logística: mostra no cartão para dar de achar sem
-    // abrir cada solicitação (no extrato geral são muitas). Só quando existe.
-    var devolC = Number(p.devolucao_valor) || 0;
+    // Valores da devolução no cartão (a tag lá em cima já diz que houve; aqui
+    // vêm os números, para achar sem abrir cada solicitação).
     var devolTxt = devolC > 0
       ? '<div class="os-resumo">↩️ Devolvido ' + moedaBR(devolC) + ' · ficou ' +
-        moedaBR(Math.round((Number(solicitado != null ? solicitado : total || 0) - devolC) * 100) / 100) + '</div>'
+        moedaBR(Math.round((solC - devolC) * 100) / 100) + '</div>'
       : '';
     return (
       '<button type="button" class="rb-pedido rb-pedido-click" data-codigo="' + (p.codigo || '') + '">' +
@@ -2266,8 +2274,16 @@ EC.reembolso = (function () {
   function renderExtratoGeral() {
     var tec = ($('eg-filtro-tecnico') && $('eg-filtro-tecnico').value) || '';
     var os = ($('eg-filtro-os') && $('eg-filtro-os').value) || '';
-    var filtrados = (tec || os)
+    // Situação: 'devolvido' = teve devolução lançada; 'pago' = pago e SEM
+    // devolução (senão os devolvidos apareceriam nos dois filtros).
+    var sit = ($('eg-filtro-situacao') && $('eg-filtro-situacao').value) || '';
+    var filtrados = (tec || os || sit)
       ? egDados.filter(function (it) {
+          if (sit) {
+            var d = Number(it.p.devolucao_valor) || 0;
+            if (sit === 'devolvido' && !(d > 0)) return false;
+            if (sit === 'pago' && !(it.p.status === 'pago' && d === 0)) return false;
+          }
           if (tec && (it.p.designado || '') !== tec) return false;
           if (os && String(it.p.os || '') !== os) return false;
           return true;
@@ -2300,6 +2316,7 @@ EC.reembolso = (function () {
         inp.addEventListener('input', renderExtratoGeral);
         if ($('eg-filtro-tecnico')) $('eg-filtro-tecnico').addEventListener('change', renderExtratoGeral);
         if ($('eg-filtro-os')) $('eg-filtro-os').addEventListener('change', renderExtratoGeral);
+        if ($('eg-filtro-situacao')) $('eg-filtro-situacao').addEventListener('change', renderExtratoGeral);
       }
     } catch (e) {
       if (area) area.innerHTML = '<p class="texto-apoio">⚠️ Não consegui carregar: ' + (e.message || 'erro') + '</p>';

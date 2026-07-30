@@ -935,6 +935,8 @@ textarea { resize: vertical; font-family: inherit; }
 .rb-recusado   { background: var(--vermelho-claro); color: var(--vermelho); }
 .rb-pago       { background: var(--azul-claro);     color: var(--azul-escuro); }
 .rb-aguardando { background: var(--cinza-fundo);    color: var(--cinza-texto); border: 1px dashed var(--cinza-borda); }
+/* Devolvido: roxo — precisa destoar do "Pago" (azul) num relance na lista. */
+.rb-devolvido  { background: #ede9fe;               color: #6d28d9; }
 .rb-motivo {
   background: var(--vermelho-claro);
   color: var(--vermelho);
@@ -1388,7 +1390,7 @@ textarea { resize: vertical; font-family: inherit; }
   background: #fff; padding: 8px 12px; margin: 8px 0 12px;
 }
 .rb-busca-lupa { font-size: 1rem; flex-shrink: 0; }
-#rb-busca { flex: 1; border: none; outline: none; background: transparent; font-size: 0.95rem; color: var(--texto); }
+#rb-busca, #eg-busca { flex: 1; border: none; outline: none; background: transparent; font-size: 0.95rem; color: var(--texto); margin: 0; height: auto; padding: 0; }
 .rb-ano { margin-bottom: 10px; }
 .rb-ano > summary, .rb-mes > summary { cursor: pointer; list-style: none; }
 .rb-ano > summary::-webkit-details-marker, .rb-mes > summary::-webkit-details-marker { display: none; }

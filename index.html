@@ -373,12 +373,16 @@
         <h1>🧾 Extrato geral</h1>
         <p class="texto-apoio">Todas as solicitações de reembolso. Toque numa para ver o extrato.</p>
         <div class="rb-busca-caixa">
-          <span class="rb-busca-lupa">🔍</span>
           <input type="search" id="eg-busca" placeholder="Buscar por OS, técnico, mês, cliente ou projeto" autocomplete="off">
         </div>
         <div class="grade-2" style="margin-bottom:12px;">
           <label>Técnico<select id="eg-filtro-tecnico"><option value="">Todos os técnicos</option></select></label>
           <label>OS<select id="eg-filtro-os"><option value="">Todas as OS</option></select></label>
+          <label>Situação<select id="eg-filtro-situacao">
+            <option value="">Todas as situações</option>
+            <option value="devolvido">↩️ Com devolução</option>
+            <option value="pago">💰 Pago (sem devolução)</option>
+          </select></label>
         </div>
         <div id="eg-lista"></div>
         <button type="button" class="botao botao-secundario" id="eg-voltar" style="margin-top:18px;">← Voltar</button>
