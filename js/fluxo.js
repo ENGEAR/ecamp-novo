@@ -261,8 +261,16 @@ EC.fluxo = (function () {
     var destino = telaAntesDados || 'tela-passo4';
     var y = posicaoAntesDados || 0;
     irPara(destino);
-    // mostrarTela sobe pro topo; devolve a rolagem depois do layout assentar.
-    requestAnimationFrame(function () { requestAnimationFrame(function () { window.scrollTo(0, y); }); });
+    restaurarRolagem(y);
+  }
+  // Reaplica a rolagem por ~400 ms. O campo tem fotos e blocos cuja altura só
+  // assenta alguns frames depois do render; uma única chamada cairia com o
+  // conteúdo ainda curto (a rolagem clampa) e a tela voltaria pro topo.
+  function restaurarRolagem(y) {
+    if (!y || y <= 0) return;
+    [0, 60, 120, 200, 300, 400].forEach(function (ms) {
+      setTimeout(function () { window.scrollTo(0, y); }, ms);
+    });
   }
 
   function servicoDetalhe(campo) {
