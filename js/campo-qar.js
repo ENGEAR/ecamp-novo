@@ -28,6 +28,7 @@ EC.campoQar = (function () {
   let ctx = null;
   let raiz = null;
   let pontoExibido = 1;
+  let coletaExibida = 1; // coleta aberta DENTRO do ponto (paginada; reinicia a cada ponto)
   let temporizadorSalvar = null;
 
   function $(seletor) { return raiz.querySelector(seletor); }
@@ -285,37 +286,50 @@ EC.campoQar = (function () {
     return Math.max(1, parseInt(ponto.primeiraColeta, 10) || 1);
   }
 
+  // As coletas ficam PAGINADAS (uma por página), como os pontos — em serviços com
+  // muitas coletas a rolagem ficava enorme (pedido da Raisa, 2026-07-29). As ações
+  // (Salvar + PDF) ficam no topo, fixas; a paginação respeita a numeração do
+  // revezamento (ex.: começa na 4ª). Trocar de coleta não perde dados — cada cartão
+  // grava direto em ponto.coletas[k].
   function renderColetas(area, ponto) {
     const div = area.querySelector('#cq-coletas');
     const n = Math.min(20, Math.max(0, parseInt(ponto.qtdeColetas, 10) || 0));
     const ini = primeiraColetaDe(ponto);
     ponto.coletas = ponto.coletas || [];
     while (ponto.coletas.length < n) ponto.coletas.push({});
-    let html = '';
-    // Ações (Salvar + PDF) ENTRE a pergunta e a 1ª coleta, e DEPOIS de cada
-    // coleta — para ir resguardando os dados em serviços que duram dias.
-    if (n > 0) html += htmlAcoesColeta();
-    for (let k = 0; k < n; k++) {
-      html += '<div class="cartao-coleta"><h3>' + (k + ini) + 'ª coleta</h3>' +
-        '<p class="grupo-checks-titulo">Dados iniciais</p>' +
-        htmlBlocoColeta('ini', '<label>Código do filtro<input type="text" data-campo="codigoFiltro"></label>') +
-        '<p class="grupo-checks-titulo">Dados finais</p>' + htmlBlocoColeta('fim') + '</div>';
-      html += htmlAcoesColeta();
-    }
-    div.innerHTML = html;
-    div.querySelectorAll('.cartao-coleta').forEach(function (card, k) { vincular(card, ponto.coletas[k]); });
-    div.querySelectorAll('.cq-salvar-coleta').forEach(function (b) {
-      b.addEventListener('click', function () { salvarRascunho(); });
+    if (n === 0) { div.innerHTML = ''; return; }
+    coletaExibida = Math.min(Math.max(1, coletaExibida), n);
+    div.innerHTML = htmlAcoesColeta() +
+      '<div id="cq-coleta-pag" class="cr-paginacao"></div>' +
+      '<div id="cq-coleta-card"></div>';
+    div.querySelector('.cq-salvar-coleta').addEventListener('click', function () { salvarRascunho(); });
+    const btnPdf = div.querySelector('.cq-gerar-pdf-coleta');
+    if (btnPdf) btnPdf.addEventListener('click', function () { gerarPdfParcial(btnPdf); });
+    EC.paginacao.criar(div.querySelector('#cq-coleta-pag'), {
+      total: n,
+      atual: coletaExibida,
+      rotuloFn: function (i) { return (i - 1 + ini) + 'ª'; }, // "1ª", "2ª"… (ou "4ª"… no revezamento)
+      aoMudar: function (k) { coletaExibida = k; renderUmaColeta(div, ponto, ini); }
     });
-    div.querySelectorAll('.cq-gerar-pdf-coleta').forEach(function (b) {
-      b.addEventListener('click', function () { gerarPdfParcial(b); });
-    });
+  }
+
+  // Renderiza SÓ a coleta ativa (a paginação chama isto na criação e na troca).
+  function renderUmaColeta(div, ponto, ini) {
+    const card = div.querySelector('#cq-coleta-card');
+    const k = coletaExibida - 1;
+    ponto.coletas[k] = ponto.coletas[k] || {};
+    card.innerHTML = '<div class="cartao-coleta"><h3>' + (k + ini) + 'ª coleta</h3>' +
+      '<p class="grupo-checks-titulo">Dados iniciais</p>' +
+      htmlBlocoColeta('ini', '<label>Código do filtro<input type="text" data-campo="codigoFiltro"></label>') +
+      '<p class="grupo-checks-titulo">Dados finais</p>' + htmlBlocoColeta('fim') + '</div>';
+    vincular(card.querySelector('.cartao-coleta'), ponto.coletas[k]);
   }
 
   function renderizarPonto(n) {
     const area = $('#cq-ponto');
     const ponto = campo().pontos[n - 1];
     if (!ponto) { area.innerHTML = ''; return; }
+    coletaExibida = 1; // ao abrir/trocar de ponto, começa na 1ª coleta
 
     const html =
       '<div class="cartao-ponto"><h2>Ponto P' + n + '</h2>' +
