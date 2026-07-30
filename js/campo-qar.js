@@ -28,7 +28,7 @@ EC.campoQar = (function () {
   let ctx = null;
   let raiz = null;
   let pontoExibido = 1;
-  let coletaExibida = 1; // coleta aberta DENTRO do ponto (paginada; reinicia a cada ponto)
+  let coletaExibida = 1; // coleta aberta DENTRO do ponto (paginada; lembrada por ponto)
   let temporizadorSalvar = null;
 
   function $(seletor) { return raiz.querySelector(seletor); }
@@ -298,7 +298,9 @@ EC.campoQar = (function () {
     ponto.coletas = ponto.coletas || [];
     while (ponto.coletas.length < n) ponto.coletas.push({});
     if (n === 0) { div.innerHTML = ''; return; }
-    coletaExibida = Math.min(Math.max(1, coletaExibida), n);
+    // Cada ponto lembra a coleta aberta (ponto.coletaAtual) — voltar do atalho 📄
+    // reabre exatamente na mesma coleta; abrir um ponto novo começa na 1ª.
+    coletaExibida = Math.min(Math.max(1, parseInt(ponto.coletaAtual, 10) || 1), n);
     div.innerHTML = htmlAcoesColeta() +
       '<div id="cq-coleta-pag" class="cr-paginacao"></div>' +
       '<div id="cq-coleta-card"></div>';
@@ -309,7 +311,12 @@ EC.campoQar = (function () {
       total: n,
       atual: coletaExibida,
       rotuloFn: function (i) { return (i - 1 + ini) + 'ª'; }, // "1ª", "2ª"… (ou "4ª"… no revezamento)
-      aoMudar: function (k) { coletaExibida = k; renderUmaColeta(div, ponto, ini); }
+      aoMudar: function (k) {
+        coletaExibida = k;
+        ponto.coletaAtual = k; // lembra a coleta deste ponto (navegação: não acende o aviso)
+        ((ctx && ctx.salvarSemMarcar) || salvar)();
+        renderUmaColeta(div, ponto, ini);
+      }
     });
   }
 
@@ -329,7 +336,6 @@ EC.campoQar = (function () {
     const area = $('#cq-ponto');
     const ponto = campo().pontos[n - 1];
     if (!ponto) { area.innerHTML = ''; return; }
-    coletaExibida = 1; // ao abrir/trocar de ponto, começa na 1ª coleta
 
     const html =
       '<div class="cartao-ponto"><h2>Ponto P' + n + '</h2>' +

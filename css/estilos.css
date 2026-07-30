@@ -1509,3 +1509,21 @@ textarea { resize: vertical; font-family: inherit; }
   padding: 0;
 }
 .fab-dados:active { transform: scale(0.93); }
+
+/* FAB "voltar" — só na tela de Dados gerais (onde o disquete não aparece), no
+   mesmo canto de baixo, para retornar exatamente para onde o técnico estava. */
+.fab-voltar-campo {
+  position: fixed;
+  right: 14px;
+  bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+  z-index: 1400;
+  width: 44px; height: 44px;
+  border: none; border-radius: 50%;
+  background: var(--azul-escuro); color: #fff;
+  font-size: 19px; line-height: 1;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+}
+.fab-voltar-campo:active { transform: scale(0.93); }

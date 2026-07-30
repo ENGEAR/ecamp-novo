@@ -50,6 +50,7 @@ EC.fluxo = (function () {
   let multiServico = false;
   let telaExibida = null;
   let telaAntesDados = null; // de onde o técnico veio ao abrir os Dados gerais pelo atalho 📄
+  let posicaoAntesDados = 0;  // rolagem exata daquela tela, para voltar no mesmo ponto
   let ultimoRegistroPdf = null; // registro recém-finalizado (COM fotos) p/ gerar o PDF
 
   function $(id) { return document.getElementById(id); }
@@ -247,11 +248,21 @@ EC.fluxo = (function () {
   function irParaDadosDoServico() {
     if (!estado) return;
     telaAntesDados = telaExibida;
+    posicaoAntesDados = window.scrollY || window.pageYOffset || 0; // guarda a rolagem
     irPara('tela-dados-gerais');
   }
+  // Mostra o FAB ↩️ (voltar) só quando se chegou aos Dados gerais pelo atalho 📄.
   function atualizarVoltarCampo() {
-    var b = $('dados-voltar-campo');
-    if (b) b.classList.toggle('oculto', !telaAntesDados);
+    var f = $('fab-voltar-campo');
+    if (f) f.classList.toggle('oculto', !telaAntesDados);
+  }
+  // Volta para a tela e a ROLAGEM exatas de onde o técnico estava.
+  function voltarParaOndeEstava() {
+    var destino = telaAntesDados || 'tela-passo4';
+    var y = posicaoAntesDados || 0;
+    irPara(destino);
+    // mostrarTela sobe pro topo; devolve a rolagem depois do layout assentar.
+    requestAnimationFrame(function () { requestAnimationFrame(function () { window.scrollTo(0, y); }); });
   }
 
   function servicoDetalhe(campo) {
@@ -2014,11 +2025,8 @@ EC.fluxo = (function () {
     // voltar para onde estava, na própria tela de Dados gerais.
     var fabDados = $('fab-dados');
     if (fabDados) fabDados.addEventListener('click', irParaDadosDoServico);
-    var btnVoltarCampo = $('btn-voltar-campo');
-    if (btnVoltarCampo) btnVoltarCampo.addEventListener('click', function () {
-      var destino = telaAntesDados || 'tela-passo4';
-      irPara(destino);
-    });
+    var fabVoltar = $('fab-voltar-campo');
+    if (fabVoltar) fabVoltar.addEventListener('click', voltarParaOndeEstava);
     var btnParcial = $('campo-enviar-parcial');
     if (btnParcial) btnParcial.addEventListener('click', function () { enviarPdfParcial(btnParcial); });
     // A visibilidade do FAB por tela é decidida DENTRO do EC.app.mostrarTela

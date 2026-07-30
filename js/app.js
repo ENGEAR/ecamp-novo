@@ -179,6 +179,12 @@
     // Atalho 📄 (Dados gerais) acompanha o disquete: mesmas telas.
     var fabDados = $('fab-dados');
     if (fabDados) fabDados.classList.toggle('oculto', TELAS_FAB.indexOf(id) === -1);
+    // FAB de voltar existe SÓ na tela de Dados gerais; fora dela, sempre some.
+    // (Na tela de Dados gerais, quem decide mostrar é o fluxo — só se veio do 📄.)
+    if (id !== 'tela-dados-gerais') {
+      var fabVoltar = $('fab-voltar-campo');
+      if (fabVoltar) fabVoltar.classList.add('oculto');
+    }
   }
 
   /* ============ Toast de feedback ============ */
