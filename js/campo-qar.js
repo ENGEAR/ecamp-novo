@@ -364,7 +364,7 @@ EC.campoQar = (function () {
       // Coletas
       '<label>Quantas coletas neste ponto?<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdeColetas"></label>' +
       '<label>Nº da primeira coleta<input type="number" min="1" max="99" inputmode="numeric" placeholder="1" data-campo="primeiraColeta"></label>' +
-      '<p class="texto-apoio">Revezamento: se outro técnico já fez as primeiras coletas deste ponto (no registro dele), continue a numeração — ex.: ele fez 1 a 3, você começa na 4. Se o serviço é todo seu, deixe em branco (começa na 1).</p>' +
+      '<p class="texto-apoio">Revezamento: se outro técnico já fez as primeiras coletas deste ponto no registro dele, continue a numeração — ex.: ele fez 1 a 3, você começa na 4. Se o serviço é todo seu, comece na primeira coleta.</p>' +
       '<div id="cq-coletas"></div>' +
       // Finalização
       '<label>Hora final<input type="time" data-campo="horaFinal"></label>' +
