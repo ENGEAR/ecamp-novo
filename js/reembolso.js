@@ -2068,6 +2068,13 @@ EC.reembolso = (function () {
     var campN = campanhaDe(p);
     var campTxt = campN !== '' ? '<span class="rotulo-apoio">Campanha ' + campN + '</span> · ' : '';
     var parcelaTxt = tipoTxt + campTxt + (parcelaN ? '<span class="rotulo-apoio">' + parcelaN + 'ª parcela</span> · ' : '');
+    // Devolução lançada pela Logística: mostra no cartão para dar de achar sem
+    // abrir cada solicitação (no extrato geral são muitas). Só quando existe.
+    var devolC = Number(p.devolucao_valor) || 0;
+    var devolTxt = devolC > 0
+      ? '<div class="os-resumo">↩️ Devolvido ' + moedaBR(devolC) + ' · ficou ' +
+        moedaBR(Math.round((Number(solicitado != null ? solicitado : total || 0) - devolC) * 100) / 100) + '</div>'
+      : '';
     return (
       '<button type="button" class="rb-pedido rb-pedido-click" data-codigo="' + (p.codigo || '') + '">' +
       '  <div class="rb-pedido-topo"><span class="os-numero">' +
@@ -2076,6 +2083,7 @@ EC.reembolso = (function () {
       projeto +
       (mostrarDesignado && p.designado ? '<div class="os-resumo">👷 ' + p.designado + '</div>' : '') +
       '  <div class="rb-pedido-linha">' + parcelaTxt + valorTxt + '</div>' +
+      devolTxt +
       obs +
       '</button>'
     );
@@ -2511,7 +2519,8 @@ EC.reembolso = (function () {
         (devol > 0
           ? '<div class="apr-linha"><span>↩️ Devolvido</span><strong>' + moedaBR(devol) +
               (devolData ? ' · em ' + dataBR(devolData) : '') + '</strong></div>' +
-            '<div class="apr-linha"><span>Ficou com você</span><strong>' + moedaBR(ficou) + '</strong></div>'
+            // No extrato geral quem lê é o gestor, não o dono do dinheiro.
+            '<div class="apr-linha"><span>Ficou com ' + (soLeitura ? 'o técnico' : 'você') + '</span><strong>' + moedaBR(ficou) + '</strong></div>'
           : '') +
       '</div>' +
       '<p class="dg-secao">Solicitações de reembolso</p>' +
