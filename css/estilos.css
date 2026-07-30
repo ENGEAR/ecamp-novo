@@ -1489,3 +1489,21 @@ textarea { resize: vertical; font-family: inherit; }
   50%      { box-shadow: 0 4px 22px rgba(242, 194, 0, 0.95); }
 }
 @media (prefers-reduced-motion: reduce) { .fab-salvar.fab-pendente { animation: none; } }
+
+/* FAB de atalho para os Dados gerais do serviço — logo ACIMA do disquete, mesmo
+   canto. Estilo secundário (branco com borda) para o disquete seguir em destaque. */
+.fab-dados {
+  position: fixed;
+  right: 14px;
+  bottom: calc(126px + env(safe-area-inset-bottom, 0px)); /* acima do disquete (44px + folga) */
+  z-index: 1400;
+  width: 44px; height: 44px;
+  border: 2px solid var(--azul-escuro); border-radius: 50%;
+  background: #fff; color: var(--azul-escuro);
+  font-size: 18px; line-height: 1;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+}
+.fab-dados:active { transform: scale(0.93); }

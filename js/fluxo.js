@@ -49,6 +49,7 @@ EC.fluxo = (function () {
   let osAtual = null;      // objeto da OS em trabalho
   let multiServico = false;
   let telaExibida = null;
+  let telaAntesDados = null; // de onde o técnico veio ao abrir os Dados gerais pelo atalho 📄
   let ultimoRegistroPdf = null; // registro recém-finalizado (COM fotos) p/ gerar o PDF
 
   function $(id) { return document.getElementById(id); }
@@ -240,6 +241,18 @@ EC.fluxo = (function () {
   function telaTemFab(idTela) {
     return PASSOS.indexOf(idTela) >= PASSOS.indexOf('tela-passo3a');
   }
+  // Atalho 📄 (mesmas telas do disquete): consultar os Dados gerais do serviço no
+  // meio do campo, guardando de onde veio para poder voltar (pedido da Raisa,
+  // 2026-07-29). A ida SALVA o que estava na tela — o atalho não perde nada.
+  function irParaDadosDoServico() {
+    if (!estado) return;
+    telaAntesDados = telaExibida;
+    irPara('tela-dados-gerais');
+  }
+  function atualizarVoltarCampo() {
+    var b = $('dados-voltar-campo');
+    if (b) b.classList.toggle('oculto', !telaAntesDados);
+  }
 
   function servicoDetalhe(campo) {
     return (estado.servico && estado.servico[campo]) || '';
@@ -248,6 +261,9 @@ EC.fluxo = (function () {
   /* ---------- Navegação ---------- */
 
   function irPara(idTela) {
+    // Ao navegar para qualquer tela que NÃO seja os Dados gerais, esquece a origem
+    // do atalho 📄 (voltou, avançou ou seguiu o fluxo normal) — o banner some.
+    if (idTela !== 'tela-dados-gerais') telaAntesDados = null;
     const saiuDosDadosGerais = (estado && telaExibida === 'tela-dados-gerais');
     if (saiuDosDadosGerais) coletarDadosGerais();
     if (estado) {
@@ -264,7 +280,7 @@ EC.fluxo = (function () {
     mostrarFabSalvar(telaTemFab(idTela));
     atualizarAvisoEnvio(); // reflete o estado (pulsar) do FAB na tela nova
 
-    if (idTela === 'tela-dados-gerais') preencherDadosGerais();
+    if (idTela === 'tela-dados-gerais') { preencherDadosGerais(); atualizarVoltarCampo(); }
     if (idTela === 'tela-tipo') renderizarTipos();
     if (idTela === 'tela-passo3a') renderizarEquipamentos();
     if (idTela === 'tela-passo3b') renderizarPreCampo();
@@ -325,6 +341,7 @@ EC.fluxo = (function () {
     if (estado && telaExibida === 'tela-dados-gerais') { coletarDadosGerais(); salvarEstado(); }
     estado = null;
     telaExibida = null; // evita que o próximo irPara colete da tela antiga
+    telaAntesDados = null; // saiu do serviço: zera a origem do atalho 📄
     mostrarFabSalvar(false); // saiu do serviço: some o botão flutuante
     if (multiServico) {
       renderizarServicos(osAtual);
@@ -707,6 +724,7 @@ EC.fluxo = (function () {
 
   function abrirServico(os, indice, rascunhoExistente) {
     telaExibida = null; // entrando em serviço novo: não coletar da tela anterior
+    telaAntesDados = null; // serviço novo: nunca herda a origem do atalho 📄 anterior
     estado = rascunhoExistente || novoEstadoServico(os, indice);
     // Rascunho que já existia = já foi iniciado antes (mantém salvando ao navegar).
     if (rascunhoExistente) estado.iniciado = true;
@@ -1992,6 +2010,15 @@ EC.fluxo = (function () {
     if (btnEnviar) btnEnviar.addEventListener('click', salvarRascunhoAgora);
     var fab = $('fab-salvar');
     if (fab) fab.addEventListener('click', salvarRascunhoAgora);
+    // Atalho 📄 → Dados gerais do serviço (guarda de onde veio); e o botão de
+    // voltar para onde estava, na própria tela de Dados gerais.
+    var fabDados = $('fab-dados');
+    if (fabDados) fabDados.addEventListener('click', irParaDadosDoServico);
+    var btnVoltarCampo = $('btn-voltar-campo');
+    if (btnVoltarCampo) btnVoltarCampo.addEventListener('click', function () {
+      var destino = telaAntesDados || 'tela-passo4';
+      irPara(destino);
+    });
     var btnParcial = $('campo-enviar-parcial');
     if (btnParcial) btnParcial.addEventListener('click', function () { enviarPdfParcial(btnParcial); });
     // A visibilidade do FAB por tela é decidida DENTRO do EC.app.mostrarTela

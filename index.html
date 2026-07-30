@@ -172,6 +172,11 @@
         <h1>📄 Dados gerais do serviço</h1>
         <p class="texto-apoio">Dados da OS (só leitura). A única exceção é o nº de pontos — que, se mudar, pede justificativa.</p>
 
+        <!-- Aparece só quando chegou aqui pelo atalho 📄 do campo. -->
+        <div id="dados-voltar-campo" class="oculto" style="margin:10px 0 0">
+          <button type="button" class="botao botao-secundario" id="btn-voltar-campo" style="width:100%">← Voltar para onde eu estava</button>
+        </div>
+
         <div id="dg-corpo"></div>
 
         <div id="dados-gerais-nav"></div>
@@ -761,6 +766,12 @@
   <button type="button" id="fab-salvar" class="fab-salvar oculto"
           title="Salvar rascunho — envia ao servidor, com as fotos"
           aria-label="Salvar rascunho">💾</button>
+  <!-- FAB de atalho (acima do disquete, mesmas telas): consultar os Dados gerais
+       do serviço sem perder o lugar; a tela de Dados gerais mostra o botão de
+       voltar para onde estava. -->
+  <button type="button" id="fab-dados" class="fab-dados oculto"
+          title="Ver os Dados gerais do serviço"
+          aria-label="Dados gerais do serviço">📄</button>
 
   <!-- ======= Toast de feedback ======= -->
   <div id="toast" class="oculto"></div>

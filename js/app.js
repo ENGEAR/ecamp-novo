@@ -176,6 +176,9 @@
     window.scrollTo(0, 0);
     var fab = $('fab-salvar');
     if (fab) fab.classList.toggle('oculto', TELAS_FAB.indexOf(id) === -1);
+    // Atalho 📄 (Dados gerais) acompanha o disquete: mesmas telas.
+    var fabDados = $('fab-dados');
+    if (fabDados) fabDados.classList.toggle('oculto', TELAS_FAB.indexOf(id) === -1);
   }
 
   /* ============ Toast de feedback ============ */
