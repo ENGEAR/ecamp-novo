@@ -258,19 +258,26 @@ EC.aprovacoes = (function () {
       // quebrando o total por técnico (não conta a própria solicitação, que
       // ainda está 'aguardando_logistica').
       var ap = await cli.from('logistica_solicitacoes')
-        .select('designado, valor_solicitado, valor_total, status')
+        .select('designado, valor_solicitado, valor_total, devolucao_valor, status')
         .eq('os', s.os)
         .in('status', ['aguardando_pagamento', 'pago']);
       var porDesignado = {};
       var jaAprovado = 0;
+      var devolvido = 0;
       (ap.data || []).forEach(function (r) {
-        var val = Number(r.valor_solicitado != null ? r.valor_solicitado : (r.valor_total || 0));
+        // O que a campanha realmente consumiu = pago − devolvido. Quando a
+        // logística muda depois do pagamento e o técnico devolve parte, essa
+        // parte não pode continuar contando contra o orçamento da campanha.
+        var dev = Number(r.devolucao_valor) || 0;
+        var val = Number(r.valor_solicitado != null ? r.valor_solicitado : (r.valor_total || 0)) - dev;
         var nome = (r.designado || '').trim() || '—';
         porDesignado[nome] = (porDesignado[nome] || 0) + val;
         jaAprovado += val;
+        devolvido += dev;
       });
       var esta = Number(s.valor_solicitado != null ? s.valor_solicitado : (s.valor_total || 0));
-      return { previsto: previsto, jaAprovado: jaAprovado, esta: esta, porDesignado: porDesignado, designadoAtual: (s.designado || '').trim() };
+      return { previsto: previsto, jaAprovado: jaAprovado, esta: esta, devolvido: devolvido,
+               porDesignado: porDesignado, designadoAtual: (s.designado || '').trim() };
     } catch (e) { return null; }
   }
 
@@ -300,6 +307,8 @@ EC.aprovacoes = (function () {
       '  <div class="apr-orc-topo"><strong>' + situacao + '</strong><span>' + pct + '%</span></div>' +
       '  <div class="apr-orc-linha">Prevista: ' + moeda(o.previsto) + '</div>' +
       linhasPorDesignado(o) +
+      // Explica por que o "já aprovado" está menor do que o que foi pago.
+      (o.devolvido > 0 ? '  <div class="apr-orc-linha">↩️ Já descontado de devolução: ' + moeda(o.devolvido) + '</div>' : '') +
       '  <div class="apr-orc-linha">' + estaLabel + ': ' + moeda(o.esta) + ' · Total após: ' + moeda(totalApos) + '</div>' +
       '  <div class="apr-orc-linha" style="margin-top:8px"><strong>Saldo após aprovar: ' + moeda(saldo) + '</strong></div>' +
       '</div>'

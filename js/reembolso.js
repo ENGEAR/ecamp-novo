@@ -2460,6 +2460,12 @@ EC.reembolso = (function () {
     var adiant = Number(p.adiantamento_valor || p.adiantamentoValor || 0);
     var adiantData = p.adiantamento_data || p.adiantamentoData || null;
     var aPagar = Math.round((Number(total || 0) - adiant) * 100) / 100;
+    // Devolução lançada pela Logística (a logística da campanha mudou depois do
+    // pagamento e parte do valor voltou). O pagamento fica como foi feito; aqui
+    // só mostramos quanto voltou e o que de fato ficou com o técnico.
+    var devol = Number(p.devolucao_valor || 0);
+    var devolData = p.devolucao_data || null;
+    var ficou = Math.round((Number(solicitado) - devol) * 100) / 100;
 
     // Solicitações de reembolso (parcelas) desta OS+campanha+designado.
     // Eventos/veículos são pagamento único: não se misturam com as parcelas da viagem.
@@ -2502,6 +2508,11 @@ EC.reembolso = (function () {
         '<div class="apr-linha"><span>Valor total</span><strong>' + moedaBR(total) + '</strong></div>' +
         '<div class="apr-linha"><span>Adiantamento</span><strong>' + (adiant > 0 ? moedaBR(adiant) + (adiantData ? ' · feito em ' + dataBR(adiantData) : '') : '—') + '</strong></div>' +
         '<div class="apr-linha" style="grid-column:1/-1;"><span>À receber</span><strong style="font-size:1.4rem;">' + moedaBR(aPagar) + '</strong></div>' +
+        (devol > 0
+          ? '<div class="apr-linha"><span>↩️ Devolvido</span><strong>' + moedaBR(devol) +
+              (devolData ? ' · em ' + dataBR(devolData) : '') + '</strong></div>' +
+            '<div class="apr-linha"><span>Ficou com você</span><strong>' + moedaBR(ficou) + '</strong></div>'
+          : '') +
       '</div>' +
       '<p class="dg-secao">Solicitações de reembolso</p>' +
       (parcelasHtml || '<div class="apr-orc apr-orc-cinza">—</div>') +
