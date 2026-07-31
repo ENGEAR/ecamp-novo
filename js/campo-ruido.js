@@ -735,10 +735,11 @@ EC.campoRuido = (function () {
 
   // Lembretes do escopo de ruído (série de pontos próximos: checagem/clima podem
   // ser feitos uma vez para o conjunto). Textos definidos com a Raisa.
+  // Aparece UMA vez por janela, abaixo da checagem final — junto do alerta da
+  // série, que é o assunto dele. Antes vinha também abaixo da inicial, o que
+  // repetia o mesmo bloco amarelo duas vezes na mesma tela.
   var LEMBRETE_CHECAGEM =
     '<div class="alerta alerta-amarelo cr-lembrete">💡 Para uma série de pontos próximos, a checagem inicial e final pode ser realizada para o conjunto de medições, e não necessariamente em cada ponto. A série é limitada a <strong>10 pontos</strong> — acima disso os pontos são divididos em séries menores, cada uma com a sua checagem inicial e final. Se a diferença entre as checagens inicial e final for maior que 0,5 dB, todas as medições daquela série deverão ser repetidas. Por precaução, recomenda-se realizar a checagem em cada ponto.</div>';
-  // Mesmo lembrete abaixo da checagem INICIAL, só nos pontos que NÃO iniciam uma série.
-  function lembreteChecagemIni(ehInicioSerie) { return ehInicioSerie ? '' : LEMBRETE_CHECAGEM; }
   function lembreteClima(ehPonto1) {
     if (ehPonto1) return '';
     return '<div class="alerta alerta-amarelo cr-lembrete">💡 Se o monitoramento for realizado na mesma data e no mesmo período (diurno, vespertino ou noturno) do ponto 1, <strong>não é necessário registrar novamente as condições ambientais.</strong></div>';
@@ -1395,7 +1396,6 @@ EC.campoRuido = (function () {
       htmlChecks(['Se monitoramento em fachada: distância mínima de 1 m da fachada (opcional)'], 'posfachada') +
       '<p class="grupo-checks-titulo">⚙️ Montagem do equipamento</p>' + htmlChecks(checksMontagemExterno(ehLongaDuracao()), 'mont') +
       htmlChecagem('Checagem inicial', 'chkIni', ob.ini) +
-      lembreteChecagemIni(ehInicioSerie) +
       '<div class="cr-foto-tela-ini"></div>' +
       '<div class="cr-foto-ponto"></div>' +
       (residual ? htmlBotaoPuxarTotal() : '') +
@@ -1432,7 +1432,6 @@ EC.campoRuido = (function () {
       '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' + htmlClima(true) +
       lembreteClima(ehPonto1) +
       htmlChecagem('Checagem inicial', 'chkIni', ob.ini) +
-      lembreteChecagemIni(ehInicioSerie) +
       '<div class="cr-foto-tela-ini"></div>' +
       '<div class="cr-foto-ponto"></div>' +
       '<label>Eventualidade<select data-campo="eventualidade"><option value="">Selecione…</option><option>Não</option><option>Sim</option></select></label>' +
@@ -1473,7 +1472,6 @@ EC.campoRuido = (function () {
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       '<div class="cr-gps"></div>' +
       htmlChecagem('Checagem inicial', 'chkIni', ob.ini) +
-      lembreteChecagemIni(ehInicioSerie) +
       '<div class="cr-foto-tela-ini"></div>' +
       checksPonto +
       (passagem && total
@@ -1501,7 +1499,6 @@ EC.campoRuido = (function () {
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       '<div class="cr-gps"></div>' +
       htmlChecagem('Checagem inicial', 'chkIni', ob.ini) +
-      lembreteChecagemIni(ehInicioSerie) +
       '<div class="cr-foto-tela-ini"></div>' +
       '<div class="cr-foto-ponto"></div>' +
       (operacional
