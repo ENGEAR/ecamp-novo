@@ -773,6 +773,20 @@ EC.campoRuido = (function () {
     );
   }
 
+  // Foto da tela: existe por causa da checagem, então acompanha o estado dela.
+  // Vem MINIMIZADA enquanto não há checagem naquela janela e abre sozinha (com a
+  // etiqueta "obrigatória") assim que a pessoa preenche o valor — que é quando a
+  // foto passa a ser cobrada de verdade na finalização. O rótulo e a etiqueta são
+  // ajustados em tempo real por seguirChecagem().
+  function htmlFotoChecagem(classe, qual) {
+    return (
+      '<details class="foto-checagem">' +
+      '  <summary>📷 Foto da tela — ' + qual + ' <span class="foto-checagem-tag"></span></summary>' +
+      '  <div class="' + classe + '"></div>' +
+      '</details>'
+    );
+  }
+
   function htmlClima(incluirChuva) {
     return (
       '<div class="grade-3">' +
@@ -1396,7 +1410,7 @@ EC.campoRuido = (function () {
       htmlChecks(['Se monitoramento em fachada: distância mínima de 1 m da fachada (opcional)'], 'posfachada') +
       '<p class="grupo-checks-titulo">⚙️ Montagem do equipamento</p>' + htmlChecks(checksMontagemExterno(ehLongaDuracao()), 'mont') +
       htmlChecagem('Checagem inicial', 'chkIni', ob.ini) +
-      '<div class="cr-foto-tela-ini"></div>' +
+      htmlFotoChecagem('cr-foto-tela-ini', 'checagem inicial') +
       '<div class="cr-foto-ponto"></div>' +
       (residual ? htmlBotaoPuxarTotal() : '') +
       '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' +
@@ -1413,7 +1427,7 @@ EC.campoRuido = (function () {
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
       LEMBRETE_CHECAGEM +
       '<div class="cr-alerta-serie"></div>' +
-      '<div class="cr-foto-tela-fim"></div>' +
+      htmlFotoChecagem('cr-foto-tela-fim', 'checagem final') +
       '<label>Observações do ponto<textarea rows="2" data-campo="observacoes"></textarea></label>' +
       '<label>Hora de término<input type="time" data-campo="horaTermino"></label>'
     );
@@ -1432,7 +1446,7 @@ EC.campoRuido = (function () {
       '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' + htmlClima(true) +
       lembreteClima(ehPonto1) +
       htmlChecagem('Checagem inicial', 'chkIni', ob.ini) +
-      '<div class="cr-foto-tela-ini"></div>' +
+      htmlFotoChecagem('cr-foto-tela-ini', 'checagem inicial') +
       '<div class="cr-foto-ponto"></div>' +
       '<label>Eventualidade<select data-campo="eventualidade"><option value="">Selecione…</option><option>Não</option><option>Sim</option></select></label>' +
       '<div id="cr-eventualidade-desc"></div>' +
@@ -1472,7 +1486,7 @@ EC.campoRuido = (function () {
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       '<div class="cr-gps"></div>' +
       htmlChecagem('Checagem inicial', 'chkIni', ob.ini) +
-      '<div class="cr-foto-tela-ini"></div>' +
+      htmlFotoChecagem('cr-foto-tela-ini', 'checagem inicial') +
       checksPonto +
       (passagem && total
         ? '<label>Característica da composição ferroviária avaliada<input type="text" data-campo="caracteristicaComposicao" placeholder="ex.: trem de carga, passageiro, nº de vagões…"></label>'
@@ -1485,7 +1499,7 @@ EC.campoRuido = (function () {
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
       LEMBRETE_CHECAGEM +
       '<div class="cr-alerta-serie"></div>' +
-      '<div class="cr-foto-tela-fim"></div>' +
+      htmlFotoChecagem('cr-foto-tela-fim', 'checagem final') +
       '<label>Observações do ponto<textarea rows="2" data-campo="observacoes"></textarea></label>' +
       '<label>Hora de término<input type="time" data-campo="horaTermino"></label>'
     );
@@ -1499,7 +1513,7 @@ EC.campoRuido = (function () {
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       '<div class="cr-gps"></div>' +
       htmlChecagem('Checagem inicial', 'chkIni', ob.ini) +
-      '<div class="cr-foto-tela-ini"></div>' +
+      htmlFotoChecagem('cr-foto-tela-ini', 'checagem inicial') +
       '<div class="cr-foto-ponto"></div>' +
       (operacional
         ? htmlChecks(['Estação meteorológica funcionando'], 'estacao')
@@ -1511,7 +1525,7 @@ EC.campoRuido = (function () {
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
       LEMBRETE_CHECAGEM +
       '<div class="cr-alerta-serie"></div>' +
-      '<div class="cr-foto-tela-fim"></div>' +
+      htmlFotoChecagem('cr-foto-tela-fim', 'checagem final') +
       '<label>Observações do ponto<textarea rows="2" data-campo="observacoes"></textarea></label>' +
       '<label>Hora de término<input type="time" data-campo="horaTermino"></label>'
     );
@@ -1639,25 +1653,32 @@ EC.campoRuido = (function () {
     ativarAlertaSerie(wrap, ponto, janela, n, totalPontosCtx());
     const gps = montarGps(wrap, alvo);
     const suf = janela === 'total' ? 'Total' : 'Residual';
-    montarFoto(wrap, '.cr-foto-tela-ini', alvo, 'fotoTelaIni', '📷 Foto da tela após checagem inicial (obrigatória se fizer a checagem)', gps, n, suf);
+    // Nas fotos da TELA quem identifica é o resumo do bloco recolhível (que também
+    // diz se está obrigatória); o botão fica só com a ação, sem repetir o texto.
+    montarFoto(wrap, '.cr-foto-tela-ini', alvo, 'fotoTelaIni', '📷 Tirar foto', gps, n, suf);
     montarFoto(wrap, '.cr-foto-ponto', alvo, 'fotoPonto', '📷 Foto do ponto (obrigatória)', gps, n, suf);
-    montarFoto(wrap, '.cr-foto-tela-fim', alvo, 'fotoTelaFim', '📷 Foto da tela após checagem final (obrigatória se fizer a checagem)', gps, n, suf);
+    montarFoto(wrap, '.cr-foto-tela-fim', alvo, 'fotoTelaFim', '📷 Tirar foto', gps, n, suf);
 
     // A foto da tela só existe por causa da checagem: sem checagem não há tela
-    // para fotografar. Então o bloco de foto acompanha a checagem — some quando
-    // ela é opcional e está vazia, e aparece assim que a pessoa digita o valor
-    // (que é quando a foto passa a ser cobrada na finalização).
+    // para fotografar. Então o bloco de foto acompanha a checagem — fica
+    // MINIMIZADO enquanto não há checagem ali, e abre sozinho, marcado como
+    // obrigatório, assim que a pessoa preenche o valor (que é quando ele passa a
+    // ser cobrado na finalização). Nunca some: continua a um toque.
     const obIni = janela === 'total' && !!bSerie && n === bSerie.ini;
     const obFim = janela === 'total' && !!bSerie && n === bSerie.fim;
     function seguirChecagem(seletor, prefixo, campoFoto, obrigatoria) {
       const bloco = wrap.querySelector(seletor);
-      if (!bloco) return;
+      const det = bloco && bloco.closest('details.foto-checagem');
+      if (!det) return;
+      const tag = det.querySelector('.foto-checagem-tag');
       const inp = wrap.querySelector('[data-campo="' + prefixo + 'Valor"]');
       const atualizar = function () {
         const temValor = !!inp && String(inp.value || '').trim() !== '';
-        // Nunca esconde foto já tirada (senão pareceria que a foto se perdeu).
-        const mostrar = obrigatoria || temValor || EC.foto.tem(alvo[campoFoto]);
-        bloco.classList.toggle('oculto', !mostrar);
+        const exigida = obrigatoria || temValor || EC.foto.tem(alvo[campoFoto]);
+        det.classList.toggle('exigida', exigida);
+        if (tag) tag.textContent = exigida ? 'obrigatória' : 'só se fizer a checagem';
+        // Só ABRE sozinha; não fecha o que a pessoa abriu à mão para tirar a foto.
+        if (exigida) det.open = true;
       };
       if (inp) inp.addEventListener('input', atualizar);
       atualizar();
