@@ -23,6 +23,8 @@
   const CHAVE_CREDENCIAIS = 'sessao:credenciais';
   // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
   const VERSAO_APP = '0.58.151';
+  // Evento de instalação do PWA (Android/Chrome): guardado para o botão "Instalar".
+  let promptInstalar = null;
 
   function $(id) { return document.getElementById(id); }
 
@@ -119,6 +121,38 @@
     if (ehEnderecoLocal()) return;              // preview/desenvolvimento: nunca
     if (ehAppInstalado() || !ehCelular()) return;
     aviso.classList.remove('oculto');
+  }
+
+  /* ============ Botão "Instalar app" (PWA — Android/Chrome) ============ */
+  // O Chrome dispara `beforeinstallprompt` quando o app PODE ser instalado (e ainda
+  // não está). Guardamos o evento e mostramos um botão que instala num toque — sem
+  // caçar no menu ⋮ do Chrome. No iOS o evento não existe (a instalação é pelo
+  // Compartilhar → "Adicionar à Tela de Início"); lá o botão só dá a instrução.
+  function configurarInstalar() {
+    const btn = $('btn-instalar-app');
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      promptInstalar = e;
+      if (btn && !ehAppInstalado()) btn.classList.remove('oculto');
+    });
+    window.addEventListener('appinstalled', function () {
+      promptInstalar = null;
+      if (btn) btn.classList.add('oculto');
+      const aviso = $('aviso-navegador');
+      if (aviso) aviso.classList.add('oculto');
+      mostrarToast('✅ App instalado! Abra sempre pelo ícone do e-CAMP.');
+    });
+    if (btn) btn.addEventListener('click', function () {
+      if (!promptInstalar) {
+        mostrarToast('No Chrome: menu ⋮ → "Instalar app". No iPhone: Compartilhar → "Adicionar à Tela de Início".');
+        return;
+      }
+      promptInstalar.prompt();
+      promptInstalar.userChoice.finally(function () {
+        promptInstalar = null;
+        btn.classList.add('oculto');
+      });
+    });
   }
 
   /* ============ Service worker (PWA) ============ */
@@ -831,6 +865,7 @@
   mostrarVersao();
   avisarEndereco();
   avisarNavegador();
+  configurarInstalar();
   if (EC.agenda) EC.agenda._ligar();
   // Limpeza da época do login antigo (nome + senha única do app).
   EC.storage.remover('sessao:senhaSalva');
