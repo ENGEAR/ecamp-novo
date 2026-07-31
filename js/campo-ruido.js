@@ -740,6 +740,10 @@ EC.campoRuido = (function () {
   // repetia o mesmo bloco amarelo duas vezes na mesma tela.
   var LEMBRETE_CHECAGEM =
     '<div class="alerta alerta-amarelo cr-lembrete">💡 Para uma série de pontos próximos, a checagem inicial e final pode ser realizada para o conjunto de medições, e não necessariamente em cada ponto. A série é limitada a <strong>10 pontos</strong> — acima disso os pontos são divididos em séries menores, cada uma com a sua checagem inicial e final. Se a diferença entre as checagens inicial e final for maior que 0,5 dB, todas as medições daquela série deverão ser repetidas. Por precaução, recomenda-se realizar a checagem em cada ponto.</div>';
+  // Com UM ponto só não há série: o texto fala de dividir medições entre pontos
+  // e não tem o que dizer. (Nesse caso a inicial e a final são as duas
+  // obrigatórias no mesmo ponto, que é o começo e o fim da "série".)
+  function lembreteSerie() { return totalPontosCtx() > 1 ? LEMBRETE_CHECAGEM : ''; }
   function lembreteClima(ehPonto1) {
     if (ehPonto1) return '';
     return '<div class="alerta alerta-amarelo cr-lembrete">💡 Se o monitoramento for realizado na mesma data e no mesmo período (diurno, vespertino ou noturno) do ponto 1, <strong>não é necessário registrar novamente as condições ambientais.</strong></div>';
@@ -1425,7 +1429,7 @@ EC.campoRuido = (function () {
       htmlChecagem('Checagem final', 'chkFim', ob.fim) +
       '<div class="cr-resultado-checagem"></div>' +
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
-      LEMBRETE_CHECAGEM +
+      lembreteSerie() +
       '<div class="cr-alerta-serie"></div>' +
       htmlFotoChecagem('cr-foto-tela-fim', 'checagem final') +
       '<label>Observações do ponto<textarea rows="2" data-campo="observacoes"></textarea></label>' +
@@ -1453,7 +1457,7 @@ EC.campoRuido = (function () {
       htmlChecagem('Checagem final', 'chkFim', ob.fim) +
       '<div class="cr-resultado-checagem"></div>' +
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
-      LEMBRETE_CHECAGEM +
+      lembreteSerie() +
       '<div class="cr-alerta-serie"></div>' +
       '<label>Hora de término<input type="time" data-campo="horaTermino"></label>'
     );
@@ -1497,7 +1501,7 @@ EC.campoRuido = (function () {
       htmlChecagem('Checagem final', 'chkFim', ob.fim) +
       '<div class="cr-resultado-checagem"></div>' +
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
-      LEMBRETE_CHECAGEM +
+      lembreteSerie() +
       '<div class="cr-alerta-serie"></div>' +
       htmlFotoChecagem('cr-foto-tela-fim', 'checagem final') +
       '<label>Observações do ponto<textarea rows="2" data-campo="observacoes"></textarea></label>' +
@@ -1523,7 +1527,7 @@ EC.campoRuido = (function () {
       htmlChecagem('Checagem final', 'chkFim', ob.fim) +
       '<div class="cr-resultado-checagem"></div>' +
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
-      LEMBRETE_CHECAGEM +
+      lembreteSerie() +
       '<div class="cr-alerta-serie"></div>' +
       htmlFotoChecagem('cr-foto-tela-fim', 'checagem final') +
       '<label>Observações do ponto<textarea rows="2" data-campo="observacoes"></textarea></label>' +
