@@ -744,15 +744,31 @@ EC.campoRuido = (function () {
     return '<div class="alerta alerta-amarelo cr-lembrete">💡 Se o monitoramento for realizado na mesma data e no mesmo período (diurno, vespertino ou noturno) do ponto 1, <strong>não é necessário registrar novamente as condições ambientais.</strong></div>';
   }
 
-  function htmlChecagem(titulo, prefixo) {
-    return (
-      '<fieldset class="checagem-bloco">' +
-      '  <legend>' + titulo + '</legend>' +
+  // Bloco de checagem. Quando ela NÃO é exigida naquela janela/ponto (meio da
+  // série, ou qualquer ponto da Residual), o bloco vem RECOLHIDO e rotulado como
+  // opcional — os campos continuam ali, a um toque, mas saem do caminho. Sem
+  // isso o formulário fica idêntico em toda janela e o técnico preenche por
+  // inércia: na OS 25333 foram 13 checagens onde a regra pedia 4.
+  // Se já houver valor guardado, o bloco é reaberto em renderizarJanela.
+  function htmlChecagem(titulo, prefixo, obrigatoria) {
+    const campos =
       '  <div class="checagem-linha">' +
       '    <label>Sinal<select data-campo="' + prefixo + 'Sinal"><option value="+">+</option><option value="-">−</option></select></label>' +
       '    <label>Valor (dB)<input type="number" step="0.01" min="0" inputmode="decimal" data-campo="' + prefixo + 'Valor" placeholder="ex.: 0,10"></label>' +
-      '  </div>' +
-      '</fieldset>'
+      '  </div>';
+    if (obrigatoria) {
+      return (
+        '<fieldset class="checagem-bloco">' +
+        '  <legend>' + titulo + ' <span class="checagem-tag-obrig">obrigatória aqui</span></legend>' +
+        campos +
+        '</fieldset>'
+      );
+    }
+    return (
+      '<details class="checagem-opcional">' +
+      '  <summary>' + titulo + ' <span class="checagem-tag-opc">opcional neste ponto</span></summary>' +
+      '  <fieldset class="checagem-bloco">' + campos + '</fieldset>' +
+      '</details>'
     );
   }
 
@@ -1360,8 +1376,16 @@ EC.campoRuido = (function () {
     );
   }
 
-  function htmlCamposJanelaExterno(janela, ehPonto1, ehInicioSerie) {
+  // iniObrig/fimObrig espelham EXATAMENTE faltasJanela(): a checagem só é exigida
+  // na janela Total, a inicial no 1º ponto da série e a final no último.
+  function obrigChecagem(janela, ehInicioSerie, ehFimSerie) {
+    const total = janela === 'total';
+    return { ini: total && !!ehInicioSerie, fim: total && !!ehFimSerie };
+  }
+
+  function htmlCamposJanelaExterno(janela, ehPonto1, ehInicioSerie, ehFimSerie) {
     const residual = janela === 'residual';
+    const ob = obrigChecagem(janela, ehInicioSerie, ehFimSerie);
     return (
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
@@ -1370,7 +1394,7 @@ EC.campoRuido = (function () {
       htmlChecks(ehLongaDuracao() ? POSICIONAMENTO_EXTERNO_LONGA : POSICIONAMENTO_EXTERNO_PADRAO, 'pos') +
       htmlChecks(['Se monitoramento em fachada: distância mínima de 1 m da fachada (opcional)'], 'posfachada') +
       '<p class="grupo-checks-titulo">⚙️ Montagem do equipamento</p>' + htmlChecks(checksMontagemExterno(ehLongaDuracao()), 'mont') +
-      htmlChecagem('Checagem inicial', 'chkIni') +
+      htmlChecagem('Checagem inicial', 'chkIni', ob.ini) +
       lembreteChecagemIni(ehInicioSerie) +
       '<div class="cr-foto-tela-ini"></div>' +
       '<div class="cr-foto-ponto"></div>' +
@@ -1384,7 +1408,7 @@ EC.campoRuido = (function () {
       // Na RESIDUAL a fonte da EMPRESA não entra (fonte desligada) — só a do AMBIENTE.
       (residual ? '' : '<label>Fontes percebidas da EMPRESA<input type="text" data-campo="fontesEmpresa"></label>') +
       '<label>Fontes percebidas do AMBIENTE<input type="text" data-campo="fontesAmbiente"></label>' +
-      htmlChecagem('Checagem final', 'chkFim') +
+      htmlChecagem('Checagem final', 'chkFim', ob.fim) +
       '<div class="cr-resultado-checagem"></div>' +
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
       LEMBRETE_CHECAGEM +
@@ -1397,7 +1421,8 @@ EC.campoRuido = (function () {
 
   // Interno (10151/10152): cada janela é uma medição completa (clima + checagem
   // em cada). Os grupos Ltot/Lres saíram — as janelas Total/Residual já são isso.
-  function htmlCamposJanelaInterno(subtipo, ehPonto1, ehInicioSerie) {
+  function htmlCamposJanelaInterno(subtipo, janela, ehPonto1, ehInicioSerie, ehFimSerie) {
+    const ob = obrigChecagem(janela, ehInicioSerie, ehFimSerie);
     return (
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       '<label>Nome do ponto<input type="text" data-campo="nome"></label>' +
@@ -1406,13 +1431,13 @@ EC.campoRuido = (function () {
       htmlChecks(['Monitorar, quando possível, variando a altura do tripé entre 1,2 e 1,5 m'], 'altura') +
       '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' + htmlClima(true) +
       lembreteClima(ehPonto1) +
-      htmlChecagem('Checagem inicial', 'chkIni') +
+      htmlChecagem('Checagem inicial', 'chkIni', ob.ini) +
       lembreteChecagemIni(ehInicioSerie) +
       '<div class="cr-foto-tela-ini"></div>' +
       '<div class="cr-foto-ponto"></div>' +
       '<label>Eventualidade<select data-campo="eventualidade"><option value="">Selecione…</option><option>Não</option><option>Sim</option></select></label>' +
       '<div id="cr-eventualidade-desc"></div>' +
-      htmlChecagem('Checagem final', 'chkFim') +
+      htmlChecagem('Checagem final', 'chkFim', ob.fim) +
       '<div class="cr-resultado-checagem"></div>' +
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
       LEMBRETE_CHECAGEM +
@@ -1421,7 +1446,8 @@ EC.campoRuido = (function () {
     );
   }
 
-  function htmlCamposJanelaFerro(janela, ehPonto1, ehInicioSerie) {
+  function htmlCamposJanelaFerro(janela, ehPonto1, ehInicioSerie, ehFimSerie) {
+    const ob = obrigChecagem(janela, ehInicioSerie, ehFimSerie);
     // Checks do ponto por finalidade/janela. CHECKS_PONTO_FERRO: 0/1 som
     // residual, 2 som da passagem, 3/4 condições ambientais (clima).
     //  • PASSAGEM: Total = som da passagem [2] + clima [3,4] + campo caract.;
@@ -1446,7 +1472,7 @@ EC.campoRuido = (function () {
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       '<div class="cr-gps"></div>' +
-      htmlChecagem('Checagem inicial', 'chkIni') +
+      htmlChecagem('Checagem inicial', 'chkIni', ob.ini) +
       lembreteChecagemIni(ehInicioSerie) +
       '<div class="cr-foto-tela-ini"></div>' +
       checksPonto +
@@ -1456,7 +1482,7 @@ EC.campoRuido = (function () {
       '<div class="cr-foto-ponto"></div>' +
       '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' + htmlClima(false) +
       lembreteClima(ehPonto1) +
-      htmlChecagem('Checagem final', 'chkFim') +
+      htmlChecagem('Checagem final', 'chkFim', ob.fim) +
       '<div class="cr-resultado-checagem"></div>' +
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
       LEMBRETE_CHECAGEM +
@@ -1467,13 +1493,14 @@ EC.campoRuido = (function () {
     );
   }
 
-  function htmlCamposJanelaAero(ehPonto1, ehInicioSerie) {
+  function htmlCamposJanelaAero(janela, ehPonto1, ehInicioSerie, ehFimSerie) {
     const operacional = campo().geral.finalidade === AERO_OPERACIONAL;
+    const ob = obrigChecagem(janela, ehInicioSerie, ehFimSerie);
     return (
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       '<div class="cr-gps"></div>' +
-      htmlChecagem('Checagem inicial', 'chkIni') +
+      htmlChecagem('Checagem inicial', 'chkIni', ob.ini) +
       lembreteChecagemIni(ehInicioSerie) +
       '<div class="cr-foto-tela-ini"></div>' +
       '<div class="cr-foto-ponto"></div>' +
@@ -1482,7 +1509,7 @@ EC.campoRuido = (function () {
         : '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' + htmlClima(false) +
           lembreteClima(ehPonto1) +
           htmlChecks(CHECKS_PONTO_AERO_RECEPTORES, 'aero')) +
-      htmlChecagem('Checagem final', 'chkFim') +
+      htmlChecagem('Checagem final', 'chkFim', ob.fim) +
       '<div class="cr-resultado-checagem"></div>' +
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
       LEMBRETE_CHECAGEM +
@@ -1494,11 +1521,11 @@ EC.campoRuido = (function () {
   }
 
   // Campos da janela conforme o subtipo do ruído.
-  function htmlCamposJanela(subtipo, janela, ehPonto1, ehInicioSerie) {
-    if (ehInterno(subtipo)) return htmlCamposJanelaInterno(subtipo, ehPonto1, ehInicioSerie);
-    if (subtipo === 'ferroviario') return htmlCamposJanelaFerro(janela, ehPonto1, ehInicioSerie);
-    if (subtipo === 'aeronautico') return htmlCamposJanelaAero(ehPonto1, ehInicioSerie);
-    return htmlCamposJanelaExterno(janela, ehPonto1, ehInicioSerie);
+  function htmlCamposJanela(subtipo, janela, ehPonto1, ehInicioSerie, ehFimSerie) {
+    if (ehInterno(subtipo)) return htmlCamposJanelaInterno(subtipo, janela, ehPonto1, ehInicioSerie, ehFimSerie);
+    if (subtipo === 'ferroviario') return htmlCamposJanelaFerro(janela, ehPonto1, ehInicioSerie, ehFimSerie);
+    if (subtipo === 'aeronautico') return htmlCamposJanelaAero(janela, ehPonto1, ehInicioSerie, ehFimSerie);
+    return htmlCamposJanelaExterno(janela, ehPonto1, ehInicioSerie, ehFimSerie);
   }
 
   // true se a janela tem algum dado relevante preenchido (para o status da aba
@@ -1592,7 +1619,7 @@ EC.campoRuido = (function () {
         '</strong> — pontos <strong>' + bSerie.ini + ' a ' + bSerie.fim + '</strong>. Nesta série, a checagem inicial é no ponto ' +
         bSerie.ini + ' e a final no ponto ' + bSerie.fim + '.</div>';
     }
-    html += htmlCamposJanela(sub, janela, n === 1, !!bSerie && n === bSerie.ini);
+    html += htmlCamposJanela(sub, janela, n === 1, !!bSerie && n === bSerie.ini, !!bSerie && n === bSerie.fim);
     wrap.innerHTML = html;
 
     const taj = wrap.querySelector('[data-justif]');
@@ -1602,6 +1629,14 @@ EC.campoRuido = (function () {
     }
 
     vincular(wrap, alvo);
+    // Checagem opcional que JÁ tem valor preenchido abre sozinha — recolhida, o
+    // técnico acharia que o dado sumiu. (vincular() acabou de povoar os campos.)
+    wrap.querySelectorAll('details.checagem-opcional').forEach(function (d) {
+      const temValor = Array.prototype.some.call(d.querySelectorAll('input[data-campo]'), function (i) {
+        return String(i.value || '').trim() !== '';
+      });
+      if (temValor) d.open = true;
+    });
     ativarAlertaVento(wrap, alvo);
     ativarAlertaChecagens(wrap, alvo);
     ativarAlertaSerie(wrap, ponto, janela, n, totalPontosCtx());
