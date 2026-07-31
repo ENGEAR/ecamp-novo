@@ -705,6 +705,10 @@ EC.pdf = (function () {
       kv('Observação do escopo', serv.observacao);
       kv('Observações da OS', os.observacao);
       kv('Início', fmtDataBR(dg.dataInicio) + (dg.horaInicio ? ' às ' + dg.horaInicio : ''));
+      // Quem executou o monitoramento em campo (usuário logado no app na hora do
+      // preenchimento). Já estava no rodapé, mas em 7,5pt cinza no pé da página —
+      // na prática ninguém achava. Aqui fica junto de quando e como foi feito.
+      kv('Técnico responsável', reg.tecnico);
       var equips = (reg.equipamentos && reg.equipamentos.length) ? reg.equipamentos.join(', ')
         : (reg.equipamentosManual || '—');
       kv('Equipamentos (serviço)', equips);
