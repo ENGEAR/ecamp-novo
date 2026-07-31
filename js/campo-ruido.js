@@ -1646,6 +1646,28 @@ EC.campoRuido = (function () {
     montarFoto(wrap, '.cr-foto-ponto', alvo, 'fotoPonto', '📷 Foto do ponto (obrigatória)', gps, n, suf);
     montarFoto(wrap, '.cr-foto-tela-fim', alvo, 'fotoTelaFim', '📷 Foto da tela após checagem final (obrigatória se fizer a checagem)', gps, n, suf);
 
+    // A foto da tela só existe por causa da checagem: sem checagem não há tela
+    // para fotografar. Então o bloco de foto acompanha a checagem — some quando
+    // ela é opcional e está vazia, e aparece assim que a pessoa digita o valor
+    // (que é quando a foto passa a ser cobrada na finalização).
+    const obIni = janela === 'total' && !!bSerie && n === bSerie.ini;
+    const obFim = janela === 'total' && !!bSerie && n === bSerie.fim;
+    function seguirChecagem(seletor, prefixo, campoFoto, obrigatoria) {
+      const bloco = wrap.querySelector(seletor);
+      if (!bloco) return;
+      const inp = wrap.querySelector('[data-campo="' + prefixo + 'Valor"]');
+      const atualizar = function () {
+        const temValor = !!inp && String(inp.value || '').trim() !== '';
+        // Nunca esconde foto já tirada (senão pareceria que a foto se perdeu).
+        const mostrar = obrigatoria || temValor || EC.foto.tem(alvo[campoFoto]);
+        bloco.classList.toggle('oculto', !mostrar);
+      };
+      if (inp) inp.addEventListener('input', atualizar);
+      atualizar();
+    }
+    seguirChecagem('.cr-foto-tela-ini', 'chkIni', 'fotoTelaIni', obIni);
+    seguirChecagem('.cr-foto-tela-fim', 'chkFim', 'fotoTelaFim', obFim);
+
     // Interno: eventualidade — ligada à janela.
     const seletorEvent = wrap.querySelector('[data-campo="eventualidade"]');
     if (seletorEvent) {
