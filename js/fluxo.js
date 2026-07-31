@@ -268,7 +268,9 @@ EC.fluxo = (function () {
   // conteúdo ainda curto (a rolagem clampa) e a tela voltaria pro topo.
   function restaurarRolagem(y) {
     if (!y || y <= 0) return;
-    [0, 60, 120, 200, 300, 400].forEach(function (ms) {
+    // Janela mais longa cobre a reabertura a frio de um rascunho (as fotos do
+    // IndexedDB decodificam e empurram a altura por mais tempo que no atalho 📄).
+    [0, 80, 160, 280, 420, 600, 850].forEach(function (ms) {
       setTimeout(function () { window.scrollTo(0, y); }, ms);
     });
   }
@@ -310,6 +312,10 @@ EC.fluxo = (function () {
 
     telaExibida = idTela;
     EC.app.mostrarTela(idTela);
+    // Tela nova começa no topo — zera a rolagem lembrada (o listener de scroll a
+    // reatualiza conforme o técnico rola). Guardada no rascunho p/ "continuar de
+    // onde parou" ao reabrir.
+    if (estado) estado.scrollY = 0;
   }
 
   function anterior(idTela) { return PASSOS[Math.max(0, PASSOS.indexOf(idTela) - 1)]; }
@@ -757,8 +763,12 @@ EC.fluxo = (function () {
     // ABRIR/continuar o serviço não é preenchimento do técnico — persiste a
     // reidratação SEM acender o aviso de "não enviado" (senão ele acendia só de
     // reabrir o serviço, mesmo com tudo já salvo).
+    // Continuar um rascunho: além do último passo (passoAtual), volta ao PONTO e à
+    // ROLAGEM onde parou (irPara zera scrollY, então captura antes).
+    var yRestaurar = rascunhoExistente ? (parseInt(estado.scrollY, 10) || 0) : 0;
     salvarEstado(true);
     irPara(estado.passoAtual || 'tela-dados-gerais');
+    restaurarRolagem(yRestaurar);
   }
 
   /* ---------- Dados gerais ---------- */
@@ -2019,6 +2029,30 @@ EC.fluxo = (function () {
   }
 
   function inicializarTelas() {
+    // "Continuar de onde parou": lembra a ROLAGEM da tela atual no rascunho. O
+    // listener mantém estado.scrollY fresco (throttle 150 ms) para as gravações
+    // normais; ao MINIMIZAR/fechar (visibilitychange), grava na hora — é o momento
+    // exato em que o técnico "sai". A restauração acontece em abrirServico.
+    var throttleScroll = null;
+    window.addEventListener('scroll', function () {
+      if (!estado || throttleScroll) return;
+      throttleScroll = setTimeout(function () {
+        throttleScroll = null;
+        if (estado) estado.scrollY = window.scrollY || window.pageYOffset || 0;
+      }, 150);
+    }, { passive: true });
+    // Grava a rolagem na hora de "sair": minimizar/trocar de app (visibilitychange)
+    // e fechar/navegar (pagehide — mais confiável no iOS).
+    function gravarRolagemAoSair() {
+      if (!estado) return;
+      estado.scrollY = window.scrollY || window.pageYOffset || 0;
+      salvarEstado(true);
+    }
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') gravarRolagemAoSair();
+    });
+    window.addEventListener('pagehide', gravarRolagemAoSair);
+
     // Botão do aviso "não enviado" + botão flutuante: ambos fazem o envio COMPLETO
     // (com fotos) na hora.
     function salvarRascunhoAgora() {

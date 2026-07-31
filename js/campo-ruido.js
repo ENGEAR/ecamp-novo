@@ -695,6 +695,13 @@ EC.campoRuido = (function () {
   // seguinte) em vez de voltar sempre ao ponto 1. Guardado no rascunho.
   function lembrarPonto(n) { campo().pontoAtual = n; ((ctx && ctx.salvarSemMarcar) || salvar)(); } // navegação: não acende o aviso de "não enviado"
   function lembrarAmbiente(n) { campo().ambienteAtual = n; salvar(); }
+  // Guarda a VISTA aberta (período + janela Total/Residual) para "continuar de
+  // onde parou" ao reabrir o rascunho. Navegação: não acende o aviso.
+  function lembrarVista() {
+    campo().periodoAtual = periodoExibido;
+    campo().janelaAtual = janelaExibida;
+    ((ctx && ctx.salvarSemMarcar) || salvar)();
+  }
   function inicial(valor) { var n = parseInt(valor, 10); return (n && n > 0) ? n : 1; }
 
   function salvarDevagar() {
@@ -1331,6 +1338,7 @@ EC.campoRuido = (function () {
         pontoExibido = n;
         lembrarPonto(n);
         janelaExibida = 'total'; // cada ponto abre na janela Total
+        lembrarVista();
         renderizarPonto(n);
       }
     });
@@ -1550,6 +1558,7 @@ EC.campoRuido = (function () {
         if (periodoExibido === b.dataset.periodo) return;
         periodoExibido = b.dataset.periodo;
         janelaExibida = 'total';
+        lembrarVista();
         renderizarPontoJanelas(n, ponto);
       });
     });
@@ -1557,6 +1566,7 @@ EC.campoRuido = (function () {
       b.addEventListener('click', function () {
         if (janelaExibida === b.dataset.janela) return;
         janelaExibida = b.dataset.janela;
+        lembrarVista();
         renderizarPontoJanelas(n, ponto);
       });
     });
@@ -1692,8 +1702,12 @@ EC.campoRuido = (function () {
     // e renderizarAmbientes limitam ao total depois.
     pontoExibido = inicial(ctx.estado.campo.pontoAtual);
     ambienteExibido = inicial(ctx.estado.campo.ambienteAtual);
-    janelaExibida = 'total'; // nunca reabrir na Residual (o form do interno é idêntico e confunde)
-    periodoExibido = periodosAtivos()[0];
+    // Continua na VISTA onde parou (período + janela Total/Residual) — pedido da
+    // Raisa (2026-07-30), igual ao ponto/coleta. Sem vista salva, abre no 1º
+    // período e na Total (comportamento antigo). Período inválido → cai no 1º.
+    var perSalvo = campo().periodoAtual;
+    periodoExibido = (perSalvo && periodosAtivos().indexOf(perSalvo) !== -1) ? perSalvo : periodosAtivos()[0];
+    janelaExibida = campo().janelaAtual === 'residual' ? 'residual' : 'total';
 
     // Pré-seleciona o subtipo pelo escopo da OS (o técnico pode trocar)
     if (!campo().subtipo && EC.mapaEscopo && EC.mapaEscopo.subtipoPorEscopo) {
