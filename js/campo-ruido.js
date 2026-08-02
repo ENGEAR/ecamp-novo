@@ -744,9 +744,13 @@ EC.campoRuido = (function () {
   // e não tem o que dizer. (Nesse caso a inicial e a final são as duas
   // obrigatórias no mesmo ponto, que é o começo e o fim da "série".)
   function lembreteSerie() { return totalPontosCtx() > 1 ? LEMBRETE_CHECAGEM : ''; }
+  // Fora do ponto 1 o clima é opcional: se for o mesmo dia e período, repete o do
+  // ponto 1. Em vez de só avisar isso, o app COPIA sozinho (ver climaDoPonto1) e
+  // este espaço vira a nota do que foi copiado. O aviso original fica como
+  // reserva para quando não há de onde copiar (ponto 1 ainda em branco).
   function lembreteClima(ehPonto1) {
     if (ehPonto1) return '';
-    return '<div class="alerta alerta-amarelo cr-lembrete">💡 Se o monitoramento for realizado na mesma data e no mesmo período (diurno, vespertino ou noturno) do ponto 1, <strong>não é necessário registrar novamente as condições ambientais.</strong></div>';
+    return '<div class="alerta alerta-amarelo cr-lembrete cr-nota-clima">💡 Se o monitoramento for realizado na mesma data e no mesmo período (diurno, vespertino ou noturno) do ponto 1, <strong>não é necessário registrar novamente as condições ambientais.</strong></div>';
   }
 
   // Bloco de checagem: os campos E a foto da tela dela numa MOLDURA SÓ. A foto
@@ -1620,6 +1624,59 @@ EC.campoRuido = (function () {
     renderizarJanela(n, ponto, janelaExibida);
   }
 
+  /* ---------- Clima repetido do ponto 1 (preenchimento automático) ----------
+   * Regra do escopo: fora do ponto 1, se for a MESMA data e o MESMO período, o
+   * clima do ponto 1 vale para os demais. Antes o app só avisava isso e deixava
+   * os campos em branco; agora ele copia. Cuidados:
+   *   • nunca sobrescreve: só copia quando os três campos estão vazios;
+   *   • copia UMA vez (marca `climaCopiado`) — se a pessoa apagar de propósito,
+   *     não volta a preencher sozinho;
+   *   • o valor fica editável e a nota diz de onde veio, para poder corrigir se
+   *     as condições mudaram (o app não guarda a DATA por ponto, só o período —
+   *     então a checagem de "mesma data" continua sendo do técnico).
+   */
+  var CAMPOS_CLIMA = ['temperatura', 'umidade', 'vento'];
+
+  function climaFonteDoPonto1(janela) {
+    const p1 = listaPontos()[0];
+    if (!p1) return null;
+    const med = medPer(p1, periodoExibido);
+    const candidatos = [med[janela], med.total];
+    for (let i = 0; i < candidatos.length; i++) {
+      const j = candidatos[i];
+      if (j && CAMPOS_CLIMA.some(function (k) { return String(j[k] == null ? '' : j[k]).trim() !== ''; })) return j;
+    }
+    return null;
+  }
+
+  function aplicarClimaDoPonto1(wrap, alvo, n, janela) {
+    const nota = wrap.querySelector('.cr-nota-clima');
+    if (n === 1 || !nota) return;
+    const preenchido = function (o, k) { return String(o[k] == null ? '' : o[k]).trim() !== ''; };
+    const jaTem = CAMPOS_CLIMA.some(function (k) { return preenchido(alvo, k); });
+    if (!jaTem && !alvo.climaCopiado) {
+      const fonte = climaFonteDoPonto1(janela);
+      if (fonte) {
+        CAMPOS_CLIMA.forEach(function (k) {
+          if (!preenchido(fonte, k)) return;
+          alvo[k] = fonte[k];
+          const el = wrap.querySelector('[data-campo="' + k + '"]');
+          if (el) el.value = fonte[k];
+        });
+        alvo.climaCopiado = true;
+        salvarDevagar();
+      }
+    }
+    // A nota do "copiado" só faz sentido enquanto os valores estão lá: se a
+    // pessoa apagou tudo, volta o aviso original (mas sem copiar de novo).
+    const aindaTemValor = CAMPOS_CLIMA.some(function (k) { return preenchido(alvo, k); });
+    if (alvo.climaCopiado && aindaTemValor) {
+      nota.className = 'alerta alerta-info cr-lembrete cr-nota-clima';
+      nota.innerHTML = '✅ <strong>Condições ambientais copiadas do ponto 1</strong> (mesmo período). ' +
+        'Se a data for outra ou as condições mudaram, corrija os valores acima.';
+    }
+  }
+
   function renderizarJanela(n, ponto, janela) {
     const wrap = $('#cr-janela-form');
     const med = medPer(ponto, periodoExibido);
@@ -1651,6 +1708,8 @@ EC.campoRuido = (function () {
     // Checagem opcional que JÁ tem valor — ou foto da tela já tirada, que agora
     // mora dentro dela — abre sozinha: recolhida, o técnico acharia que o dado
     // sumiu. (vincular() acabou de povoar os campos.)
+    // Clima repetido: copia do ponto 1 quando este ponto ainda está em branco.
+    aplicarClimaDoPonto1(wrap, alvo, n, janela);
     const jaTemFoto = { chkIni: EC.foto.tem(alvo.fotoTelaIni), chkFim: EC.foto.tem(alvo.fotoTelaFim) };
     wrap.querySelectorAll('details.checagem-opcional').forEach(function (d) {
       const temValor = Array.prototype.some.call(d.querySelectorAll('input[data-campo]'), function (i) {
