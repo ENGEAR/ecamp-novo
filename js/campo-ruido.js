@@ -789,6 +789,19 @@ EC.campoRuido = (function () {
     );
   }
 
+  // Data + hora da medição, lado a lado. A DATA por ponto (2026-08-01) existe
+  // para o app saber sozinho se dois pontos são do mesmo dia — é o que decide se
+  // o clima do ponto 1 pode ser repetido. Vem pré-preenchida com a data de
+  // início do serviço (o caso comum é tudo no mesmo dia) e é editável.
+  function htmlDataHora() {
+    return (
+      '<div class="grade-2">' +
+      '  <label>Data<input type="date" data-campo="data"></label>' +
+      '  <label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
+      '</div>'
+    );
+  }
+
   // Grupo de campos numa moldura — MESMO visual do bloco de checagem, para a
   // tela ter um padrão só em vez de uns blocos emoldurados e outros soltos.
   function htmlGrupo(titulo, conteudo) {
@@ -1411,7 +1424,7 @@ EC.campoRuido = (function () {
     const ob = obrigChecagem(janela, ehInicioSerie, ehFimSerie);
     return (
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
-      '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
+      htmlDataHora() +
       '<div class="cr-gps"></div>' +
       // Foto do ponto logo abaixo do endereço: é a foto do LUGAR, então fica
       // junto de onde o lugar é identificado (GPS + endereço).
@@ -1450,7 +1463,7 @@ EC.campoRuido = (function () {
   function htmlCamposJanelaInterno(subtipo, janela, ehPonto1, ehInicioSerie, ehFimSerie) {
     const ob = obrigChecagem(janela, ehInicioSerie, ehFimSerie);
     return (
-      '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
+      htmlDataHora() +
       '<label>Nome do ponto<input type="text" data-campo="nome"></label>' +
       '<div class="cr-gps"></div>' +
       '<div class="cr-foto-ponto"></div>' +
@@ -1493,7 +1506,7 @@ EC.campoRuido = (function () {
     }
     return (
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
-      '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
+      htmlDataHora() +
       '<div class="cr-gps"></div>' +
       '<div class="cr-foto-ponto"></div>' +
       htmlChecagem('Checagem inicial', 'chkIni', ob.ini, 'cr-foto-tela-ini') +
@@ -1521,7 +1534,7 @@ EC.campoRuido = (function () {
     const ob = obrigChecagem(janela, ehInicioSerie, ehFimSerie);
     return (
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
-      '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
+      htmlDataHora() +
       '<div class="cr-gps"></div>' +
       '<div class="cr-foto-ponto"></div>' +
       htmlChecagem('Checagem inicial', 'chkIni', ob.ini, 'cr-foto-tela-ini') +
@@ -1626,16 +1639,24 @@ EC.campoRuido = (function () {
 
   /* ---------- Clima repetido do ponto 1 (preenchimento automático) ----------
    * Regra do escopo: fora do ponto 1, se for a MESMA data e o MESMO período, o
-   * clima do ponto 1 vale para os demais. Antes o app só avisava isso e deixava
-   * os campos em branco; agora ele copia. Cuidados:
+   * clima do ponto 1 vale para os demais — agora o app confere as duas coisas
+   * sozinho (a data vem do campo por ponto) e copia. Cuidados:
+   *   • só copia com a DATA IGUAL à do ponto 1 e no mesmo período;
    *   • nunca sobrescreve: só copia quando os três campos estão vazios;
    *   • copia UMA vez (marca `climaCopiado`) — se a pessoa apagar de propósito,
    *     não volta a preencher sozinho;
-   *   • o valor fica editável e a nota diz de onde veio, para poder corrigir se
-   *     as condições mudaram (o app não guarda a DATA por ponto, só o período —
-   *     então a checagem de "mesma data" continua sendo do técnico).
+   *   • data diferente: não copia e diz por quê, em vez de ficar calado.
    */
   var CAMPOS_CLIMA = ['temperatura', 'umidade', 'vento'];
+
+  function soData(v) { return String(v == null ? '' : v).slice(0, 10); }
+
+  // Data padrão de um ponto: a de início do serviço (caso comum, tudo no mesmo
+  // dia). O técnico troca quando a medição virou o dia.
+  function dataPadraoPonto() {
+    const dg = (ctx.estado && ctx.estado.dadosGerais) || {};
+    return soData(dg.dataInicio);
+  }
 
   function climaFonteDoPonto1(janela) {
     const p1 = listaPontos()[0];
@@ -1653,28 +1674,59 @@ EC.campoRuido = (function () {
     const nota = wrap.querySelector('.cr-nota-clima');
     if (n === 1 || !nota) return;
     const preenchido = function (o, k) { return String(o[k] == null ? '' : o[k]).trim() !== ''; };
+    const fonte = climaFonteDoPonto1(janela);
+    const dataP1 = fonte ? soData(fonte.data) : '';
+    const dataAqui = soData(alvo.data);
+    const mesmaData = !!fonte && dataAqui !== '' && dataP1 !== '' && dataAqui === dataP1;
+    const conflitaData = !!fonte && dataAqui !== '' && dataP1 !== '' && dataAqui !== dataP1;
+
+    // O técnico copiou com a data padrão e DEPOIS corrigiu a data: o clima
+    // copiado não vale mais para este dia. Desfaz — pode fazer isso com
+    // segurança porque `climaCopiado` marca só o que veio da cópia, nunca o que
+    // a pessoa digitou.
+    if (alvo.climaCopiado && conflitaData) {
+      CAMPOS_CLIMA.forEach(function (k) {
+        alvo[k] = '';
+        const el = wrap.querySelector('[data-campo="' + k + '"]');
+        if (el) el.value = '';
+      });
+      alvo.climaCopiado = false;
+      salvarDevagar();
+    }
+
     const jaTem = CAMPOS_CLIMA.some(function (k) { return preenchido(alvo, k); });
-    if (!jaTem && !alvo.climaCopiado) {
-      const fonte = climaFonteDoPonto1(janela);
-      if (fonte) {
-        CAMPOS_CLIMA.forEach(function (k) {
-          if (!preenchido(fonte, k)) return;
-          alvo[k] = fonte[k];
-          const el = wrap.querySelector('[data-campo="' + k + '"]');
-          if (el) el.value = fonte[k];
-        });
-        alvo.climaCopiado = true;
-        salvarDevagar();
-      }
+    if (fonte && mesmaData && !jaTem && !alvo.climaCopiado) {
+      CAMPOS_CLIMA.forEach(function (k) {
+        if (!preenchido(fonte, k)) return;
+        alvo[k] = fonte[k];
+        const el = wrap.querySelector('[data-campo="' + k + '"]');
+        if (el) el.value = fonte[k];
+      });
+      alvo.climaCopiado = true;
+      salvarDevagar();
     }
     // A nota do "copiado" só faz sentido enquanto os valores estão lá: se a
     // pessoa apagou tudo, volta o aviso original (mas sem copiar de novo).
     const aindaTemValor = CAMPOS_CLIMA.some(function (k) { return preenchido(alvo, k); });
     if (alvo.climaCopiado && aindaTemValor) {
       nota.className = 'alerta alerta-info cr-lembrete cr-nota-clima';
-      nota.innerHTML = '✅ <strong>Condições ambientais copiadas do ponto 1</strong> (mesmo período). ' +
-        'Se a data for outra ou as condições mudaram, corrija os valores acima.';
+      nota.innerHTML = '✅ <strong>Condições ambientais copiadas do ponto 1</strong> (mesma data e período). ' +
+        'Se as condições mudaram, corrija os valores acima.';
+    } else if (fonte && !mesmaData && !jaTem) {
+      // Data diferente da do ponto 1: explica por que NÃO copiou, senão parece
+      // que o preenchimento automático falhou.
+      nota.className = 'alerta alerta-amarelo cr-lembrete cr-nota-clima';
+      nota.innerHTML = '📅 <strong>Data diferente da do ponto 1</strong> — as condições ambientais ' +
+        'precisam ser registradas de novo para este ponto.';
     }
+
+    // Digitou no clima? O valor passa a ser DELE, não mais uma cópia — e a partir
+    // daí nada pode apagá-lo sozinho (nem a troca de data). A cópia acima escreve
+    // direto no campo, sem disparar 'input', então não cai aqui.
+    CAMPOS_CLIMA.forEach(function (k) {
+      const el = wrap.querySelector('[data-campo="' + k + '"]');
+      if (el) el.addEventListener('input', function () { alvo.climaCopiado = false; });
+    });
   }
 
   function renderizarJanela(n, ponto, janela) {
@@ -1708,6 +1760,16 @@ EC.campoRuido = (function () {
     // Checagem opcional que JÁ tem valor — ou foto da tela já tirada, que agora
     // mora dentro dela — abre sozinha: recolhida, o técnico acharia que o dado
     // sumiu. (vincular() acabou de povoar os campos.)
+    // Data do ponto: nasce com a data de início do serviço (o caso comum é tudo
+    // no mesmo dia). Editável — trocar aqui é o que avisa o app de que a medição
+    // virou o dia, e é o que decide se o clima do ponto 1 pode ser repetido.
+    const campoData = wrap.querySelector('[data-campo="data"]');
+    if (campoData && !soData(alvo.data)) {
+      const padrao = dataPadraoPonto();
+      if (padrao) { alvo.data = padrao; campoData.value = padrao; salvarDevagar(); }
+    }
+    // Trocar a data reavalia a cópia do clima na hora.
+    if (campoData) campoData.addEventListener('change', function () { renderizarJanela(n, ponto, janela); });
     // Clima repetido: copia do ponto 1 quando este ponto ainda está em branco.
     aplicarClimaDoPonto1(wrap, alvo, n, janela);
     const jaTemFoto = { chkIni: EC.foto.tem(alvo.fotoTelaIni), chkFim: EC.foto.tem(alvo.fotoTelaFim) };

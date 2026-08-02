@@ -126,7 +126,7 @@ EC.pdf = (function () {
 
   /* ===== Dicionário de rótulos (renderizador genérico) ===== */
   var LABELS = {
-    nome: 'Nome / identificação', horaInicial: 'Hora inicial', horaFinal: 'Hora final',
+    nome: 'Nome / identificação', data: 'Data', horaInicial: 'Hora inicial', horaFinal: 'Hora final',
     horaTermino: 'Hora de término', observacoes: 'Observações', temperatura: 'Temperatura',
     umidade: 'Umidade', vento: 'Vento', objetivo: 'Objetivo', finalidade: 'Finalidade',
     qtdePontos: 'Qtd. de pontos', qtdeVeiculos: 'Qtd. de veículos', qtdeAmbientes: 'Qtd. de ambientes',
@@ -161,7 +161,7 @@ EC.pdf = (function () {
   // Campos do serviço (geral) já mostrados na seção "Dados do serviço".
   var SKIP = { checks: 1, sala: 1, subtipo: 1, equipamentosManual: 1, qtdePontos: 1 };
   var SKIP_GERAL = { finalidade: 1, justificativaPontos: 1 };
-  var PRIO = ['nome', 'placa', 'ano', 'endereco', 'horaInicial', 'hora_ini', 'data_ini',
+  var PRIO = ['nome', 'placa', 'ano', 'endereco', 'data', 'horaInicial', 'hora_ini', 'data_ini',
     'tipoEquip', 'numeroEquip', 'objetivo', 'tipoMonitoramento'];
 
   function prettify(k) {
@@ -454,6 +454,9 @@ EC.pdf = (function () {
       }
       function medicaoRuido(j) {
         kv('Nome / identificação', j.nome);
+        // Data da medição por ponto: um serviço pode atravessar dias, e é ela que
+        // diz se o clima do ponto vale por si ou repete o do ponto 1.
+        kvSe('Data', fmtDataBR(j.data));
         kv('Hora inicial', j.horaInicial);
         kvSe('Hora de término', j.horaTermino);
         kvSe('Altura do sonômetro', j.altura != null && j.altura !== '' ? j.altura + ' m' : '');
