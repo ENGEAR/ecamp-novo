@@ -648,6 +648,9 @@ textarea { resize: vertical; font-family: inherit; }
 /* Último item de dentro não soma a própria margem ao respiro da moldura —
    senão a folga de baixo fica maior que a de cima. */
 .checagem-bloco > *:last-child { margin-bottom: 0; }
+/* Confirmações do mesmo grupo ficam mais juntas: com 12px, um item de 3 linhas
+   deixava o seguinte parecendo descolado do conjunto. */
+.checagem-bloco .linha-check { margin-bottom: 8px; }
 .checagem-resultado { font-size: 0.95rem; min-height: 1.2em; }
 /* Checagem OPCIONAL (meio da série, ou qualquer ponto da Residual): recolhida,
    para o técnico não preencher por inércia. Os campos continuam a um toque. */

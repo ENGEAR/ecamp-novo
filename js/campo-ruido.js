@@ -1409,12 +1409,28 @@ EC.campoRuido = (function () {
   // Total e Residual estejam a ≤ 6 h um do outro (pela Hora inicial). Pedido da
   // Raisa (2026-07-27): na residual a fonte da EMPRESA não faz sentido (fonte
   // desligada), então some; o resto se repete e vale ser puxado.
-  function htmlBotaoPuxarTotal() {
-    return (
-      '<div class="cr-puxar-total" style="margin:8px 0">' +
-      '<button type="button" class="botao botao-secundario" id="cr-btn-puxar-total" style="width:100%">↩️ Puxar condições e fontes do Total</button>' +
-      '<p class="texto-apoio" id="cr-puxar-total-hint" style="margin:4px 2px 0"></p></div>'
-    );
+  // Mesmo ponto e mesma data do Total? Então o Residual repete a montagem física
+  // (posicionamento do microfone e montagem do equipamento) — não faz sentido
+  // reconfirmar item por item o que já foi conferido minutos antes no mesmo
+  // tripé. Compara a coordenada (textoUtm) e a data.
+  function mesmoSetupDoTotal(med, alvo) {
+    const t = (med && med.total) || {};
+    const utmT = (t.gps && t.gps.textoUtm) || '';
+    const utmR = (alvo && alvo.gps && alvo.gps.textoUtm) || '';
+    const dT = soData(t.data), dR = soData(alvo && alvo.data);
+    return !!utmT && utmT === utmR && !!dT && dT === dR;
+  }
+
+  // Copia as confirmações de montagem do Total para o Residual: os blocos somem
+  // da tela, mas o registro continua completo (e a finalização, que cobra esses
+  // checks nas duas janelas, segue passando).
+  function copiarChecksDoTotal(med, alvo) {
+    const t = (med && med.total) || {};
+    if (!t.checks) return;
+    alvo.checks = alvo.checks || {};
+    Object.keys(t.checks).forEach(function (k) {
+      if (/^(pos|mont)/.test(k)) alvo.checks[k] = t.checks[k];
+    });
   }
 
   // iniObrig/fimObrig espelham EXATAMENTE faltasJanela(): a checagem só é exigida
@@ -1424,9 +1440,17 @@ EC.campoRuido = (function () {
     return { ini: total && !!ehInicioSerie, fim: total && !!ehFimSerie };
   }
 
-  function htmlCamposJanelaExterno(janela, ehPonto1, ehInicioSerie, ehFimSerie) {
+  function htmlCamposJanelaExterno(janela, ehPonto1, ehInicioSerie, ehFimSerie, repeteSetup) {
     const residual = janela === 'residual';
     const ob = obrigChecagem(janela, ehInicioSerie, ehFimSerie);
+    // Residual no mesmo ponto e data do Total: a montagem é a mesma, então os
+    // dois grupos saem da tela e viram uma linha dizendo isso.
+    const setup = repeteSetup
+      ? '<div class="alerta alerta-info">📍 <strong>Mesmo ponto e mesma data do Total</strong> — posicionamento do microfone e montagem do equipamento já conferidos lá.</div>'
+      : htmlGrupo('📍 Posicionamento do microfone',
+          htmlChecks(ehLongaDuracao() ? POSICIONAMENTO_EXTERNO_LONGA : POSICIONAMENTO_EXTERNO_PADRAO, 'pos') +
+          htmlChecks(['Se monitoramento em fachada: distância mínima de 1 m da fachada (opcional)'], 'posfachada')) +
+        htmlGrupo('⚙️ Montagem do equipamento', htmlChecks(checksMontagemExterno(ehLongaDuracao()), 'mont'));
     return (
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
       htmlDataHora() +
@@ -1434,12 +1458,8 @@ EC.campoRuido = (function () {
       // Foto do ponto logo abaixo do endereço: é a foto do LUGAR, então fica
       // junto de onde o lugar é identificado (GPS + endereço).
       '<div class="cr-foto-ponto"></div>' +
-      htmlGrupo('📍 Posicionamento do microfone',
-        htmlChecks(ehLongaDuracao() ? POSICIONAMENTO_EXTERNO_LONGA : POSICIONAMENTO_EXTERNO_PADRAO, 'pos') +
-        htmlChecks(['Se monitoramento em fachada: distância mínima de 1 m da fachada (opcional)'], 'posfachada')) +
-      htmlGrupo('⚙️ Montagem do equipamento', htmlChecks(checksMontagemExterno(ehLongaDuracao()), 'mont')) +
+      setup +
       htmlChecagem('Checagem inicial', 'chkIni', ob.ini, 'cr-foto-tela-ini') +
-      (residual ? htmlBotaoPuxarTotal() : '') +
       htmlGrupo('🌡️ Condições ambientais',
         (ehLongaDuracao()
           ? htmlChecks(['Monitorar e registrar temperatura, umidade e vento de forma contínua'], 'climacont')
@@ -1562,11 +1582,11 @@ EC.campoRuido = (function () {
   }
 
   // Campos da janela conforme o subtipo do ruído.
-  function htmlCamposJanela(subtipo, janela, ehPonto1, ehInicioSerie, ehFimSerie) {
+  function htmlCamposJanela(subtipo, janela, ehPonto1, ehInicioSerie, ehFimSerie, repeteSetup) {
     if (ehInterno(subtipo)) return htmlCamposJanelaInterno(subtipo, janela, ehPonto1, ehInicioSerie, ehFimSerie);
     if (subtipo === 'ferroviario') return htmlCamposJanelaFerro(janela, ehPonto1, ehInicioSerie, ehFimSerie);
     if (subtipo === 'aeronautico') return htmlCamposJanelaAero(janela, ehPonto1, ehInicioSerie, ehFimSerie);
-    return htmlCamposJanelaExterno(janela, ehPonto1, ehInicioSerie, ehFimSerie);
+    return htmlCamposJanelaExterno(janela, ehPonto1, ehInicioSerie, ehFimSerie, repeteSetup);
   }
 
   // true se a janela tem algum dado relevante preenchido (para o status da aba
@@ -1752,7 +1772,12 @@ EC.campoRuido = (function () {
         '</strong> — pontos <strong>' + bSerie.ini + ' a ' + bSerie.fim + '</strong>. Nesta série, a checagem inicial é no ponto ' +
         bSerie.ini + ' e a final no ponto ' + bSerie.fim + '.</div>';
     }
-    html += htmlCamposJanela(sub, janela, n === 1, !!bSerie && n === bSerie.ini, !!bSerie && n === bSerie.fim);
+    // Residual no mesmo ponto/data do Total: esconde os grupos de montagem e
+    // herda as confirmações deles (senão a finalização cobraria checks que a
+    // tela não mostra mais).
+    const repeteSetup = janela === 'residual' && mesmoSetupDoTotal(med, alvo);
+    if (repeteSetup) { copiarChecksDoTotal(med, alvo); salvarDevagar(); }
+    html += htmlCamposJanela(sub, janela, n === 1, !!bSerie && n === bSerie.ini, !!bSerie && n === bSerie.fim, repeteSetup);
     wrap.innerHTML = html;
 
     const taj = wrap.querySelector('[data-justif]');
@@ -1814,9 +1839,6 @@ EC.campoRuido = (function () {
       descEvent();
     }
 
-    // Botão "Puxar do Total" (só existe na residual do externo).
-    const btnPuxar = wrap.querySelector('#cr-btn-puxar-total');
-    if (btnPuxar) ligarPuxarTotal(btnPuxar, wrap, n, ponto, med, alvo);
   }
 
   // "HH:MM" → minutos do dia (ou null). difHoras trata a virada da meia-noite
@@ -1920,30 +1942,6 @@ EC.campoRuido = (function () {
     CAMPOS_CLIMA.forEach(function (k) {
       const el = wrap.querySelector('[data-campo="' + k + '"]');
       if (el) el.addEventListener('input', function () { alvo.climaCopiado = false; });
-    });
-  }
-
-  function ligarPuxarTotal(btn, wrap, n, ponto, med, alvo) {
-    const hint = wrap.querySelector('#cr-puxar-total-hint');
-    function atualizar() {
-      const s = situacaoPuxarTotal(med, alvo);
-      btn.disabled = !s.ok;
-      if (hint) hint.textContent = s.msg;
-    }
-    atualizar();
-    const inpHora = wrap.querySelector('[data-campo="horaInicial"]');
-    if (inpHora) inpHora.addEventListener('input', atualizar);
-    btn.addEventListener('click', function () {
-      const s = situacaoPuxarTotal(med, alvo);
-      if (!s.ok) { EC.app.mostrarToast(s.msg); return; }
-      const t = med.total || {};
-      CAMPOS_PUXAR.forEach(function (k) {
-        if (t[k] !== undefined && t[k] !== null && String(t[k]).trim() !== '') alvo[k] = t[k];
-      });
-      alvo.climaCopiado = true;
-      salvar();
-      renderizarJanela(n, ponto, 'residual'); // re-renderiza p/ os inputs mostrarem os valores
-      EC.app.mostrarToast('Condições e fonte do ambiente puxadas do Total.');
     });
   }
 
