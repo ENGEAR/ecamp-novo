@@ -785,6 +785,12 @@ EC.campoRuido = (function () {
     );
   }
 
+  // Grupo de campos numa moldura — MESMO visual do bloco de checagem, para a
+  // tela ter um padrão só em vez de uns blocos emoldurados e outros soltos.
+  function htmlGrupo(titulo, conteudo) {
+    return '<fieldset class="checagem-bloco"><legend>' + titulo + '</legend>' + conteudo + '</fieldset>';
+  }
+
   function htmlClima(incluirChuva) {
     return (
       '<div class="grade-3">' +
@@ -1403,22 +1409,24 @@ EC.campoRuido = (function () {
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       '<div class="cr-gps"></div>' +
+      // Foto do ponto logo abaixo do endereço: é a foto do LUGAR, então fica
+      // junto de onde o lugar é identificado (GPS + endereço).
+      '<div class="cr-foto-ponto"></div>' +
       '<p class="grupo-checks-titulo">📍 Posicionamento do microfone</p>' +
       htmlChecks(ehLongaDuracao() ? POSICIONAMENTO_EXTERNO_LONGA : POSICIONAMENTO_EXTERNO_PADRAO, 'pos') +
       htmlChecks(['Se monitoramento em fachada: distância mínima de 1 m da fachada (opcional)'], 'posfachada') +
       '<p class="grupo-checks-titulo">⚙️ Montagem do equipamento</p>' + htmlChecks(checksMontagemExterno(ehLongaDuracao()), 'mont') +
       htmlChecagem('Checagem inicial', 'chkIni', ob.ini, 'cr-foto-tela-ini') +
-      '<div class="cr-foto-ponto"></div>' +
       (residual ? htmlBotaoPuxarTotal() : '') +
-      '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' +
-      (ehLongaDuracao()
-        ? htmlChecks(['Monitorar e registrar temperatura, umidade e vento de forma contínua'], 'climacont')
-        : htmlClima(false)) +
-      lembreteClima(ehPonto1) +
-      '<p class="grupo-checks-titulo">🔊 Fontes percebidas</p>' +
+      htmlGrupo('🌡️ Condições ambientais',
+        (ehLongaDuracao()
+          ? htmlChecks(['Monitorar e registrar temperatura, umidade e vento de forma contínua'], 'climacont')
+          : htmlClima(false)) +
+        lembreteClima(ehPonto1)) +
       // Na RESIDUAL a fonte da EMPRESA não entra (fonte desligada) — só a do AMBIENTE.
-      (residual ? '' : '<label>Fontes percebidas da EMPRESA<input type="text" data-campo="fontesEmpresa"></label>') +
-      '<label>Fontes percebidas do AMBIENTE<input type="text" data-campo="fontesAmbiente"></label>' +
+      htmlGrupo('🔊 Fontes percebidas',
+        (residual ? '' : '<label>Fontes percebidas da EMPRESA<input type="text" data-campo="fontesEmpresa"></label>') +
+        '<label>Fontes percebidas do AMBIENTE<input type="text" data-campo="fontesAmbiente"></label>') +
       htmlChecagem('Checagem final', 'chkFim', ob.fim, 'cr-foto-tela-fim') +
       '<div class="cr-resultado-checagem"></div>' +
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
@@ -1441,12 +1449,11 @@ EC.campoRuido = (function () {
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       '<label>Nome do ponto<input type="text" data-campo="nome"></label>' +
       '<div class="cr-gps"></div>' +
+      '<div class="cr-foto-ponto"></div>' +
       '<label>Altura do sonômetro (m)<input type="number" step="0.01" inputmode="decimal" data-campo="altura"></label>' +
       htmlChecks(['Monitorar, quando possível, variando a altura do tripé entre 1,2 e 1,5 m'], 'altura') +
-      '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' + htmlClima(true) +
-      lembreteClima(ehPonto1) +
+      htmlGrupo('🌡️ Condições ambientais', htmlClima(true) + lembreteClima(ehPonto1)) +
       htmlChecagem('Checagem inicial', 'chkIni', ob.ini, 'cr-foto-tela-ini') +
-      '<div class="cr-foto-ponto"></div>' +
       '<label>Eventualidade<select data-campo="eventualidade"><option value="">Selecione…</option><option>Não</option><option>Sim</option></select></label>' +
       '<div id="cr-eventualidade-desc"></div>' +
       htmlChecagem('Checagem final', 'chkFim', ob.fim, 'cr-foto-tela-fim') +
@@ -1484,14 +1491,13 @@ EC.campoRuido = (function () {
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       '<div class="cr-gps"></div>' +
+      '<div class="cr-foto-ponto"></div>' +
       htmlChecagem('Checagem inicial', 'chkIni', ob.ini, 'cr-foto-tela-ini') +
       checksPonto +
       (passagem && total
         ? '<label>Característica da composição ferroviária avaliada<input type="text" data-campo="caracteristicaComposicao" placeholder="ex.: trem de carga, passageiro, nº de vagões…"></label>'
         : '') +
-      '<div class="cr-foto-ponto"></div>' +
-      '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' + htmlClima(false) +
-      lembreteClima(ehPonto1) +
+      htmlGrupo('🌡️ Condições ambientais', htmlClima(false) + lembreteClima(ehPonto1)) +
       htmlChecagem('Checagem final', 'chkFim', ob.fim, 'cr-foto-tela-fim') +
       '<div class="cr-resultado-checagem"></div>' +
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
@@ -1513,12 +1519,11 @@ EC.campoRuido = (function () {
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
       '<div class="cr-gps"></div>' +
-      htmlChecagem('Checagem inicial', 'chkIni', ob.ini, 'cr-foto-tela-ini') +
       '<div class="cr-foto-ponto"></div>' +
+      htmlChecagem('Checagem inicial', 'chkIni', ob.ini, 'cr-foto-tela-ini') +
       (operacional
         ? htmlChecks(['Estação meteorológica funcionando'], 'estacao')
-        : '<p class="grupo-checks-titulo">🌡️ Condições ambientais</p>' + htmlClima(false) +
-          lembreteClima(ehPonto1) +
+        : htmlGrupo('🌡️ Condições ambientais', htmlClima(false) + lembreteClima(ehPonto1)) +
           htmlChecks(CHECKS_PONTO_AERO_RECEPTORES, 'aero')) +
       htmlChecagem('Checagem final', 'chkFim', ob.fim, 'cr-foto-tela-fim') +
       '<div class="cr-resultado-checagem"></div>' +
