@@ -667,34 +667,15 @@ textarea { resize: vertical; font-family: inherit; }
   background: var(--amarelo-claro); color: #7a6200;
   border-radius: 999px; padding: 2px 8px;
 }
-/* Foto da tela: mesmo tratamento da checagem que ela acompanha — minimizada
-   enquanto não há checagem, aberta e marcada como obrigatória quando há.
-   A moldura envolve o BLOCO INTEIRO (título + botão + fototeca + dica), senão
-   o conteúdo fica solto fora da caixa e não se lê como um grupo só. */
-.foto-checagem {
-  margin: 0 0 10px;
-  border: 1px dashed var(--cinza-borda); border-radius: 10px;
-  padding: 9px 12px;
+/* A foto da tela mora DENTRO do bloco da checagem (mesma moldura): a foto existe
+   por causa da checagem, então as duas são a mesma tarefa. Separada por uma
+   linha leve, sem caixa nem etiqueta própria — o título do bloco já diz se é
+   obrigatória. */
+.checagem-foto {
+  margin-top: 12px; padding-top: 12px;
+  border-top: 1px solid var(--cinza-borda);
 }
-.foto-checagem > summary {
-  list-style: none; cursor: pointer;
-  font-size: 0.88rem; font-weight: 600; color: var(--cinza-texto);
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-}
-.foto-checagem > summary::-webkit-details-marker { display: none; }
-.foto-checagem > summary::before { content: '▸'; flex-shrink: 0; }
-.foto-checagem[open] > summary::before { content: '▾'; }
-.foto-checagem[open] > summary { margin-bottom: 10px; }
-.foto-checagem.exigida { border-style: solid; }
-.foto-checagem.exigida > summary { color: var(--azul-escuro); }
-/* Sem margem sobrando no último item de dentro (a dica 💡). */
-.foto-checagem > div > *:last-child { margin-bottom: 0; }
-.foto-checagem-tag {
-  font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;
-  background: var(--cinza-fundo); color: var(--cinza-texto);
-  border-radius: 999px; padding: 2px 8px;
-}
-.foto-checagem.exigida .foto-checagem-tag { background: var(--amarelo-claro); color: #7a6200; }
+.checagem-foto > *:last-child { margin-bottom: 0; }
 
 /* ---------- Overlay ---------- */
 #overlay {
