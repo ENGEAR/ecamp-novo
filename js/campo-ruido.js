@@ -748,9 +748,12 @@ EC.campoRuido = (function () {
   // ponto 1. Em vez de só avisar isso, o app COPIA sozinho (ver climaDoPonto1) e
   // este espaço vira a nota do que foi copiado. O aviso original fica como
   // reserva para quando não há de onde copiar (ponto 1 ainda em branco).
+  // O container existe SEMPRE (oculto no ponto 1) porque o Residual do ponto 1
+  // também recebe cópia — do Total dele mesmo — e precisa de onde dizer isso.
   function lembreteClima(ehPonto1) {
-    if (ehPonto1) return '';
-    return '<div class="alerta alerta-amarelo cr-lembrete cr-nota-clima">💡 Se o monitoramento for realizado na mesma data e no mesmo período (diurno, vespertino ou noturno) do ponto 1, <strong>não é necessário registrar novamente as condições ambientais.</strong></div>';
+    return '<div class="alerta alerta-amarelo cr-lembrete cr-nota-clima' + (ehPonto1 ? ' oculto' : '') + '">' +
+      '💡 Se o monitoramento for realizado na mesma data e no mesmo período (diurno, vespertino ou noturno) do ponto 1, ' +
+      '<strong>não é necessário registrar novamente as condições ambientais.</strong></div>';
   }
 
   // Bloco de checagem: os campos E a foto da tela dela numa MOLDURA SÓ. A foto
@@ -1772,8 +1775,12 @@ EC.campoRuido = (function () {
     }
     // Trocar a data reavalia a cópia do clima na hora.
     if (campoData) campoData.addEventListener('change', function () { renderizarJanela(n, ponto, janela); });
-    // Clima repetido: copia do ponto 1 quando este ponto ainda está em branco.
-    aplicarClimaDoPonto1(wrap, alvo, n, janela);
+    // Clima repetido, com fontes diferentes conforme a janela:
+    //   • Total    → o ponto 1 (mesma data e período);
+    //   • Residual → o TOTAL deste mesmo ponto, medido minutos antes (janela 6 h).
+    // São exclusivos de propósito: dois automatismos no mesmo campo brigariam.
+    if (janela === 'residual') aplicarClimaDoTotal(wrap, med, alvo, n, ponto);
+    else aplicarClimaDoPonto1(wrap, alvo, n, janela);
     const jaTemFoto = { chkIni: EC.foto.tem(alvo.fotoTelaIni), chkFim: EC.foto.tem(alvo.fotoTelaFim) };
     wrap.querySelectorAll('details.checagem-opcional').forEach(function (d) {
       const temValor = Array.prototype.some.call(d.querySelectorAll('input[data-campo]'), function (i) {
@@ -1835,20 +1842,91 @@ EC.campoRuido = (function () {
   // Copia do Total (mesmo ponto/período) as condições ambientais e a fonte do
   // ambiente para a Residual — liberado só com Total preenchido e ≤ 6 h de
   // diferença pela Hora inicial. Reavalia quando a hora da residual muda.
+  // Diferença entre Total e Residual usando DATA + hora quando as duas datas
+  // existem — assim "23:00 do dia 1 → 01:00 do dia 2" dá 2 h (certo) e
+  // "23:00 do dia 1 → 01:00 do dia 5" não passa pela janela de 6 h. Sem as datas,
+  // cai no cálculo antigo, que só adivinha a virada da meia-noite.
+  function difHorasEntre(a, b) {
+    const da = soData(a && a.data), db = soData(b && b.data);
+    if (da && db) {
+      const ta = new Date(da + 'T' + String(a.horaInicial || '') + ':00').getTime();
+      const tb = new Date(db + 'T' + String(b.horaInicial || '') + ':00').getTime();
+      if (!isNaN(ta) && !isNaN(tb)) return Math.abs(tb - ta) / 3600000;
+    }
+    return difHoras(a && a.horaInicial, b && b.horaInicial);
+  }
+
+  var CAMPOS_PUXAR = ['temperatura', 'umidade', 'vento', 'fontesAmbiente'];
+
+  // Pode repetir no Residual as condições do Total do MESMO ponto/período?
+  function situacaoPuxarTotal(med, alvo) {
+    const t = med.total || {};
+    if (!janelaTemDados(t)) return { ok: false, msg: 'Preencha o Total deste ponto/período primeiro.' };
+    if (!t.horaInicial || !alvo.horaInicial) return { ok: false, msg: 'Informe a Hora inicial no Total e na Residual (janela de 6 h).' };
+    const dif = difHorasEntre(t, alvo);
+    if (dif == null) return { ok: false, msg: 'Hora inicial inválida.' };
+    // `violado` = a janela de 6 h foi REALMENTE estourada (≠ de faltar dado para
+    // conferir). Só isso desfaz uma cópia já feita.
+    if (dif > 6) return { ok: false, violado: true, dif: dif, msg: 'Total e Residual a ' + formataDif(dif) + ' de diferença (> 6 h) — não é seguro repetir as condições.' };
+    return { ok: true, dif: dif, msg: 'Copia temperatura, umidade, vento e a fonte do ambiente do Total (Δ ' + formataDif(dif) + ').' };
+  }
+
+  /* No RESIDUAL, a fonte natural das condições é o TOTAL do mesmo ponto (medido
+   * minutos antes), não o ponto 1. Antes isso dependia do botão "Puxar do Total";
+   * agora acontece sozinho quando é seguro (janela de 6 h). O botão continua,
+   * como saída manual para quem apagou e quer de volta. Mesmas travas de sempre:
+   * não sobrescreve, copia uma vez e o que a pessoa digita é dela. */
+  function aplicarClimaDoTotal(wrap, med, alvo, n, ponto) {
+    const nota = wrap.querySelector('.cr-nota-clima');
+    const preenchido = function (o, k) { return String(o[k] == null ? '' : o[k]).trim() !== ''; };
+    const s = situacaoPuxarTotal(med, alvo);
+
+    // A hora mudou depois da cópia e a janela de 6 h estourou: o que foi copiado
+    // não representa mais este Residual. Desfaz — só o que veio da cópia.
+    if (alvo.climaCopiado && s.violado) {
+      CAMPOS_PUXAR.forEach(function (k) {
+        alvo[k] = '';
+        const el = wrap.querySelector('[data-campo="' + k + '"]');
+        if (el) el.value = '';
+      });
+      alvo.climaCopiado = false;
+      salvarDevagar();
+    }
+
+    const jaTem = CAMPOS_CLIMA.some(function (k) { return preenchido(alvo, k); });
+    if (s.ok && !jaTem && !alvo.climaCopiado) {
+      const t = med.total || {};
+      CAMPOS_PUXAR.forEach(function (k) {
+        if (!preenchido(t, k)) return;
+        alvo[k] = t[k];
+        const el = wrap.querySelector('[data-campo="' + k + '"]');
+        if (el) el.value = t[k];
+      });
+      alvo.climaCopiado = true;
+      salvarDevagar();
+    }
+    const aindaTemValor = CAMPOS_CLIMA.some(function (k) { return preenchido(alvo, k); });
+    if (nota) {
+      if (alvo.climaCopiado && aindaTemValor) {
+        nota.className = 'alerta alerta-info cr-lembrete cr-nota-clima';
+        nota.innerHTML = '✅ <strong>Condições copiadas do Total deste ponto</strong>' +
+          (s.dif != null ? ' (Δ ' + formataDif(s.dif) + ')' : '') + '. Se mudaram, corrija os valores acima.';
+      } else {
+        // No Residual o lembrete do "ponto 1" não vale — quem manda aqui é o
+        // Total deste ponto, e o botão logo acima já diz o que falta para copiar.
+        nota.className = 'alerta alerta-amarelo cr-lembrete cr-nota-clima oculto';
+      }
+    }
+    CAMPOS_CLIMA.forEach(function (k) {
+      const el = wrap.querySelector('[data-campo="' + k + '"]');
+      if (el) el.addEventListener('input', function () { alvo.climaCopiado = false; });
+    });
+  }
+
   function ligarPuxarTotal(btn, wrap, n, ponto, med, alvo) {
     const hint = wrap.querySelector('#cr-puxar-total-hint');
-    const CAMPOS = ['temperatura', 'umidade', 'vento', 'fontesAmbiente'];
-    function situacao() {
-      const t = med.total || {};
-      if (!janelaTemDados(t)) return { ok: false, msg: 'Preencha o Total deste ponto/período primeiro.' };
-      if (!t.horaInicial || !alvo.horaInicial) return { ok: false, msg: 'Informe a Hora inicial no Total e na Residual (janela de 6 h).' };
-      const dif = difHoras(t.horaInicial, alvo.horaInicial);
-      if (dif == null) return { ok: false, msg: 'Hora inicial inválida.' };
-      if (dif > 6) return { ok: false, msg: 'Total e Residual a ' + formataDif(dif) + ' de diferença (> 6 h) — não é seguro repetir as condições.' };
-      return { ok: true, msg: 'Copia temperatura, umidade, vento e a fonte do ambiente do Total (Δ ' + formataDif(dif) + ').' };
-    }
     function atualizar() {
-      const s = situacao();
+      const s = situacaoPuxarTotal(med, alvo);
       btn.disabled = !s.ok;
       if (hint) hint.textContent = s.msg;
     }
@@ -1856,12 +1934,13 @@ EC.campoRuido = (function () {
     const inpHora = wrap.querySelector('[data-campo="horaInicial"]');
     if (inpHora) inpHora.addEventListener('input', atualizar);
     btn.addEventListener('click', function () {
-      const s = situacao();
+      const s = situacaoPuxarTotal(med, alvo);
       if (!s.ok) { EC.app.mostrarToast(s.msg); return; }
       const t = med.total || {};
-      CAMPOS.forEach(function (k) {
+      CAMPOS_PUXAR.forEach(function (k) {
         if (t[k] !== undefined && t[k] !== null && String(t[k]).trim() !== '') alvo[k] = t[k];
       });
+      alvo.climaCopiado = true;
       salvar();
       renderizarJanela(n, ponto, 'residual'); // re-renderiza p/ os inputs mostrarem os valores
       EC.app.mostrarToast('Condições e fonte do ambiente puxadas do Total.');
