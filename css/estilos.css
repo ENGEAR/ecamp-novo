@@ -336,7 +336,10 @@ textarea { resize: vertical; font-family: inherit; }
 /* Galeria de fotos (até 10 por campo) */
 .foto-galeria { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
 /* Câmera é o botão principal; a fototeca é um link discreto abaixo. */
-.foto-botao { display: block; width: 100%; }
+/* Botões de ação do formulário de campo (capturar GPS, tirar foto): largura
+   cheia, para as bordas alinharem entre si e com os campos de texto. Sem isso o
+   do GPS ficava do tamanho do texto e as duas caixas desencontravam. */
+.foto-botao, .gps-botao { display: block; width: 100%; }
 .foto-botao-tec { display: inline-block; margin-top: 6px; padding: 2px 2px; background: none; border: none;
   color: var(--azul-escuro); font-size: 0.8rem; text-decoration: underline; cursor: pointer; }
 .foto-botao-tec:disabled { color: var(--cinza-texto); text-decoration: none; cursor: default; }

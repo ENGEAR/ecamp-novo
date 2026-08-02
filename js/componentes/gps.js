@@ -121,7 +121,10 @@ EC.gps = (function () {
 
     container.innerHTML =
       '<div class="comp-gps">' +
-      '  <button type="button" class="botao botao-secundario gps-botao">📍 Capturar GPS automaticamente</button>' +
+      // Rótulo curto de propósito: "automaticamente" fazia o texto quebrar em duas
+      // linhas nos celulares de 375 px, e aí este botão ficava mais alto que os
+      // outros da tela. O que ele faz já se vê pelos campos que preenche abaixo.
+      '  <button type="button" class="botao botao-secundario gps-botao">📍 Capturar GPS</button>' +
       '  <div class="gps-status"></div>' +
       '  <div class="grade-3">' +
       '    <label>Zona<input type="text" class="gps-zona" readonly placeholder="—"></label>' +

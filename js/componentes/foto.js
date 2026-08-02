@@ -154,9 +154,13 @@ EC.foto = (function () {
 
     function notificar() { if (typeof opcoes.aoCapturar === 'function') opcoes.aoCapturar(fotos.slice()); }
 
+    // O contador "(0/10)" saiu do botão: só poluía — as fotos já aparecem em
+    // miniatura logo abaixo, então dá para ver quantas são. O limite só é
+    // mencionado quando realmente importa, que é ao atingi-lo (o botão desliga,
+    // e sem texto ninguém entenderia por quê).
     function atualizarBotao() {
-      botao.textContent = rotuloBase + ' (' + fotos.length + '/' + MAX_FOTOS + ')';
       const cheio = fotos.length >= MAX_FOTOS;
+      botao.textContent = cheio ? rotuloBase + ' — limite de ' + MAX_FOTOS + ' atingido' : rotuloBase;
       botao.disabled = cheio;
       botaoTec.disabled = cheio;
     }

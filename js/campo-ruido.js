@@ -793,12 +793,14 @@ EC.campoRuido = (function () {
   // para o app saber sozinho se dois pontos são do mesmo dia — é o que decide se
   // o clima do ponto 1 pode ser repetido. Vem pré-preenchida com a data de
   // início do serviço (o caso comum é tudo no mesmo dia) e é editável.
+  // Um por linha, largura cheia como todos os outros campos da tela. Lado a lado
+  // não dava: no iPhone o campo de data mostra "1 de ago. de 2026" por extenso e
+  // estourava a meia-largura; além disso a grade não tinha margem inferior, o que
+  // colava o bloco no seguinte e quebrava o ritmo do formulário.
   function htmlDataHora() {
     return (
-      '<div class="grade-2">' +
-      '  <label>Data<input type="date" data-campo="data"></label>' +
-      '  <label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
-      '</div>'
+      '<label>Data<input type="date" data-campo="data"></label>' +
+      '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>'
     );
   }
 
