@@ -1429,9 +1429,13 @@ EC.campoRuido = (function () {
       htmlChecagem('Checagem final', 'chkFim', ob.fim) +
       '<div class="cr-resultado-checagem"></div>' +
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
+      // A foto vem logo depois da checagem final e do veredito dela — mesmo par
+      // que a inicial forma lá em cima. O lembrete e o alerta falam da SÉRIE
+      // (não deste ponto), então ficam por último; antes o lembrete entrava no
+      // meio e separava a checagem final da foto dela.
+      htmlFotoChecagem('cr-foto-tela-fim', 'checagem final') +
       lembreteSerie() +
       '<div class="cr-alerta-serie"></div>' +
-      htmlFotoChecagem('cr-foto-tela-fim', 'checagem final') +
       '<label>Observações do ponto<textarea rows="2" data-campo="observacoes"></textarea></label>' +
       '<label>Hora de término<input type="time" data-campo="horaTermino"></label>'
     );
@@ -1501,9 +1505,13 @@ EC.campoRuido = (function () {
       htmlChecagem('Checagem final', 'chkFim', ob.fim) +
       '<div class="cr-resultado-checagem"></div>' +
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
+      // A foto vem logo depois da checagem final e do veredito dela — mesmo par
+      // que a inicial forma lá em cima. O lembrete e o alerta falam da SÉRIE
+      // (não deste ponto), então ficam por último; antes o lembrete entrava no
+      // meio e separava a checagem final da foto dela.
+      htmlFotoChecagem('cr-foto-tela-fim', 'checagem final') +
       lembreteSerie() +
       '<div class="cr-alerta-serie"></div>' +
-      htmlFotoChecagem('cr-foto-tela-fim', 'checagem final') +
       '<label>Observações do ponto<textarea rows="2" data-campo="observacoes"></textarea></label>' +
       '<label>Hora de término<input type="time" data-campo="horaTermino"></label>'
     );
@@ -1527,9 +1535,13 @@ EC.campoRuido = (function () {
       htmlChecagem('Checagem final', 'chkFim', ob.fim) +
       '<div class="cr-resultado-checagem"></div>' +
       '<div class="alerta alerta-vermelho cr-alerta-checagem oculto"></div>' +
+      // A foto vem logo depois da checagem final e do veredito dela — mesmo par
+      // que a inicial forma lá em cima. O lembrete e o alerta falam da SÉRIE
+      // (não deste ponto), então ficam por último; antes o lembrete entrava no
+      // meio e separava a checagem final da foto dela.
+      htmlFotoChecagem('cr-foto-tela-fim', 'checagem final') +
       lembreteSerie() +
       '<div class="cr-alerta-serie"></div>' +
-      htmlFotoChecagem('cr-foto-tela-fim', 'checagem final') +
       '<label>Observações do ponto<textarea rows="2" data-campo="observacoes"></textarea></label>' +
       '<label>Hora de término<input type="time" data-campo="horaTermino"></label>'
     );
