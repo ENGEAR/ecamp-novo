@@ -641,18 +641,22 @@ textarea { resize: vertical; font-family: inherit; }
 .checagem-resultado { font-size: 0.95rem; min-height: 1.2em; }
 /* Checagem OPCIONAL (meio da série, ou qualquer ponto da Residual): recolhida,
    para o técnico não preencher por inércia. Os campos continuam a um toque. */
-.checagem-opcional { margin: 0 0 10px; }
+.checagem-opcional {
+  margin: 0 0 10px;
+  border: 1px dashed var(--cinza-borda); border-radius: 10px;
+  padding: 9px 12px;
+}
 .checagem-opcional > summary {
   list-style: none; cursor: pointer;
-  border: 1px dashed var(--cinza-borda); border-radius: 10px;
-  padding: 9px 12px; font-size: 0.88rem; font-weight: 600; color: var(--cinza-texto);
+  font-size: 0.88rem; font-weight: 600; color: var(--cinza-texto);
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
 .checagem-opcional > summary::-webkit-details-marker { display: none; }
 .checagem-opcional > summary::before { content: '▸'; flex-shrink: 0; }
 .checagem-opcional[open] > summary::before { content: '▾'; }
-.checagem-opcional[open] > summary { border-style: solid; color: var(--azul-escuro); margin-bottom: 8px; }
-.checagem-opcional .checagem-bloco { margin-bottom: 0; }
+.checagem-opcional[open] > summary { color: var(--azul-escuro); margin-bottom: 10px; }
+/* A moldura já é do bloco todo — o fieldset de dentro não repete a caixa. */
+.checagem-opcional .checagem-bloco { border: none; padding: 0; margin: 0; }
 .checagem-tag-opc {
   font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;
   background: var(--cinza-fundo); color: var(--cinza-texto);
@@ -664,19 +668,27 @@ textarea { resize: vertical; font-family: inherit; }
   border-radius: 999px; padding: 2px 8px;
 }
 /* Foto da tela: mesmo tratamento da checagem que ela acompanha — minimizada
-   enquanto não há checagem, aberta e marcada como obrigatória quando há. */
-.foto-checagem { margin: 0 0 10px; }
+   enquanto não há checagem, aberta e marcada como obrigatória quando há.
+   A moldura envolve o BLOCO INTEIRO (título + botão + fototeca + dica), senão
+   o conteúdo fica solto fora da caixa e não se lê como um grupo só. */
+.foto-checagem {
+  margin: 0 0 10px;
+  border: 1px dashed var(--cinza-borda); border-radius: 10px;
+  padding: 9px 12px;
+}
 .foto-checagem > summary {
   list-style: none; cursor: pointer;
-  border: 1px dashed var(--cinza-borda); border-radius: 10px;
-  padding: 9px 12px; font-size: 0.88rem; font-weight: 600; color: var(--cinza-texto);
+  font-size: 0.88rem; font-weight: 600; color: var(--cinza-texto);
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
 .foto-checagem > summary::-webkit-details-marker { display: none; }
 .foto-checagem > summary::before { content: '▸'; flex-shrink: 0; }
 .foto-checagem[open] > summary::before { content: '▾'; }
-.foto-checagem[open] > summary { margin-bottom: 8px; }
-.foto-checagem.exigida > summary { border-style: solid; color: var(--azul-escuro); }
+.foto-checagem[open] > summary { margin-bottom: 10px; }
+.foto-checagem.exigida { border-style: solid; }
+.foto-checagem.exigida > summary { color: var(--azul-escuro); }
+/* Sem margem sobrando no último item de dentro (a dica 💡). */
+.foto-checagem > div > *:last-child { margin-bottom: 0; }
 .foto-checagem-tag {
   font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;
   background: var(--cinza-fundo); color: var(--cinza-texto);
