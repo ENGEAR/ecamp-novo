@@ -1331,8 +1331,8 @@ EC.campoRuido = (function () {
     const div = $('#cr-interno-resultado');
     div.innerHTML =
       '<div class="alerta alerta-info">📐 Pontos necessários: <strong>' + amb.pontosCalculados + '</strong> (mínimo 3; +1 ponto a cada 30 m²)</div>' +
-      '<p class="grupo-checks-titulo">Posicionamento dos pontos</p>' + htmlChecks(CHECKS_POSICIONAMENTO_INTERNO, 'pos') +
-      '<p class="grupo-checks-titulo">Montagem do equipamento</p>' + htmlChecks(checksMontagemInterno(campo().subtipo), 'mont') +
+      htmlGrupo('📍 Posicionamento dos pontos', htmlChecks(CHECKS_POSICIONAMENTO_INTERNO, 'pos')) +
+      htmlGrupo('⚙️ Montagem do equipamento', htmlChecks(checksMontagemInterno(campo().subtipo), 'mont')) +
       '<p class="grupo-checks-titulo">Layout da sala</p>' +
       '<div id="cr-canvas-sala"></div>' +
       '<button type="button" class="botao botao-primario botao-largo" id="cr-ir-pontos">Ir para os pontos →</button>';
@@ -1431,10 +1431,10 @@ EC.campoRuido = (function () {
       // Foto do ponto logo abaixo do endereço: é a foto do LUGAR, então fica
       // junto de onde o lugar é identificado (GPS + endereço).
       '<div class="cr-foto-ponto"></div>' +
-      '<p class="grupo-checks-titulo">📍 Posicionamento do microfone</p>' +
-      htmlChecks(ehLongaDuracao() ? POSICIONAMENTO_EXTERNO_LONGA : POSICIONAMENTO_EXTERNO_PADRAO, 'pos') +
-      htmlChecks(['Se monitoramento em fachada: distância mínima de 1 m da fachada (opcional)'], 'posfachada') +
-      '<p class="grupo-checks-titulo">⚙️ Montagem do equipamento</p>' + htmlChecks(checksMontagemExterno(ehLongaDuracao()), 'mont') +
+      htmlGrupo('📍 Posicionamento do microfone',
+        htmlChecks(ehLongaDuracao() ? POSICIONAMENTO_EXTERNO_LONGA : POSICIONAMENTO_EXTERNO_PADRAO, 'pos') +
+        htmlChecks(['Se monitoramento em fachada: distância mínima de 1 m da fachada (opcional)'], 'posfachada')) +
+      htmlGrupo('⚙️ Montagem do equipamento', htmlChecks(checksMontagemExterno(ehLongaDuracao()), 'mont')) +
       htmlChecagem('Checagem inicial', 'chkIni', ob.ini, 'cr-foto-tela-ini') +
       (residual ? htmlBotaoPuxarTotal() : '') +
       htmlGrupo('🌡️ Condições ambientais',
@@ -1500,8 +1500,8 @@ EC.campoRuido = (function () {
       checksPonto = htmlChecksIndices(CHECKS_PONTO_FERRO, 'ferro', total ? [2, 3, 4] : [0, 1, 3, 4]);
     } else if (patios) {
       const bloco = total
-        ? '<p class="grupo-checks-titulo">🚧 Operações em pátios / manobras / cruzamentos</p>' + htmlChecksComSub(OPERACOES_FERRO_PATIOS, 'oper')
-        : '<p class="grupo-checks-titulo">🚆 Monitoramento de som residual</p>' + htmlChecksComSub(MONITORAMENTO_RESIDUAL_PATIOS, 'mres');
+        ? htmlGrupo('🚧 Operações em pátios / manobras / cruzamentos', htmlChecksComSub(OPERACOES_FERRO_PATIOS, 'oper'))
+        : htmlGrupo('🚆 Monitoramento de som residual', htmlChecksComSub(MONITORAMENTO_RESIDUAL_PATIOS, 'mres'));
       checksPonto = bloco + htmlChecksIndices(CHECKS_PONTO_FERRO, 'ferro', [3, 4]);
     } else {
       checksPonto = htmlChecks(CHECKS_PONTO_FERRO, 'ferro');

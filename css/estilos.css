@@ -586,6 +586,10 @@ textarea { resize: vertical; font-family: inherit; }
 .grade-2 > label > input, .grade-2 > label > select,
 .grade-3 > label > input, .grade-3 > label > select { margin-top: auto; }
 .gps-status { margin: 10px 0; font-size: 0.92rem; min-height: 1.2em; }
+/* Sem mensagem, o status não reserva espaço: o min-height existe para a linha
+   não "pular" quando o texto aparece, mas vazio ele só somava ~38px de ar em
+   cada bloco de GPS/foto — e são vários por ponto. */
+.gps-status:empty, .foto-status:empty { display: none; }
 
 /* ---------- Componente Foto ---------- */
 .foto-status { margin: 10px 0; font-size: 0.92rem; min-height: 1.2em; }
@@ -641,6 +645,9 @@ textarea { resize: vertical; font-family: inherit; }
 .checagem-bloco legend { font-size: 0.88rem; color: var(--azul-escuro); font-weight: 600; padding: 0 6px; }
 .checagem-linha { display: grid; grid-template-columns: 90px 1fr; gap: 10px; }
 .checagem-linha label { margin-bottom: 0; }
+/* Último item de dentro não soma a própria margem ao respiro da moldura —
+   senão a folga de baixo fica maior que a de cima. */
+.checagem-bloco > *:last-child { margin-bottom: 0; }
 .checagem-resultado { font-size: 0.95rem; min-height: 1.2em; }
 /* Checagem OPCIONAL (meio da série, ou qualquer ponto da Residual): recolhida,
    para o técnico não preencher por inércia. Os campos continuam a um toque. */
