@@ -93,8 +93,20 @@
       .catch(function (e) { return { error: e }; });
     if (r.error) {
       var m = String(r.error.message || '');
+      var mm = m.toLowerCase();
       if (m.indexOf('different from the old') !== -1) return Promise.reject(new Error('A nova senha precisa ser diferente da temporária.'));
       if (m.indexOf('Failed to fetch') !== -1 || m.indexOf('NetworkError') !== -1 || m.indexOf('Load failed') !== -1) return Promise.reject(new Error('📡 Sem conexão para salvar a nova senha.'));
+      // Regras configuradas no painel do Supabase (Authentication) — chegam em
+      // inglês. Traduzidas aqui; o mínimo de caracteres é o MIN_SENHA do app.js.
+      if (mm.indexOf('at least') !== -1 && mm.indexOf('characters') !== -1) {
+        return Promise.reject(new Error('A senha precisa ter pelo menos ' + (EC.MIN_SENHA || 10) + ' caracteres.'));
+      }
+      if (mm.indexOf('known to be weak') !== -1 || mm.indexOf('pwned') !== -1 || mm.indexOf('easy to guess') !== -1) {
+        return Promise.reject(new Error('Essa senha já apareceu em vazamentos conhecidos. Escolha outra — de preferência uma frase com números.'));
+      }
+      if (mm.indexOf('should contain') !== -1 || mm.indexOf('required characters') !== -1) {
+        return Promise.reject(new Error('A senha precisa misturar letras e números.'));
+      }
       return Promise.reject(new Error('Não foi possível salvar a nova senha: ' + m));
     }
   }

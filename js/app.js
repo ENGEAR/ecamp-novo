@@ -23,6 +23,12 @@
   const CHAVE_CREDENCIAIS = 'sessao:credenciais';
   // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
   const VERSAO_APP = '0.58.169';
+  // Mínimo de caracteres da senha. Quem manda de verdade é o painel do Supabase
+  // (Authentication → "Minimum password length"); aqui é só para avisar ANTES de
+  // enviar, com mensagem em português. Mudou lá, mude aqui e no
+  // `src/lib/senha-regras.ts` do SGP (a regra vive nos dois apps).
+  const MIN_SENHA = 10;
+  EC.MIN_SENHA = MIN_SENHA;
   // Evento de instalação do PWA (Android/Chrome): guardado para o botão "Instalar".
   let promptInstalar = null;
 
@@ -416,7 +422,7 @@
     if (!trocaPendente) { prepararLogin(); return; }
     var nova = $('ts-senha').value;
     var confirma = $('ts-confirma').value;
-    if (nova.length < 8) { mostrarErroLogin('ts-erro', 'A nova senha deve ter ao menos 8 caracteres.'); return; }
+    if (nova.length < MIN_SENHA) { mostrarErroLogin('ts-erro', 'A nova senha deve ter ao menos ' + MIN_SENHA + ' caracteres.'); return; }
     if (nova !== confirma) { mostrarErroLogin('ts-erro', 'As senhas não conferem.'); return; }
     var botao = $('ts-salvar');
     botao.disabled = true; botao.textContent = 'Salvando…';
