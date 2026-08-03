@@ -70,6 +70,24 @@ EC.reembolso = (function () {
   function sessao() { return EC.storage.ler('sessao:atual') || {}; }
   function sessionNome() { return (sessao().nome || '').trim(); }
 
+  // Mesma pessoa? Espelho do servidor (pessoa-escopo.ts): sem acento, minúsculas,
+  // aspa curva = reta; nome curto casa com o longo quando TODOS os nomes dele
+  // estão no outro (mín. 2, p/ não colidir por primeiro nome). É o caso do login
+  // "Robson Luiz Pimenta" × técnico da Agenda "Robson Pimenta".
+  function normNome(s) {
+    return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .toLowerCase().replace(/[’‘`´]/g, "'").replace(/\s+/g, ' ').trim();
+  }
+  function mesmoNome(a, b) {
+    var na = normNome(a), nb = normNome(b);
+    if (!na || !nb) return false;
+    if (na === nb) return true;
+    var ta = na.split(' '), tb = nb.split(' ');
+    var menor = ta.length <= tb.length ? ta : tb, maior = ta.length <= tb.length ? tb : ta;
+    if (menor.length < 2) return false;
+    return menor.every(function (t) { return maior.indexOf(t) !== -1; });
+  }
+
   // Nº da campanha de uma solicitação, venha ela do servidor (campanha_numero)
   // ou da fila do aparelho, ainda não enviada (campanha). '' quando não tem —
   // caso do "Outros gastos" avulso, que não é ligado a OS nem a campanha.
@@ -780,13 +798,18 @@ EC.reembolso = (function () {
       blocoDesig.classList.add('oculto');
     } else {
       semAgenda.classList.add('oculto');
-      var nomeSessao = sessionNome().toLowerCase();
-      sel.innerHTML = opcao('', 'Selecione…') + campSel.tecnicos.map(function (t) {
+      // Solicitar EM NOME DE OUTRO é só da logística/admin (o servidor recusa o
+      // resto com 403). Para os demais a lista mostra só a própria linha, para
+      // não escolher um colega e só descobrir na hora de enviar. Se o nome do
+      // login não casar com nenhum técnico da OS, mostra todos (o servidor
+      // decide) — melhor que um seletor vazio.
+      var meu = campSel.tecnicos.filter(function (t) { return mesmoNome(t.nome, sessionNome()); })[0];
+      var lista = (!ehGestor() && meu) ? [meu] : campSel.tecnicos;
+      sel.innerHTML = opcao('', 'Selecione…') + lista.map(function (t) {
         var rotulo = t.vinculo || (t.tipo === 'freelancer' ? 'Freelancer' : 'CLT');
         return opcao(t.nome, t.nome + ' (' + rotulo + ')');
       }).join('');
       // pré-seleciona o usuário logado, se ele estiver entre os técnicos da OS
-      var meu = campSel.tecnicos.filter(function (t) { return t.nome.trim().toLowerCase() === nomeSessao; })[0];
       if (meu) sel.value = meu.nome;
       blocoDesig.classList.remove('oculto');
     }
