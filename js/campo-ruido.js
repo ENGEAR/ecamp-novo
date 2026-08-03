@@ -807,6 +807,20 @@ EC.campoRuido = (function () {
     );
   }
 
+  /* Finalidades do ruído EXTERNO. "Laudo PBH" foi substituída por "Eventos,
+   * shows, etc" (pedido da Raisa). Um registro antigo pode ter sido salvo com a
+   * finalidade antiga — ou com qualquer outra que saia daqui um dia. Nesse caso
+   * o valor salvo entra na lista como opção extra: sem isso o <select> abriria
+   * em branco e o dado se perderia no primeiro toque. */
+  var FINALIDADES_EXTERNO = ['Eventos, shows, etc', 'Obra', 'Background', 'Operações', 'Outros'];
+
+  function opcoesFinalidadeExterno(valorSalvo) {
+    const lista = FINALIDADES_EXTERNO.slice();
+    const v = String(valorSalvo == null ? '' : valorSalvo).trim();
+    if (v && lista.indexOf(v) === -1) lista.push(v);
+    return lista.map(function (o) { return '<option>' + o + '</option>'; }).join('');
+  }
+
   // Grupo de campos numa moldura — MESMO visual do bloco de checagem, para a
   // tela ter um padrão só em vez de uns blocos emoldurados e outros soltos.
   function htmlGrupo(titulo, conteudo) {
@@ -1137,7 +1151,7 @@ EC.campoRuido = (function () {
       const previstoPontos = ctx.estado.dadosGerais.qtdePontos;
       area.innerHTML =
         '<label>Finalidade do monitoramento<select data-campo="finalidade">' +
-        '<option value="">Selecione…</option><option>Laudo PBH</option><option>Obra</option><option>Background</option><option>Operações</option><option>Outros</option>' +
+        '<option value="">Selecione…</option>' + opcoesFinalidadeExterno(g.finalidade) +
         '</select></label>' +
         '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>' +
         (previstoPontos != null && previstoPontos !== '' ? '<p class="texto-apoio">Previsto na OS: ' + previstoPontos + ' ponto(s).</p>' : '') +
