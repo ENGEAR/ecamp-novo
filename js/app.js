@@ -22,7 +22,7 @@
   // lugar nenhum). Opt-in explícito: só grava se a pessoa marcar a caixinha.
   const CHAVE_CREDENCIAIS = 'sessao:credenciais';
   // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
-  const VERSAO_APP = '0.58.168';
+  const VERSAO_APP = '0.58.169';
   // Evento de instalação do PWA (Android/Chrome): guardado para o botão "Instalar".
   let promptInstalar = null;
 
