@@ -98,14 +98,17 @@
       if (m.indexOf('Failed to fetch') !== -1 || m.indexOf('NetworkError') !== -1 || m.indexOf('Load failed') !== -1) return Promise.reject(new Error('📡 Sem conexão para salvar a nova senha.'));
       // Regras configuradas no painel do Supabase (Authentication) — chegam em
       // inglês. Traduzidas aqui; o mínimo de caracteres é o MIN_SENHA do app.js.
+      // O Supabase junta TODOS os motivos numa mensagem só, então a ordem aqui é
+      // a do que a pessoa consegue consertar primeiro: tamanho, composição e só
+      // então "essa senha vazou" (senão quem só esqueceu o número troca à toa).
       if (mm.indexOf('at least') !== -1 && mm.indexOf('characters') !== -1) {
         return Promise.reject(new Error('A senha precisa ter pelo menos ' + (EC.MIN_SENHA || 10) + ' caracteres.'));
       }
-      if (mm.indexOf('known to be weak') !== -1 || mm.indexOf('pwned') !== -1 || mm.indexOf('easy to guess') !== -1) {
-        return Promise.reject(new Error('Essa senha já apareceu em vazamentos conhecidos. Escolha outra — de preferência uma frase com números.'));
-      }
       if (mm.indexOf('should contain') !== -1 || mm.indexOf('required characters') !== -1) {
         return Promise.reject(new Error('A senha precisa misturar letras e números.'));
+      }
+      if (mm.indexOf('known to be weak') !== -1 || mm.indexOf('pwned') !== -1 || mm.indexOf('easy to guess') !== -1) {
+        return Promise.reject(new Error('Essa senha já apareceu em vazamentos conhecidos. Escolha outra — de preferência uma frase com números.'));
       }
       return Promise.reject(new Error('Não foi possível salvar a nova senha: ' + m));
     }
