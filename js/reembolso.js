@@ -29,7 +29,7 @@ EC.reembolso = (function () {
   'use strict';
 
   var BASE = 'https://engear-sgp.vercel.app/api/logistica';
-  var TOKEN = 'f8b17592b0130d95047d37865a14b31570c6381509ccc066';
+  var TOKEN = '1488d0e2eece92e0796951cb693a4689c95cad0193e91ad2';
 
   var CH_CONTEXTO = 'logistica:contexto';   // cache do contexto (OS + valores)
   var CH_LISTA = 'logistica:lista';         // cache das minhas solicitações

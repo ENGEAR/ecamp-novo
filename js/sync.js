@@ -20,7 +20,7 @@ EC.sync = (function () {
   var ROTA_ARQUIVAR_RASCUNHO = BASE + '/arquivar-rascunho'; // soft: preserva o antigo
   var ROTA_RASCUNHO = BASE + '/rascunho';
   var BASE_BIBLIOTECA = 'https://engear-sgp.vercel.app/api/biblioteca';
-  var TOKEN = 'f8b17592b0130d95047d37865a14b31570c6381509ccc066';
+  var TOKEN = '1488d0e2eece92e0796951cb693a4689c95cad0193e91ad2';
 
   function toast(msg) { if (EC.app && EC.app.mostrarToast) EC.app.mostrarToast(msg); }
   // Atualiza a barra de pendências. Usa a função do app.js quando exposta; senão

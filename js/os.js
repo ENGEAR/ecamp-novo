@@ -33,7 +33,7 @@ EC.os = (function () {
   var ROTA_FOTOS = BASE + '/os-fotos';
   var ROTA_DESCARTAR_OS = BASE + '/descartar-os';   // legado (DELETE) — não usar mais
   var ROTA_ARQUIVAR_OS = BASE + '/arquivar-os';     // soft: arquiva sem apagar
-  var TOKEN = 'f8b17592b0130d95047d37865a14b31570c6381509ccc066';
+  var TOKEN = '1488d0e2eece92e0796951cb693a4689c95cad0193e91ad2';
 
   var CH_LISTA = 'os:lista';
   var CH_ANDAMENTO = 'os:andamento';
