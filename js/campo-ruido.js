@@ -1951,8 +1951,8 @@ EC.campoRuido = (function () {
     if (nota) {
       if (alvo.climaCopiado && aindaTemValor) {
         nota.className = 'alerta alerta-info cr-lembrete cr-nota-clima';
-        nota.innerHTML = '✅ <strong>Condições copiadas do Total deste ponto</strong>' +
-          (s.dif != null ? ' (Δ ' + formataDif(s.dif) + ')' : '') + '. Se mudaram, corrija os valores acima.';
+        nota.innerHTML = '✅ <strong>Condições ambientais e fontes percebidas copiadas do ruído Total deste ponto.</strong> ' +
+          'Se mudaram, corrija os campos.';
       } else {
         // No Residual o lembrete do "ponto 1" não vale — quem manda aqui é o
         // Total deste ponto. Sem cópia, o espaço fica limpo.
