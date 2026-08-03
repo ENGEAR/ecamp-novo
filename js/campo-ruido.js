@@ -1915,6 +1915,12 @@ EC.campoRuido = (function () {
   function aplicarClimaDoTotal(wrap, med, alvo, n, ponto) {
     const nota = wrap.querySelector('.cr-nota-clima');
     const preenchido = function (o, k) { return String(o[k] == null ? '' : o[k]).trim() !== ''; };
+
+    // Reavaliada A CADA digitação da hora/data do Residual — não só ao desenhar a
+    // tela. A condição da cópia depende justamente desses campos: avaliando uma
+    // vez só, quem preenchia a hora ali mesmo não via nada acontecer e o clima só
+    // aparecia depois de sair e voltar da página.
+    function avaliar() {
     const s = situacaoPuxarTotal(med, alvo);
 
     // A hora mudou depois da cópia e a janela de 6 h estourou: o que foi copiado
@@ -1949,10 +1955,20 @@ EC.campoRuido = (function () {
           (s.dif != null ? ' (Δ ' + formataDif(s.dif) + ')' : '') + '. Se mudaram, corrija os valores acima.';
       } else {
         // No Residual o lembrete do "ponto 1" não vale — quem manda aqui é o
-        // Total deste ponto, e o botão logo acima já diz o que falta para copiar.
+        // Total deste ponto. Sem cópia, o espaço fica limpo.
         nota.className = 'alerta alerta-amarelo cr-lembrete cr-nota-clima oculto';
       }
     }
+    }
+
+    avaliar();
+    // Hora e data do Residual são o que decide a cópia: ao mudar, reavalia na
+    // hora. (vincular() já atualizou `alvo` antes, porque foi ligado primeiro.)
+    ['horaInicial', 'data'].forEach(function (k) {
+      const el = wrap.querySelector('[data-campo="' + k + '"]');
+      if (el) el.addEventListener('input', avaliar);
+    });
+
     CAMPOS_CLIMA.forEach(function (k) {
       const el = wrap.querySelector('[data-campo="' + k + '"]');
       if (el) el.addEventListener('input', function () { alvo.climaCopiado = false; });
