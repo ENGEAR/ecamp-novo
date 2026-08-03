@@ -845,7 +845,11 @@ EC.reembolso = (function () {
     if (cacheDesignado[chave]) return cacheDesignado[chave];
     try {
       var corpo = await getJson(BASE + '/lista?solicitante=' + encodeURIComponent(nome));
-      cacheDesignado[chave] = corpo.pedidos || [];
+      // O servidor só atende pedido por OUTRA pessoa de quem é gestor
+      // (logística/admin/financeiro); para os demais ele devolve as PRÓPRIAS
+      // solicitações (escopo 'proprio') — que não valem para conferir a OS de
+      // outro técnico. Nesse caso vale como "não sei" (lista vazia).
+      cacheDesignado[chave] = (corpo.escopo === 'proprio') ? [] : (corpo.pedidos || []);
       return cacheDesignado[chave];
     } catch (e) { return []; } // offline: não libera o complemento p/ outro técnico
   }
