@@ -45,6 +45,7 @@ EC.aprovacoes = (function () {
     lanche:      { campo: 'valor_lanche',      rotulo: '🥪 Lanche' },
     pecas:       { campo: 'valor_pecas',       rotulo: '🔩 Compra de peças' },
     manutencao:  { campo: 'valor_manutencao',  rotulo: '🛠️ Manutenção' },
+    gerador:     { campo: 'valor_gerador',     rotulo: '🔌 Combustível para gerador' },
     outros:      { campo: 'valor_outros',      rotulo: '💠 Outros gastos' }
   };
   var ITENS_POR_TIPO = {
@@ -52,8 +53,9 @@ EC.aprovacoes = (function () {
     evento:      ['mao_obra', 'outros'],
     veiculo:     ['combustivel', 'pecas', 'manutencao', 'pedagio', 'outros'],
     complemento: ['outros'],
-    // Avulso: mesmos itens ajustáveis do veículo (abastecimento reusa valor_combustivel).
-    outros_gastos: ['combustivel', 'pecas', 'manutencao', 'pedagio', 'outros']
+    // Avulso: mesmos itens ajustáveis do veículo (abastecimento reusa valor_combustivel)
+    // + o combustível do gerador, que só existe aqui.
+    outros_gastos: ['combustivel', 'pecas', 'manutencao', 'gerador', 'pedagio', 'outros']
   };
   function rotDeCampo(campo) {
     for (var k in CAMPOS_ITEM) if (CAMPOS_ITEM[k].campo === campo) return CAMPOS_ITEM[k].rotulo;

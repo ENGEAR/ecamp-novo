@@ -1707,6 +1707,8 @@ EC.reembolso = (function () {
       valorOutros: pedido.valorOutros, outrosJustificativa: pedido.outrosJustificativa,
       valorAbastecimento: pedido.valorAbastecimento, valorPecas: pedido.valorPecas,
       valorManutencao: pedido.valorManutencao,
+      // Gerador (só no avulso): litros + tipo; o R$ é calculado no servidor.
+      geradorLitros: pedido.geradorLitros, geradorCombustivel: pedido.geradorCombustivel,
       kmFinal: pedido.kmFinal,
       solicitante: pedido.solicitante, designado: pedido.designado, veiculo: pedido.veiculo,
       tipoCombustivel: pedido.tipoCombustivel, precoLitro: pedido.precoLitro,
@@ -2366,6 +2368,14 @@ EC.reembolso = (function () {
           ['⛽ Abastecimento', p.valor_combustivel],
           ['🔩 Compra de peças', p.valor_pecas],
           ['🛠️ Manutenção', p.valor_manutencao],
+          // Mostra a conta aberta: sem os litros e o R$/L, o valor sozinho não
+          // dá para conferir depois que a referência mudar.
+          ['🔌 Combustível para gerador' + (Number(p.gerador_litros) > 0
+            ? ' (' + String(p.gerador_litros).replace('.', ',') + ' L' +
+              (p.gerador_combustivel ? ' de ' + p.gerador_combustivel : '') +
+              (Number((p.valores_usados || {}).gerador_preco_litro) > 0
+                ? ' × ' + moedaBR(p.valores_usados.gerador_preco_litro) + '/L' : '') + ')'
+            : ''), p.valor_gerador],
           ['🛣️ Pedágio', p.valor_pedagio]
         ];
     if (t !== 'complemento') itens.push(['💠 Outros gastos', p.valor_outros]);
@@ -3078,9 +3088,51 @@ EC.reembolso = (function () {
     var d = ($(id).value || '').replace(/\D/g, '');
     return d ? Math.round(parseInt(d, 10)) / 100 : 0;
   }
+  /* ---------- Combustível do gerador ----------
+   * O técnico informa LITROS + o tipo (gasolina/diesel) e o valor sai de
+   *     litros × R$/L de referência da Logística (teto_gasolina / teto_diesel),
+   * o mesmo dado que o reembolso de viagem já usa como referência do litro.
+   * A conta oficial é a do SERVIDOR (rota /enviar); aqui é só a prévia na tela,
+   * para a pessoa ver quanto vai dar antes de enviar.
+   */
+  function ogGeradorLitros() {
+    var v = parseFloat(String(($('og-gerador-litros') || {}).value || '').replace(',', '.'));
+    return v > 0 ? Math.round(v * 100) / 100 : 0;
+  }
+  function ogGeradorComb() {
+    var m = document.querySelector('input[name="og-gerador-comb"]:checked');
+    return m ? m.value : '';
+  }
+  function ogGeradorPrecoLitro() {
+    if (!ctx || !ctx.valores) return 0;
+    var comb = ogGeradorComb();
+    if (!comb) return 0;
+    return Number(comb === 'diesel' ? ctx.valores.teto_diesel : ctx.valores.teto_gasolina) || 0;
+  }
+  function ogGeradorValor() {
+    var l = ogGeradorLitros(), p = ogGeradorPrecoLitro();
+    return (l > 0 && p > 0) ? Math.round(l * p * 100) / 100 : 0;
+  }
+  // Mostra a conta aberta (ou o que falta para fazê-la).
+  function ogPintarGerador() {
+    var el = $('og-gerador-calc');
+    if (!el) return;
+    var l = ogGeradorLitros(), comb = ogGeradorComb(), p = ogGeradorPrecoLitro();
+    if (!l && !comb) { el.classList.add('oculto'); el.innerHTML = ''; return; }
+    el.classList.remove('oculto');
+    if (!comb) { el.innerHTML = '⛽ Escolha o combustível (gasolina ou diesel) para calcular o valor.'; return; }
+    if (!l) { el.innerHTML = '⛽ Informe quantos litros foram abastecidos.'; return; }
+    if (!(p > 0)) {
+      el.innerHTML = '⚠️ Preço de referência do combustível indisponível — conecte-se para o app buscar os valores da Logística.';
+      return;
+    }
+    el.innerHTML = '⛽ ' + String(l).replace('.', ',') + ' L × ' + moedaBR(p) + '/L (referência da Logística) = <strong>' +
+      moedaBR(ogGeradorValor()) + '</strong>';
+  }
+
   function ogTotal() {
     return Math.round((ogValMon('og-abastecimento') + ogValMon('og-pecas') + ogValMon('og-manutencao') +
-      ogValMon('og-pedagio') + ogValMon('og-outros')) * 100) / 100;
+      ogValMon('og-pedagio') + ogValMon('og-outros') + ogGeradorValor()) * 100) / 100;
   }
   function ogErro(msg) {
     var e = $('og-erro');
@@ -3114,6 +3166,8 @@ EC.reembolso = (function () {
     $('og-solicitante').value = sessionNome();
     ['og-abastecimento', 'og-pecas', 'og-manutencao', 'og-pedagio', 'og-outros'].forEach(function (id) { $(id).value = ''; });
     $('og-outros-just').value = '';
+    $('og-gerador-litros').value = '';
+    document.querySelectorAll('input[name="og-gerador-comb"]').forEach(function (r) { r.checked = false; });
     ogErro(null);
     $('og-offline').classList.toggle('oculto', navigator.onLine);
     // (re)cria os uploaders vazios a cada abertura (some as fotos do lançamento anterior)
@@ -3122,9 +3176,17 @@ EC.reembolso = (function () {
       pecas: criarAnexos($('og-anexos-pecas'), {}),
       manutencao: criarAnexos($('og-anexos-manutencao'), {}),
       pedagio: criarAnexos($('og-anexos-pedagio'), {}),
+      gerador: criarAnexos($('og-anexos-gerador'), {}),
       outros: criarAnexos($('og-anexos-outros'), {})
     };
+    ogPintarGerador();
     ogPintarTotal();
+    // O R$/L de referência vem do contexto da Logística. Quem entra direto em
+    // "Outros gastos" pode não tê-lo carregado ainda — busca agora e redesenha a
+    // prévia do gerador quando chegar.
+    if (!ctx) {
+      Promise.resolve(atualizarContexto()).then(function () { ogPintarGerador(); ogPintarTotal(); });
+    }
   }
 
   async function enviarOutros() {
@@ -3132,13 +3194,16 @@ EC.reembolso = (function () {
     if (!solicitante) return ogErro('Sua sessão expirou — entre de novo no app.');
     var ab = ogValMon('og-abastecimento'), pc = ogValMon('og-pecas'), mn = ogValMon('og-manutencao'),
         pd = ogValMon('og-pedagio'), ou = ogValMon('og-outros');
-    var total = Math.round((ab + pc + mn + pd + ou) * 100) / 100;
-    if (!(total > 0)) return ogErro('Informe pelo menos um valor (abastecimento, peças, manutenção, pedágio ou outros).');
+    var gerLitros = ogGeradorLitros(), gerComb = ogGeradorComb();
+    if (gerLitros > 0 && !gerComb) return ogErro('Escolha o combustível do gerador (gasolina ou diesel).');
+    if (gerComb && !(gerLitros > 0)) return ogErro('Informe quantos litros foram abastecidos no gerador.');
+    var total = Math.round((ab + pc + mn + pd + ou + ogGeradorValor()) * 100) / 100;
+    if (!(total > 0)) return ogErro('Informe pelo menos um valor (abastecimento, peças, manutenção, pedágio, gerador ou outros).');
     if (ou > 0 && !$('og-outros-just').value.trim()) return ogErro('Escreva a justificativa dos outros gastos.');
     ogErro(null);
 
     var todosAnexos = [];
-    ['abastecimento', 'pecas', 'manutencao', 'pedagio', 'outros'].forEach(function (b) {
+    ['abastecimento', 'pecas', 'manutencao', 'pedagio', 'gerador', 'outros'].forEach(function (b) {
       if (!ogAnexos || !ogAnexos[b]) return;
       ogAnexos[b].obter().forEach(function (a) {
         todosAnexos.push({ bloco: b, nomeArquivo: a.nomeArquivo, base64: a.base64, mime: a.mime });
@@ -3151,6 +3216,8 @@ EC.reembolso = (function () {
       solicitante: solicitante,
       valorAbastecimento: ab, valorPecas: pc, valorManutencao: mn, valorPedagio: pd,
       valorOutros: ou, outrosJustificativa: $('og-outros-just').value.trim() || null,
+      // Gerador: manda litros + tipo; o VALOR é calculado no servidor.
+      geradorLitros: gerLitros || null, geradorCombustivel: gerComb || null,
       anexos: todosAnexos,
       // só para exibir na fila offline / lista local antes de sincronizar:
       valorTotal: total, valorSolicitado: total, percentual: 100,
@@ -3186,6 +3253,12 @@ EC.reembolso = (function () {
     $('og-enviar').addEventListener('click', enviarOutros);
     ['og-abastecimento', 'og-pecas', 'og-manutencao', 'og-pedagio', 'og-outros'].forEach(function (id) {
       $(id).addEventListener('input', function () { ogMascaraMoeda($(id)); ogPintarTotal(); });
+    });
+    // Gerador: litros e tipo recalculam a prévia e o total na hora.
+    var litros = $('og-gerador-litros');
+    if (litros) litros.addEventListener('input', function () { ogPintarGerador(); ogPintarTotal(); });
+    document.querySelectorAll('input[name="og-gerador-comb"]').forEach(function (r) {
+      r.addEventListener('change', function () { ogPintarGerador(); ogPintarTotal(); });
     });
   }
 
