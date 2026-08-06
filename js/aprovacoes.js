@@ -181,6 +181,7 @@ EC.aprovacoes = (function () {
     var tipoTxt = t === 'evento' ? '<span class="rotulo-apoio">🔊 Evento</span> · '
       : t === 'veiculo' ? '<span class="rotulo-apoio">📦 Outros do Serviço</span> · '
       : t === 'complemento' ? '<span class="rotulo-apoio">➕ Complemento</span> · '
+      : t === 'dia' ? '<span class="rotulo-apoio">☀️ Serviço de 1 dia</span> · '
       : ehAvulso ? '<span class="rotulo-apoio">💸 Outros gastos</span> · ' : '';
     // Campanha: identifica de qual campanha da OS é a solicitação (o avulso não tem).
     var campTxt = !ehAvulso && s.campanha_numero != null && s.campanha_numero !== ''
@@ -407,7 +408,9 @@ EC.aprovacoes = (function () {
   }
 
   function renderDetalhe(s, ajustes) {
-    if ((s.tipo || 'viagem') !== 'viagem') return renderDetalheSimples(s, ajustes);
+    // 'dia' (Serviço de 1 dia) é viagem de um dia só: usa o detalhe completo.
+    var tDet = s.tipo || 'viagem';
+    if (tDet !== 'viagem' && tDet !== 'dia') return renderDetalheSimples(s, ajustes);
     var tipo = s.solicitante_tipo === 'freelancer' ? 'Freelancer' : (s.solicitante_tipo === 'clt' ? 'CLT' : '—');
     var alimentacao = Number(s.valor_almoco || 0) + Number(s.valor_jantar || 0) + Number(s.valor_lanche || 0);
     // ajuste por item (traz o valor calculado e o proposto)
@@ -545,7 +548,8 @@ EC.aprovacoes = (function () {
     // Título: OS + empresa + projeto (logística e financeiro).
     var titulo =
       '<div class="apr-cab"><span class="os-numero">OS ' + esc(s.os) + '</span>' + (s.cliente ? ' · ' + esc(s.cliente) : '') + '</div>' +
-      (s.projeto ? '<div class="os-resumo" style="margin:-2px 0 8px;">📁 ' + esc(s.projeto) + '</div>' : '');
+      (s.projeto ? '<div class="os-resumo" style="margin:-2px 0 8px;">📁 ' + esc(s.projeto) + '</div>' : '') +
+      (tDet === 'dia' ? '<div class="apr-cat">☀️ Serviço de 1 dia (saiu e voltou no mesmo dia)</div>' : '');
 
     // Tela do FINANCEIRO (aguardando pagamento): só título, designado, valores e
     // valor a pagar. O formulário "Registrar pagamento" vem do bloco de ações.
@@ -583,15 +587,18 @@ EC.aprovacoes = (function () {
         linhaInfo('Designado (viagem)', s.designado || '—') +
       '</div>' +
       '<div class="apr-cat">' + tipo + '</div>' +
-      '<p class="dg-secao">Datas da viagem</p>' +
+      // No "Serviço de 1 dia" as quatro datas são a mesma: mostra uma só.
+      '<p class="dg-secao">' + (tDet === 'dia' ? 'Serviço de 1 dia' : 'Datas da viagem') + '</p>' +
       '<div class="rb-resumo-auto">' +
         linhaInfo('Campanha', s.campanha_numero != null && s.campanha_numero !== '' ? s.campanha_numero : '—') +
-        linhaInfo('Ida', dataBR(s.data_inicio)) +
-        linhaInfo('Início do serviço', dataBR(s.servico_inicio)) +
-        linhaInfo('Término do serviço', dataBR(s.servico_fim)) +
-        linhaInfo('Chegada', dataBR(s.data_retorno)) +
-        linhaInfo('Dias de serviço', s.dias_servico) +
-        linhaInfo('Dias de deslocamento', s.dias_deslocamento) +
+        (tDet === 'dia'
+          ? linhaInfo('Data do serviço', dataBR(s.servico_inicio || s.data_inicio))
+          : linhaInfo('Ida', dataBR(s.data_inicio)) +
+            linhaInfo('Início do serviço', dataBR(s.servico_inicio)) +
+            linhaInfo('Término do serviço', dataBR(s.servico_fim)) +
+            linhaInfo('Chegada', dataBR(s.data_retorno)) +
+            linhaInfo('Dias de serviço', s.dias_servico) +
+            linhaInfo('Dias de deslocamento', s.dias_deslocamento)) +
       '</div>' +
       '<p class="dg-secao">Transporte</p>' +
       '<div class="rb-resumo-auto">' +

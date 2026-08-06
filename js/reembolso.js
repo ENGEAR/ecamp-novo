@@ -8,8 +8,9 @@
  * de outro técnico. O app calcula os valores com as diárias vigentes do SGP:
  *   • hospedagem  = R$/diária × nº de diárias (chegada − saída);
  *   • alimentação = almoço/jantar × dias de serviço + lanche × deslocamento
- *     (exceção 1 serviço/0 deslocamento: 1 almoço fixo + jantar só se chegou
- *     em casa depois das 18h);
+ *     (exceção 1 serviço/0 deslocamento — o "Serviço de 1 dia": almoço só para
+ *     freelancer, jantar só se chegou em casa às 23h ou depois e lanche só
+ *     acima de 200 km);
  *   • combustível usa ida+volta + 5 km por dia de serviço (entre os pontos);
  *   • mão de obra = freelancer (desloc+serviço) ou CLT (viagem ≥ 2 dias);
  *   • combustível/aluguel/pedágio no bloco Transporte.
@@ -50,6 +51,7 @@ EC.reembolso = (function () {
   // Explicação de cada tipo de reembolso (mostrada em destaque ao escolher).
   var TIPO_DESC = {
     viagem: '🧳 Viagem: opção para solicitar a previsão de despesas de viagens destinadas à execução de serviços de monitoramento.',
+    dia: '☀️ Serviço de 1 dia: opção para o serviço que sai e volta no mesmo dia. Informe uma única data. Sem hospedagem; almoço e diária só para freelancer; jantar só se a chegada em casa for às 23h ou depois; lanche só se a ida e volta passar de 200 km.',
     complemento: '➕ Complemento: opção para solicitar um valor complementar referente a despesas não previstas na solicitação inicial da viagem.',
     evento: '🔊 Eventos: opção para solicitar o pagamento do valor acordado para a realização de monitoramentos em eventos, como shows, partidas esportivas, feiras, entre outros.',
     veiculo: '📦 Outros do Serviço: opção para solicitar o reembolso ou pagamento de despesas do serviço não cobertas pelos outros tipos, como abastecimento, peças, manutenção, pedágios e outros custos associados.'
@@ -57,7 +59,7 @@ EC.reembolso = (function () {
 
   var ctx = null;          // contexto do servidor: { valores, os: [...] }
   var osSel = null, campSel = null, tecSel = null;
-  var tipoSel = null;      // tipo do reembolso: 'viagem' | 'evento' | 'veiculo' | 'complemento'
+  var tipoSel = null;      // tipo do reembolso: 'viagem' | 'dia' | 'evento' | 'veiculo' | 'complemento'
   var compViagem = null;   // viagem PAGA do designado nesta OS (base do complemento por km)
   var dispCampanha = 100; // % da logística ainda disponível na campanha (100 − já solicitado)
   var anexos = {};
@@ -154,8 +156,10 @@ EC.reembolso = (function () {
   function servicoPuroVal() { var d = diasInfo(); return d ? d.servicoPuro : 0; }
 
   // Caso especial de alimentação: vai e volta no mesmo dia (1 dia total, 0
-  // deslocamento) — 1 almoço, jantar só se chegou a partir das 23h, e lanche só
-  // se a distância do dia (ida+volta) passar de 200 km.
+  // deslocamento), que é também o tipo "Serviço de 1 dia" — almoço SÓ para
+  // freelancer (o CLT não recebe, é um dia normal de trabalho dele), jantar só
+  // se chegou a partir das 23h, e lanche só se a distância (ida+volta) passar
+  // de 200 km.
   function casoDiaUnico() { var d = diasInfo(); return !!d && d.total === 1 && d.desloc === 0; }
   function chegouAPartirDas23() {
     var el = $('rb-chegada-casa');
@@ -549,7 +553,7 @@ EC.reembolso = (function () {
     var diasRef = datasRefeicao(); // todas as datas da viagem (ida→chegada)
     var almoco = 0, jantar = 0, lanche = 0;
     if (casoDiaUnico()) {
-      almoco = r2(almocoDoDia(diasRef[0] || $('rb-ida').value));
+      almoco = ehFreela ? r2(almocoPadrao) : 0; // CLT não recebe almoço no dia único
       jantar = chegouAPartirDas23() ? r2(Number(v.jantar)) : 0;
       lanche = dist > 200 ? r2(Number(v.lanche)) : 0;
     } else if (diasRef.length) {
@@ -826,10 +830,15 @@ EC.reembolso = (function () {
   /* ============ Tipo do reembolso (Viagem / Eventos / Veículos) ============ */
 
   function escolherTipo(t) {
+    var eraDia = tipoSel === 'dia';
     tipoSel = t || null;
     document.querySelectorAll('.rb-tipo-btn').forEach(function (b) {
       b.classList.toggle('ativo', !!t && b.dataset.tipo === t);
     });
+    // Saindo do "Serviço de 1 dia": as quatro datas estavam todas no mesmo dia
+    // por causa dele — devolve as da Agenda para não virar viagem de 1 dia sem
+    // querer (o restaurando=true do rascunho traz as datas salvas depois).
+    if (eraDia && tipoSel !== 'dia' && campSel && !restaurando) fillViagem(campSel);
     atualizarTipoUI();
     pintarValores();
   }
@@ -848,7 +857,7 @@ EC.reembolso = (function () {
     if (!g.length) return false;
     if (g.some(function (x) { return x.status === 'aguardando_logistica' || x.status === 'aguardando_pagamento'; })) return false;
     if (!g.some(function (x) { return x.status === 'pago'; })) return false;
-    var viagens = g.filter(function (x) { return (x.tipo || 'viagem') === 'viagem'; });
+    var viagens = g.filter(pedidoDeViagem);
     if (viagens.length) {
       var pagoPct = viagens.filter(function (x) { return x.status === 'pago'; })
         .reduce(function (s, x) { return s + Number(x.percentual_solicitado || 0); }, 0);
@@ -884,7 +893,7 @@ EC.reembolso = (function () {
     var camp = campSel ? campSel.numero : null;
     var vs = (rows || []).filter(function (x) {
       return String(x.os) === String(osSel.numero) && Number(x.campanha_numero) === Number(camp) &&
-        (x.tipo || 'viagem') === 'viagem';
+        pedidoDeViagem(x);
     });
     return vs.filter(function (x) { return x.status === 'pago' && x.km_atual != null; })[0]
         || vs.filter(function (x) { return x.km_atual != null; })[0]
@@ -931,10 +940,32 @@ EC.reembolso = (function () {
     if (tipoSel === 'complemento') pintarValores(); // já reflete os dados da viagem baixados
   }
 
+  // "Serviço de 1 dia" é a VIAGEM de um dia só: mesmas regras e mesmo 100% da
+  // campanha, com uma data única no lugar das quatro.
+  function ehDiaUnico() { return tipoSel === 'dia'; }
+  function ehTipoViagem() { return tipoSel === 'viagem' || tipoSel === 'dia'; }
+  // Mesma pergunta, mas para uma solicitação já gravada (espelha ehReembolsoViagem
+  // do servidor): 'viagem' e 'dia' compartilham parcelas, saldo e complemento.
+  function pedidoDeViagem(p) {
+    var t = (p && p.tipo) || 'viagem';
+    return t === 'viagem' || t === 'dia';
+  }
+
   // Viagem TRAVADA: o designado já solicitou parte da viagem desta OS/campanha
   // (deve pedir o restante em "Serviços com saldo pendente", não abrir outra).
   function viagemTravada() {
-    return tipoSel === 'viagem' && !!tecSel && !editando && dispCampanha < 100;
+    return ehTipoViagem() && !!tecSel && !editando && dispCampanha < 100;
+  }
+
+  // Serviço de 1 dia: a data única alimenta as quatro datas da viagem, então
+  // ida = início = término = chegada e o cálculo cai no caso de um dia só.
+  function sincronizarDataDia() {
+    if (!ehDiaUnico()) return;
+    var d = $('rb-dia-data') ? $('rb-dia-data').value : '';
+    ['rb-ida', 'rb-servico-inicio', 'rb-servico-fim', 'rb-volta'].forEach(function (id) {
+      if ($(id)) $(id).value = d;
+    });
+    recalcularDias();
   }
 
   // Mostra/esconde os blocos do formulário conforme o tipo escolhido.
@@ -946,13 +977,20 @@ EC.reembolso = (function () {
       desc.textContent = (tipoSel && TIPO_DESC[tipoSel]) || '';
       desc.classList.toggle('oculto', !(tipoSel && TIPO_DESC[tipoSel]));
     }
-    var ehViagem = tipoSel === 'viagem', ehEvento = tipoSel === 'evento',
+    var ehViagem = ehTipoViagem(), ehEvento = tipoSel === 'evento',
         ehVeic = tipoSel === 'veiculo', ehComp = tipoSel === 'complemento';
     // Trava: designado que já solicitou parte da viagem desta OS/campanha deve
     // pedir o restante em "Serviços com saldo pendente" — não abrir outra nova.
     var travarViagem = viagemTravada();
     var mostraViagem = ehViagem && !travarViagem;
     $('rb-viagem').classList.toggle('oculto', !(mostraViagem && campSel));
+    // Serviço de 1 dia: uma data só no lugar do bloco das quatro datas.
+    $('rb-dia-linha').classList.toggle('oculto', !ehDiaUnico());
+    $('rb-viagem-datas').classList.toggle('oculto', ehDiaUnico());
+    if (ehDiaUnico()) {
+      sincronizarDataDia();
+      $('rb-viagem-fonte').textContent = '📅 Data pré-preenchida pela Agenda — edite se precisar. Saída e volta no mesmo dia.';
+    }
     $('rb-sec-transporte').classList.toggle('oculto', !mostraViagem);
     $('rb-sec-valores').classList.toggle('oculto', !mostraViagem);
     $('rb-pct-viagem').classList.toggle('oculto', !mostraViagem);
@@ -1030,6 +1068,8 @@ EC.reembolso = (function () {
       .forEach(function (id) { $(id).readOnly = false; });
     ['rb-dias-servico', 'rb-dias-desloc'].forEach(function (id) { $(id).readOnly = true; });
     $('rb-viagem-fonte').textContent = '📅 Datas pré-preenchidas pela Agenda — edite se precisar; os dias se ajustam sozinhos.';
+    // Serviço de 1 dia: a data única começa no primeiro dia de serviço da Agenda.
+    if ($('rb-dia-data')) $('rb-dia-data').value = (campanha.servicoInicio || campanha.dataInicio || '').slice(0, 10);
     recalcularDias();
     $('rb-viagem').classList.remove('oculto');
   }
@@ -1152,7 +1192,9 @@ EC.reembolso = (function () {
         ' = ' + moedaBR(calc.almoco);
     var alimSub = casoDiaUnico()
       ? 'Foi e voltou no mesmo dia:<br>' +
-        'Almoço: ' + moedaBR(calc.almoco) + '<br>' +
+        'Almoço: ' + (ehFreelaSub
+          ? moedaBR(calc.almoco)
+          : 'não incluído (CLT não recebe almoço no serviço de 1 dia)') + '<br>' +
         'Jantar: ' + (calc.jantar > 0
           ? moedaBR(calc.jantar) + ' (chegou a partir das 23h)'
           : 'não incluído (chegada antes das 23h ou em branco)') + '<br>' +
@@ -1497,6 +1539,8 @@ EC.reembolso = (function () {
       if (r.servicoInicio) $('rb-servico-inicio').value = r.servicoInicio;
       if (r.servicoFim) $('rb-servico-fim').value = r.servicoFim;
       if (r.volta) $('rb-volta').value = r.volta;
+      // Serviço de 1 dia: a data única é a mesma das quatro datas salvas.
+      if (ehDiaUnico()) $('rb-dia-data').value = $('rb-servico-inicio').value || $('rb-ida').value || '';
       recalcularDias();
       atualizarDisponivel(); // recalcula o disponível do designado (o % salvo entra abaixo)
       if (r.chegada && $('rb-chegada-casa')) $('rb-chegada-casa').value = r.chegada;
@@ -1653,6 +1697,7 @@ EC.reembolso = (function () {
     $('rb-viagem').classList.add('oculto');
     $('rb-auto').classList.add('oculto');
     $('rb-ida').value = ''; $('rb-servico-inicio').value = ''; $('rb-servico-fim').value = ''; $('rb-volta').value = '';
+    $('rb-dia-data').value = '';
     $('rb-dias-servico').value = ''; $('rb-dias-desloc').value = '';
     $('rb-chegada-casa').value = ''; $('rb-chegada-bloco').classList.add('oculto');
     document.querySelectorAll('input[name="rb-veiculo"]').forEach(function (r) { r.checked = false; });
@@ -1763,10 +1808,14 @@ EC.reembolso = (function () {
       return mostrarErro('Esta OS está na Agenda sem técnicos vinculados — peça para incluir os técnicos nos dias primeiro.');
     }
     if (!tecSel) return mostrarErro('Escolha o designado (o técnico do serviço).');
-    if (tipoSel !== 'viagem') return enviarFormularioSimples();
+    if (!ehTipoViagem()) return enviarFormularioSimples();
     // Trava (viagem): já tem solicitação nesta OS/campanha → só pelo Saldo pendente.
     if (!editando && dispCampanha < 100) {
       return mostrarErro(tecSel.nome + ' já tem uma solicitação de viagem nesta OS. Peça o restante (' + dispCampanha + '% faltante) em "Serviços com saldo pendente" — não abra uma nova.');
+    }
+    if (ehDiaUnico()) sincronizarDataDia();
+    if (ehDiaUnico() && !$('rb-dia-data').value) {
+      return mostrarErro('Informe a data do serviço.');
     }
     if (!diasInfo()) {
       return mostrarErro('Confira as datas da viagem: ida ≤ início do serviço ≤ término ≤ chegada (e todas preenchidas).');
@@ -1845,7 +1894,8 @@ EC.reembolso = (function () {
       codigo: 'LG_' + osSel.numero + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
       osId: osSel.osId,
       os: osSel.numero,
-      tipo: 'viagem',
+      // 'dia' = viagem de um dia só (mesmo cálculo, rótulo próprio no extrato).
+      tipo: ehDiaUnico() ? 'dia' : 'viagem',
       valorOutros: outrosVal(),
       outrosJustificativa: $('rb-outros-just').value.trim() || null,
       campanha: campSel ? campSel.numero : null,
@@ -2132,6 +2182,7 @@ EC.reembolso = (function () {
     var tipoTxt = t === 'evento' ? '<span class="rotulo-apoio">🔊 Evento</span> · '
       : t === 'veiculo' ? '<span class="rotulo-apoio">📦 Outros do Serviço</span> · '
       : t === 'complemento' ? '<span class="rotulo-apoio">➕ Complemento</span> · '
+      : t === 'dia' ? '<span class="rotulo-apoio">☀️ Serviço de 1 dia</span> · '
       : t === 'outros_gastos' ? '<span class="rotulo-apoio">💸 Outros gastos</span> · ' : '';
     // Campanha: a OS pergunta na hora de solicitar, então precisa dar para
     // identificar depois. Vazia nos avulsos (Outros gastos não tem OS/campanha).
@@ -2214,8 +2265,9 @@ EC.reembolso = (function () {
   function numeraParcelas(pedidos) {
     var grupos = {};
     (pedidos || []).forEach(function (p) {
-      // Só a VIAGEM tem parcelas (eventos/veículos são pagamento único).
-      if ((p.tipo || 'viagem') !== 'viagem') return;
+      // Só a VIAGEM (e o Serviço de 1 dia) tem parcelas — eventos/veículos são
+      // pagamento único.
+      if (!pedidoDeViagem(p)) return;
       var k = p.os + '|' + p.campanha_numero + '|' + (p.designado || '');
       (grupos[k] = grupos[k] || []).push(p);
     });
@@ -2473,12 +2525,16 @@ EC.reembolso = (function () {
       '<p class="dg-secao">Quem</p><div class="rb-resumo-auto">' +
         linha('Solicitante', p.solicitante || '—') + linha('Designado', (p.designado || '—') + ' · ' + tipo) +
       '</div>' +
-      '<p class="dg-secao">Datas da viagem</p><div class="rb-resumo-auto">' +
+      // No "Serviço de 1 dia" as quatro datas são a mesma: mostra uma só.
+      '<p class="dg-secao">' + (p.tipo === 'dia' ? 'Serviço de 1 dia' : 'Datas da viagem') + '</p><div class="rb-resumo-auto">' +
         linha('Campanha', campanhaDe(p) !== '' ? campanhaDe(p) : '—') +
-        linha('Ida', dataBR(p.data_inicio)) + linha('Início do serviço', dataBR(p.servico_inicio)) +
-        linha('Término do serviço', dataBR(p.servico_fim)) + linha('Chegada', dataBR(p.data_retorno || p.dataRetorno)) +
-        linha('Dias de serviço', p.dias_servico != null ? p.dias_servico : '—') +
-        linha('Dias de deslocamento', p.dias_deslocamento != null ? p.dias_deslocamento : '—') +
+        (p.tipo === 'dia'
+          // Na fila offline os campos vêm em camelCase (payload do app).
+          ? linha('Data do serviço', dataBR(p.servico_inicio || p.servicoInicio || p.data_inicio || p.dataInicio))
+          : linha('Ida', dataBR(p.data_inicio)) + linha('Início do serviço', dataBR(p.servico_inicio)) +
+            linha('Término do serviço', dataBR(p.servico_fim)) + linha('Chegada', dataBR(p.data_retorno || p.dataRetorno)) +
+            linha('Dias de serviço', p.dias_servico != null ? p.dias_servico : '—') +
+            linha('Dias de deslocamento', p.dias_deslocamento != null ? p.dias_deslocamento : '—')) +
       '</div>' +
       baseCalculoHtml(p) +
       '<p class="dg-secao">Valores</p>' + (valores || '<p class="texto-apoio">—</p>') +
@@ -2564,9 +2620,9 @@ EC.reembolso = (function () {
 
     // Solicitações de reembolso (parcelas) desta OS+campanha+designado.
     // Eventos/veículos são pagamento único: não se misturam com as parcelas da viagem.
-    var parcelas = (p.tipo || 'viagem') !== 'viagem' ? [p] : listaEmCache().filter(function (x) {
+    var parcelas = !pedidoDeViagem(p) ? [p] : listaEmCache().filter(function (x) {
       return String(x.os) === String(p.os) &&
-        (x.tipo || 'viagem') === 'viagem' &&
+        pedidoDeViagem(x) &&
         Number(x.campanha_numero) === Number(p.campanha_numero) &&
         (x.designado || '') === (p.designado || '') &&
         ['aguardando_logistica', 'aguardando_pagamento', 'pago'].indexOf(x.status) !== -1;
@@ -2618,7 +2674,7 @@ EC.reembolso = (function () {
     // Evidências inseridas pelo usuário (fotos/PDF de cada bloco) — sempre visíveis
     // no extrato. Na viagem, as evidências ficam na 1ª parcela (a que foi preenchida).
     var idEvid = p.id;
-    if ((p.tipo || 'viagem') === 'viagem' && parcelas[0] && parcelas[0].id) idEvid = parcelas[0].id;
+    if (pedidoDeViagem(p) && parcelas[0] && parcelas[0].id) idEvid = parcelas[0].id;
     mostrarEvidencias(idEvid);
 
     // Comprovantes: das parcelas pagas e, abaixo, do adiantamento (mesma seção,
@@ -2912,7 +2968,7 @@ EC.reembolso = (function () {
   function saldosDisponiveis() {
     var grupos = {};
     listaEmCache().forEach(function (p) {
-      if ((p.tipo || 'viagem') !== 'viagem') return; // saldo só existe na viagem
+      if (!pedidoDeViagem(p)) return; // saldo só existe na viagem (e no Serviço de 1 dia)
       // saldo é por OS+campanha+DESIGNADO (cada técnico tem seu próprio 100%)
       var chave = p.os + '|' + p.campanha_numero + '|' + (p.designado || '');
       if (!grupos[chave]) grupos[chave] = { os: p.os, campanha: p.campanha_numero, cliente: p.cliente, jaConsumido: Number(p.jaConsumido || 0), aprovada: null };
@@ -3489,6 +3545,13 @@ EC.reembolso = (function () {
     ['rb-ida', 'rb-servico-inicio', 'rb-servico-fim', 'rb-volta'].forEach(function (id) {
       $(id).addEventListener('change', function () {
         recalcularDias();
+        pintarResumoAuto(); pintarValores();
+      });
+    });
+    // Serviço de 1 dia: a data única replica nas quatro datas da viagem.
+    ['input', 'change'].forEach(function (ev) {
+      $('rb-dia-data').addEventListener(ev, function () {
+        sincronizarDataDia();
         pintarResumoAuto(); pintarValores();
       });
     });

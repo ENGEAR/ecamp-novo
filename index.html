@@ -426,6 +426,7 @@
             <p class="rb-pergunta">Qual o tipo de reembolso?</p>
             <div class="rb-tipo-botoes">
               <button type="button" class="rb-tipo-btn" data-tipo="viagem">🧳 Viagem</button>
+              <button type="button" class="rb-tipo-btn" data-tipo="dia">☀️ Serviço de 1 dia</button>
               <button type="button" class="rb-tipo-btn" data-tipo="evento">🔊 Eventos</button>
               <button type="button" class="rb-tipo-btn" data-tipo="veiculo">📦 Outros do Serviço</button>
               <button type="button" class="rb-tipo-btn oculto" data-tipo="complemento" id="rb-tipo-complemento">➕ Complemento</button>
@@ -489,19 +490,25 @@
 
           <div id="rb-viagem" class="oculto">
             <p class="texto-apoio" id="rb-viagem-fonte"></p>
-            <div class="grade-2">
-              <label>Data de ida<input type="date" id="rb-ida"></label>
-              <label>Data início serviço<input type="date" id="rb-servico-inicio"></label>
+            <!-- Serviço de 1 dia: uma data só; ela preenche as quatro datas da viagem. -->
+            <div id="rb-dia-linha" class="oculto">
+              <label>Data do serviço<input type="date" id="rb-dia-data"></label>
             </div>
-            <div class="grade-2">
-              <label>Data término serviço<input type="date" id="rb-servico-fim"></label>
-              <label>Data da chegada<input type="date" id="rb-volta"></label>
+            <div id="rb-viagem-datas">
+              <div class="grade-2">
+                <label>Data de ida<input type="date" id="rb-ida"></label>
+                <label>Data início serviço<input type="date" id="rb-servico-inicio"></label>
+              </div>
+              <div class="grade-2">
+                <label>Data término serviço<input type="date" id="rb-servico-fim"></label>
+                <label>Data da chegada<input type="date" id="rb-volta"></label>
+              </div>
+              <div class="grade-2">
+                <label>Dias de serviço<input type="number" id="rb-dias-servico" readonly></label>
+                <label>Dias de deslocamento<input type="number" id="rb-dias-desloc" readonly></label>
+              </div>
+              <div id="rb-viagem-erro" class="alerta alerta-vermelho oculto">🛑 Confira as datas: a ida deve ser antes (ou igual) ao início do serviço, o início antes do término, e o término antes (ou igual) da chegada.</div>
             </div>
-            <div class="grade-2">
-              <label>Dias de serviço<input type="number" id="rb-dias-servico" readonly></label>
-              <label>Dias de deslocamento<input type="number" id="rb-dias-desloc" readonly></label>
-            </div>
-            <div id="rb-viagem-erro" class="alerta alerta-vermelho oculto">🛑 Confira as datas: a ida deve ser antes (ou igual) ao início do serviço, o início antes do término, e o término antes (ou igual) da chegada.</div>
             <div id="rb-chegada-bloco" class="oculto">
               <label>Horário de chegada em casa
                 <input type="time" id="rb-chegada-casa">
