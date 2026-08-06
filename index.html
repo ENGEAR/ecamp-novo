@@ -426,7 +426,7 @@
             <p class="rb-pergunta">Qual o tipo de reembolso?</p>
             <div class="rb-tipo-botoes">
               <button type="button" class="rb-tipo-btn" data-tipo="viagem">🧳 Viagem</button>
-              <button type="button" class="rb-tipo-btn" data-tipo="dia">☀️ Serviço de 1 dia</button>
+              <button type="button" class="rb-tipo-btn" data-tipo="sem_hosp">🏠 Serviço sem hospedagem</button>
               <button type="button" class="rb-tipo-btn" data-tipo="evento">🔊 Eventos</button>
               <button type="button" class="rb-tipo-btn" data-tipo="veiculo">📦 Outros do Serviço</button>
               <button type="button" class="rb-tipo-btn oculto" data-tipo="complemento" id="rb-tipo-complemento">➕ Complemento</button>
@@ -490,9 +490,14 @@
 
           <div id="rb-viagem" class="oculto">
             <p class="texto-apoio" id="rb-viagem-fonte"></p>
-            <!-- Serviço de 1 dia: uma data só; ela preenche as quatro datas da viagem. -->
+            <!-- Serviço sem hospedagem: o técnico volta para casa todo dia.
+                 Uma data de início + quantos dias de ida e volta. -->
             <div id="rb-dia-linha" class="oculto">
-              <label>Data do serviço<input type="date" id="rb-dia-data"></label>
+              <div class="grade-2">
+                <label>Data de início do serviço<input type="date" id="rb-dia-data"></label>
+                <label>Dias de deslocamento (ida e volta)<input type="number" id="rb-dia-dias" min="1" step="1" inputmode="numeric" value="1" placeholder="1"></label>
+              </div>
+              <div id="rb-dia-periodo" class="texto-apoio"></div>
             </div>
             <div id="rb-viagem-datas">
               <div class="grade-2">
@@ -512,6 +517,12 @@
             <div id="rb-chegada-bloco" class="oculto">
               <label>Horário de chegada em casa
                 <input type="time" id="rb-chegada-casa">
+              </label>
+            </div>
+            <!-- Sem hospedagem: o jantar é pago por dia em que chegou tarde. -->
+            <div id="rb-jantar-bloco" class="oculto">
+              <label>Em quantos dias você chegou em casa às 23h ou depois?
+                <input type="number" id="rb-dia-jantar" min="0" step="1" inputmode="numeric" value="0" placeholder="0">
               </label>
             </div>
             <div id="rb-auto" class="rb-resumo-auto oculto"></div>
