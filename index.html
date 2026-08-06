@@ -455,6 +455,14 @@
             <label>🛠️ Manutenção<input type="text" id="rb-veic-manutencao" inputmode="numeric" class="rb-moeda" placeholder="R$ 0,00"></label>
             <p class="rb-sub">Evidências da manutenção <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
             <div id="rb-anexos-manutencao"></div>
+
+            <p class="dg-secao">Combustível para gerador</p>
+            <label class="linha-check"><input type="radio" name="rb-gerador-comb" value="gasolina"><span>Gasolina</span></label>
+            <label class="linha-check"><input type="radio" name="rb-gerador-comb" value="diesel"><span>Diesel</span></label>
+            <label>Quantidade abastecida<input type="number" id="rb-gerador-litros" step="0.01" min="0" inputmode="decimal" placeholder="litros"></label>
+            <div id="rb-gerador-calc" class="alerta alerta-info oculto"></div>
+            <p class="rb-sub">Evidências do combustível do gerador <span class="rotulo-apoio">(fotos ou PDF, até 20)</span></p>
+            <div id="rb-anexos-gerador"></div>
           </div>
 
           <div id="rb-complemento-bloco" class="oculto">

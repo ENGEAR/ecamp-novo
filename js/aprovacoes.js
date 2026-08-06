@@ -51,7 +51,7 @@ EC.aprovacoes = (function () {
   var ITENS_POR_TIPO = {
     viagem:      ['combustivel', 'aluguel', 'pedagio', 'hospedagem', 'mao_obra', 'almoco', 'jantar', 'lanche', 'outros'],
     evento:      ['mao_obra', 'outros'],
-    veiculo:     ['combustivel', 'pecas', 'manutencao', 'pedagio', 'outros'],
+    veiculo:     ['combustivel', 'pecas', 'manutencao', 'gerador', 'pedagio', 'outros'],
     complemento: ['outros'],
     // Avulso: mesmos itens ajustáveis do veículo (abastecimento reusa valor_combustivel)
     // + o combustível do gerador, que só existe aqui.
