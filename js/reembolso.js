@@ -2116,12 +2116,11 @@ EC.reembolso = (function () {
         : '<strong>' + moedaBR(total) + '</strong>';
     var projeto = p.projeto ? '<div class="os-resumo">📁 ' + p.projeto + '</div>'
       : (p.cliente ? '<div class="os-resumo">' + p.cliente + '</div>' : '');
-    // Quem pediu vem SEMPRE (nas telas de gestão): antes só o designado aparecia,
-    // e o "Outros gastos" avulso — que não tem designado — ficava sem nome nenhum,
-    // sem dar para saber de quem era o lançamento.
+    // UM nome por cartão: o do designado. No "Outros gastos" avulso não existe
+    // designado — quem lançou é quem executou —, então o solicitante ocupa esse
+    // lugar. Antes o avulso ficava sem nome nenhum na lista.
     var quemTxt = mostrarDesignado
-      ? '<div class="os-resumo">✍️ ' + (p.solicitante || '—') +
-        (p.designado && p.designado !== p.solicitante ? ' · 👷 ' + p.designado : '') + '</div>'
+      ? '<div class="os-resumo">👷 ' + (p.designado || p.solicitante || '—') + '</div>'
       : '';
     // Data do pagamento em TODOS os cartões pagos (inclusive no extrato do próprio
     // técnico): saber que foi pago sem saber quando não resolve.
