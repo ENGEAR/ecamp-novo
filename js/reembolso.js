@@ -1097,6 +1097,7 @@ EC.reembolso = (function () {
       abastecimento: criarAnexos($('rb-anexos-abastecimento'), { iniciais: anexosIniciais.abastecimento, aoMudar: salvarRascunhoLogo }),
       pecas: criarAnexos($('rb-anexos-pecas'), { iniciais: anexosIniciais.pecas, aoMudar: salvarRascunhoLogo }),
       manutencao: criarAnexos($('rb-anexos-manutencao'), { iniciais: anexosIniciais.manutencao, aoMudar: salvarRascunhoLogo }),
+      gerador: criarAnexos($('rb-anexos-gerador'), { iniciais: anexosIniciais.gerador, aoMudar: salvarRascunhoLogo }),
       // Evidências do COMPLEMENTO de gastos (OS já paga)
       complemento: criarAnexos($('rb-anexos-complemento'), { iniciais: anexosIniciais.complemento, aoMudar: salvarRascunhoLogo, carimbar: true, semGaleria: true }),
       // Evidências do ajuste do valor calculado do complemento
@@ -1311,11 +1312,16 @@ EC.reembolso = (function () {
     } else {
       var ab = valMon('rb-veic-abastecimento'), pc = valMon('rb-veic-pecas'),
           mn = valMon('rb-veic-manutencao'), pd = valMon('rb-pedagio');
+      var ger = geradorValor('rb');
       if (ab > 0) comps.push('⛽ Abastecimento: ' + moedaBR(ab));
       if (pc > 0) comps.push('🔩 Compra de peças: ' + moedaBR(pc));
       if (mn > 0) comps.push('🛠️ Manutenção: ' + moedaBR(mn));
+      if (ger > 0) {
+        comps.push('🔌 Combustível para gerador: ' + geradorLitros('rb') + ' L × ' +
+          moedaBR(geradorPrecoLitro('rb')) + '/L = ' + moedaBR(ger));
+      }
       if (pd > 0) comps.push('🛣️ Pedágio: ' + moedaBR(pd));
-      total = Math.round((ab + pc + mn + pd + outros) * 100) / 100;
+      total = Math.round((ab + pc + mn + pd + ger + outros) * 100) / 100;
       pronto = !!tecSel && total > 0;
     }
     if (outros > 0) comps.push('💠 Outros gastos: ' + moedaBR(outros));
@@ -1394,6 +1400,8 @@ EC.reembolso = (function () {
       veicAbastecimento: $('rb-veic-abastecimento').value,
       veicPecas: $('rb-veic-pecas').value,
       veicManutencao: $('rb-veic-manutencao').value,
+      geradorLitros: $('rb-gerador-litros').value,
+      geradorComb: geradorComb('rb'),
       compKmFinal: $('rb-comp-kmfinal').value,
       compDec: compDecisao(),
       compNovoval: $('rb-comp-novoval').value,
@@ -1462,6 +1470,12 @@ EC.reembolso = (function () {
       porMoeda('rb-veic-abastecimento', r.veicAbastecimento);
       porMoeda('rb-veic-pecas', r.veicPecas);
       porMoeda('rb-veic-manutencao', r.veicManutencao);
+      if (r.geradorLitros) $('rb-gerador-litros').value = r.geradorLitros;
+      if (r.geradorComb) {
+        var radGer = document.querySelector('input[name="rb-gerador-comb"][value="' + r.geradorComb + '"]');
+        if (radGer) radGer.checked = true;
+      }
+      pintarGerador('rb');
       if (r.compKmFinal) $('rb-comp-kmfinal').value = r.compKmFinal;
       var radComp = document.querySelector('input[name="rb-comp-dec"][value="' + (r.compDec === 'ajuste' ? 'ajuste' : 'concordo') + '"]');
       if (radComp) radComp.checked = true;
@@ -1656,6 +1670,9 @@ EC.reembolso = (function () {
     escolherTipo(null); // volta para "escolha o tipo" (Viagem/Eventos/Veículos)
     $('rb-evento-dias').value = '';
     $('rb-veic-abastecimento').value = ''; $('rb-veic-pecas').value = ''; $('rb-veic-manutencao').value = '';
+    $('rb-gerador-litros').value = '';
+    document.querySelectorAll('input[name="rb-gerador-comb"]').forEach(function (r) { r.checked = false; });
+    pintarGerador('rb');
     $('rb-comp-kmfinal').value = ''; $('rb-comp-kminicial').value = '';
     if ($('rb-comp-info')) $('rb-comp-info').classList.add('oculto');
     // Ajuste do complemento: volta para "concordo" e limpa proposto/justificativa.
@@ -1950,11 +1967,16 @@ EC.reembolso = (function () {
     } else {
       var ab = valMon('rb-veic-abastecimento'), pc = valMon('rb-veic-pecas'),
           mn = valMon('rb-veic-manutencao'), pd = valMon('rb-pedagio');
-      total = Math.round((ab + pc + mn + pd + outros) * 100) / 100;
-      if (!(total > 0)) return mostrarErro('Informe pelo menos um valor (abastecimento, peças, manutenção, pedágio ou outros).');
+      var gerL = geradorLitros('rb'), gerC = geradorComb('rb');
+      if (gerL > 0 && !gerC) return mostrarErro('Escolha o combustível do gerador (gasolina ou diesel).');
+      if (gerC && !(gerL > 0)) return mostrarErro('Informe quantos litros foram abastecidos no gerador.');
+      total = Math.round((ab + pc + mn + pd + geradorValor('rb') + outros) * 100) / 100;
+      if (!(total > 0)) return mostrarErro('Informe pelo menos um valor (abastecimento, peças, manutenção, pedágio, gerador ou outros).');
       extra.valorAbastecimento = ab; extra.valorPecas = pc; extra.valorManutencao = mn;
       extra.valorPedagio = pd;
-      blocos = ['abastecimento', 'pecas', 'manutencao', 'pedagio', 'outros'];
+      // Litros + tipo: o valor em R$ é calculado no servidor.
+      extra.geradorLitros = gerL || null; extra.geradorCombustivel = gerC || null;
+      blocos = ['abastecimento', 'pecas', 'manutencao', 'gerador', 'pedagio', 'outros'];
     }
     mostrarErro(null);
 
@@ -2094,6 +2116,17 @@ EC.reembolso = (function () {
         : '<strong>' + moedaBR(total) + '</strong>';
     var projeto = p.projeto ? '<div class="os-resumo">📁 ' + p.projeto + '</div>'
       : (p.cliente ? '<div class="os-resumo">' + p.cliente + '</div>' : '');
+    // Quem pediu vem SEMPRE (nas telas de gestão): antes só o designado aparecia,
+    // e o "Outros gastos" avulso — que não tem designado — ficava sem nome nenhum,
+    // sem dar para saber de quem era o lançamento.
+    var quemTxt = mostrarDesignado
+      ? '<div class="os-resumo">✍️ ' + (p.solicitante || '—') +
+        (p.designado && p.designado !== p.solicitante ? ' · 👷 ' + p.designado : '') + '</div>'
+      : '';
+    // Data do pagamento em TODOS os cartões pagos (inclusive no extrato do próprio
+    // técnico): saber que foi pago sem saber quando não resolve.
+    var pagoEmTxt = (p.status === 'pago' && p.pago_em)
+      ? '<div class="os-resumo">💰 Pago em ' + dataBR(p.pago_em) + '</div>' : '';
     var obs = (p.status === 'rejeitado' || p.status === 'correcao') && p.observacao_logistica
       ? '<div class="rb-motivo">Observação da Logística: ' + p.observacao_logistica + '</div>' : '';
     var t = p.tipo || 'viagem';
@@ -2118,8 +2151,9 @@ EC.reembolso = (function () {
       (t === 'outros_gastos' ? '💸 Outros gastos' : 'OS ' + (p.os || '?')) + '</span>' +
       '    <span class="rb-status ' + st.cls + '">' + st.txt + '</span></div>' +
       projeto +
-      (mostrarDesignado && p.designado ? '<div class="os-resumo">👷 ' + p.designado + '</div>' : '') +
+      quemTxt +
       '  <div class="rb-pedido-linha">' + parcelaTxt + valorTxt + '</div>' +
+      pagoEmTxt +
       devolTxt +
       obs +
       '</button>'
@@ -3095,29 +3129,31 @@ EC.reembolso = (function () {
    * A conta oficial é a do SERVIDOR (rota /enviar); aqui é só a prévia na tela,
    * para a pessoa ver quanto vai dar antes de enviar.
    */
-  function ogGeradorLitros() {
-    var v = parseFloat(String(($('og-gerador-litros') || {}).value || '').replace(',', '.'));
+  // Os mesmos helpers servem às DUAS telas (avulso e "Outros do Serviço"): muda
+  // só o prefixo dos ids ('og' e 'rb') e o name dos radios.
+  function geradorLitros(pref) {
+    var v = parseFloat(String(($(pref + '-gerador-litros') || {}).value || '').replace(',', '.'));
     return v > 0 ? Math.round(v * 100) / 100 : 0;
   }
-  function ogGeradorComb() {
-    var m = document.querySelector('input[name="og-gerador-comb"]:checked');
+  function geradorComb(pref) {
+    var m = document.querySelector('input[name="' + pref + '-gerador-comb"]:checked');
     return m ? m.value : '';
   }
-  function ogGeradorPrecoLitro() {
+  function geradorPrecoLitro(pref) {
     if (!ctx || !ctx.valores) return 0;
-    var comb = ogGeradorComb();
+    var comb = geradorComb(pref);
     if (!comb) return 0;
     return Number(comb === 'diesel' ? ctx.valores.teto_diesel : ctx.valores.teto_gasolina) || 0;
   }
-  function ogGeradorValor() {
-    var l = ogGeradorLitros(), p = ogGeradorPrecoLitro();
+  function geradorValor(pref) {
+    var l = geradorLitros(pref), p = geradorPrecoLitro(pref);
     return (l > 0 && p > 0) ? Math.round(l * p * 100) / 100 : 0;
   }
   // Mostra a conta aberta (ou o que falta para fazê-la).
-  function ogPintarGerador() {
-    var el = $('og-gerador-calc');
+  function pintarGerador(pref) {
+    var el = $(pref + '-gerador-calc');
     if (!el) return;
-    var l = ogGeradorLitros(), comb = ogGeradorComb(), p = ogGeradorPrecoLitro();
+    var l = geradorLitros(pref), comb = geradorComb(pref), p = geradorPrecoLitro(pref);
     if (!l && !comb) { el.classList.add('oculto'); el.innerHTML = ''; return; }
     el.classList.remove('oculto');
     if (!comb) { el.innerHTML = '⛽ Escolha o combustível (gasolina ou diesel) para calcular o valor.'; return; }
@@ -3127,8 +3163,12 @@ EC.reembolso = (function () {
       return;
     }
     el.innerHTML = '⛽ ' + String(l).replace('.', ',') + ' L × ' + moedaBR(p) + '/L (referência da Logística) = <strong>' +
-      moedaBR(ogGeradorValor()) + '</strong>';
+      moedaBR(geradorValor(pref)) + '</strong>';
   }
+  function ogGeradorLitros() { return geradorLitros('og'); }
+  function ogGeradorComb() { return geradorComb('og'); }
+  function ogGeradorValor() { return geradorValor('og'); }
+  function ogPintarGerador() { pintarGerador('og'); }
 
   function ogTotal() {
     return Math.round((ogValMon('og-abastecimento') + ogValMon('og-pecas') + ogValMon('og-manutencao') +
@@ -3430,6 +3470,13 @@ EC.reembolso = (function () {
     // Campos monetários do reembolso de serviços: máscara R$ + recálculo.
     ['rb-veic-abastecimento', 'rb-veic-pecas', 'rb-veic-manutencao', 'rb-outros-valor']
       .forEach(function (id) { ligarMoeda(id, pintarValores); });
+    // Gerador ("Outros do Serviço"): litros e tipo recalculam a prévia e o total.
+    $('rb-gerador-litros').addEventListener('input', function () {
+      pintarGerador('rb'); pintarValores(); salvarRascunhoLogo();
+    });
+    document.querySelectorAll('input[name="rb-gerador-comb"]').forEach(function (r) {
+      r.addEventListener('change', function () { pintarGerador('rb'); pintarValores(); salvarRascunhoLogo(); });
+    });
     // Ajuste do valor calculado do +Complemento: rádios + valor proposto (máscara).
     document.querySelectorAll('input[name="rb-comp-dec"]').forEach(function (r) {
       r.addEventListener('change', function () { pintarValores(); salvarRascunhoLogo(); });
