@@ -50,6 +50,9 @@ EC.aprovacoes = (function () {
   };
   var ITENS_POR_TIPO = {
     viagem:      ['combustivel', 'aluguel', 'pedagio', 'hospedagem', 'mao_obra', 'almoco', 'jantar', 'lanche', 'outros'],
+    // Sem hospedagem: como a viagem, mais o combustível do gerador (e sem
+    // hospedagem, que é sempre zero neste tipo).
+    sem_hosp:    ['combustivel', 'aluguel', 'pedagio', 'mao_obra', 'almoco', 'jantar', 'lanche', 'gerador', 'outros'],
     evento:      ['mao_obra', 'outros'],
     veiculo:     ['combustivel', 'pecas', 'manutencao', 'gerador', 'pedagio', 'outros'],
     complemento: ['outros'],
@@ -428,6 +431,11 @@ EC.aprovacoes = (function () {
       ['🏨', 'Hospedagem', s.valor_hospedagem, 'hospedagem'],
       ['👷', 'Mão de obra', s.valor_mao_obra, 'mao_obra'],
       ['🍽️', 'Alimentação', alimentacao, 'alimentacao'],
+      ['🔌', 'Combustível para gerador' +
+        (Number(s.gerador_litros) > 0
+          ? ' (' + String(s.gerador_litros).replace('.', ',') + ' L' +
+            (s.gerador_combustivel ? ' de ' + esc(s.gerador_combustivel) : '') + ')'
+          : ''), s.valor_gerador, 'gerador'],
       ['💠', 'Outros gastos', s.valor_outros, 'outros']
     ];
     var valoresHtml = linhas.filter(function (l) { return Number(l[2]) > 0 || ajPorItem[l[3]]; }).map(function (l) {

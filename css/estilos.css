@@ -1177,6 +1177,8 @@ textarea { resize: vertical; font-family: inherit; }
 .rb-radios { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
 .rb-sub { font-weight: 600; font-size: 0.92rem; margin: 8px 0 6px; }
 #rb-dist-status { margin: 8px 0 16px; }
+/* "N dias de ida e volta: ..." — respira em relação aos campos acima. */
+#rb-dia-periodo { margin: 10px 0 4px; }
 .rb-resumo-auto {
   background: var(--azul-claro);
   border: 1px solid var(--cinza-borda);

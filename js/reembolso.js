@@ -51,7 +51,7 @@ EC.reembolso = (function () {
   // Explicação de cada tipo de reembolso (mostrada em destaque ao escolher).
   var TIPO_DESC = {
     viagem: '🧳 Viagem: opção para solicitar a previsão de despesas de viagens destinadas à execução de serviços de monitoramento.',
-    sem_hosp: '🏠 Serviço sem hospedagem: opção para o serviço em que o técnico volta para casa todo dia, mesmo durando mais de um dia. Informe a data de início e quantos dias foram de ida e volta — a quilometragem conta uma vez por dia (mais 5 km entre os pontos). Almoço e diária só para freelancer; jantar por dia em que chegou às 23h ou depois; lanche por dia, só se a ida e volta passar de 200 km.',
+    sem_hosp: '🏠 Serviço sem hospedagem: opção para o serviço em que o técnico volta para casa todo dia, mesmo durando mais de um dia. A quilometragem conta uma vez por dia (mais 5 km entre os pontos). Almoço e diária só para freelancer; jantar por dia em que chegou às 23h ou depois; lanche por dia, só se a ida e volta passar de 200 km.',
     complemento: '➕ Complemento: opção para solicitar um valor complementar referente a despesas não previstas na solicitação inicial da viagem.',
     evento: '🔊 Eventos: opção para solicitar o pagamento do valor acordado para a realização de monitoramentos em eventos, como shows, partidas esportivas, feiras, entre outros.',
     veiculo: '📦 Outros do Serviço: opção para solicitar o reembolso ou pagamento de despesas do serviço não cobertas pelos outros tipos, como abastecimento, peças, manutenção, pedágios e outros custos associados.'
@@ -1057,8 +1057,10 @@ EC.reembolso = (function () {
     $('rb-viagem-datas').classList.toggle('oculto', ehSemHosp());
     if (ehSemHosp()) {
       sincronizarDataDia();
-      $('rb-viagem-fonte').textContent = '📅 Sem hospedagem: informe o dia em que o serviço começou e quantos dias você foi e voltou para casa.';
+      // Sem texto de apoio aqui: os dois campos já dizem o que preencher.
+      $('rb-viagem-fonte').textContent = '';
     }
+    $('rb-viagem-fonte').classList.toggle('oculto', ehSemHosp());
     $('rb-sec-transporte').classList.toggle('oculto', !mostraViagem);
     $('rb-sec-valores').classList.toggle('oculto', !mostraViagem);
     $('rb-pct-viagem').classList.toggle('oculto', !mostraViagem);
@@ -1077,6 +1079,8 @@ EC.reembolso = (function () {
     if ($('rb-enviar')) $('rb-enviar').classList.toggle('oculto', travarViagem);
     $('rb-evento-bloco').classList.toggle('oculto', !ehEvento);
     $('rb-veic-bloco').classList.toggle('oculto', !ehVeic);
+    // Combustível para gerador: "Outros do Serviço" e "Serviço sem hospedagem".
+    $('rb-gerador-bloco').classList.toggle('oculto', !((ehVeic || ehSemHosp()) && !travarViagem));
     $('rb-complemento-bloco').classList.toggle('oculto', !ehComp);
     // Quando a viagem está travada, NÃO mostra mais nada abaixo do aviso.
     $('rb-pedagio-bloco').classList.toggle('oculto', !((ehViagem || ehVeic) && !travarViagem));
@@ -1342,7 +1346,10 @@ EC.reembolso = (function () {
     });
 
     var outrosViagem = outrosVal();
-    var totalFinal = Math.round((totalComAjustes(calc) + outrosViagem) * 100) / 100;
+    // Sem hospedagem também aceita combustível de gerador (soma fora dos itens
+    // ajustáveis, igual aos outros gastos).
+    var geradorViagem = ehSemHosp() ? geradorValor('rb') : 0;
+    var totalFinal = Math.round((totalComAjustes(calc) + outrosViagem + geradorViagem) * 100) / 100;
     // Resumo (pequeno) dos componentes que somam o total — inclui pedágio.
     var comps = [];
     ITENS.forEach(function (it) {
@@ -1351,6 +1358,7 @@ EC.reembolso = (function () {
       if (val > 0) comps.push(it.rotulo + ': ' + moedaBR(val));
     });
     if (calc.pedagio > 0) comps.push('🛣️ Pedágio: ' + moedaBR(calc.pedagio));
+    if (geradorViagem > 0) comps.push('🔌 Combustível para gerador: ' + moedaBR(geradorViagem));
     if (outrosViagem > 0) comps.push('💠 Outros gastos: ' + moedaBR(outrosViagem));
     $('rb-total').innerHTML = 'Valor total da logística: <strong>' + moedaBR(totalFinal) + '</strong>' +
       '<span class="rb-total-sub">' + comps.join('<br>') +
@@ -1990,7 +1998,7 @@ EC.reembolso = (function () {
     if (dispCampanha <= 0) return mostrarErro('Este designado já teve 100% da logística desta campanha solicitado/pago — não é possível novo reembolso para ele.');
     if (pct > dispCampanha + 0.01) return mostrarErro('Você pode solicitar no máximo ' + dispCampanha + '% para este designado (o resto já foi solicitado/pago).');
     // Valor total ≥ R$ 2.500: teto de 70% por solicitação.
-    var totalViagem = Math.round(((calc ? totalComAjustes(calc) : 0) + outrosVal()) * 100) / 100;
+    var totalViagem = Math.round(((calc ? totalComAjustes(calc) : 0) + outrosVal() + (ehSemHosp() ? geradorValor('rb') : 0)) * 100) / 100;
     if (totalViagem >= 2500 && pct > 70.001) {
       return mostrarErro('O valor total (' + moedaBR(totalViagem) + ') é ≥ R$ 2.500 — o máximo por solicitação é 70%. Peça até 70% agora e o restante em outra solicitação.');
     }
@@ -2000,14 +2008,16 @@ EC.reembolso = (function () {
     // pessoa mudou de tipo no meio e deixou arquivos lá).
     var todosAnexos = [];
     Object.keys(anexos).forEach(function (bloco) {
-      var deViagem = ['combustivel', 'pedagio', 'outros'].indexOf(bloco) !== -1 || bloco.indexOf('ajuste_') === 0;
+      var blocosViagem = ['combustivel', 'pedagio', 'outros'];
+      if (ehSemHosp()) blocosViagem.push('gerador');
+      var deViagem = blocosViagem.indexOf(bloco) !== -1 || bloco.indexOf('ajuste_') === 0;
       if (!deViagem) return;
       anexos[bloco].obter().forEach(function (a) {
         todosAnexos.push({ bloco: bloco, nomeArquivo: a.nomeArquivo, base64: a.base64, mime: a.mime });
       });
     });
 
-    var totalFinal = Math.round(((calc ? totalComAjustes(calc) : 0) + outrosVal()) * 100) / 100;
+    var totalFinal = Math.round(((calc ? totalComAjustes(calc) : 0) + outrosVal() + (ehSemHosp() ? geradorValor('rb') : 0)) * 100) / 100;
     var pedido = {
       codigo: 'LG_' + osSel.numero + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
       osId: osSel.osId,
@@ -2016,6 +2026,9 @@ EC.reembolso = (function () {
       tipo: ehSemHosp() ? TIPO_SEM_HOSP : 'viagem',
       diasIdaVolta: ehSemHosp() ? diasIdaVoltaVal() : null,
       diasJantar: ehSemHosp() ? diasJantarVal() : null,
+      // Gerador (litros + tipo); o R$ é calculado no servidor.
+      geradorLitros: ehSemHosp() ? geradorLitros('rb') : null,
+      geradorCombustivel: ehSemHosp() ? geradorComb('rb') : null,
       valorOutros: outrosVal(),
       outrosJustificativa: $('rb-outros-just').value.trim() || null,
       campanha: campSel ? campSel.numero : null,
