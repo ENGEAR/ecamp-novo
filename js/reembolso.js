@@ -470,6 +470,24 @@ EC.reembolso = (function () {
   var distTimer = null;
   function agendarCalculo() { clearTimeout(distTimer); distTimer = setTimeout(calcularDistancia, 800); }
 
+  // Último trajeto calculado pelo mapa ({idaKm, totalKm}) — guardado para
+  // reescrever a frase quando o tipo do reembolso ou os dias mudarem.
+  var ultimoTrajeto = null;
+
+  /**
+   * Frase do trajeto. No "Serviço sem hospedagem" o número do mapa é a ida e
+   * volta de UM dia — dizer "no total" ali seria mentira, porque o total
+   * multiplica pelos dias (a conta aparece logo abaixo, em #rb-dist-total).
+   */
+  function pintarStatusDistancia() {
+    var status = $('rb-dist-status');
+    if (!status || !ultimoTrajeto) return;
+    var t = ultimoTrajeto;
+    status.textContent = ehSemHosp()
+      ? '✅ ' + t.totalKm + ' km de ida e volta POR DIA (ida ' + t.idaKm + ' + volta ' + t.idaKm + '), calculado pelo mapa.'
+      : '✅ ' + t.totalKm + ' km no total (ida ' + t.idaKm + ' + volta ' + t.idaKm + '), calculado pelo mapa.';
+  }
+
   async function calcularDistancia() {
     clearTimeout(distTimer); // cancela um debounce pendente (evita chamada dupla)
     if (!osSel) return;
@@ -481,6 +499,7 @@ EC.reembolso = (function () {
       return;
     }
     if (!navigator.onLine) {
+      ultimoTrajeto = null;
       status.textContent = '📴 Sem internet — digite a distância (ida e volta) manualmente.';
       inp.readOnly = false;
       return;
@@ -492,9 +511,11 @@ EC.reembolso = (function () {
         '&destino=' + encodeURIComponent(dc) + '&ufDestino=' + encodeURIComponent(du));
       inp.value = corpo.totalKm + ' km';
       inp.readOnly = true;
-      status.textContent = '✅ ' + corpo.totalKm + ' km no total (ida ' + corpo.idaKm + ' + volta ' + corpo.idaKm + '), calculado pelo mapa.';
+      ultimoTrajeto = { idaKm: corpo.idaKm, totalKm: corpo.totalKm };
+      pintarStatusDistancia();
       pintarValores();
     } catch (e) {
+      ultimoTrajeto = null;
       status.textContent = '⚠️ ' + e.message + '. Digite a distância (ida e volta) manualmente.';
       inp.value = '';
       inp.readOnly = false;
@@ -1524,8 +1545,22 @@ EC.reembolso = (function () {
   function pintarDistanciaTotal() {
     var bloco = $('rb-dias-desloc-bloco'), caixa = $('rb-dist-total'), rot = $('rb-distancia-rot');
     if (!bloco || !caixa || !rot) return;
+    // Carona: quem dirigiu foi outra pessoa — trajeto, distância e a conta da
+    // quilometragem não têm mais o que dizer, então saem da tela inteira. O
+    // campo de DIAS fica (ele conta a diária e os dias com jantar).
+    var carona = ehCarona();
+    var cidades = $('rb-dist-cidades');
+    if (cidades) cidades.classList.toggle('oculto', carona);
+    rot.classList.toggle('oculto', carona);
     var mostra = ehSemHosp() && !!veiculo();
     bloco.classList.toggle('oculto', !mostra);
+    // A dica e a frase do mapa mudam de sentido junto com o rótulo.
+    var hint = $('rb-distancia-hint');
+    if (hint && hint.textContent) {
+      hint.textContent = mostra ? '(de um dia, calculada pelo trajeto)' : '(calculada pelo trajeto)';
+    }
+    pintarStatusDistancia();
+    if (carona) { caixa.classList.add('oculto'); return; }
     // O rótulo muda de sentido: sem hospedagem, o campo é o trajeto de UM dia.
     rot.childNodes[0].nodeValue = mostra
       ? 'Distância de ida e volta entre as cidades, em um dia (km) '
