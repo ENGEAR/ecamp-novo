@@ -1550,13 +1550,12 @@ EC.reembolso = (function () {
   function pintarDistanciaTotal() {
     var bloco = $('rb-dias-desloc-bloco'), caixa = $('rb-dist-total'), rot = $('rb-distancia-rot');
     if (!bloco || !caixa || !rot) return;
-    // Carona: quem dirigiu foi outra pessoa — trajeto, distância e a conta da
-    // quilometragem não têm mais o que dizer, então saem da tela inteira. O
-    // campo de DIAS fica (ele conta a diária e os dias com jantar).
-    var carona = ehCarona();
+    // Na carona o trajeto e a distância FICAM: mesmo sem dirigir, a distância
+    // percorrida no dia decide o lanche (acima de 200 km). O que some é só o
+    // que fala de quem dirigiu — combustível e hodômetro (rb-comb-campos).
     var cidades = $('rb-dist-cidades');
-    if (cidades) cidades.classList.toggle('oculto', carona);
-    rot.classList.toggle('oculto', carona);
+    if (cidades) cidades.classList.remove('oculto');
+    rot.classList.remove('oculto');
     var mostra = ehSemHosp() && !!veiculo();
     bloco.classList.toggle('oculto', !mostra);
     // A dica e a frase do mapa mudam de sentido junto com o rótulo.
@@ -1565,7 +1564,6 @@ EC.reembolso = (function () {
       hint.textContent = mostra ? '(de um dia, calculada pelo trajeto)' : '(calculada pelo trajeto)';
     }
     pintarStatusDistancia();
-    if (carona) { caixa.classList.add('oculto'); return; }
     // O rótulo muda de sentido: sem hospedagem, o campo é o trajeto de UM dia.
     rot.childNodes[0].nodeValue = mostra
       ? 'Distância de ida e volta entre as cidades, em um dia (km) '
@@ -1586,7 +1584,7 @@ EC.reembolso = (function () {
     $('rb-comb-campos').classList.toggle('oculto', v === 'carona');
     var info = $('rb-aluguel-info');
     if (v === 'carona') {
-      info.textContent = '🤝 Fui de carona: sem pagamento de transporte (nem combustível, nem aluguel de veículo).';
+      info.textContent = '🤝 Fui de carona: sem pagamento de transporte (nem combustível, nem aluguel de veículo). Informe o trajeto mesmo assim — a distância do dia é o que decide o lanche.';
       info.classList.remove('oculto');
       pintarDistanciaTotal();
       pintarValores();
