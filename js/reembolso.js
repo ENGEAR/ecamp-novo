@@ -534,8 +534,8 @@ EC.reembolso = (function () {
    * "Serviço sem hospedagem" (espelho de calcularSemHospedagem em calculo.ts):
    * o técnico vai e volta para casa TODO dia, por N dias. Tudo que é por dia
    * multiplica por N; hospedagem é sempre 0; a diária é só do freelancer;
-   * almoço e lanche não são pagos a ninguém; o jantar é pago pelos dias em que
-   * chegou em casa às 23h ou depois.
+   * almoço não é pago a ninguém; o lanche só quando o deslocamento do dia passa
+   * de 200 km; o jantar, pelos dias em que chegou em casa às 23h ou depois.
    */
   function calcularSemHospedagem() {
     var v = ctx.valores;
@@ -554,8 +554,10 @@ EC.reembolso = (function () {
     var diariaExc = (tecSel && Number(tecSel.diaria) > 0) ? Number(tecSel.diaria) : 0;
     var maoObra = ehFreela ? r2((diariaExc || Number(v.diaria_freelancer)) * n) : 0;
 
-    // Sem hospedagem não paga almoço nem lanche — nem para o freelancer.
-    var almoco = 0, lanche = 0;
+    // Sem hospedagem não paga almoço para ninguém. O lanche volta a existir
+    // quando o deslocamento do DIA (ida e volta) passa de 200 km — um por dia.
+    var almoco = 0;
+    var lanche = kmDoDia > 200 ? r2(Number(v.lanche) * n) : 0;
     var jantar = r2(Number(v.jantar) * diasJantarVal());
 
     var pedagio = r2(lerMoeda('rb-pedagio'));
@@ -1347,11 +1349,14 @@ EC.reembolso = (function () {
           (dExcSH ? ' (diária própria do ' + tecSel.nome + ')' : '')
         : 'CLT não recebe diária sem hospedagem (dorme em casa todo dia)';
       sub.alimentacao =
-        'Almoço: não incluído (sem hospedagem não paga almoço)<br>' +
+        'Almoço não incluso<br>' +
         'Jantar: ' + (diasJantarVal() > 0
           ? moedaBR(v.jantar) + ' × ' + diasJantarVal() + ' dia(s) com chegada a partir das 23h = ' + moedaBR(calc.jantar)
           : 'não incluído (nenhum dia com chegada a partir das 23h)') + '<br>' +
-        'Lanche: não incluído (sem hospedagem não paga lanche)';
+        'Lanche: ' + (calc.lanche > 0
+          ? moedaBR(v.lanche) + '/dia × ' + n + ' dia(s) = ' + moedaBR(calc.lanche) +
+            ' (deslocamento diário acima de 200 km)'
+          : 'não incluído (só paga lanche para deslocamentos diários acima de 200 km)');
     }
 
     // Valor final de cada item = o proposto no ajuste (se pediu) OU o calculado.

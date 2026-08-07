@@ -508,12 +508,6 @@
                 <input type="time" id="rb-chegada-casa">
               </label>
             </div>
-            <!-- Sem hospedagem: o jantar é pago por dia em que chegou tarde. -->
-            <div id="rb-jantar-bloco" class="oculto">
-              <label>Em quantos dias você chegou em casa às 23h ou depois?
-                <input type="number" id="rb-dia-jantar" min="0" step="1" inputmode="numeric" value="0" placeholder="0">
-              </label>
-            </div>
             <div id="rb-auto" class="rb-resumo-auto oculto"></div>
           </div>
 
@@ -544,6 +538,12 @@
                  dias ele foi e voltou, e a conta da distância total. -->
             <div id="rb-dias-desloc-bloco" class="oculto">
               <label>Dias de deslocamento (ida e volta)<input type="number" id="rb-dia-dias" min="1" step="1" inputmode="numeric" value="1" placeholder="1"></label>
+            </div>
+            <!-- Logo abaixo dos dias de deslocamento: as duas perguntas são
+                 contagens de dias e andam juntas. O jantar é pago por dia em
+                 que a chegada em casa foi às 23h ou depois. -->
+            <div id="rb-jantar-bloco" class="oculto">
+              <label>Em quantos dias você chegou em casa às 23h ou depois?<input type="number" id="rb-dia-jantar" min="0" step="1" inputmode="numeric" value="0" placeholder="0"></label>
             </div>
             <div id="rb-dist-total" class="alerta alerta-info oculto"></div>
             <!-- Combustível e hodômetro: só quando o carro é da ENGEAR ou do
