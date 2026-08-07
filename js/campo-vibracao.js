@@ -398,6 +398,12 @@ EC.campoVibracao = (function () {
       '</select></label>';
   }
 
+
+  // Contato do dono da casa deste ponto (preenchido pelo laboratório nos Dados
+  // gerais). Vem vazio quando não há nada informado para o ponto.
+  function contatoDoPonto(n) {
+    return (EC.fluxo && EC.fluxo.contatoPontoHtml) ? EC.fluxo.contatoPontoHtml(ctx && ctx.estado, n) : '';
+  }
   function renderizarPonto(n) {
     const area = $('#cv-ponto');
     const ponto = campo().pontos[n - 1];
@@ -421,7 +427,7 @@ EC.campoVibracao = (function () {
     const fonte = cfgFonte(ctx.estado);
     const tresMedicoes = !!(fonte && fonte.medicoes === 3);
     const html =
-      '<div class="cartao-ponto"><h2>Ponto P' + n + '</h2>' + abasPeriodo +
+      '<div class="cartao-ponto"><h2>Ponto P' + n + '</h2>' + contatoDoPonto(n) + abasPeriodo +
       (tresMedicoes ? '<p class="texto-apoio">⚠️ Esta fonte exige <strong>3 medições</strong> neste ponto: preencha a 1ª medição completa abaixo — a 2ª e a 3ª estão no fim da página.</p><p class="grupo-checks-titulo">1ª medição</p>' : '') +
       // 1. Identificação
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +

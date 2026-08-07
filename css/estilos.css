@@ -652,6 +652,21 @@ textarea { resize: vertical; font-family: inherit; }
    deixava o seguinte parecendo descolado do conjunto. */
 .checagem-bloco .linha-check { margin-bottom: 8px; }
 .checagem-resultado { font-size: 0.95rem; min-height: 1.2em; }
+
+/* Contato do dono da casa do ponto (Dados gerais → telas de campo). Fica no
+   topo do ponto para o técnico saber em que porta bater antes de montar. */
+.contato-ponto {
+  background: var(--azul-claro);
+  border: 1px solid var(--cinza-borda);
+  border-left: 4px solid var(--azul-escuro);
+  border-radius: 10px;
+  padding: 9px 12px;
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.contato-ponto strong { display: block; color: var(--azul-escuro); margin-bottom: 4px; }
+.contato-ponto a { color: var(--azul-escuro); font-weight: 600; }
 /* Checagem OPCIONAL (meio da série, ou qualquer ponto da Residual): recolhida,
    para o técnico não preencher por inércia. Os campos continuam a um toque. */
 .checagem-opcional {

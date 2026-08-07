@@ -169,7 +169,10 @@ EC.fluxo = (function () {
         horaInicio: doisDigitos(agora.getHours()) + ':' + doisDigitos(agora.getMinutes()),
         qtdePontos: servico.qtdePontos,
         qtdePontosOS: servico.qtdePontos, // valor previsto na OS (fixo, p/ comparar)
-        justificativaPontos: ''
+        justificativaPontos: '',
+        // Contato do dono da casa de cada ponto (o laboratório preenche antes
+        // de ir a campo). Índice 0 = Ponto 1.
+        contatosPontos: []
       },
       tipo: null,
       equipamentos: [],
@@ -790,6 +793,76 @@ EC.fluxo = (function () {
   function dgSecao(t) { return '<p class="dg-secao">' + escDg(t) + '</p>'; }
   function juntar(arr, sep) { return (arr || []).filter(Boolean).join(sep || ', '); }
 
+  /* ---------- Contato dos proprietários das casas (um por ponto) ---------- */
+
+  function contatoDoPonto(i) {
+    var lista = estado.dadosGerais.contatosPontos || [];
+    var c = lista[i] || {};
+    return { nome: c.nome || '', telefone: c.telefone || '', endereco: c.endereco || '', observacao: c.observacao || '' };
+  }
+
+  // Monta um bloco por ponto. Reduzir o nº de pontos NÃO apaga o que já foi
+  // digitado: os blocos somem da tela, mas o texto continua guardado e volta
+  // se o número subir de novo.
+  function pintarContatosPontos() {
+    var alvo = $('dg-contatos');
+    if (!alvo) return;
+    var n = Math.max(0, parseInt(estado.dadosGerais.qtdePontos, 10) || 0);
+    var html = '';
+    for (var i = 0; i < n; i++) {
+      var c = contatoDoPonto(i);
+      html +=
+        '<fieldset class="checagem-bloco"><legend>Ponto ' + (i + 1) + '</legend>' +
+        '<label>Nome<input type="text" id="dg-ct-nome-' + i + '" autocomplete="off" placeholder="Quem mora ou responde pela casa" value="' + escDg(c.nome) + '"></label>' +
+        '<label>Telefone<input type="tel" id="dg-ct-tel-' + i + '" inputmode="tel" autocomplete="off" placeholder="(00) 00000-0000" value="' + escDg(c.telefone) + '"></label>' +
+        '<label>Endereço<input type="text" id="dg-ct-end-' + i + '" autocomplete="off" placeholder="Rua, número, bairro" value="' + escDg(c.endereco) + '"></label>' +
+        '<label>Observação<textarea id="dg-ct-obs-' + i + '" rows="2" placeholder="Ex.: só atende de manhã; cachorro solto no quintal"></textarea></label>' +
+        '</fieldset>';
+    }
+    alvo.innerHTML = html || '<p class="texto-apoio">Informe o nº de pontos acima para preencher os contatos.</p>';
+    for (var j = 0; j < n; j++) ligarContatoDoPonto(j);
+  }
+
+  function ligarContatoDoPonto(i) {
+    var campos = { nome: 'dg-ct-nome-', telefone: 'dg-ct-tel-', endereco: 'dg-ct-end-', observacao: 'dg-ct-obs-' };
+    // O textarea recebe o valor por .value (não cabe em atributo do HTML).
+    var obs = $(campos.observacao + i);
+    if (obs) obs.value = contatoDoPonto(i).observacao;
+    Object.keys(campos).forEach(function (chave) {
+      var el = $(campos[chave] + i);
+      if (!el) return;
+      el.addEventListener('input', function () {
+        var lista = estado.dadosGerais.contatosPontos || (estado.dadosGerais.contatosPontos = []);
+        while (lista.length <= i) lista.push({ nome: '', telefone: '', endereco: '', observacao: '' });
+        lista[i][chave] = el.value;
+        salvarEstado();
+      });
+    });
+  }
+
+  /**
+   * Cartão do contato do dono da casa do ponto N (1 = Ponto 1), para as telas de
+   * CAMPO: o técnico chega na porta certa, sabe com quem falar e liga direto
+   * (o telefone vira link). Devolve '' quando o laboratório não preencheu nada
+   * para esse ponto — assim a tela não ganha uma caixa vazia.
+   */
+  function contatoPontoHtml(est, n) {
+    var lista = (est && est.dadosGerais && est.dadosGerais.contatosPontos) || [];
+    var c = lista[(parseInt(n, 10) || 0) - 1];
+    if (!c) return '';
+    var nome = String(c.nome || '').trim(), tel = String(c.telefone || '').trim();
+    var end = String(c.endereco || '').trim(), obs = String(c.observacao || '').trim();
+    if (!nome && !tel && !end && !obs) return '';
+    var linhas = '';
+    if (nome) linhas += '<div>👤 ' + escDg(nome) + '</div>';
+    if (tel) {
+      linhas += '<div>📞 <a href="tel:' + escDg(tel.replace(/[^\d+]/g, '')) + '">' + escDg(tel) + '</a></div>';
+    }
+    if (end) linhas += '<div>📍 ' + escDg(end) + '</div>';
+    if (obs) linhas += '<div>📝 ' + escDg(obs) + '</div>';
+    return '<div class="contato-ponto"><strong>🏠 Contato do proprietário</strong>' + linhas + '</div>';
+  }
+
   function preencherDadosGerais() {
     const o = estado.os;
     const dg = estado.dadosGerais;
@@ -840,6 +913,10 @@ EC.fluxo = (function () {
       dgCampo('Método', servicoDetalhe('metodo')) +
       dgCampo('Observação do escopo', servicoDetalhe('observacao')) +
 
+      dgSecao('Contato dos proprietários das casas (se aplicável)') +
+      '<p class="texto-apoio">Um bloco por ponto, conforme o nº de pontos acima. Deixe em branco quando o ponto não for em casa de terceiros.</p>' +
+      '<div id="dg-contatos"></div>' +
+
       '<div id="dg-metodologia"></div>' +
       '<div id="dg-campanhas"></div>' +
 
@@ -857,6 +934,7 @@ EC.fluxo = (function () {
     $('dg-pontos').oninput = function () {
       estado.dadosGerais.qtdePontos = parseInt($('dg-pontos').value, 10) || estado.dadosGerais.qtdePontos;
       atualizarJustificativaPontos();
+      pintarContatosPontos(); // um bloco de contato por ponto
       salvarEstado();
     };
     $('dg-justificativa').oninput = function () {
@@ -869,6 +947,7 @@ EC.fluxo = (function () {
       salvarEstado();
     };
     atualizarJustificativaPontos();
+    pintarContatosPontos();
 
     // Detalhes completos da OS (descrição, campanhas, metodologia, origem/destino,
     // local) — do jsonb ordens_servico.detalhes, lido pela sessão (app-only).
@@ -987,6 +1066,20 @@ EC.fluxo = (function () {
     estado.dadosGerais.qtdePontos = parseInt($('dg-pontos').value, 10) || estado.dadosGerais.qtdePontos;
     estado.dadosGerais.justificativaPontos = $('dg-justificativa').value.trim();
     estado.os.linkMaps = $('dg-maps').value.trim();
+    // Contatos por ponto: recolhe o que estiver na tela (cobre sair sem disparar
+    // o input do último campo digitado).
+    var n = Math.max(0, parseInt(estado.dadosGerais.qtdePontos, 10) || 0);
+    var lista = estado.dadosGerais.contatosPontos || (estado.dadosGerais.contatosPontos = []);
+    for (var i = 0; i < n; i++) {
+      if (!$('dg-ct-nome-' + i)) continue;
+      while (lista.length <= i) lista.push({ nome: '', telefone: '', endereco: '', observacao: '' });
+      lista[i] = {
+        nome: $('dg-ct-nome-' + i).value.trim(),
+        telefone: $('dg-ct-tel-' + i).value.trim(),
+        endereco: $('dg-ct-end-' + i).value.trim(),
+        observacao: $('dg-ct-obs-' + i).value.trim()
+      };
+    }
   }
 
   /* ---------- Tipo de monitoramento ---------- */
@@ -2241,6 +2334,8 @@ EC.fluxo = (function () {
   return {
     iniciar: iniciar,
     continuarRascunho: continuarRascunho,
+    // Contato do dono da casa de um ponto (as telas de campo mostram no topo).
+    contatoPontoHtml: contatoPontoHtml,
     // Preparo de laboratório (bastão lab → campo)
     verificarPreparos: verificarPreparos,
     obterPreparosParaSino: obterPreparosParaSino,

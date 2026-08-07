@@ -1646,6 +1646,7 @@ EC.campoRuido = (function () {
 
     area.innerHTML =
       '<div class="cartao-ponto"><h2>Ponto P' + n + '</h2>' +
+      contatoDoPonto(n) +
       '<p class="grupo-checks-titulo">Equipamentos utilizados</p><div id="cr-equip-ponto"></div>' +
       (periodos.length > 1 ? '<p class="grupo-checks-titulo">Período</p>' : '') + abasPeriodo +
       '<p class="texto-apoio">Duas medições por ponto: <strong>Total</strong> (com a fonte) e <strong>Residual</strong> (sem a fonte). Comece pela que quiser; o Residual é opcional se você justificar.</p>' +
@@ -1975,6 +1976,12 @@ EC.campoRuido = (function () {
     });
   }
 
+
+  // Contato do dono da casa deste ponto (preenchido pelo laboratório nos Dados
+  // gerais). Vem vazio quando não há nada informado para o ponto.
+  function contatoDoPonto(n) {
+    return (EC.fluxo && EC.fluxo.contatoPontoHtml) ? EC.fluxo.contatoPontoHtml(ctx && ctx.estado, n) : '';
+  }
   function renderizarPonto(n) {
     const ponto = listaPontos()[n - 1];
     if (!ponto) { $('#cr-ponto').innerHTML = ''; return; }

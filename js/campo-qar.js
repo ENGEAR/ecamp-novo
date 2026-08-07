@@ -332,6 +332,12 @@ EC.campoQar = (function () {
     vincular(card.querySelector('.cartao-coleta'), ponto.coletas[k]);
   }
 
+
+  // Contato do dono da casa deste ponto (preenchido pelo laboratório nos Dados
+  // gerais). Vem vazio quando não há nada informado para o ponto.
+  function contatoDoPonto(n) {
+    return (EC.fluxo && EC.fluxo.contatoPontoHtml) ? EC.fluxo.contatoPontoHtml(ctx && ctx.estado, n) : '';
+  }
   function renderizarPonto(n) {
     const area = $('#cq-ponto');
     const ponto = campo().pontos[n - 1];
@@ -339,6 +345,7 @@ EC.campoQar = (function () {
 
     const html =
       '<div class="cartao-ponto"><h2>Ponto P' + n + '</h2>' +
+      contatoDoPonto(n) +
       // Identificação
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
       '<label>Característica do ambiente<input type="text" placeholder="ex.: fluxo intenso de veículos, próximo estrada não pavimentada" data-campo="caracteristicaAmbiente"></label>' +

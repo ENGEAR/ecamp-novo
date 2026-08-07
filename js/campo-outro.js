@@ -79,6 +79,12 @@ EC.campoOutro = (function () {
     renderizarPonto(pontoExibido);
   }
 
+
+  // Contato do dono da casa deste ponto (preenchido pelo laboratório nos Dados
+  // gerais). Vem vazio quando não há nada informado para o ponto.
+  function contatoDoPonto(n) {
+    return (EC.fluxo && EC.fluxo.contatoPontoHtml) ? EC.fluxo.contatoPontoHtml(ctx && ctx.estado, n) : '';
+  }
   function renderizarPonto(n) {
     const area = $('#ou-ponto');
     const ponto = campo().pontos[n - 1];
@@ -86,6 +92,7 @@ EC.campoOutro = (function () {
 
     area.innerHTML =
       '<div class="cartao-ponto"><h2>Ponto P' + n + '</h2>' +
+      contatoDoPonto(n) +
       '<label>Nome / identificação do ponto<input type="text" data-campo="nome"></label>' +
       '<div class="ou-gps"></div>' +
       '<label>Hora inicial<input type="time" data-campo="horaInicial"></label>' +
