@@ -51,7 +51,7 @@ EC.reembolso = (function () {
   // Explicação de cada tipo de reembolso (mostrada em destaque ao escolher).
   var TIPO_DESC = {
     viagem: '🧳 Viagem: opção para solicitar a previsão de despesas de viagens destinadas à execução de serviços de monitoramento.',
-    sem_hosp: '🏠 Serviço sem hospedagem: opção para o serviço em que o técnico volta para casa todo dia, mesmo durando mais de um dia. A quilometragem conta uma vez por dia (mais 5 km entre os pontos). Almoço e diária só para freelancer; jantar por dia em que chegou às 23h ou depois; lanche por dia, só se a ida e volta passar de 200 km.',
+    sem_hosp: '🏠 Serviço sem hospedagem: opção para o serviço em que o técnico volta para casa todo dia, mesmo durando mais de um dia.',
     complemento: '➕ Complemento: opção para solicitar um valor complementar referente a despesas não previstas na solicitação inicial da viagem.',
     evento: '🔊 Eventos: opção para solicitar o pagamento do valor acordado para a realização de monitoramentos em eventos, como shows, partidas esportivas, feiras, entre outros.',
     veiculo: '📦 Outros do Serviço: opção para solicitar o reembolso ou pagamento de despesas do serviço não cobertas pelos outros tipos, como abastecimento, peças, manutenção, pedágios e outros custos associados.'
