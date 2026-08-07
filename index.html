@@ -485,10 +485,7 @@
             <!-- Serviço sem hospedagem: o técnico volta para casa todo dia.
                  Uma data de início + quantos dias de ida e volta. -->
             <div id="rb-dia-linha" class="oculto">
-              <div class="grade-2">
-                <label>Data de início do serviço<input type="date" id="rb-dia-data"></label>
-                <label>Dias de deslocamento (ida e volta)<input type="number" id="rb-dia-dias" min="1" step="1" inputmode="numeric" value="1" placeholder="1"></label>
-              </div>
+              <label>Data de início do serviço<input type="date" id="rb-dia-data"></label>
               <div id="rb-dia-periodo" class="texto-apoio"></div>
             </div>
             <div id="rb-viagem-datas">
@@ -522,10 +519,11 @@
 
           <div id="rb-sec-transporte">
           <p class="dg-secao">Transporte</p>
-          <p class="rb-pergunta">O veículo utilizado é da ENGEAR ou do colaborador?</p>
+          <p class="rb-pergunta">Como foi o transporte?</p>
           <div class="rb-radios">
-            <label class="linha-check"><input type="radio" name="rb-veiculo" value="engear"><span>🚐 ENGEAR</span></label>
+            <label class="linha-check"><input type="radio" name="rb-veiculo" value="engear"><span>🚐 Veículo da ENGEAR</span></label>
             <label class="linha-check"><input type="radio" name="rb-veiculo" value="proprio"><span>🚗 Meu veículo</span></label>
+            <label class="linha-check"><input type="radio" name="rb-veiculo" value="carona"><span>🤝 Fui de carona</span></label>
           </div>
           <div id="rb-transporte-campos" class="oculto">
             <div id="rb-aluguel-info" class="alerta alerta-info oculto"></div>
@@ -541,24 +539,34 @@
               </div>
               <div id="rb-dist-status" class="texto-apoio"></div>
             </div>
-            <label>Distância total percorrida — ida e volta (km) <span class="rotulo-apoio" id="rb-distancia-hint"></span><input type="text" id="rb-distancia" inputmode="decimal" placeholder="km"></label>
-            <div class="grade-2">
-              <label>Tipo de combustível
-                <select id="rb-combustivel">
-                  <option value="">Selecione…</option>
-                  <option value="gasolina">Gasolina</option>
-                  <option value="diesel">Diesel</option>
-                </select>
-              </label>
-              <label>Preço por litro<input type="text" id="rb-preco-litro" inputmode="numeric" class="rb-moeda" placeholder="R$ 0,00"></label>
+            <label id="rb-distancia-rot">Distância total percorrida — ida e volta (km) <span class="rotulo-apoio" id="rb-distancia-hint"></span><input type="text" id="rb-distancia" inputmode="decimal" placeholder="km"></label>
+            <!-- Sem hospedagem: o trajeto acima é de UM dia; aqui entra quantos
+                 dias ele foi e voltou, e a conta da distância total. -->
+            <div id="rb-dias-desloc-bloco" class="oculto">
+              <label>Dias de deslocamento (ida e volta)<input type="number" id="rb-dia-dias" min="1" step="1" inputmode="numeric" value="1" placeholder="1"></label>
             </div>
-            <div id="rb-teto-alerta" class="alerta alerta-vermelho oculto"></div>
-            <div id="rb-teto-just" class="oculto">
-              <label>Justificativa do preço acima do teto<textarea id="rb-comb-justificativa" rows="2" placeholder="Explique por que o preço por litro ficou acima do teto"></textarea></label>
+            <div id="rb-dist-total" class="alerta alerta-info oculto"></div>
+            <!-- Combustível e hodômetro: só quando o carro é da ENGEAR ou do
+                 colaborador. Na carona quem dirigiu foi outra pessoa. -->
+            <div id="rb-comb-campos">
+              <div class="grade-2">
+                <label>Tipo de combustível
+                  <select id="rb-combustivel">
+                    <option value="">Selecione…</option>
+                    <option value="gasolina">Gasolina</option>
+                    <option value="diesel">Diesel</option>
+                  </select>
+                </label>
+                <label>Preço por litro<input type="text" id="rb-preco-litro" inputmode="numeric" class="rb-moeda" placeholder="R$ 0,00"></label>
+              </div>
+              <div id="rb-teto-alerta" class="alerta alerta-vermelho oculto"></div>
+              <div id="rb-teto-just" class="oculto">
+                <label>Justificativa do preço acima do teto<textarea id="rb-comb-justificativa" rows="2" placeholder="Explique por que o preço por litro ficou acima do teto"></textarea></label>
+              </div>
+              <label style="display:block;margin-top:16px;">Quilometragem atual do carro <span class="rotulo-apoio">(obrigatório o envio da foto)</span><input type="number" id="rb-km-atual" min="0" step="1" inputmode="numeric" placeholder="km no hodômetro"></label>
+              <p class="rb-sub">Evidência da quilometragem do carro <span class="rotulo-apoio">(obrigatório)</span></p>
+              <div id="rb-anexos-combustivel"></div>
             </div>
-            <label style="display:block;margin-top:16px;">Quilometragem atual do carro <span class="rotulo-apoio">(obrigatório o envio da foto)</span><input type="number" id="rb-km-atual" min="0" step="1" inputmode="numeric" placeholder="km no hodômetro"></label>
-            <p class="rb-sub">Evidência da quilometragem do carro <span class="rotulo-apoio">(obrigatório)</span></p>
-            <div id="rb-anexos-combustivel"></div>
           </div>
           </div>
 

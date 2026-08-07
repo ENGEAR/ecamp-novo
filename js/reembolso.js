@@ -512,8 +512,9 @@ EC.reembolso = (function () {
   /**
    * "Serviço sem hospedagem" (espelho de calcularSemHospedagem em calculo.ts):
    * o técnico vai e volta para casa TODO dia, por N dias. Tudo que é por dia
-   * multiplica por N; hospedagem é sempre 0; mão de obra e almoço só para
-   * freelancer; o jantar é pago pelos dias em que chegou às 23h ou depois.
+   * multiplica por N; hospedagem é sempre 0; a diária é só do freelancer;
+   * almoço e lanche não são pagos a ninguém; o jantar é pago pelos dias em que
+   * chegou em casa às 23h ou depois.
    */
   function calcularSemHospedagem() {
     var v = ctx.valores;
@@ -525,15 +526,16 @@ EC.reembolso = (function () {
     var kmDoDia = distanciaAtual();
 
     var distComb = (kmDoDia + 5) * n;
-    var combustivel = (preco > 0 && distComb > 0 && consumo > 0) ? r2((distComb / consumo) * preco) : 0;
+    // Carona: sem combustível e sem aluguel (outra pessoa dirigiu).
+    var combustivel = (!ehCarona() && preco > 0 && distComb > 0 && consumo > 0) ? r2((distComb / consumo) * preco) : 0;
     var aluguel = veiculo() === 'proprio' ? r2(aluguelDia() * n) : 0;
 
     var diariaExc = (tecSel && Number(tecSel.diaria) > 0) ? Number(tecSel.diaria) : 0;
     var maoObra = ehFreela ? r2((diariaExc || Number(v.diaria_freelancer)) * n) : 0;
 
-    var almoco = ehFreela ? r2(Number(v.almoco) * n) : 0;
+    // Sem hospedagem não paga almoço nem lanche — nem para o freelancer.
+    var almoco = 0, lanche = 0;
     var jantar = r2(Number(v.jantar) * diasJantarVal());
-    var lanche = kmDoDia > 200 ? r2(Number(v.lanche) * n) : 0;
 
     var pedagio = r2(lerMoeda('rb-pedagio'));
     var alimentacao = r2(almoco + jantar + lanche);
@@ -562,8 +564,9 @@ EC.reembolso = (function () {
     var r2 = function (x) { return Math.round(x * 100) / 100; };
 
     // Combustível: (ida+volta + 5 km/dia PURO de serviço) ÷ consumo × preço/L.
+    // Carona: quem dirigiu foi outra pessoa — não há transporte a pagar.
     var distComb = dist + 5 * servicoPuro;
-    var combustivel = (preco > 0 && distComb > 0 && consumo > 0) ? r2((distComb / consumo) * preco) : 0;
+    var combustivel = (!ehCarona() && preco > 0 && distComb > 0 && consumo > 0) ? r2((distComb / consumo) * preco) : 0;
     // Aluguel: R$/dia do combustível do carro (diesel ≠ gasolina) × dias de viagem.
     var aluguel = veiculo() === 'proprio' ? r2(aluguelDia() * diasViagem) : 0;
     // Hospedagem: R$/diária × noites fora (chegada − saída). Mesmo dia → 0.
@@ -1245,6 +1248,7 @@ EC.reembolso = (function () {
     var blocoCheg = $('rb-chegada-bloco');
     if (blocoCheg) blocoCheg.classList.toggle('oculto', ehSemHosp() || !casoDiaUnico());
     if ($('rb-jantar-bloco')) $('rb-jantar-bloco').classList.toggle('oculto', !ehSemHosp());
+    pintarDistanciaTotal();
 
     var calc = calcular();
     var pronto = !!calc;
@@ -1282,7 +1286,9 @@ EC.reembolso = (function () {
         'Jantar: ' + moedaBR(v.jantar) + '/dia × ' + nRef + ' dia(s) = ' + moedaBR(calc.jantar) + '<br>' +
         'Lanche: ' + moedaBR(v.lanche) + '/dia × ' + dDesloc + ' dia(s) de deslocamento = ' + moedaBR(calc.lanche);
     var sub = {
-      transporte: (distTot > 0
+      transporte: (ehCarona()
+        ? 'Foi de carona: sem pagamento de transporte.'
+        : distTot > 0
         ? distTot + ' km (' + distanciaAtual() + ' ida+volta + ' + kmExtra + ' km entre pontos: 5 km × ' + dPuro + ' dia(s) de serviço) ÷ ' +
           consumoAtual() + ' km/L (' + ($('rb-combustivel').value === 'diesel' ? 'diesel' : 'gasolina') + ') × preço do litro'
         : 'informe a distância e o preço do litro'),
@@ -1306,10 +1312,12 @@ EC.reembolso = (function () {
     if (ehSemHosp()) {
       var n = diasIdaVoltaVal(), km = distanciaAtual();
       var dExcSH = (tecSel && Number(tecSel.diaria) > 0) ? Number(tecSel.diaria) : 0;
-      sub.transporte = km > 0
-        ? '(' + km + ' km ida+volta + 5 km entre pontos) × ' + n + ' dia(s) = ' + ((km + 5) * n) +
-          ' km ÷ ' + consumoAtual() + ' km/L (' + ($('rb-combustivel').value === 'diesel' ? 'diesel' : 'gasolina') + ') × preço do litro'
-        : 'informe a distância e o preço do litro';
+      sub.transporte = ehCarona()
+        ? 'Foi de carona: sem pagamento de transporte.'
+        : (km > 0
+          ? '(' + km + ' km ida+volta + 5 km entre pontos) × ' + n + ' dia(s) = ' + ((km + 5) * n) +
+            ' km ÷ ' + consumoAtual() + ' km/L (' + ($('rb-combustivel').value === 'diesel' ? 'diesel' : 'gasolina') + ') × preço do litro'
+          : 'informe a distância e o preço do litro');
       sub.aluguel = moedaBR(aluguelDia()) + '/dia × ' + n + ' dia(s) de ida e volta' +
         ($('rb-combustivel').value ? ' (carro a ' + $('rb-combustivel').value + ')' : '');
       sub.hospedagem = 'Sem hospedagem: o técnico volta para casa todo dia.';
@@ -1318,15 +1326,11 @@ EC.reembolso = (function () {
           (dExcSH ? ' (diária própria do ' + tecSel.nome + ')' : '')
         : 'CLT não recebe diária sem hospedagem (dorme em casa todo dia)';
       sub.alimentacao =
-        'Almoço: ' + (ehFreelaSub
-          ? moedaBR(v.almoco) + '/dia × ' + n + ' dia(s) = ' + moedaBR(calc.almoco)
-          : 'não incluído (CLT não recebe almoço sem hospedagem)') + '<br>' +
+        'Almoço: não incluído (sem hospedagem não paga almoço)<br>' +
         'Jantar: ' + (diasJantarVal() > 0
           ? moedaBR(v.jantar) + ' × ' + diasJantarVal() + ' dia(s) com chegada a partir das 23h = ' + moedaBR(calc.jantar)
           : 'não incluído (nenhum dia com chegada a partir das 23h)') + '<br>' +
-        'Lanche: ' + (calc.lanche > 0
-          ? moedaBR(v.lanche) + '/dia × ' + n + ' dia(s) = ' + moedaBR(calc.lanche) + ' (ida+volta acima de 200 km)'
-          : 'não incluído (200 km ou menos por dia)');
+        'Lanche: não incluído (sem hospedagem não paga lanche)';
     }
 
     // Valor final de cada item = o proposto no ajuste (se pediu) OU o calculado.
@@ -1507,10 +1511,47 @@ EC.reembolso = (function () {
     }
   }
 
+  // Foi de carona: outra pessoa dirigiu, então não há combustível nem aluguel
+  // para pagar (o trajeto continua sendo informado — a distância vale para o
+  // lanche e para o registro do serviço).
+  function ehCarona() { return veiculo() === 'carona'; }
+
+  /**
+   * Deixa claras as DUAS distâncias no "Serviço sem hospedagem": a de ida e
+   * volta entre as cidades (um dia) e a total, que multiplica pelos dias de
+   * deslocamento e ainda soma os 5 km rodados entre os pontos a cada dia.
+   */
+  function pintarDistanciaTotal() {
+    var bloco = $('rb-dias-desloc-bloco'), caixa = $('rb-dist-total'), rot = $('rb-distancia-rot');
+    if (!bloco || !caixa || !rot) return;
+    var mostra = ehSemHosp() && !!veiculo();
+    bloco.classList.toggle('oculto', !mostra);
+    // O rótulo muda de sentido: sem hospedagem, o campo é o trajeto de UM dia.
+    rot.childNodes[0].nodeValue = mostra
+      ? 'Distância de ida e volta entre as cidades, em um dia (km) '
+      : 'Distância total percorrida — ida e volta (km) ';
+    var km = distanciaAtual();
+    if (!mostra || !(km > 0)) { caixa.classList.add('oculto'); return; }
+    var n = diasIdaVoltaVal();
+    caixa.innerHTML =
+      '📏 Entre as cidades: <strong>' + km + ' km</strong> por dia (ida e volta).<br>' +
+      'Distância total: (' + km + ' km + 5 km entre os pontos) × ' + n + ' dia(s) = <strong>' +
+      ((km + 5) * n) + ' km</strong>.';
+    caixa.classList.remove('oculto');
+  }
+
   function aoMudarVeiculo() {
     var v = veiculo();
     $('rb-transporte-campos').classList.toggle('oculto', !v);
+    $('rb-comb-campos').classList.toggle('oculto', v === 'carona');
     var info = $('rb-aluguel-info');
+    if (v === 'carona') {
+      info.textContent = '🤝 Fui de carona: sem pagamento de transporte (nem combustível, nem aluguel de veículo).';
+      info.classList.remove('oculto');
+      pintarDistanciaTotal();
+      pintarValores();
+      return;
+    }
     if (v === 'proprio' && osSel && ctx) {
       // O R$/dia depende do combustível do carro — enquanto não escolherem, avisa.
       var comb = $('rb-combustivel').value;
@@ -1522,6 +1563,7 @@ EC.reembolso = (function () {
     } else {
       info.classList.add('oculto');
     }
+    pintarDistanciaTotal();
     pintarValores();
   }
 
@@ -1948,10 +1990,10 @@ EC.reembolso = (function () {
     }
     var solicitante = sessionNome();
     if (!solicitante) return mostrarErro('Sua sessão expirou — entre de novo no app.');
-    if (!veiculo()) return mostrarErro('Responda: o veículo é da ENGEAR ou do colaborador?');
+    if (!veiculo()) return mostrarErro('Responda como foi o transporte: veículo da ENGEAR, meu veículo ou carona.');
 
-    var preco = lerMoeda('rb-preco-litro');
-    var tipoComb = $('rb-combustivel').value;
+    var preco = ehCarona() ? 0 : lerMoeda('rb-preco-litro');
+    var tipoComb = ehCarona() ? '' : $('rb-combustivel').value;
     // Veículo próprio: o aluguel tem um valor para carro a gasolina e outro para
     // carro a diesel, então o combustível é obrigatório mesmo sem preço por litro.
     if (veiculo() === 'proprio' && !tipoComb) {
@@ -1962,16 +2004,21 @@ EC.reembolso = (function () {
     if (tipoComb && preco > 0 && distanciaCombustivel() <= 0) {
       return mostrarErro('Informe a distância percorrida (km) para calcular o combustível.');
     }
-    if (casoDiaUnico() && !$('rb-chegada-casa').value) {
+    // Sem hospedagem não pergunta a hora de chegada (o jantar vem pelo nº de
+    // dias em que chegou às 23h ou depois), então a exigência é só da viagem.
+    if (!ehSemHosp() && casoDiaUnico() && !$('rb-chegada-casa').value) {
       return mostrarErro('Informe o horário de chegada em casa (foi e voltou no mesmo dia).');
     }
-    // Quilometragem atual do carro + foto da quilometragem — obrigatórias na viagem.
+    // Quilometragem atual do carro + foto — obrigatórias, menos na carona (o
+    // carro não é dele nem da ENGEAR; não há hodômetro para conferir).
     var kmAtualTxt = String($('rb-km-atual').value).trim();
-    if (!kmAtualTxt || !(parseFloat(kmAtualTxt.replace(',', '.')) >= 0)) {
-      return mostrarErro('Informe a quilometragem atual do carro.');
-    }
-    if (anexos.combustivel.obter().length === 0) {
-      return mostrarErro('Anexe a foto da quilometragem do carro (obrigatória).');
+    if (!ehCarona()) {
+      if (!kmAtualTxt || !(parseFloat(kmAtualTxt.replace(',', '.')) >= 0)) {
+        return mostrarErro('Informe a quilometragem atual do carro.');
+      }
+      if (anexos.combustivel.obter().length === 0) {
+        return mostrarErro('Anexe a foto da quilometragem do carro (obrigatória).');
+      }
     }
     if (preco > tetoDoCombustivel() && tipoComb) {
       if (!$('rb-comb-justificativa').value.trim()) {
@@ -2038,7 +2085,7 @@ EC.reembolso = (function () {
       tipoCombustivel: tipoComb || null,
       precoLitro: preco > 0 ? preco : null,
       combustivelJustificativa: $('rb-comb-justificativa').value.trim(),
-      kmAtual: parseFloat(String($('rb-km-atual').value).replace(',', '.')) || null,
+      kmAtual: ehCarona() ? null : (parseFloat(String($('rb-km-atual').value).replace(',', '.')) || null),
       valorPedagio: lerMoeda('rb-pedagio'),
       distanciaManual: distanciaAtual(),
       // trajeto (a distância vem sempre do cálculo origem→destino, nunca da OS)
@@ -2704,7 +2751,9 @@ EC.reembolso = (function () {
       ? ((p.origem_cidade || '?') + (p.origem_uf ? '/' + p.origem_uf : '') + ' → ' + (p.destino_cidade || '?') + (p.destino_uf ? '/' + p.destino_uf : ''))
       : '—';
     var itens = [];
-    itens.push(['Veículo', p.veiculo === 'proprio' ? 'Próprio' : (p.veiculo === 'engear' ? 'ENGEAR' : '—')]);
+    itens.push(['Veículo', p.veiculo === 'proprio' ? 'Próprio'
+      : p.veiculo === 'engear' ? 'ENGEAR'
+      : p.veiculo === 'carona' ? 'Carona (sem transporte a pagar)' : '—']);
     if (p.km_atual != null && p.km_atual !== '') itens.push(['Quilometragem atual do carro', p.km_atual + ' km']);
     itens.push(['Origem → Destino', trajeto]);
     itens.push(['Distância (ida e volta)', distKm ? distKm + ' km' : '—']);
