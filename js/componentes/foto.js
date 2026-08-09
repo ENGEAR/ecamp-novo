@@ -165,9 +165,42 @@ EC.foto = (function () {
       botaoTec.disabled = cheio;
     }
 
+    /**
+     * Salva a foto NO APARELHO. Um site não pode gravar na galeria sozinho — não
+     * existe permissão web para isso —, então o caminho é entregar o arquivo ao
+     * sistema e deixar a pessoa escolher onde guardar:
+     *   • iPhone/Android com compartilhamento: abre a folha do sistema, onde
+     *     aparece "Salvar Imagem" (vai para Fotos);
+     *   • sem esse recurso: baixa o arquivo (no Android a galeria costuma
+     *     indexar a pasta Downloads).
+     * Vai a versão CARIMBADA, que é a mesma foto com a identificação do serviço.
+     */
+    async function salvarNoCelular(f) {
+      if (!f || !f.dataUrl) return;
+      try {
+        const blob = await (await fetch(f.dataUrl)).blob();
+        const arquivo = new File([blob], f.nomeArquivo || 'foto.jpg', { type: blob.type || 'image/jpeg' });
+        if (navigator.canShare && navigator.canShare({ files: [arquivo] }) && navigator.share) {
+          await navigator.share({ files: [arquivo] });
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = arquivo.name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+        if (EC.app && EC.app.mostrarToast) EC.app.mostrarToast('📥 Foto baixada para o aparelho.');
+      } catch (e) {
+        // Cancelar a folha de compartilhamento cai aqui: não é erro, é escolha.
+        if (e && e.name === 'AbortError') return;
+        if (EC.app && EC.app.mostrarToast) EC.app.mostrarToast('🛑 Não consegui salvar a foto no aparelho.');
+      }
+    }
+
     function renderGaleria() {
       galeria.innerHTML = fotos.map(function (f, i) {
         return '<div class="foto-item"><img src="' + f.dataUrl + '" alt="Foto ' + (i + 1) + '">' +
+          '<button type="button" class="foto-salvar" data-i="' + i + '" title="Salvar esta foto no celular">💾</button>' +
           '<button type="button" class="foto-remover" data-i="' + i + '" title="Remover foto">✕</button></div>';
       }).join('');
       galeria.querySelectorAll('.foto-remover').forEach(function (b) {
@@ -175,6 +208,9 @@ EC.foto = (function () {
           fotos.splice(parseInt(b.dataset.i, 10), 1);
           renderGaleria(); atualizarBotao(); notificar();
         });
+      });
+      galeria.querySelectorAll('.foto-salvar').forEach(function (b) {
+        b.addEventListener('click', function () { salvarNoCelular(fotos[parseInt(b.dataset.i, 10)]); });
       });
       galeria.querySelectorAll('.foto-item img').forEach(function (img, i) {
         img.addEventListener('click', function () { abrirLightbox(fotos[i].dataUrl); });
