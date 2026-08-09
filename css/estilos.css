@@ -497,6 +497,8 @@ textarea { resize: vertical; font-family: inherit; }
   padding: 2px 8px;
   margin-top: 2px;
 }
+/* Aviso de rascunho esquecido dentro da tag de andamento (a partir de 7 dias). */
+.os-tag-parado { margin-left: 5px; color: #8a4b00; font-weight: 700; }
 
 /* Serviços desta OS */
 .servico-campanha {

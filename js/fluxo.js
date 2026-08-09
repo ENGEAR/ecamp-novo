@@ -406,7 +406,13 @@ EC.fluxo = (function () {
     if (!outros.length) return '';
     const primeiros = outros.map(primeiroNome).filter(Boolean);
     const texto = primeiros.slice(0, 2).join(', ') + (primeiros.length > 2 ? ' +' + (primeiros.length - 2) : '');
-    return '<span class="os-tag-tecnico">⏳ Em andamento · ' + texto + '</span>';
+    // "parado há N dias": só a partir de uma semana, para não virar ruído no que
+    // está em andamento de verdade. Sem isso, uma OS já entregue com um rascunho
+    // esquecido fica na lista para sempre e ninguém sabe desde quando.
+    const dias = (EC.os && EC.os.diasParado) ? EC.os.diasParado(os.numero) : null;
+    const parado = (dias != null && dias >= 7)
+      ? '<span class="os-tag-parado">· parado há ' + dias + ' dias</span>' : '';
+    return '<span class="os-tag-tecnico">⏳ Em andamento · ' + texto + parado + '</span>';
   }
 
   // HTML de um cartão de OS (usado nas três seções). Carrega o número da OS no

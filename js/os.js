@@ -298,13 +298,27 @@ EC.os = (function () {
    * estão sendo preenchidos em OUTRO aparelho da equipe. Cacheia para offline.
    * ==================================================================== */
   var CH_AND_POR = 'os:andamentoPor';
+  var CH_AND_DESDE = 'os:andamentoDesde';
   var andamentoPorMapa = ler(CH_AND_POR, {}) || {};
+  // Quando o rascunho mais recente da OS foi mexido pela última vez — vira o
+  // "parado há N dias" no cartão. Sem isso, uma OS entregue mas com um rascunho
+  // esquecido fica em "em andamento" sem ninguém saber há quanto tempo.
+  var andamentoDesdeMapa = ler(CH_AND_DESDE, {}) || {};
 
   // Normaliza o nº da OS para casar as fontes (tira o prefixo "OS ").
   function normNum(n) { return String(n == null ? '' : n).replace(/^\s*OS\s+/i, '').trim(); }
 
   // Nomes dos técnicos que estão com a OS em andamento (rascunho no servidor).
   function andamentoPor(numero) { return andamentoPorMapa[normNum(numero)] || []; }
+
+  // Dias desde o último toque no rascunho da OS (null se não souber).
+  function diasParado(numero) {
+    var q = andamentoDesdeMapa[normNum(numero)];
+    if (!q) return null;
+    var t = new Date(q).getTime();
+    if (!isFinite(t)) return null;
+    return Math.floor((Date.now() - t) / 86400000);
+  }
 
   // Ao DESCARTAR um serviço, tira a OS de "em andamento" na hora (sem esperar o
   // servidor): remove do mapa da tag (os:andamentoPor) E da lista da seção
@@ -345,16 +359,21 @@ EC.os = (function () {
         .select('os, tecnico, updated_at')
         .eq('status', 'rascunho')
         .order('updated_at', { ascending: false });
-      var mapa = {};
+      var mapa = {}, desde = {};
       (q.data || []).forEach(function (r) {
         var num = normNum(r.os);
+        if (!num) return;
+        // A consulta vem por updated_at desc: o 1º de cada OS é o mais recente.
+        if (!desde[num] && r.updated_at) desde[num] = r.updated_at;
         var nome = (r.tecnico || '').trim();
-        if (!num || !nome) return;
+        if (!nome) return;
         if (!mapa[num]) mapa[num] = [];
         if (mapa[num].indexOf(nome) === -1) mapa[num].push(nome); // já em ordem de recência
       });
       andamentoPorMapa = mapa;
+      andamentoDesdeMapa = desde;
       EC.storage.salvar(CH_AND_POR, mapa);
+      EC.storage.salvar(CH_AND_DESDE, desde);
       return mapa;
     } catch (e) {
       return andamentoPorMapa; // offline/erro: mantém o cache
@@ -438,6 +457,7 @@ EC.os = (function () {
     dentroEscopo: dentroEscopo,
     carregarAndamentoPor: carregarAndamentoPor,
     andamentoPor: andamentoPor,
+    diasParado: diasParado,
     esquecerAndamento: esquecerAndamento,
     limparAndamentoOS: limparAndamentoOS,
     carregarDetalhes: carregarDetalhes,
