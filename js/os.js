@@ -396,7 +396,13 @@ EC.os = (function () {
   async function carregarFotos(osId) {
     if (!osId) return [];
     try {
-      var resp = await fetch(ROTA_FOTOS + '?osId=' + encodeURIComponent(osId), { headers: { 'x-ecamp-token': TOKEN } });
+      // A rota exige SESSÃO (não só o token): manda o JWT junto, senão 401.
+      var cab = { 'x-ecamp-token': TOKEN };
+      try {
+        var jwt = (EC.auth && EC.auth.tokenValido) ? await EC.auth.tokenValido() : '';
+        if (jwt) cab['Authorization'] = 'Bearer ' + jwt;
+      } catch (e) { /* sem sessão: o servidor recusa e o app avisa */ }
+      var resp = await fetch(ROTA_FOTOS + '?osId=' + encodeURIComponent(osId), { headers: cab });
       var corpo = await resp.json();
       if (!resp.ok || !corpo.ok) throw new Error(corpo.erro || ('HTTP ' + resp.status));
       return Array.isArray(corpo.fotos) ? corpo.fotos : [];

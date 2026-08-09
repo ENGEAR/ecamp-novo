@@ -174,10 +174,7 @@
 
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('service-worker.js').then(function (registro) {
-        function avisar(worker) {
-          if (!worker) return;
-          mostrarAvisoAtualizacao(function () { worker.postMessage({ type: 'SKIP_WAITING' }); });
-        }
+        function avisar(worker) { novaVersaoPronta(worker); }
         // Acompanha um worker que está baixando até ficar "instalado" (em espera).
         function acompanhar(worker) {
           if (!worker) return;
@@ -208,7 +205,18 @@
   // header/logo e outros pontos chamam mostrarTela direto — um wrap externo não
   // pegava esses caminhos e o disquete ficava preso na tela inicial.
   const TELAS_FAB = ['tela-passo3a', 'tela-passo3b', 'tela-checkpoint', 'tela-passo4', 'tela-revisao', 'tela-passo5'];
+  // Telas em que NÃO se troca de versão sozinho: trocar recarrega a página e o
+  // app volta para a lista de OS. No meio de um serviço (ou de uma solicitação
+  // de reembolso) isso tira a pessoa do lugar — ali a troca espera o toque.
+  const TELAS_SEM_TROCA = TELAS_FAB.concat([
+    'tela-dados-gerais', 'tela-tipo',              // início do serviço
+    'tela-reembolso-novo', 'tela-outros-novo',     // solicitação sendo escrita
+    'tela-saldo-detalhe', 'tela-aprovacao-detalhe',// justificativa/ajuste digitados
+    'tela-login', 'tela-trocar-senha'              // senha na tela
+  ]);
+  let telaVisivel = null;
   function mostrarTela(id) {
+    telaVisivel = id;
     document.querySelectorAll('.tela').forEach(function (tela) {
       tela.classList.add('oculto');
     });
@@ -225,6 +233,8 @@
       var fabVoltar = $('fab-voltar-campo');
       if (fabVoltar) fabVoltar.classList.add('oculto');
     }
+    // Saiu do preenchimento com uma versão nova esperando? Troca agora.
+    tentarAtualizarSozinho();
   }
 
   /* ============ Toast de feedback ============ */
@@ -237,7 +247,62 @@
     temporizadorToast = setTimeout(function () { toast.classList.add('oculto'); }, 2600);
   }
 
-  /* ============ Aviso de nova versão ============ */
+  /* ============ Nova versão: troca sozinha quando é seguro ============
+   * O app deixava a versão nova "em espera" até alguém tocar no aviso — e quem
+   * não tocava ficava semanas para trás (aconteceu em 2026-08-06, atrapalhando
+   * dois testes seguidos). Agora a troca é AUTOMÁTICA, com uma única guarda:
+   * trocar recarrega a página e o app reabre na lista de OS, então no meio de um
+   * serviço ou de uma solicitação de reembolso ela espera. Assim que a pessoa
+   * sai dessas telas (ou reabre o app), a versão nova entra sozinha. */
+  let swEmEspera = null;
+
+  function podeTrocarVersaoAgora() {
+    // Sem tela definida ainda (app abrindo) = seguro: nada preenchido.
+    return !telaVisivel || TELAS_SEM_TROCA.indexOf(telaVisivel) === -1;
+  }
+
+  /* Troca de versão = trocar o service worker E recarregar a página. Sem o
+   * reload o app continua rodando o JavaScript ANTIGO mesmo com o cache novo —
+   * era isso que fazia o e-CAMP "não atualizar" mesmo depois de baixar a versão.
+   * Por isso o reload tem TRÊS gatilhos independentes (o worker ficar ativo, o
+   * controlador trocar e um limite de 3 s), e o primeiro que vier resolve. */
+  function trocarVersaoAgora() {
+    if (!swEmEspera) return;
+    const worker = swEmEspera;
+    swEmEspera = null;
+    const aviso = $('aviso-atualizacao');
+    if (aviso) aviso.classList.add('oculto');
+
+    let jaRecarregou = false;
+    function recarregar() {
+      if (jaRecarregou) return;
+      jaRecarregou = true;
+      window.location.reload();
+    }
+    try {
+      worker.addEventListener('statechange', function () {
+        if (worker.state === 'activated') recarregar();
+      });
+    } catch (e) { /* navegador sem statechange no worker: sobram os outros dois */ }
+    navigator.serviceWorker.addEventListener('controllerchange', recarregar);
+    setTimeout(recarregar, 3000); // rede/evento engasgou: troca assim mesmo
+    worker.postMessage({ type: 'SKIP_WAITING' });
+  }
+
+  function tentarAtualizarSozinho() {
+    if (swEmEspera && podeTrocarVersaoAgora()) trocarVersaoAgora();
+  }
+
+  // Chamado quando o service worker novo termina de instalar e fica em espera.
+  function novaVersaoPronta(worker) {
+    if (!worker) return;
+    swEmEspera = worker;
+    if (podeTrocarVersaoAgora()) { trocarVersaoAgora(); return; }
+    // No meio de um preenchimento: avisa e deixa a escolha — mas a troca também
+    // acontece sozinha assim que a pessoa sair dessa tela.
+    mostrarAvisoAtualizacao(trocarVersaoAgora);
+  }
+
   function mostrarAvisoAtualizacao(aoAtualizar) {
     const aviso = $('aviso-atualizacao');
     const botao = $('btn-atualizar');
