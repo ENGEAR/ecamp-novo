@@ -60,6 +60,68 @@ EC.aprovacoes = (function () {
     // + o combustível do gerador, que só existe aqui.
     outros_gastos: ['combustivel', 'pecas', 'manutencao', 'gerador', 'pedagio', 'outros']
   };
+  // Item do PEDIDO DE AJUSTE do técnico (logistica_ajustes.item) → coluna(s) da
+  // solicitação. Note que são AGREGADOS e não batem 1:1 com CAMPOS_ITEM acima:
+  // 'transporte' é o combustível e 'alimentacao' junta almoço+jantar+lanche.
+  var COLUNAS_DO_AJUSTE = {
+    transporte: ['valor_combustivel'],
+    aluguel: ['valor_aluguel'],
+    pedagio: ['valor_pedagio'],
+    hospedagem: ['valor_hospedagem'],
+    mao_obra: ['valor_mao_obra'],
+    alimentacao: ['valor_almoco', 'valor_jantar', 'valor_lanche']
+  };
+
+  /**
+   * Valor final de um item ajustado = coluna(s) da solicitação (já com o que a
+   * Logística tenha editado agora) + o delta do ajuste do técnico. É a MESMA
+   * conta que o extrato usa para exibir a linha, então os dois nunca discordam.
+   */
+  function valorAprovadoDoAjuste(s, camposEditados, ajuste) {
+    var cols = COLUNAS_DO_AJUSTE[ajuste.item] || [];
+    var base = 0;
+    for (var c = 0; c < cols.length; c++) {
+      var nome = cols[c];
+      var editado = camposEditados && camposEditados[nome] != null ? camposEditados[nome] : s[nome];
+      base += Number(editado) || 0;
+    }
+    var delta = (Number(ajuste.valor_proposto) || 0) - (Number(ajuste.valor_calculado) || 0);
+    return Math.round((base + delta) * 100) / 100;
+  }
+
+  /**
+   * Fecha os pedidos de ajuste do técnico quando a Logística decide.
+   *
+   * Eles nasciam 'pendente' e ficavam assim PARA SEMPRE — mesmo com a
+   * solicitação paga —, e `valor_aprovado` nunca era preenchido por ninguém.
+   * O ajuste era aplicado no total e o registro dele nunca era concluído.
+   *
+   * `valor_aprovado` = valor final do item = coluna (já com o que a Logística
+   * eventualmente editou agora) + o delta do ajuste. É a MESMA conta que o
+   * extrato usa para exibir a linha, então os dois nunca discordam.
+   *
+   * Best-effort: nunca derruba a decisão, que já está gravada.
+   */
+  async function fecharAjustes(cli, s, acao, camposEditados) {
+    if (acao !== 'aguardando_pagamento' && acao !== 'rejeitado') return; // 'correcao' volta ao técnico: segue pendente
+    try {
+      var q = await cli.from('logistica_ajustes')
+        .select('id, item, valor_calculado, valor_proposto, status')
+        .eq('solicitacao_id', s.id)
+        .eq('status', 'pendente');
+      var lista = (q.data || []);
+      if (!lista.length) return;
+      for (var i = 0; i < lista.length; i++) {
+        var a = lista[i];
+        var patch = { status: acao === 'rejeitado' ? 'rejeitado' : 'aprovado' };
+        if (acao === 'aguardando_pagamento') {
+          patch.valor_aprovado = valorAprovadoDoAjuste(s, camposEditados, a);
+        }
+        await cli.from('logistica_ajustes').update(patch).eq('id', a.id);
+      }
+    } catch (e) { /* o registro do ajuste não pode derrubar a decisão já gravada */ }
+  }
+
   function rotDeCampo(campo) {
     for (var k in CAMPOS_ITEM) if (CAMPOS_ITEM[k].campo === campo) return CAMPOS_ITEM[k].rotulo;
     return campo;
@@ -832,6 +894,8 @@ EC.aprovacoes = (function () {
       if (!upd.data || !upd.data.length) {
         toast('Esta solicitação já foi decidida por outra pessoa.');
       } else {
+        // Conclui os pedidos de ajuste do técnico junto com a decisão.
+        await fecharAjustes(cli, s, acao, campos);
         try {
           var det = temAjuste
             ? 'Logística ajustou (total ' + moeda(totalAtual) + ' → ' + moeda(novoTotal) + '): ' +
