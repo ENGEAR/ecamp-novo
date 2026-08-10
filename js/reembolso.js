@@ -2636,6 +2636,17 @@ EC.reembolso = (function () {
       var q = await cli.from('logistica_solicitacoes').select('*').order('created_at', { ascending: false });
       if (q.error) throw q.error;
       var rows = q.data || [];
+      // Os ajustes vêm de outra tabela. A lista do técnico já os recebe pela API
+      // (/logistica/lista), mas aqui a consulta é direta — sem isto o gestor
+      // veria o valor de item ANTIGO com o total novo (ver mapaAjustes).
+      try {
+        var qa = await cli.from('logistica_ajustes').select('solicitacao_id, item, valor_calculado, valor_proposto, justificativa');
+        var porSolic = {};
+        (qa.data || []).forEach(function (a) {
+          (porSolic[a.solicitacao_id] = porSolic[a.solicitacao_id] || []).push(a);
+        });
+        rows.forEach(function (p) { p.ajustes = porSolic[p.id] || []; });
+      } catch (e) { /* sem os ajustes o extrato ainda abre, só sem o detalhamento */ }
       egDados = rows.map(function (p) { return { p: p, aguardandoEnvio: false }; });
       egNumParcela = numeraParcelas(rows);
       egPorCodigo = {};
@@ -2657,6 +2668,58 @@ EC.reembolso = (function () {
 
   /* ============ Extrato da solicitação (read-only) ============ */
 
+  // Ajustes pedidos pelo técnico (tabela logistica_ajustes), agrupados por item.
+  //
+  // POR QUE PRECISA SOMAR O DELTA: quando um ajuste é aceito, o servidor soma a
+  // diferença no `valor_total`, mas as colunas de item (valor_combustivel etc.)
+  // continuam com o valor CALCULADO. Sem isto o extrato mostrava a linha antiga
+  // com o total novo, e a conta não fechava — caso OS 25311, transporte exibido
+  // R$ 52,54 num total de R$ 241,00 que já contava os R$ 91,00 aprovados.
+  //
+  // O delta sai de (proposto − calculado), NÃO do valor proposto puro: a
+  // Logística pode ter mexido na coluna depois do ajuste (OS 26253, "não tinha
+  // sido considerado dois lanches"), e é a diferença que o total embutiu.
+  function mapaAjustes(p) {
+    var m = {};
+    (p.ajustes || []).forEach(function (a) {
+      var chave = a.item || a.chave;
+      if (!chave) return;
+      var calc = Number(a.valor_calculado != null ? a.valor_calculado : a.valorCalculado) || 0;
+      var prop = Number(a.valor_proposto != null ? a.valor_proposto : a.valorProposto) || 0;
+      if (!m[chave]) m[chave] = { delta: 0, justificativas: [] };
+      m[chave].delta = Math.round((m[chave].delta + (prop - calc)) * 100) / 100;
+      if (a.justificativa) m[chave].justificativas.push(a.justificativa);
+    });
+    return m;
+  }
+
+  // Soma crua das colunas de valor da solicitação (todos os tipos). Serve para
+  // saber se o `valor_total` embute algo que as linhas não mostram.
+  function somaItensSolicitacao(p) {
+    var cols = ['valor_combustivel', 'valor_aluguel', 'valor_pedagio', 'valor_hospedagem',
+      'valor_mao_obra', 'valor_almoco', 'valor_jantar', 'valor_lanche', 'valor_outros',
+      'valor_pecas', 'valor_manutencao', 'valor_gerador'];
+    var t = 0;
+    for (var i = 0; i < cols.length; i++) t += Number(p[cols[i]]) || 0;
+    return Math.round(t * 100) / 100;
+  }
+
+  // Uma linha de valor do extrato, já com o ajuste aplicado e explicado.
+  // Some da tela só quando não há valor NEM ajuste (um ajuste que zera o item —
+  // ex.: hospedagem que não existia — precisa continuar visível).
+  function linhaValorAjustada(chave, rotulo, base, ajustes) {
+    var a = ajustes[chave];
+    var atual = Number(base) || 0;
+    var valor = Math.round((atual + (a ? a.delta : 0)) * 100) / 100;
+    if (!(valor > 0) && !a) return '';
+    var html = '<div class="apr-linha"><span>' + rotulo + '</span><strong>' + moedaBR(valor) + '</strong></div>';
+    if (a) {
+      html += '<p class="texto-apoio">↺ Ajuste: de ' + moedaBR(atual) + ' para ' + moedaBR(valor) +
+        (a.justificativas.length ? ' — ' + a.justificativas.join(' · ') : '') + '</p>';
+    }
+    return html;
+  }
+
   // Resumo (read-only) de um pedido: quem, datas, transporte e valores.
   // Extrato de EVENTOS e VEÍCULOS: sem datas de viagem/base de cálculo — só
   // quem, valores informados (com a justificativa dos outros gastos) e o total.
@@ -2664,26 +2727,26 @@ EC.reembolso = (function () {
     function linha(rot, val) { return '<div class="apr-linha"><span>' + rot + '</span><strong>' + val + '</strong></div>'; }
     var cat = p.solicitante_tipo === 'freelancer' ? 'Freelancer' : (p.solicitante_tipo === 'clt' ? 'CLT' : '—');
     var itens = t === 'complemento'
-      ? [['➕ Complemento de combustível (km a mais)', p.valor_combustivel], ['💠 Outros gastos', p.valor_outros]]
+      ? [['transporte', '➕ Complemento de combustível (km a mais)', p.valor_combustivel], ['outros', '💠 Outros gastos', p.valor_outros]]
       : t === 'evento'
-      ? [['🔊 Diárias do evento' + (p.dias_servico != null ? ' (' + p.dias_servico + ' dia(s))' : ''), p.valor_mao_obra]]
+      ? [['mao_obra', '🔊 Diárias do evento' + (p.dias_servico != null ? ' (' + p.dias_servico + ' dia(s))' : ''), p.valor_mao_obra]]
       : [
-          ['⛽ Abastecimento', p.valor_combustivel],
-          ['🔩 Compra de peças', p.valor_pecas],
-          ['🛠️ Manutenção', p.valor_manutencao],
+          ['transporte', '⛽ Abastecimento', p.valor_combustivel],
+          ['pecas', '🔩 Compra de peças', p.valor_pecas],
+          ['manutencao', '🛠️ Manutenção', p.valor_manutencao],
           // Mostra a conta aberta: sem os litros e o R$/L, o valor sozinho não
           // dá para conferir depois que a referência mudar.
-          ['🔌 Combustível para gerador' + (Number(p.gerador_litros) > 0
+          ['gerador', '🔌 Combustível para gerador' + (Number(p.gerador_litros) > 0
             ? ' (' + String(p.gerador_litros).replace('.', ',') + ' L' +
               (p.gerador_combustivel ? ' de ' + p.gerador_combustivel : '') +
               (Number((p.valores_usados || {}).gerador_preco_litro) > 0
                 ? ' × ' + moedaBR(p.valores_usados.gerador_preco_litro) + '/L' : '') + ')'
             : ''), p.valor_gerador],
-          ['🛣️ Pedágio', p.valor_pedagio]
+          ['pedagio', '🛣️ Pedágio', p.valor_pedagio]
         ];
-    if (t !== 'complemento') itens.push(['💠 Outros gastos', p.valor_outros]);
-    var valores = itens.filter(function (l) { return Number(l[1]) > 0; })
-      .map(function (l) { return linha(l[0], moedaBR(l[1])); }).join('');
+    if (t !== 'complemento') itens.push(['outros', '💠 Outros gastos', p.valor_outros]);
+    var aj = mapaAjustes(p);
+    var valores = itens.map(function (l) { return linhaValorAjustada(l[0], l[1], l[2], aj); }).join('');
     // Complemento: quilometragem inicial, final e percorrida.
     var kmLinha = '';
     if (t === 'complemento') {
@@ -2726,16 +2789,18 @@ EC.reembolso = (function () {
       : (p.origemCidade ? (p.origemCidade + '/' + (p.origemUf || '') + ' → ' + (p.destinoCidade || '') + '/' + (p.destinoUf || '')) : '—');
     var alimentacao = Number(p.valor_almoco || 0) + Number(p.valor_jantar || 0) + Number(p.valor_lanche || 0);
     function linha(rot, val) { return '<div class="apr-linha"><span>' + rot + '</span><strong>' + val + '</strong></div>'; }
+    // As chaves ('transporte', 'alimentacao'…) são as mesmas de ITENS, que é o
+    // que a tabela de ajustes grava — é por elas que o ajuste acha a sua linha.
+    var aj = mapaAjustes(p);
     var valores = [
-      ['⛽ Transporte (combustível)', p.valor_combustivel],
-      ['🚗 Aluguel de veículo', p.valor_aluguel],
-      ['🛣️ Pedágio', p.valor_pedagio],
-      ['🏨 Hospedagem', p.valor_hospedagem],
-      ['👷 Mão de obra', p.valor_mao_obra],
-      ['🍽️ Alimentação', alimentacao],
-      ['💠 Outros gastos', p.valor_outros]
-    ].filter(function (l) { return Number(l[1]) > 0; })
-     .map(function (l) { return linha(l[0], moedaBR(l[1])); }).join('');
+      ['transporte', '⛽ Transporte (combustível)', p.valor_combustivel],
+      ['aluguel', '🚗 Aluguel de veículo', p.valor_aluguel],
+      ['pedagio', '🛣️ Pedágio', p.valor_pedagio],
+      ['hospedagem', '🏨 Hospedagem', p.valor_hospedagem],
+      ['mao_obra', '👷 Mão de obra', p.valor_mao_obra],
+      ['alimentacao', '🍽️ Alimentação', alimentacao],
+      ['outros', '💠 Outros gastos', p.valor_outros]
+    ].map(function (l) { return linhaValorAjustada(l[0], l[1], l[2], aj); }).join('');
     if (Number(p.valor_outros) > 0 && p.outros_justificativa) {
       valores += '<p class="texto-apoio">💠 Outros gastos: ' + p.outros_justificativa + '</p>';
     }
@@ -2824,7 +2889,11 @@ EC.reembolso = (function () {
     var st = aguardandoEnvio
       ? { txt: '📴 Aguardando envio', cls: 'rb-aguardando' }
       : (STATUS[p.status] || { txt: p.status, cls: 'rb-aguardando' });
-    var obs = (p.status === 'rejeitado' || p.status === 'correcao') && p.observacao_logistica
+    // A observação da Logística vale em QUALQUER status. Antes só aparecia em
+    // rejeitado/correção, então a explicação de quem ajustou e aprovou (ex.:
+    // "Não tinha sido considerado dois lanches") ficava invisível justamente
+    // quando virava pago — que é quando o técnico confere o valor recebido.
+    var obs = p.observacao_logistica
       ? '<div class="rb-motivo">Observação da Logística: ' + p.observacao_logistica + '</div>' : '';
     var pago = p.status === 'pago'
       ? '<div class="apr-orc apr-orc-verde"><strong>💰 Pago</strong> em ' + dataBR(p.pago_em) + (p.forma_pagamento ? ' · ' + p.forma_pagamento : '') + (p.banco_saida ? ' · ' + p.banco_saida : '') + '</div>' : '';
@@ -2849,6 +2918,27 @@ EC.reembolso = (function () {
         ['aguardando_logistica', 'aguardando_pagamento', 'pago'].indexOf(x.status) !== -1;
     }).sort(function (a, b) { return String(a.created_at || a.criadoEm || '').localeCompare(String(b.created_at || b.criadoEm || '')); });
     if (!parcelas.length) parcelas = [p];
+
+    // AJUSTE DA PARCELA IRMÃ: as parcelas da mesma viagem repetem os mesmos
+    // itens e o mesmo `valor_total` (já com o ajuste embutido), mas o ajuste
+    // fica gravado só na solicitação em que foi pedido. Sem herdar, a 2ª parcela
+    // mostraria a linha antiga com o total novo — caso OS 26133, do Edgar.
+    // Só herda quando FALTA algo para explicar: se as colunas já somam o total,
+    // esta parcela não teve ajuste aplicado (ex.: uma irmã ainda em correção) e
+    // herdar faria a conta ficar errada ao contrário.
+    var pView = p;
+    var faltaExplicar = Math.abs(somaItensSolicitacao(p) - Number(total || 0)) > 0.011;
+    if (!((p.ajustes || []).length) && faltaExplicar) {
+      for (var pi = 0; pi < parcelas.length; pi++) {
+        if ((parcelas[pi].ajustes || []).length) {
+          pView = {};
+          for (var k in p) if (Object.prototype.hasOwnProperty.call(p, k)) pView[k] = p[k];
+          pView.ajustes = parcelas[pi].ajustes;
+          break;
+        }
+      }
+    }
+
     var parcelasHtml = parcelas.map(function (x, i) {
       var xpct = x.percentual_solicitado != null ? Number(x.percentual_solicitado) : 100;
       var xsol = x.valor_solicitado != null ? x.valor_solicitado : Math.round(Number(x.valor_total || 0) * xpct) / 100;
@@ -2889,7 +2979,7 @@ EC.reembolso = (function () {
       '</div>' +
       '<p class="dg-secao">Solicitações de reembolso</p>' +
       (parcelasHtml || '<div class="apr-orc apr-orc-cinza">—</div>') +
-      renderResumoPedido(p) +
+      renderResumoPedido(pView) +
       '<div id="rb-evidencias"></div>';
 
     // Evidências inseridas pelo usuário (fotos/PDF de cada bloco) — sempre visíveis
