@@ -87,7 +87,10 @@ window.EC = window.EC || {};
     qar: [
       { categoria: 'Amostrador AGV', codigo: 'AGV PTS', descricao: 'Amostrador de Grande Volume — PTS', ultimaCal: '', proximaCal: '' },
       { categoria: 'Amostrador AGV', codigo: 'AGV MP10', descricao: 'Amostrador de Grande Volume — MP10', ultimaCal: '', proximaCal: '' },
-      { categoria: 'Amostrador AGV', codigo: 'AGV MP2,5', descricao: 'Amostrador de Grande Volume — MP2,5', ultimaCal: '', proximaCal: '' }
+      { categoria: 'Amostrador AGV', codigo: 'AGV MP2,5', descricao: 'Amostrador de Grande Volume — MP2,5', ultimaCal: '', proximaCal: '' },
+      // Kit de Calibração de AGV: a1/b1 vêm do certificado (SGP → menu
+      // Certificado de calibração); o e-CAMP preenche a curva sozinho.
+      { categoria: 'Kit de Calibração de AGV', codigo: 'KIT-AGV-01', descricao: 'Energética | CPV | nº 001', ultimaCal: ULT, proximaCal: VALIDA, a1: 1.8633, b1: -0.0372 }
     ],
 
     // Opacidade — Escala de Ringelmann (F021 matriz "Rilgeman", EM USO).

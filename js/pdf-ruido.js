@@ -135,6 +135,7 @@ EC.pdf = (function () {
     fonteVibracao: 'Fonte de vibração', intercorrencia: 'Intercorrência', intercorrenciaDesc: 'Descrição da intercorrência',
     placa: 'Placa', ano: 'Ano', endereco: 'Endereço', validadeCalib: 'Validade da calibração (em meses)',
     calibA1: 'Inclinação a1 (certificado do CPV)', calibB1: 'Intercepto b1 (certificado do CPV)',
+    equipAGV: 'Amostrador de Grande Volume', equipSeparador: 'Separador inercial', equipKit: 'Kit de calibração (CPV)',
     pressao: 'Pressão', horimetro: 'Horímetro', validade: 'Validade',
     area: 'Área', pontosCalculados: 'Pontos calculados', pessoas: 'Nº de pessoas', janela: 'Janela',
     valorVazao: 'Vazão', co2: 'CO2', temp: 'Temperatura', ur: 'Umidade relativa', velar: 'Velocidade do ar',

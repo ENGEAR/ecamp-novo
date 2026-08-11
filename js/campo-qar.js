@@ -163,15 +163,41 @@ EC.campoQar = (function () {
     if (!selecionados.length) {
       return '<p class="texto-apoio">⚠️ Nenhum equipamento selecionado no pré-campo. Volte à seleção de equipamentos e marque os amostradores que vão para o campo.</p>';
     }
-    var agvs = selecionadosPorCategoria(/amostrador|grande volume|agv/);
+    // O kit vem primeiro no teste: a categoria dele ("Kit de Calibração de AGV")
+    // também contém "agv", então o amostrador exclui o que for kit.
+    var kits = selecionadosPorCategoria(/kit|calibra/);
+    var agvs = selecionadosPorCategoria(/amostrador|grande volume|agv/).filter(function (c) {
+      return kits.indexOf(c) === -1;
+    });
     var seps = selecionadosPorCategoria(/separador/);
-    if (!agvs.length && !seps.length) {
+    if (!agvs.length && !seps.length && !kits.length) {
       // sem categoria conhecida: dropdown único (compatibilidade)
       return '<label>Tipo de equipamento<select data-campo="tipoEquip"><option value="">Selecione…</option>' +
         selecionados.map(function (c) { return '<option>' + c + '</option>'; }).join('') + '</select></label>';
     }
     return selectEquip('equipAGV', 'Amostrador de Grande Volume', agvs) +
-      selectEquip('equipSeparador', 'Separador inercial', seps);
+      selectEquip('equipSeparador', 'Separador inercial', seps) +
+      selectEquip('equipKit', 'Kit de calibração (CPV)', kits);
+  }
+
+  // Kit de calibração escolhido → preenche a1/b1 com os coeficientes do
+  // certificado que vieram do SGP (menu Certificado de calibração). Ao TROCAR o
+  // kit sobrescreve; ao reabrir o ponto só completa se estiver vazio (não passa
+  // por cima de valor digitado à mão).
+  function aplicarKit(area, ponto, sobrescrever) {
+    var item = ponto.equipKit ? listaEquipQar().filter(function (x) {
+      return x.codigo === ponto.equipKit;
+    })[0] : null;
+    if (!item || item.a1 == null || item.b1 == null) return;
+    if (!sobrescrever && (String(ponto.calibA1 || '').trim() !== '' || String(ponto.calibB1 || '').trim() !== '')) return;
+    ponto.calibA1 = String(item.a1);
+    ponto.calibB1 = String(item.b1);
+    var elA = area.querySelector('[data-campo="calibA1"]');
+    var elB = area.querySelector('[data-campo="calibB1"]');
+    if (elA) elA.value = ponto.calibA1;
+    if (elB) elB.value = ponto.calibB1;
+    atualizarCurva(area, ponto);
+    salvarDevagar();
   }
 
   // Aviso do carvão do AGV escolhido: mostra a capacidade restante e alerta se as
@@ -584,6 +610,11 @@ EC.campoQar = (function () {
     atualizarAvisoCarvao(area);
     var selAgv = area.querySelector('[data-campo="equipAGV"]');
     if (selAgv) selAgv.addEventListener('change', function () { atualizarAvisoCarvao(area); });
+    // Kit de calibração: escolher/trocar preenche a1/b1 do certificado (SGP);
+    // reabrir o ponto só completa se os campos estiverem vazios.
+    var selKit = area.querySelector('[data-campo="equipKit"]');
+    if (selKit) selKit.addEventListener('change', function () { aplicarKit(area, ponto, true); });
+    aplicarKit(area, ponto, false);
     // Botão ± do b1: inverte o sinal do valor digitado e dispara o input para
     // salvar e recalcular a curva (o teclado do celular não tem "−").
     var btnNeg = area.querySelector('.cq-neg');
