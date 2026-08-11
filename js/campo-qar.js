@@ -529,7 +529,7 @@ EC.campoQar = (function () {
   // X = Coeficiente CPV; bolinhas = Pontos de Calibração; reta (preta) =
   // Ajuste linear da curva.
   function svgCurva(c) {
-    var W = 320, H = 214, m = { t: 26, r: 12, b: 24, l: 30 };
+    var W = 320, H = 214, m = { t: 10, r: 12, b: 44, l: 30 };
     var xs = c.pontos.map(function (p) { return p.x; });
     var ys = c.pontos.map(function (p) { return p.y; });
     var xMin = Math.min.apply(null, xs), xMax = Math.max.apply(null, xs);
@@ -540,12 +540,9 @@ EC.campoQar = (function () {
     var fy = (yMax - yMin) * 0.14 || 0.001; yMin -= fy; yMax += fy;
     function X(v) { return m.l + (v - xMin) / (xMax - xMin) * (W - m.l - m.r); }
     function Y(v) { return H - m.b - (v - yMin) / (yMax - yMin) * (H - m.t - m.b); }
+    var eixoY = (m.t + H - m.b) / 2;   // meio do quadro, para centrar o título Y
+    var eixoX = (m.l + W - m.r) / 2;   // meio do quadro, para centrar o título X
     var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Curva de calibração">';
-    // legenda
-    s += '<circle cx="14" cy="10" r="4.5" fill="#2f80e0" stroke="#fff" stroke-width="1.5"/>';
-    s += '<text x="22" y="13" font-size="10" fill="#5b6b7b">Pontos de Calibração</text>';
-    s += '<line x1="150" y1="10" x2="168" y2="10" stroke="#22272e" stroke-width="2"/>';
-    s += '<text x="173" y="13" font-size="10" fill="#5b6b7b">Ajuste linear da curva</text>';
     // eixos
     s += '<line x1="' + m.l + '" y1="' + (H - m.b) + '" x2="' + (W - m.r) + '" y2="' + (H - m.b) + '" stroke="#c9d4df" stroke-width="1"/>';
     s += '<line x1="' + m.l + '" y1="' + m.t + '" x2="' + m.l + '" y2="' + (H - m.b) + '" stroke="#c9d4df" stroke-width="1"/>';
@@ -555,8 +552,16 @@ EC.campoQar = (function () {
       s += '<circle cx="' + X(p.x) + '" cy="' + Y(p.y) + '" r="4.5" fill="#2f80e0" stroke="#fff" stroke-width="1.5"/>';
       s += '<text x="' + (X(p.x) + 7) + '" y="' + (Y(p.y) - 6) + '" font-size="10" fill="#5b6b7b">' + p.placa + '</text>';
     });
-    s += '<text x="' + ((m.l + W - m.r) / 2) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="10" fill="#5b6b7b">Coeficiente CPV</text>';
-    s += '<text transform="rotate(-90 10 ' + ((m.t + H - m.b) / 2) + ')" x="10" y="' + ((m.t + H - m.b) / 2) + '" text-anchor="middle" font-size="10" fill="#5b6b7b">Coeficiente CVV</text>';
+    // títulos dos eixos: centrados no quadro e junto dele
+    s += '<text x="' + eixoX + '" y="' + (H - m.b + 14) + '" text-anchor="middle" font-size="10" fill="#5b6b7b">Coeficiente CPV</text>';
+    s += '<text transform="rotate(-90 ' + (m.l - 12) + ' ' + eixoY + ')" x="' + (m.l - 12) + '" y="' + eixoY + '" text-anchor="middle" font-size="10" fill="#5b6b7b">Coeficiente CVV</text>';
+    // legenda ABAIXO do gráfico, começando por "Legenda:"
+    var ly = H - 6;
+    s += '<text x="4" y="' + ly + '" font-size="9" font-weight="700" fill="#22272e">Legenda:</text>';
+    s += '<circle cx="56" cy="' + (ly - 3) + '" r="4" fill="#2f80e0" stroke="#fff" stroke-width="1.5"/>';
+    s += '<text x="63" y="' + ly + '" font-size="9" fill="#5b6b7b">Pontos de Calibração</text>';
+    s += '<line x1="168" y1="' + (ly - 3) + '" x2="184" y2="' + (ly - 3) + '" stroke="#22272e" stroke-width="2"/>';
+    s += '<text x="188" y="' + ly + '" font-size="9" fill="#5b6b7b">Ajuste linear da curva</text>';
     s += '</svg>';
     return s;
   }

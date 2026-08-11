@@ -640,6 +640,9 @@ EC.pdf = (function () {
         var c = EC.campoQar.calcular(p, (reg.servico && reg.servico.escopo) || '');
         if (!c || c.falta || !c.pontos) return;
         var f4 = function (x) { return x.toFixed(4).replace('.', ','); };
+        y += 2; // respiro entre a barra "Ponto N" e a primeira linha
+        // O espaço da curva inteira (números + gráfico + legenda) já foi
+        // reservado junto com a barra do ponto, em corpoGenerico.
         subtitulo('Curva de calibração multiponto');
         kv('Inclinação a2', f4(c.a2));
         kv('Intercepto b2', f4(c.b2));
@@ -649,21 +652,10 @@ EC.pdf = (function () {
           kv('Qr operacional', f4(c.qr) + ' m³/min');
           kvVeredito('Veredito da vazão', !!c.vazaoOk);
         }
-        // Gráfico: reta de regressão + 5 pontos rotulados (jsPDF, mm), com
-        // legenda e eixos nomeados (Y = Coeficiente CVV, X = Coeficiente CPV).
-        var GW = 130, GH = 62, GX = MARGEM + 8;
-        garantir(GH + 22);
-        // legenda (bolinha azul + reta preta)
-        var GL = y + 2;
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(CINZA[0], CINZA[1], CINZA[2]);
-        doc.setFillColor(47, 128, 224);
-        doc.circle(GX + 1.5, GL, 1.2, 'F');
-        var tLeg1 = 'Pontos de Calibração';
-        doc.text(tLeg1, GX + 4.5, GL + 1.1);
-        var lx = GX + 4.5 + doc.getTextWidth(tLeg1) + 6;
-        doc.setDrawColor(PRETO[0], PRETO[1], PRETO[2]); doc.setLineWidth(0.5);
-        doc.line(lx, GL, lx + 8, GL);
-        doc.text('Ajuste linear da curva', lx + 10, GL + 1.1);
+        // Gráfico (jsPDF, mm): eixos nomeados centrados e colados no quadro,
+        // pontos azuis rotulados e a LEGENDA abaixo, começando com "Legenda:".
+        var GW = 120, GH = 60, GX = MARGEM + 12;
+        garantir(GH + 24); // gráfico + título do eixo X + legenda ficam juntos
         var xs = c.pontos.map(function (q) { return q.x; });
         var ys = c.pontos.map(function (q) { return q.y; });
         var xMin = Math.min.apply(null, xs), xMax = Math.max.apply(null, xs);
@@ -672,7 +664,7 @@ EC.pdf = (function () {
         var yMin = Math.min(Math.min.apply(null, ys), Math.min.apply(null, yR));
         var yMax = Math.max(Math.max.apply(null, ys), Math.max.apply(null, yR));
         var fy = (yMax - yMin) * 0.14 || 0.001; yMin -= fy; yMax += fy;
-        var GY = GL + 4;
+        var GY = y + 2;
         function PX(v) { return GX + (v - xMin) / (xMax - xMin) * GW; }
         function PY(v) { return GY + GH - (v - yMin) / (yMax - yMin) * GH; }
         doc.setDrawColor(180, 190, 200); doc.setLineWidth(0.25);
@@ -681,17 +673,36 @@ EC.pdf = (function () {
         // ajuste linear da curva (reta preta)
         doc.setDrawColor(PRETO[0], PRETO[1], PRETO[2]); doc.setLineWidth(0.5);
         doc.line(PX(xMin), PY(yR[0]), PX(xMax), PY(yR[1]));
-        doc.setFillColor(47, 128, 224);
-        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(CINZA[0], CINZA[1], CINZA[2]);
         c.pontos.forEach(function (q) {
+          // o texto do rótulo troca a cor de preenchimento — reafirma o AZUL
+          // antes de cada bolinha (senão só a 1ª sai azul).
+          doc.setFillColor(47, 128, 224);
           doc.circle(PX(q.x), PY(q.y), 1.1, 'F');
           doc.text('Placa ' + q.placa, PX(q.x) + 2, PY(q.y) - 1.6);
         });
+        // títulos dos eixos: centrados e colados no quadro do gráfico
         doc.setFontSize(7.5);
-        doc.text('Coeficiente CPV', GX + GW / 2, GY + GH + 5, { align: 'center' });
-        doc.text('Coeficiente CVV', GX - 2, GY + GH / 2, { align: 'center', angle: 90 });
+        var tX = 'Coeficiente CPV';
+        doc.text(tX, GX + GW / 2 - doc.getTextWidth(tX) / 2, GY + GH + 4.5);
+        var tY = 'Coeficiente CVV';
+        doc.text(tY, GX - 2.5, GY + GH / 2 + doc.getTextWidth(tY) / 2, { angle: 90 });
+        // legenda abaixo do gráfico
+        var LY = GY + GH + 9.5;
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(PRETO[0], PRETO[1], PRETO[2]);
+        doc.text('Legenda:', GX, LY);
+        var lx = GX + doc.getTextWidth('Legenda:') + 4;
+        doc.setFont('helvetica', 'normal'); doc.setTextColor(CINZA[0], CINZA[1], CINZA[2]);
+        doc.setFillColor(47, 128, 224);
+        doc.circle(lx + 1.3, LY - 1, 1.2, 'F');
+        var tLeg1 = 'Pontos de Calibração';
+        doc.text(tLeg1, lx + 4, LY);
+        var l2 = lx + 4 + doc.getTextWidth(tLeg1) + 6;
+        doc.setDrawColor(PRETO[0], PRETO[1], PRETO[2]); doc.setLineWidth(0.5);
+        doc.line(l2, LY - 1, l2 + 8, LY - 1);
+        doc.text('Ajuste linear da curva', l2 + 10, LY);
         doc.setTextColor(PRETO[0], PRETO[1], PRETO[2]);
-        y = GY + GH + 9;
+        y = LY + 7;
       }
 
       function corpoGenerico() {
@@ -716,7 +727,12 @@ EC.pdf = (function () {
           });
           return skip;
         }
+        var ehPontoQar = (reg.tipo === 'qar' && itens.rotulo === 'Ponto');
         for (var i = 0; i < qtd; i++) {
+          // QAR: a barra "Ponto N" e a curva inteira (números + gráfico +
+          // legenda) descem juntas para a mesma página — senão a barra fica
+          // órfã no pé de uma página e o gráfico começa na seguinte.
+          if (ehPontoQar) garantir(132);
           tituloSecao(itens.rotulo + ' ' + (i + 1));
           var it = itens.arr[i] || {};
           if (it.periodos && typeof it.periodos === 'object') {
@@ -730,7 +746,7 @@ EC.pdf = (function () {
               continue;
             }
           }
-          if (reg.tipo === 'qar' && itens.rotulo === 'Ponto') {
+          if (ehPontoQar) {
             // Ordem do ponto no QAR: 1º a curva de calibração; 2º os dados do
             // ponto (sem as leituras brutas); 3º o título "Coletas" com as coletas.
             curvaQarPdf(it);
