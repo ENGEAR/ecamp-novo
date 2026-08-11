@@ -407,13 +407,21 @@ EC.campoQar = (function () {
     var faixaY = Math.max.apply(null, ys) - Math.min.apply(null, ys);
     if (!faixaY) return avisos;
     var res09 = c.pontos[3].res / faixaY, res08 = c.pontos[4].res / faixaY;
-    var maisNegativo = Math.min.apply(null, c.pontos.map(function (p) { return p.res / faixaY; }));
     if (!c.curvaOk) {
-      if (res08 <= maisNegativo + 1e-9 && res08 < -0.08 && res09 < 0) {
-        avisos.push('Queda sistemática nas placas mais restritivas (09 e 08) — indício de motor sem rendimento: verifique as escovas/carvão e a tensão da rede antes de recalibrar.');
-      } else {
-        avisos.push('Leituras dispersas sem padrão — investigue vazamento de ar falso (borrachas e borboletas do porta-filtro), estabilização de 1–2 min ao trocar de placa e leitura dos manômetros (paralaxe).');
-      }
+      // 1º passo SEMPRE que a curva reprova: repetir os pontos fora da reta —
+      // erro de leitura/estabilização é a causa mais comum e a mais barata de
+      // eliminar. Lista no máximo os 2 piores (resíduo ≥ 50% do maior), para a
+      // instrução ser acionável em vez de "repita quase tudo".
+      var ordenados = c.pontos.slice()
+        .sort(function (a, b) { return Math.abs(b.res) - Math.abs(a.res); });
+      var corte = Math.abs(ordenados[0].res) * 0.5;
+      var fora = ordenados.filter(function (p) { return Math.abs(p.res) >= corte; }).slice(0, 2);
+      var nomes = fora.map(function (p) { return p.placa; });
+      avisos.push('Primeiro, repita a leitura da' + (nomes.length > 1 ? 's placas ' + nomes.join(' e ') : ' placa ' + nomes[0]) +
+        ' — ' + (nomes.length > 1 ? 'são os pontos' : 'é o ponto') + ' mais fora da reta. Aguarde 1–2 min de estabilização após trocar a placa e leia o manômetro na altura dos olhos.');
+      // Com 5 pontos e a reta reajustada, o padrão dos resíduos não separa com
+      // segurança vazamento de motor — a 2ª instrução dá a ordem de investigação.
+      avisos.push('Se repetir e continuar reprovando: confira vazamento de ar falso (borrachas e borboletas do porta-filtro apertadas em "X") e a rede elétrica/gerador; se as placas 09 e 08 seguirem caindo abaixo da reta, verifique as escovas/carvão do motor.');
     } else if (res08 < -0.06 && res09 < 0) {
       avisos.push('Placas restritivas (09 e 08) caindo abaixo da reta — desgaste inicial do motor (escovas); acompanhe nas próximas calibrações.');
     }
