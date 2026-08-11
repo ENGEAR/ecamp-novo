@@ -134,6 +134,7 @@ EC.pdf = (function () {
     tipoEquip: 'Tipo de equipamento', numeroEquip: 'Nº do equipamento', instalGeofone: 'Instalação do geofone',
     fonteVibracao: 'Fonte de vibração', intercorrencia: 'Intercorrência', intercorrenciaDesc: 'Descrição da intercorrência',
     placa: 'Placa', ano: 'Ano', endereco: 'Endereço', validadeCalib: 'Validade da calibração (em meses)',
+    calibA1: 'Inclinação a1 (certificado do CPV)', calibB1: 'Intercepto b1 (certificado do CPV)',
     pressao: 'Pressão', horimetro: 'Horímetro', validade: 'Validade',
     area: 'Área', pontosCalculados: 'Pontos calculados', pessoas: 'Nº de pessoas', janela: 'Janela',
     valorVazao: 'Vazão', co2: 'CO2', temp: 'Temperatura', ur: 'Umidade relativa', velar: 'Velocidade do ar',
@@ -611,6 +612,60 @@ EC.pdf = (function () {
         }
         return null;
       }
+      // Curva de calibração do QAR no PDF: números, vereditos e o GRÁFICO da
+      // regressão (mesma matemática da tela — EC.campoQar.calcular). O
+      // diagnóstico interno de manutenção NÃO entra aqui de propósito: o PDF
+      // vai para o cliente; o diagnóstico fica no app e no Excel do SGP.
+      function curvaQarPdf(p) {
+        if (!(EC.campoQar && EC.campoQar.calcular)) return;
+        var c = EC.campoQar.calcular(p, (reg.servico && reg.servico.escopo) || '');
+        if (!c || c.falta || !c.pontos) return;
+        var f4 = function (x) { return x.toFixed(4).replace('.', ','); };
+        var f2 = function (x) { return x.toFixed(2).replace('.', ','); };
+        subtitulo('Curva de calibração multiponto');
+        kv('Inclinação a2', f4(c.a2));
+        kv('Intercepto b2', f4(c.b2));
+        kv('Correlação r', f4(c.r));
+        kv('Veredito da curva', c.curvaOk
+          ? 'APROVADA — r maior ou igual a 0,990'
+          : 'REPROVADA — r abaixo de 0,990 (desvio de linearidade); calibração inválida');
+        if (c.qr !== undefined) {
+          kv('Qr operacional', f4(c.qr) + ' m³/min');
+          kv('Veredito da vazão', (c.vazaoOk ? 'APROVADA' : 'REPROVADA') +
+            ' — faixa para ' + c.fracao + ': ' + f2(c.faixa[0]) + ' a ' + f2(c.faixa[1]) + ' m³/min');
+        }
+        // Gráfico: reta de regressão + 5 pontos rotulados (jsPDF, mm).
+        var GW = 130, GH = 62, GX = MARGEM + 6;
+        garantir(GH + 16);
+        var xs = c.pontos.map(function (q) { return q.x; });
+        var ys = c.pontos.map(function (q) { return q.y; });
+        var xMin = Math.min.apply(null, xs), xMax = Math.max.apply(null, xs);
+        var fx = (xMax - xMin) * 0.14 || 0.001; xMin -= fx; xMax += fx;
+        var yR = [c.a2 * xMin + c.b2, c.a2 * xMax + c.b2];
+        var yMin = Math.min(Math.min.apply(null, ys), Math.min.apply(null, yR));
+        var yMax = Math.max(Math.max.apply(null, ys), Math.max.apply(null, yR));
+        var fy = (yMax - yMin) * 0.14 || 0.001; yMin -= fy; yMax += fy;
+        var GY = y + 2;
+        function PX(v) { return GX + (v - xMin) / (xMax - xMin) * GW; }
+        function PY(v) { return GY + GH - (v - yMin) / (yMax - yMin) * GH; }
+        doc.setDrawColor(180, 190, 200); doc.setLineWidth(0.25);
+        doc.line(GX, GY + GH, GX + GW, GY + GH); // eixo X
+        doc.line(GX, GY, GX, GY + GH);           // eixo Y
+        doc.setDrawColor(AZUL[0], AZUL[1], AZUL[2]); doc.setLineWidth(0.5);
+        doc.line(PX(xMin), PY(yR[0]), PX(xMax), PY(yR[1]));
+        doc.setFillColor(47, 128, 224);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(CINZA[0], CINZA[1], CINZA[2]);
+        c.pontos.forEach(function (q) {
+          doc.circle(PX(q.x), PY(q.y), 1.1, 'F');
+          doc.text('Placa ' + q.placa, PX(q.x) + 2, PY(q.y) - 1.6);
+        });
+        doc.setFontSize(7.5);
+        doc.text('Vazão de referência / raiz(T)  (X)', GX + GW / 2, GY + GH + 5, { align: 'center' });
+        doc.text('Leitura corrigida do CVV (Y)', GX - 2, GY + GH / 2, { align: 'center', angle: 90 });
+        doc.setTextColor(PRETO[0], PRETO[1], PRETO[2]);
+        y = GY + GH + 9;
+      }
+
       function corpoGenerico() {
         var campo = reg.campo || {};
         var geral = campo.geral || {};
@@ -639,6 +694,8 @@ EC.pdf = (function () {
             }
           }
           renderCampos(it);
+          // QAR Externo: a curva de calibração entra logo após os campos do ponto.
+          if (reg.tipo === 'qar' && itens.rotulo === 'Ponto') curvaQarPdf(it);
         }
       }
 

@@ -333,6 +333,171 @@ EC.campoQar = (function () {
   }
 
 
+  /* ===== Curva de calibração automática (mesma matemática da planilha QR_AGV) ===== */
+
+  // Fração do particulado pelo ESCOPO da OS (mesma regra do SGP) — decide a
+  // faixa aceitável do Qr operacional.
+  function fracaoDoEscopo(escopo) {
+    var e = String(escopo || '').toLowerCase().replace(/\s+/g, '');
+    function pos(re) { var m = e.match(re); return m ? m.index : Infinity; }
+    var p25 = pos(/pm2[.,]?5|mp2[.,]?5/), p10 = pos(/pm10|mp10/), pPts = pos(/pts/);
+    var min = Math.min(p25, p10, pPts);
+    if (min === Infinity) return 'PTS';
+    return (min === p25) ? 'MP2,5' : (min === p10 ? 'MP10' : 'PTS');
+  }
+  function numDe(v) { v = parseFloat(v); return isNaN(v) ? null : v; }
+  // Leitura total de um manômetro em U = ↑ + ↓. Convenção: coluna 800 mm = CVV
+  // (motor); coluna 400 mm (chaves _00…) = PTV (orifício calibrador).
+  function leituraTotal(ponto, prefixo) {
+    var a = numDe(ponto[prefixo + 'sobe']), b = numDe(ponto[prefixo + 'desce']);
+    return (a === null || b === null) ? null : a + b;
+  }
+  // Devolve {falta: '…'} enquanto o preenchimento não dá para calcular; senão
+  // {pontos, a2, b2, r, curvaOk} e, com a leitura do filtro, {qr, faixa, vazaoOk}.
+  // É pura (ponto + texto do escopo) para o PDF reaproveitar via EC.campoQar.calcular.
+  function calcularCurva(ponto, escopo) {
+    ponto = ponto || {};
+    var tempC = numDe(ponto.temperatura), pb = numDe(ponto.pressao);
+    if (tempC === null || pb === null || pb <= 0) return { falta: 'a temperatura e a pressão do 5º passo' };
+    var a1 = numDe(ponto.calibA1), b1 = numDe(ponto.calibB1);
+    if (a1 === null || b1 === null || a1 === 0) return { falta: 'a inclinação a1 e o intercepto b1 do certificado do CPV' };
+    var T = tempC + 273; // a planilha trabalha em Kelvin
+    var pontosCurva = [];
+    for (var i = 0; i < CARTAS.length; i++) {
+      var c = CARTAS[i];
+      var cvv = leituraTotal(ponto, 'carta' + c + '_800');
+      var ptv = leituraTotal(ponto, 'carta' + c + '_00');
+      if (cvv === null || ptv === null) return { falta: 'as 4 leituras da placa ' + c };
+      if (ptv <= 0) return { falta: 'leituras maiores que zero na placa ' + c };
+      var y = ((cvv / 1.361) - pb) / -pb;                     // leitura corrigida do CVV
+      var qref = (1 / a1) * (Math.sqrt(ptv * (T / pb)) - b1); // vazão de referência do padrão
+      pontosCurva.push({ placa: c, x: qref / Math.sqrt(T), y: y });
+    }
+    var n = pontosCurva.length, mx = 0, my = 0;
+    pontosCurva.forEach(function (p) { mx += p.x; my += p.y; });
+    mx /= n; my /= n;
+    var sxy = 0, sxx = 0, syy = 0;
+    pontosCurva.forEach(function (p) {
+      sxy += (p.x - mx) * (p.y - my); sxx += (p.x - mx) * (p.x - mx); syy += (p.y - my) * (p.y - my);
+    });
+    if (!sxx || !syy) return { falta: 'leituras diferentes entre as placas (estão todas iguais)' };
+    var a2 = sxy / sxx;
+    var res = { pontos: pontosCurva, a2: a2, b2: my - a2 * mx, r: sxy / Math.sqrt(sxx * syy) };
+    res.curvaOk = res.r >= 0.99;
+    // Resíduo de cada placa (distância vertical até a reta) — base do diagnóstico.
+    pontosCurva.forEach(function (p) { p.res = p.y - (res.a2 * p.x + res.b2); });
+    var filtro = leituraTotal(ponto, 'filtro_800');
+    if (filtro !== null) {
+      res.qr = (1 / res.a2) * ((((filtro / 1.361) - pb)) / -pb - res.b2) * Math.sqrt(T);
+      res.fracao = fracaoDoEscopo(escopo);
+      res.faixa = (res.fracao === 'PTS') ? [1.10, 1.70] : [1.02, 1.24];
+      res.vazaoOk = res.qr >= res.faixa[0] && res.qr <= res.faixa[1];
+    }
+    return res;
+  }
+
+  // Diagnóstico INTERNO de manutenção (app + Excel do SGP; NUNCA vai no PDF do
+  // cliente). Olha o padrão dos resíduos e a margem do Qr. Limiares calibrados
+  // com o teste ID 31 da planilha QR_AGV (curva sadia: resíduo da placa 08 fica
+  // em ~-5% da faixa; motor "engasgando" passa de -8%).
+  function diagnosticoCurva(c) {
+    var avisos = [];
+    if (!c || c.falta || !c.pontos) return avisos;
+    var ys = c.pontos.map(function (p) { return p.y; });
+    var faixaY = Math.max.apply(null, ys) - Math.min.apply(null, ys);
+    if (!faixaY) return avisos;
+    var res09 = c.pontos[3].res / faixaY, res08 = c.pontos[4].res / faixaY;
+    var maisNegativo = Math.min.apply(null, c.pontos.map(function (p) { return p.res / faixaY; }));
+    if (!c.curvaOk) {
+      if (res08 <= maisNegativo + 1e-9 && res08 < -0.08 && res09 < 0) {
+        avisos.push('Queda sistemática nas placas mais restritivas (09 e 08) — indício de motor sem rendimento: verifique as escovas/carvão e a tensão da rede antes de recalibrar.');
+      } else {
+        avisos.push('Leituras dispersas sem padrão — investigue vazamento de ar falso (borrachas e borboletas do porta-filtro), estabilização de 1–2 min ao trocar de placa e leitura dos manômetros (paralaxe).');
+      }
+    } else if (res08 < -0.06 && res09 < 0) {
+      avisos.push('Placas restritivas (09 e 08) caindo abaixo da reta — desgaste inicial do motor (escovas); acompanhe nas próximas calibrações.');
+    }
+    if (c.qr !== undefined && c.faixa) {
+      if (!c.vazaoOk && c.qr < c.faixa[0] && c.curvaOk) {
+        avisos.push('Curva linear com vazão baixa — motor sem força: verifique escovas/carvão, tensão da rede (extensões longas) e a vedação do porta-filtro.');
+      } else if (!c.vazaoOk && c.qr > c.faixa[1]) {
+        avisos.push('Vazão acima da faixa — confira as leituras com filtro no lugar e o ajuste do motor.');
+      } else if (c.vazaoOk && (c.qr - c.faixa[0]) < 0.05 * (c.faixa[1] - c.faixa[0])) {
+        avisos.push('Qr aprovado, mas a menos de 5% do limite inferior da faixa — programe manutenção preventiva (escovas) antes da próxima campanha.');
+      }
+    }
+    return avisos;
+  }
+  function fmtBr(v, casas) { return v.toFixed(casas === undefined ? 4 : casas).replace('.', ','); }
+  function num4(v) { return Math.round(v * 10000) / 10000; }
+
+  // Gráfico compacto da curva (reta de regressão + 5 pontos rotulados).
+  function svgCurva(c) {
+    var W = 320, H = 190, m = { t: 14, r: 12, b: 20, l: 16 };
+    var xs = c.pontos.map(function (p) { return p.x; });
+    var ys = c.pontos.map(function (p) { return p.y; });
+    var xMin = Math.min.apply(null, xs), xMax = Math.max.apply(null, xs);
+    var fx = (xMax - xMin) * 0.14 || 0.001; xMin -= fx; xMax += fx;
+    var yR = [c.a2 * xMin + c.b2, c.a2 * xMax + c.b2];
+    var yMin = Math.min(Math.min.apply(null, ys), Math.min.apply(null, yR));
+    var yMax = Math.max(Math.max.apply(null, ys), Math.max.apply(null, yR));
+    var fy = (yMax - yMin) * 0.14 || 0.001; yMin -= fy; yMax += fy;
+    function X(v) { return m.l + (v - xMin) / (xMax - xMin) * (W - m.l - m.r); }
+    function Y(v) { return H - m.b - (v - yMin) / (yMax - yMin) * (H - m.t - m.b); }
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Curva de calibração">';
+    s += '<line x1="' + m.l + '" y1="' + (H - m.b) + '" x2="' + (W - m.r) + '" y2="' + (H - m.b) + '" stroke="#c9d4df" stroke-width="1"/>';
+    s += '<line x1="' + m.l + '" y1="' + m.t + '" x2="' + m.l + '" y2="' + (H - m.b) + '" stroke="#c9d4df" stroke-width="1"/>';
+    s += '<line x1="' + X(xMin) + '" y1="' + Y(yR[0]) + '" x2="' + X(xMax) + '" y2="' + Y(yR[1]) + '" stroke="#1657ae" stroke-width="2"/>';
+    c.pontos.forEach(function (p) {
+      s += '<circle cx="' + X(p.x) + '" cy="' + Y(p.y) + '" r="4.5" fill="#2f80e0" stroke="#fff" stroke-width="1.5"/>';
+      s += '<text x="' + (X(p.x) + 7) + '" y="' + (Y(p.y) - 6) + '" font-size="10" fill="#5b6b7b">' + p.placa + '</text>';
+    });
+    s += '<text x="' + ((m.l + W - m.r) / 2) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="10" fill="#5b6b7b">Qref ÷ √T</text>';
+    s += '</svg>';
+    return s;
+  }
+
+  // Preenche o bloco .cq-curva do ponto — chamado a cada digitação no cartão.
+  // Também guarda o resultado em ponto.curvaAuto (números + diagnóstico), que
+  // sobe com o registro e vira colunas no Excel de Monitoramento do SGP.
+  function atualizarCurva(area, ponto) {
+    var div = area.querySelector('.cq-curva');
+    if (!div) return;
+    var c = calcularCurva(ponto, (ctx.estado.servico && ctx.estado.servico.escopo) || '');
+    if (c.falta) {
+      ponto.curvaAuto = null;
+      div.innerHTML = '<div class="alerta alerta-info">📈 A curva aparece aqui sozinha quando você preencher ' + c.falta + '.</div>';
+      return;
+    }
+    var diagnostico = diagnosticoCurva(c);
+    ponto.curvaAuto = {
+      a2: num4(c.a2), b2: num4(c.b2), r: num4(c.r),
+      curvaOk: c.curvaOk,
+      qr: (c.qr === undefined) ? null : num4(c.qr),
+      fracao: c.fracao || null,
+      vazaoOk: (c.vazaoOk === undefined) ? null : c.vazaoOk,
+      diagnostico: diagnostico
+    };
+    var html = '<div class="cq-curva-resumo">a2 <strong>' + fmtBr(c.a2) + '</strong> · b2 <strong>' + fmtBr(c.b2) + '</strong> · r <strong>' + fmtBr(c.r) + '</strong></div>';
+    html += c.curvaOk
+      ? '<div class="alerta alerta-verde">✅ Curva APROVADA — r = ' + fmtBr(c.r) + ' (critério: r ≥ 0,990).</div>'
+      : '<div class="alerta alerta-vermelho">❌ Curva REPROVADA — r = ' + fmtBr(c.r) + ' &lt; 0,990: desvio de linearidade. Confira vedação, estabilização das placas e leituras, e refaça a calibração.</div>';
+    if (c.qr === undefined) {
+      html += '<div class="alerta alerta-info">Preencha a leitura com filtro no lugar para calcular o Qr operacional.</div>';
+    } else if (c.vazaoOk) {
+      html += '<div class="alerta alerta-verde">✅ Vazão APROVADA — Qr = ' + fmtBr(c.qr) + ' m³/min, dentro da faixa de ' + fmtBr(c.faixa[0], 2) + ' a ' + fmtBr(c.faixa[1], 2) + ' m³/min (' + c.fracao + ').</div>';
+    } else {
+      html += '<div class="alerta alerta-vermelho">❌ Vazão REPROVADA — Qr = ' + fmtBr(c.qr) + ' m³/min, fora da faixa de ' + fmtBr(c.faixa[0], 2) + ' a ' + fmtBr(c.faixa[1], 2) + ' m³/min (' + c.fracao + ').</div>';
+    }
+    // Diagnóstico interno (manutenção): só na tela e no Excel do SGP — o PDF do
+    // cliente leva apenas a curva e os vereditos.
+    if (diagnostico.length) {
+      html += '<div class="alerta alerta-amarelo">🔧 <strong>Diagnóstico interno</strong> (não sai no PDF):<br>• ' + diagnostico.join('<br>• ') + '</div>';
+    }
+    html += svgCurva(c);
+    div.innerHTML = html;
+  }
+
   // Contato do dono da casa deste ponto (preenchido pelo laboratório nos Dados
   // gerais). Vem vazio quando não há nada informado para o ponto.
   function contatoDoPonto(n) {
@@ -372,6 +537,16 @@ EC.campoQar = (function () {
       CARTAS.map(function (c) { return '<p class="grupo-checks-titulo">Placa de retenção ' + c + '</p>' + htmlCarta('carta' + c); }).join('') +
       '<p class="grupo-checks-titulo">Leitura com filtro no lugar</p>' +
       '<div class="grade-2">' + lblNum('Coluna 800 mm ↑', 'filtro_800sobe') + lblNum('Coluna 800 mm ↓', 'filtro_800desce') + '</div>' +
+      '<p class="grupo-checks-titulo">📈 Curva de calibração (automática)</p>' +
+      // a1/b1 vêm do certificado com 4 casas (step any) e o b1 costuma ser
+      // NEGATIVO — o teclado numérico do celular não tem "−", daí o botão ±.
+      '<div class="grade-2">' +
+      '<label>Inclinação a1 (certificado do CPV)<input type="number" step="any" inputmode="decimal" data-campo="calibA1"></label>' +
+      '<label>Intercepto b1 (certificado do CPV)<span class="cq-neg-linha">' +
+      '<button type="button" class="botao botao-mini cq-neg" title="Trocar o sinal (positivo ↔ negativo)">±</button>' +
+      '<input type="number" step="any" inputmode="decimal" data-campo="calibB1"></span></label>' +
+      '</div>' +
+      '<div class="cq-curva"></div>' +
       htmlChecks(['Calibração aprovada'], 'calib') +
       '<label>Validade da calibração (em meses)<input type="number" min="0" step="1" inputmode="numeric" data-campo="validadeCalib"></label>' +
       // Coletas
@@ -401,6 +576,21 @@ EC.campoQar = (function () {
     atualizarAvisoCarvao(area);
     var selAgv = area.querySelector('[data-campo="equipAGV"]');
     if (selAgv) selAgv.addEventListener('change', function () { atualizarAvisoCarvao(area); });
+    // Botão ± do b1: inverte o sinal do valor digitado e dispara o input para
+    // salvar e recalcular a curva (o teclado do celular não tem "−").
+    var btnNeg = area.querySelector('.cq-neg');
+    if (btnNeg) btnNeg.addEventListener('click', function () {
+      var el = area.querySelector('[data-campo="calibB1"]');
+      var v = String(el.value || '').trim();
+      if (!v) { el.focus(); return; }
+      el.value = v.charAt(0) === '-' ? v.slice(1) : '-' + v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    // Curva de calibração ao vivo: recalcula a cada digitação no cartão (os
+    // campos ficam fora do .cq-curva, então redesenhar não rouba o foco).
+    atualizarCurva(area, ponto);
+    area.addEventListener('input', function () { atualizarCurva(area, ponto); });
+    area.addEventListener('change', function () { atualizarCurva(area, ponto); });
   }
 
   /* ===== Validação ===== */
@@ -487,6 +677,7 @@ EC.campoQar = (function () {
   return {
     renderizar: renderizar,
     itensFaltando: itensFaltando,
+    calcular: calcularCurva, // usado pelo PDF p/ desenhar a curva do ponto
     TIPO_CARIMBO: TIPO_CARIMBO
   };
 })();
