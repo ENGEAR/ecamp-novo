@@ -389,6 +389,17 @@ EC.pdf = (function () {
         if (valor === undefined || valor === null || String(valor).trim() === '' || String(valor) === '—') return;
         kv(rotuloTxt, valor);
       }
+      // Veredito enxuto: só APROVADO (verde) ou REPROVADO (vermelho), em negrito.
+      function kvVeredito(rotuloTxt, ok) {
+        garantir(6);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(PRETO[0], PRETO[1], PRETO[2]);
+        var rot = rotuloTxt + ': ';
+        doc.text(rot, MARGEM, y);
+        if (ok) doc.setTextColor(15, 123, 61); else doc.setTextColor(180, 35, 24);
+        doc.text(ok ? 'APROVADO' : 'REPROVADO', MARGEM + doc.getTextWidth(rot), y);
+        doc.setTextColor(PRETO[0], PRETO[1], PRETO[2]); doc.setFont('helvetica', 'normal');
+        y += 5.4;
+      }
 
       function subtitulo(txt) {
         garantir(7);
@@ -629,22 +640,30 @@ EC.pdf = (function () {
         var c = EC.campoQar.calcular(p, (reg.servico && reg.servico.escopo) || '');
         if (!c || c.falta || !c.pontos) return;
         var f4 = function (x) { return x.toFixed(4).replace('.', ','); };
-        var f2 = function (x) { return x.toFixed(2).replace('.', ','); };
         subtitulo('Curva de calibração multiponto');
         kv('Inclinação a2', f4(c.a2));
         kv('Intercepto b2', f4(c.b2));
         kv('Correlação r', f4(c.r));
-        kv('Veredito da curva', c.curvaOk
-          ? 'APROVADA — r maior ou igual a 0,990'
-          : 'REPROVADA — r abaixo de 0,990 (desvio de linearidade); calibração inválida');
+        kvVeredito('Veredito da curva', c.curvaOk);
         if (c.qr !== undefined) {
           kv('Qr operacional', f4(c.qr) + ' m³/min');
-          kv('Veredito da vazão', (c.vazaoOk ? 'APROVADA' : 'REPROVADA') +
-            ' — faixa para ' + c.fracao + ': ' + f2(c.faixa[0]) + ' a ' + f2(c.faixa[1]) + ' m³/min');
+          kvVeredito('Veredito da vazão', !!c.vazaoOk);
         }
-        // Gráfico: reta de regressão + 5 pontos rotulados (jsPDF, mm).
-        var GW = 130, GH = 62, GX = MARGEM + 6;
-        garantir(GH + 16);
+        // Gráfico: reta de regressão + 5 pontos rotulados (jsPDF, mm), com
+        // legenda e eixos nomeados (Y = Coeficiente CVV, X = Coeficiente CPV).
+        var GW = 130, GH = 62, GX = MARGEM + 8;
+        garantir(GH + 22);
+        // legenda (bolinha azul + reta preta)
+        var GL = y + 2;
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(CINZA[0], CINZA[1], CINZA[2]);
+        doc.setFillColor(47, 128, 224);
+        doc.circle(GX + 1.5, GL, 1.2, 'F');
+        var tLeg1 = 'Pontos de Calibração';
+        doc.text(tLeg1, GX + 4.5, GL + 1.1);
+        var lx = GX + 4.5 + doc.getTextWidth(tLeg1) + 6;
+        doc.setDrawColor(PRETO[0], PRETO[1], PRETO[2]); doc.setLineWidth(0.5);
+        doc.line(lx, GL, lx + 8, GL);
+        doc.text('Ajuste linear da curva', lx + 10, GL + 1.1);
         var xs = c.pontos.map(function (q) { return q.x; });
         var ys = c.pontos.map(function (q) { return q.y; });
         var xMin = Math.min.apply(null, xs), xMax = Math.max.apply(null, xs);
@@ -653,23 +672,24 @@ EC.pdf = (function () {
         var yMin = Math.min(Math.min.apply(null, ys), Math.min.apply(null, yR));
         var yMax = Math.max(Math.max.apply(null, ys), Math.max.apply(null, yR));
         var fy = (yMax - yMin) * 0.14 || 0.001; yMin -= fy; yMax += fy;
-        var GY = y + 2;
+        var GY = GL + 4;
         function PX(v) { return GX + (v - xMin) / (xMax - xMin) * GW; }
         function PY(v) { return GY + GH - (v - yMin) / (yMax - yMin) * GH; }
         doc.setDrawColor(180, 190, 200); doc.setLineWidth(0.25);
         doc.line(GX, GY + GH, GX + GW, GY + GH); // eixo X
         doc.line(GX, GY, GX, GY + GH);           // eixo Y
-        doc.setDrawColor(AZUL[0], AZUL[1], AZUL[2]); doc.setLineWidth(0.5);
+        // ajuste linear da curva (reta preta)
+        doc.setDrawColor(PRETO[0], PRETO[1], PRETO[2]); doc.setLineWidth(0.5);
         doc.line(PX(xMin), PY(yR[0]), PX(xMax), PY(yR[1]));
         doc.setFillColor(47, 128, 224);
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(CINZA[0], CINZA[1], CINZA[2]);
+        doc.setFontSize(7);
         c.pontos.forEach(function (q) {
           doc.circle(PX(q.x), PY(q.y), 1.1, 'F');
           doc.text('Placa ' + q.placa, PX(q.x) + 2, PY(q.y) - 1.6);
         });
         doc.setFontSize(7.5);
-        doc.text('Vazão de referência / raiz(T)  (X)', GX + GW / 2, GY + GH + 5, { align: 'center' });
-        doc.text('Leitura corrigida do CVV (Y)', GX - 2, GY + GH / 2, { align: 'center', angle: 90 });
+        doc.text('Coeficiente CPV', GX + GW / 2, GY + GH + 5, { align: 'center' });
+        doc.text('Coeficiente CVV', GX - 2, GY + GH / 2, { align: 'center', angle: 90 });
         doc.setTextColor(PRETO[0], PRETO[1], PRETO[2]);
         y = GY + GH + 9;
       }
@@ -687,6 +707,15 @@ EC.pdf = (function () {
         var qtd = Math.min(itens.arr.length, count);
         // CECAV (vibração) agora pode ter medições por PERÍODO (diurno/noturno).
         var PER_ORDEM = ['diurno', 'noturno'], PER_NOME = { diurno: 'Diurno', noturno: 'Noturno' };
+        // QAR: campos brutos que NÃO saem no PDF — a curva resume as placas, o
+        // filtro e os coeficientes do certificado (pedido da Raisa, 2026-08-11).
+        function skipQar(p) {
+          var skip = { calibA1: 1, calibB1: 1, coletas: 1 };
+          Object.keys(p).forEach(function (k) {
+            if (/^carta\d+_\d+(sobe|desce)$/.test(k) || /^filtro_\d+(sobe|desce)$/.test(k)) skip[k] = 1;
+          });
+          return skip;
+        }
         for (var i = 0; i < qtd; i++) {
           tituloSecao(itens.rotulo + ' ' + (i + 1));
           var it = itens.arr[i] || {};
@@ -701,9 +730,20 @@ EC.pdf = (function () {
               continue;
             }
           }
+          if (reg.tipo === 'qar' && itens.rotulo === 'Ponto') {
+            // Ordem do ponto no QAR: 1º a curva de calibração; 2º os dados do
+            // ponto (sem as leituras brutas); 3º o título "Coletas" com as coletas.
+            curvaQarPdf(it);
+            renderCampos(it, skipQar(it));
+            var cols = it.coletas || [];
+            if (cols.length) {
+              tituloSecao('Coletas');
+              var base = Math.max(1, parseInt(it.primeiraColeta, 10) || 1) - 1;
+              cols.forEach(function (col, j) { subtitulo('Coleta ' + (j + 1 + base)); renderCampos(col || {}); });
+            }
+            continue;
+          }
           renderCampos(it);
-          // QAR Externo: a curva de calibração entra logo após os campos do ponto.
-          if (reg.tipo === 'qar' && itens.rotulo === 'Ponto') curvaQarPdf(it);
         }
       }
 

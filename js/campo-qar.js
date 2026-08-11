@@ -524,9 +524,12 @@ EC.campoQar = (function () {
   function fmtBr(v, casas) { return v.toFixed(casas === undefined ? 4 : casas).replace('.', ','); }
   function num4(v) { return Math.round(v * 10000) / 10000; }
 
-  // Gráfico compacto da curva (reta de regressão + 5 pontos rotulados).
+  // Gráfico compacto da curva (reta de regressão + 5 pontos rotulados), com
+  // legenda e nomes de eixo pedidos pela Raisa: Y = Coeficiente CVV,
+  // X = Coeficiente CPV; bolinhas = Pontos de Calibração; reta (preta) =
+  // Ajuste linear da curva.
   function svgCurva(c) {
-    var W = 320, H = 190, m = { t: 14, r: 12, b: 20, l: 16 };
+    var W = 320, H = 214, m = { t: 26, r: 12, b: 24, l: 30 };
     var xs = c.pontos.map(function (p) { return p.x; });
     var ys = c.pontos.map(function (p) { return p.y; });
     var xMin = Math.min.apply(null, xs), xMax = Math.max.apply(null, xs);
@@ -538,14 +541,22 @@ EC.campoQar = (function () {
     function X(v) { return m.l + (v - xMin) / (xMax - xMin) * (W - m.l - m.r); }
     function Y(v) { return H - m.b - (v - yMin) / (yMax - yMin) * (H - m.t - m.b); }
     var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Curva de calibração">';
+    // legenda
+    s += '<circle cx="14" cy="10" r="4.5" fill="#2f80e0" stroke="#fff" stroke-width="1.5"/>';
+    s += '<text x="22" y="13" font-size="10" fill="#5b6b7b">Pontos de Calibração</text>';
+    s += '<line x1="150" y1="10" x2="168" y2="10" stroke="#22272e" stroke-width="2"/>';
+    s += '<text x="173" y="13" font-size="10" fill="#5b6b7b">Ajuste linear da curva</text>';
+    // eixos
     s += '<line x1="' + m.l + '" y1="' + (H - m.b) + '" x2="' + (W - m.r) + '" y2="' + (H - m.b) + '" stroke="#c9d4df" stroke-width="1"/>';
     s += '<line x1="' + m.l + '" y1="' + m.t + '" x2="' + m.l + '" y2="' + (H - m.b) + '" stroke="#c9d4df" stroke-width="1"/>';
-    s += '<line x1="' + X(xMin) + '" y1="' + Y(yR[0]) + '" x2="' + X(xMax) + '" y2="' + Y(yR[1]) + '" stroke="#1657ae" stroke-width="2"/>';
+    // ajuste linear (reta preta)
+    s += '<line x1="' + X(xMin) + '" y1="' + Y(yR[0]) + '" x2="' + X(xMax) + '" y2="' + Y(yR[1]) + '" stroke="#22272e" stroke-width="2"/>';
     c.pontos.forEach(function (p) {
       s += '<circle cx="' + X(p.x) + '" cy="' + Y(p.y) + '" r="4.5" fill="#2f80e0" stroke="#fff" stroke-width="1.5"/>';
       s += '<text x="' + (X(p.x) + 7) + '" y="' + (Y(p.y) - 6) + '" font-size="10" fill="#5b6b7b">' + p.placa + '</text>';
     });
-    s += '<text x="' + ((m.l + W - m.r) / 2) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="10" fill="#5b6b7b">Qref ÷ √T</text>';
+    s += '<text x="' + ((m.l + W - m.r) / 2) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="10" fill="#5b6b7b">Coeficiente CPV</text>';
+    s += '<text transform="rotate(-90 10 ' + ((m.t + H - m.b) / 2) + ')" x="10" y="' + ((m.t + H - m.b) / 2) + '" text-anchor="middle" font-size="10" fill="#5b6b7b">Coeficiente CVV</text>';
     s += '</svg>';
     return s;
   }
