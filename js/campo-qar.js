@@ -220,31 +220,27 @@ EC.campoQar = (function () {
     salvarDevagar();
   }
 
-  // Aviso do carvão do AGV escolhido: mostra a capacidade restante e alerta se as
-  // coletas planejadas (somadas por AGV, em todos os pontos) passam do restante.
-  // O restante vem do SGP na lista de equipamentos (carvaoRestante). Se o dado não
-  // vier (offline/versão antiga do servidor), não mostra nada.
+  // Carvão no PONTO: a situação do carvão (apto/esgotado) aparece na LISTA DE
+  // EQUIPAMENTOS, que é onde se decide levar o amostrador. Aqui fica só o que
+  // não dá para saber lá: se as coletas planejadas (somadas por AGV, em todos os
+  // pontos) passam do que resta no carvão.
   function atualizarAvisoCarvao(area) {
     var div = area.querySelector('.cq-carvao-aviso');
     if (!div) return;
+    div.innerHTML = '';
     var ponto = campo().pontos[pontoExibido - 1] || {};
     var cod = ponto.equipAGV;
     var item = cod ? listaEquipQar().filter(function (x) { return x.codigo === cod; })[0] : null;
-    if (!item || typeof item.carvaoRestante !== 'number') { div.innerHTML = ''; return; }
-    var restante = item.carvaoRestante;
-    // total de coletas planejadas para ESTE AGV, somando todos os pontos.
+    if (!item || typeof item.carvaoRestante !== 'number' || item.carvaoRestante <= 0) return;
     var planejado = 0;
     (campo().pontos || []).forEach(function (p) {
       if (p && p.equipAGV === cod) planejado += parseInt(p.qtdeColetas, 10) || 0;
     });
+    if (planejado <= item.carvaoRestante) return;
     var carv = item.carvaoCodigo ? ('Carvão ' + item.carvaoCodigo + ' · ') : '';
-    if (restante <= 0) {
-      div.innerHTML = '<div class="alerta alerta-vermelho">🔴 ' + carv + 'carvão esgotado — troque o carvão no SGP antes de usar este AGV.</div>';
-    } else if (planejado > restante) {
-      div.innerHTML = '<div class="alerta alerta-amarelo">⚠️ ' + carv + 'restam <strong>' + restante + '</strong> amostragem(ns), mas as coletas planejadas para este AGV somam <strong>' + planejado + '</strong>. Troque o carvão ou reduza as coletas.</div>';
-    } else {
-      div.innerHTML = '<div class="alerta alerta-info">🪨 ' + carv + '<strong>' + restante + '</strong> amostragem(ns) restante(s) no carvão.</div>';
-    }
+    div.innerHTML = '<div class="alerta alerta-amarelo">⚠️ ' + carv + 'restam <strong>' + item.carvaoRestante +
+      '</strong> amostragem(ns), mas as coletas planejadas para este AGV somam <strong>' + planejado +
+      '</strong>. Troque o carvão ou reduza as coletas.</div>';
   }
 
   // Cronômetro de auxílio (não é salvo) — para cronometrar o teste de vazamento.

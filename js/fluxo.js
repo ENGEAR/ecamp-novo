@@ -81,6 +81,22 @@ EC.fluxo = (function () {
     return null;
   }
 
+  // Carvão do Amostrador de Grande Volume, mostrado JÁ na lista de equipamentos
+  // (é aqui que a pessoa decide se leva o amostrador). O restante vem do SGP
+  // junto da lista: capacidade do carvão − amostragens já consumidas. Sem o dado
+  // (1º uso offline ou servidor antigo) não mostra nada.
+  function avisoCarvaoEquip(e) {
+    if (!e || typeof e.carvaoRestante !== 'number') return '';
+    const cod = e.carvaoCodigo ? ('Carvão ' + e.carvaoCodigo + ' · ') : 'Carvão · ';
+    if (e.carvaoRestante <= 0) {
+      return '<br><span class="cal-aviso cal-vencida">🔴 ' + cod + 'esgotado — troque o carvão no SGP antes de levar este amostrador.</span>';
+    }
+    if (e.carvaoRestante <= 5) {
+      return '<br><span class="cal-aviso cal-vencendo">🟡 ' + cod + '<strong>' + e.carvaoRestante + '</strong> amostragem(ns) restante(s) — programe a troca.</span>';
+    }
+    return '<br><span class="cal-aviso cal-ok">🟢 ' + cod + 'apto · <strong>' + e.carvaoRestante + '</strong> amostragem(ns) restante(s).</span>';
+  }
+
   /* ---------- Chaves de armazenamento ---------- */
 
   function chaveServico(numeroOs, indice) { return 'rascunho:fluxo_' + numeroOs + '__s' + indice; }
@@ -1223,7 +1239,7 @@ EC.fluxo = (function () {
               '<input type="checkbox" data-codigo="' + e.codigo + '"' + (marcado ? ' checked' : '') + (vencida ? ' disabled' : '') + '>' +
               '<span><strong>' + e.codigo + '</strong> — ' + e.descricao +
               (e.proximaCal ? '<br><small>próxima calibração: ' + formatarDataBR(e.proximaCal) + '</small>' : '') +
-              aviso +
+              aviso + avisoCarvaoEquip(e) +
               '</span></label>';
           }).join('');
       }).join('');
