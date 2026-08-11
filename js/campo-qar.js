@@ -165,7 +165,7 @@ EC.campoQar = (function () {
     }
     // O kit vem primeiro no teste: a categoria dele ("Kit de Calibração de AGV")
     // também contém "agv", então o amostrador exclui o que for kit.
-    var kits = selecionadosPorCategoria(/kit|calibra/);
+    var kits = kitsDisponiveis();
     var agvs = selecionadosPorCategoria(/amostrador|grande volume|agv/).filter(function (c) {
       return kits.indexOf(c) === -1;
     });
@@ -180,6 +180,21 @@ EC.campoQar = (function () {
       selectEquip('equipKit', 'Kit de calibração (CPV)', kits);
   }
 
+  // Kits de calibração DISPONÍVEIS para o dropdown do ponto: os selecionados no
+  // pré-campo + todos os kits VÁLIDOS (não vencidos) da lista do SGP. Assim um
+  // rascunho antigo — de antes do kit entrar na seleção de equipamentos — também
+  // ganha o dropdown, sem refazer o pré-campo.
+  function kitsDisponiveis() {
+    var lista = selecionadosPorCategoria(/kit|calibra/);
+    var hoje = new Date().toISOString().slice(0, 10);
+    listaEquipQar().forEach(function (e) {
+      if (!/kit|calibra/.test((e.categoria || '').toLowerCase())) return;
+      if (e.proximaCal && e.proximaCal < hoje) return; // vencido não entra
+      if (lista.indexOf(e.codigo) === -1) lista.push(e.codigo);
+    });
+    return lista;
+  }
+
   // Kit de calibração escolhido → preenche a1/b1 com os coeficientes do
   // certificado que vieram do SGP (menu Certificado de calibração). Ao TROCAR o
   // kit sobrescreve; ao reabrir o ponto só completa se estiver vazio (não passa
@@ -188,7 +203,12 @@ EC.campoQar = (function () {
     var item = ponto.equipKit ? listaEquipQar().filter(function (x) {
       return x.codigo === ponto.equipKit;
     })[0] : null;
-    if (!item || item.a1 == null || item.b1 == null) return;
+    if (!item) return;
+    if (item.a1 == null || item.b1 == null) {
+      // Kit sem coeficiente no SGP: avisa na troca explícita, em vez de falhar mudo.
+      if (sobrescrever && EC.app) EC.app.mostrarToast('O certificado deste kit não tem a1/b1 no SGP — registre no menu Certificado de calibração ou digite à mão.');
+      return;
+    }
     if (!sobrescrever && (String(ponto.calibA1 || '').trim() !== '' || String(ponto.calibB1 || '').trim() !== '')) return;
     ponto.calibA1 = String(item.a1);
     ponto.calibB1 = String(item.b1);
@@ -301,7 +321,40 @@ EC.campoQar = (function () {
       '<div class="grade-2">' + lblNum('Pressão (mmHg)', 'pressao_' + sufixo) + lblSelect('Vento', 'vento_' + sufixo, OPCOES_VENTO) + '</div>' +
       '<label>Como está o tempo?<input type="text" placeholder="ex.: sol, nublado" data-campo="tempo_' + sufixo + '"></label>' +
       '<p class="cq-sub">Coluna 800 mm (cmH₂O)</p><div class="grade-2">' +
-      lblNum('↑ Para cima', 'col800sobe_' + sufixo) + lblNum('↓ Para baixo', 'col800desce_' + sufixo) + '</div>';
+      lblNum('↑ Para cima', 'col800sobe_' + sufixo) + lblNum('↓ Para baixo', 'col800desce_' + sufixo) + '</div>' +
+      '<div class="cq-vazao-coleta" data-sufixo="' + sufixo + '"></div>';
+  }
+
+  // Vazão da coleta (equação da coluna BT da planilha QR_AGV): usa a2/b2 da
+  // curva do PONTO com a temperatura, a pressão e a coluna 800 (↑+↓) do próprio
+  // bloco (inicial e final). Mostra o Qr em m³/min e o veredito pela mesma
+  // faixa da fração: MP10/MP2,5 1,02–1,24; PTS 1,10–1,70.
+  function atualizarVazaoColeta(area, ponto) {
+    var card = area.querySelector('#cq-coleta-card');
+    if (!card) return;
+    var coleta = (ponto.coletas || [])[coletaExibida - 1] || {};
+    var escopo = (ctx.estado.servico && ctx.estado.servico.escopo) || '';
+    var c = calcularCurva(ponto, escopo);
+    var fracao = fracaoDoEscopo(escopo);
+    var faixa = (fracao === 'PTS') ? [1.10, 1.70] : [1.02, 1.24];
+    ['ini', 'fim'].forEach(function (suf) {
+      var div = card.querySelector('.cq-vazao-coleta[data-sufixo="' + suf + '"]');
+      if (!div) return;
+      var t = numDe(coleta['temp_' + suf]), pb = numDe(coleta['pressao_' + suf]);
+      var sobe = numDe(coleta['col800sobe_' + suf]), desce = numDe(coleta['col800desce_' + suf]);
+      if (t === null || pb === null || pb <= 0 || sobe === null || desce === null) { div.innerHTML = ''; return; }
+      if (c.falta) {
+        div.innerHTML = '<div class="alerta alerta-info">A vazão desta coleta aparece quando a curva de calibração do ponto estiver completa (falta ' + c.falta + ').</div>';
+        return;
+      }
+      var T = t + 273;
+      var y = (((sobe + desce) / 1.361) - pb) / -pb;
+      var qr = (1 / c.a2) * (y - c.b2) * Math.sqrt(T);
+      var ok = qr >= faixa[0] && qr <= faixa[1];
+      div.innerHTML = '<div class="alerta ' + (ok ? 'alerta-verde' : 'alerta-vermelho') + '">' +
+        (ok ? '✅ Vazão da coleta APROVADA' : '❌ Vazão da coleta REPROVADA') + ' — Qr = ' + fmtBr(qr) +
+        ' m³/min, ' + (ok ? 'dentro' : 'fora') + ' da tolerância normativa de ' + fmtBr(faixa[0], 2) + ' a ' + fmtBr(faixa[1], 2) + ' m³/min (' + fracao + ').</div>';
+    });
   }
 
   // Nº da 1ª coleta DESTE registro (padrão 1). Revezamento em serviço longo:
@@ -356,6 +409,7 @@ EC.campoQar = (function () {
       htmlBlocoColeta('ini', '<label>Código do filtro<input type="text" data-campo="codigoFiltro"></label>') +
       '<p class="grupo-checks-titulo">Dados finais</p>' + htmlBlocoColeta('fim') + '</div>';
     vincular(card.querySelector('.cartao-coleta'), ponto.coletas[k]);
+    atualizarVazaoColeta(div, ponto); // mostra a vazão já ao abrir a coleta
   }
 
 
@@ -614,6 +668,19 @@ EC.campoQar = (function () {
     // reabrir o ponto só completa se os campos estiverem vazios.
     var selKit = area.querySelector('[data-campo="equipKit"]');
     if (selKit) selKit.addEventListener('change', function () { aplicarKit(area, ponto, true); });
+    // Sem kit escolhido ainda: se há UM único candidato (o do pré-campo, ou o
+    // único válido da lista), já seleciona e preenche sozinho — o técnico não
+    // precisa de um toque a mais para os a1/b1 aparecerem.
+    if (selKit && !ponto.equipKit) {
+      var doPreCampo = selecionadosPorCategoria(/kit|calibra/);
+      var unico = (doPreCampo.length === 1) ? doPreCampo[0]
+        : (selKit.options.length === 2 ? selKit.options[1].value : '');
+      if (unico) {
+        ponto.equipKit = unico;
+        selKit.value = unico;
+        salvarDevagar();
+      }
+    }
     aplicarKit(area, ponto, false);
     // Botão ± do b1: inverte o sinal do valor digitado e dispara o input para
     // salvar e recalcular a curva (o teclado do celular não tem "−").
@@ -625,11 +692,11 @@ EC.campoQar = (function () {
       el.value = v.charAt(0) === '-' ? v.slice(1) : '-' + v;
       el.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    // Curva de calibração ao vivo: recalcula a cada digitação no cartão (os
-    // campos ficam fora do .cq-curva, então redesenhar não rouba o foco).
+    // Curva de calibração e vazão da coleta ao vivo: recalculam a cada digitação
+    // no cartão (os campos ficam fora dos blocos redesenhados — não rouba o foco).
     atualizarCurva(area, ponto);
-    area.addEventListener('input', function () { atualizarCurva(area, ponto); });
-    area.addEventListener('change', function () { atualizarCurva(area, ponto); });
+    area.addEventListener('input', function () { atualizarCurva(area, ponto); atualizarVazaoColeta(area, ponto); });
+    area.addEventListener('change', function () { atualizarCurva(area, ponto); atualizarVazaoColeta(area, ponto); });
   }
 
   /* ===== Validação ===== */
@@ -711,6 +778,12 @@ EC.campoQar = (function () {
       '<div id="cq-paginacao" class="cr-paginacao"></div>' +
       '<div id="cq-ponto"></div>';
     renderizarGeral();
+    // A lista de equipamentos chega do SGP em segundo plano — quando atualizar,
+    // re-renderiza o ponto para o dropdown do kit aparecer com os a1/b1 frescos
+    // (sem isso, quem abria o campo com o cache antigo ficava sem o kit).
+    if (EC.equip && EC.equip.carregar) EC.equip.carregar(function () {
+      if (raiz && document.body.contains(raiz) && ctx && ctx.estado && ctx.estado.campo) renderizarPontos();
+    });
   }
 
   return {
