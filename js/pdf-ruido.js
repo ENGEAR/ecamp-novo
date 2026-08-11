@@ -359,13 +359,24 @@ EC.pdf = (function () {
       function garantir(h) { if (y + h > A4_H - MARGEM - 8) novaPagina(); }
 
       function tituloSecao(txt) {
-        garantir(11);
+        garantir(13);
         doc.setFillColor(AZUL[0], AZUL[1], AZUL[2]);
         doc.rect(MARGEM, y, LARG, 7, 'F');
         doc.setTextColor(255, 255, 255);
         doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5);
         doc.text(txt, MARGEM + 2, y + 4.9);
-        y += 10;
+        y += 12.5; // respiro entre a barra e a primeira linha da seção
+      }
+
+      // Título de bloco SEM a barra azul (ex.: "Coletas") — só o texto em
+      // negrito escuro, com respiro antes e depois.
+      function tituloSimples(txt) {
+        garantir(12);
+        y += 2;
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(PRETO[0], PRETO[1], PRETO[2]);
+        doc.text(txt, MARGEM, y + 3.5);
+        y += 8.5;
+        doc.setFontSize(9); doc.setFont('helvetica', 'normal');
       }
 
       // Linha rótulo: valor (valor pode quebrar em várias linhas)
@@ -402,9 +413,9 @@ EC.pdf = (function () {
       }
 
       function subtitulo(txt) {
-        garantir(7);
+        garantir(8);
         doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(AZUL[0], AZUL[1], AZUL[2]);
-        doc.text(txt, MARGEM, y); y += 5.5;
+        doc.text(txt, MARGEM, y); y += 6.6; // respiro antes da 1ª linha do bloco
         doc.setTextColor(PRETO[0], PRETO[1], PRETO[2]);
       }
 
@@ -640,7 +651,6 @@ EC.pdf = (function () {
         var c = EC.campoQar.calcular(p, (reg.servico && reg.servico.escopo) || '');
         if (!c || c.falta || !c.pontos) return;
         var f4 = function (x) { return x.toFixed(4).replace('.', ','); };
-        y += 2; // respiro entre a barra "Ponto N" e a primeira linha
         // O espaço da curva inteira (números + gráfico + legenda) já foi
         // reservado junto com a barra do ponto, em corpoGenerico.
         subtitulo('Curva de calibração multiponto');
@@ -753,7 +763,7 @@ EC.pdf = (function () {
             renderCampos(it, skipQar(it));
             var cols = it.coletas || [];
             if (cols.length) {
-              tituloSecao('Coletas');
+              tituloSimples('Coletas');
               var base = Math.max(1, parseInt(it.primeiraColeta, 10) || 1) - 1;
               cols.forEach(function (col, j) { subtitulo('Coleta ' + (j + 1 + base)); renderCampos(col || {}); });
             }
