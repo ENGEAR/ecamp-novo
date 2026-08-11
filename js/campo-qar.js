@@ -318,7 +318,7 @@ EC.campoQar = (function () {
       (extraAposHora || '') +
       lblNum('Horímetro', 'horimetro_' + sufixo) +
       '<div class="grade-2">' + lblNum('Temperatura (°C)', 'temp_' + sufixo) + lblNum('Umidade (%)', 'umid_' + sufixo) + '</div>' +
-      '<div class="grade-2">' + lblNum('Pressão (mmHg)', 'pressao_' + sufixo) + lblSelect('Vento', 'vento_' + sufixo, OPCOES_VENTO) + '</div>' +
+      '<div class="grade-2">' + lblNum('Pressão (hPa)', 'pressao_' + sufixo) + lblSelect('Vento', 'vento_' + sufixo, OPCOES_VENTO) + '</div>' +
       '<label>Como está o tempo?<input type="text" placeholder="ex.: sol, nublado" data-campo="tempo_' + sufixo + '"></label>' +
       '<p class="cq-sub">Coluna 800 mm (cmH₂O)</p><div class="grade-2">' +
       lblNum('↑ Para cima', 'col800sobe_' + sufixo) + lblNum('↓ Para baixo', 'col800desce_' + sufixo) + '</div>' +
@@ -340,7 +340,7 @@ EC.campoQar = (function () {
     ['ini', 'fim'].forEach(function (suf) {
       var div = card.querySelector('.cq-vazao-coleta[data-sufixo="' + suf + '"]');
       if (!div) return;
-      var t = numDe(coleta['temp_' + suf]), pb = numDe(coleta['pressao_' + suf]);
+      var t = numDe(coleta['temp_' + suf]), pb = pressaoEmMmHg(numDe(coleta['pressao_' + suf]));
       var sobe = numDe(coleta['col800sobe_' + suf]), desce = numDe(coleta['col800desce_' + suf]);
       if (t === null || pb === null || pb <= 0 || sobe === null || desce === null) { div.innerHTML = ''; return; }
       if (c.falta) {
@@ -426,6 +426,11 @@ EC.campoQar = (function () {
     return (min === p25) ? 'MP2,5' : (min === p10 ? 'MP10' : 'PTS');
   }
   function numDe(v) { v = parseFloat(v); return isNaN(v) ? null : v; }
+  // O campo agora pede a pressão em hPa (como o barômetro mostra), mas as
+  // fórmulas — iguais às da planilha QR_AGV — trabalham em mmHg. Rascunho
+  // antigo guardou mmHg; as faixas físicas não se cruzam (mmHg fica abaixo de
+  // ~780 e hPa acima de ~850), então > 800 = hPa e converte.
+  function pressaoEmMmHg(v) { return v === null ? null : (v > 800 ? v / 1.33322 : v); }
   // Leitura total de um manômetro em U = ↑ + ↓. Convenção: coluna 800 mm = CVV
   // (motor); coluna 400 mm (chaves _00…) = PTV (orifício calibrador).
   function leituraTotal(ponto, prefixo) {
@@ -437,7 +442,7 @@ EC.campoQar = (function () {
   // É pura (ponto + texto do escopo) para o PDF reaproveitar via EC.campoQar.calcular.
   function calcularCurva(ponto, escopo) {
     ponto = ponto || {};
-    var tempC = numDe(ponto.temperatura), pb = numDe(ponto.pressao);
+    var tempC = numDe(ponto.temperatura), pb = pressaoEmMmHg(numDe(ponto.pressao));
     if (tempC === null || pb === null || pb <= 0) return { falta: 'a temperatura e a pressão do 5º passo' };
     var a1 = numDe(ponto.calibA1), b1 = numDe(ponto.calibB1);
     if (a1 === null || b1 === null || a1 === 0) return { falta: 'a inclinação a1 e o intercepto b1 do certificado do CPV' };
@@ -618,7 +623,7 @@ EC.campoQar = (function () {
       '<div class="cq-crono" data-crono="400"></div>' +
       '<p class="cq-passo">4º passo — Porta filtro e porta motor</p>' + htmlChecks(['Nenhuma fuga de ar detectada'], 'porta') +
       '<p class="cq-passo">5º passo — Condições ambientais</p>' +
-      lblNum('Temperatura (°C)', 'temperatura') + lblNum('Pressão (mmHg)', 'pressao') + lblNum('Umidade (%)', 'umidade') +
+      lblNum('Temperatura (°C)', 'temperatura') + lblNum('Pressão (hPa)', 'pressao') + lblNum('Umidade (%)', 'umidade') +
       lblSelect('Vento', 'vento', OPCOES_VENTO) +
       '<label>Como está o tempo?<input type="text" placeholder="ex.: sol, nublado" data-campo="tempo"></label>' +
       '<p class="cq-passo">6º passo — Calibração (placas de retenção)</p>' +

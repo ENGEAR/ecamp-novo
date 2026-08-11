@@ -152,8 +152,8 @@ EC.pdf = (function () {
   };
   var UNID = {
     temperatura: '°C', temp: '°C', temp_ini: '°C', temp_fim: '°C', umidade: '%', umid: '%',
-    umid_ini: '%', umid_fim: '%', ur: '%', vento: 'm/s', velar: 'm/s', pressao: 'mmHg',
-    pressao_ini: 'mmHg', pressao_fim: 'mmHg', area: 'm²', altura: 'm', co2: 'ppm',
+    umid_ini: '%', umid_fim: '%', ur: '%', vento: 'm/s', velar: 'm/s', pressao: 'hPa',
+    pressao_ini: 'hPa', pressao_fim: 'hPa', area: 'm²', altura: 'm', co2: 'ppm',
     pm25: 'µg/m³', pm10: 'µg/m³'
   };
   var FOTO_LABELS = {
@@ -199,6 +199,13 @@ EC.pdf = (function () {
   function fmtValor(k, val) {
     if (val === undefined || val === null || String(val).trim() === '') return '—';
     var u = UNID[k];
+    // Pressão passou a sair em hPa (2026-08-11). Registro antigo guardou mmHg —
+    // as faixas físicas não se cruzam (mmHg < ~780; hPa > ~850), então valor
+    // abaixo de 800 é mmHg e converte, para o PDF não trocar a unidade do dado.
+    if (u === 'hPa') {
+      var n = parseFloat(String(val).replace(',', '.'));
+      if (!isNaN(n) && n < 800) val = (n * 1.33322).toFixed(1);
+    }
     return u ? (val + ' ' + u) : String(val);
   }
 
