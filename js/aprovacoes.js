@@ -63,6 +63,13 @@ EC.aprovacoes = (function () {
   // Item do PEDIDO DE AJUSTE do técnico (logistica_ajustes.item) → coluna(s) da
   // solicitação. Note que são AGREGADOS e não batem 1:1 com CAMPOS_ITEM acima:
   // 'transporte' é o combustível e 'alimentacao' junta almoço+jantar+lanche.
+  // TODAS as colunas de valor que compõem o total de uma solicitação. Usada para
+  // recalcular o total ao ajustar (ver lerAjuste). Se um campo de valor novo for
+  // criado no banco, precisa entrar aqui também.
+  var COLUNAS_VALOR = ['valor_combustivel', 'valor_aluguel', 'valor_pedagio', 'valor_hospedagem',
+    'valor_mao_obra', 'valor_almoco', 'valor_jantar', 'valor_lanche', 'valor_outros',
+    'valor_pecas', 'valor_manutencao', 'valor_gerador'];
+
   var COLUNAS_DO_AJUSTE = {
     transporte: ['valor_combustivel'],
     aluguel: ['valor_aluguel'],
@@ -79,12 +86,16 @@ EC.aprovacoes = (function () {
    */
   function valorAprovadoDoAjuste(s, camposEditados, ajuste) {
     var cols = COLUNAS_DO_AJUSTE[ajuste.item] || [];
-    var base = 0;
+    var base = 0, superado = false;
     for (var c = 0; c < cols.length; c++) {
       var nome = cols[c];
-      var editado = camposEditados && camposEditados[nome] != null ? camposEditados[nome] : s[nome];
-      base += Number(editado) || 0;
+      var editado = camposEditados && camposEditados[nome] != null ? camposEditados[nome] : null;
+      if (editado != null) superado = true;
+      base += Number(editado != null ? editado : s[nome]) || 0;
     }
+    // A Logística mexeu neste item: o valor dela é o final (não soma o delta do
+    // técnico por cima — era isso que fazia o ajuste contar duas vezes).
+    if (superado) return Math.round(base * 100) / 100;
     var delta = (Number(ajuste.valor_proposto) || 0) - (Number(ajuste.valor_calculado) || 0);
     return Math.round((base + delta) * 100) / 100;
   }
@@ -764,7 +775,10 @@ EC.aprovacoes = (function () {
         resumoOrcamento(cli, s)
       ]);
       orcAtual = res[2];
-      area.innerHTML = renderDetalhe(s, (res[0].data) || []);
+      // Os pedidos de ajuste ficam junto da solicitação: o editor de valores
+      // precisa deles para não somar o ajuste duas vezes (ver lerAjuste).
+      s.ajustes = (res[0].data) || [];
+      area.innerHTML = renderDetalhe(s, s.ajustes);
       // No pagamento (Financeiro) a tela é enxuta: sem evidências do técnico.
       var ehPag = s.status === 'aguardando_pagamento';
       $('apr-evidencias-titulo').classList.toggle('oculto', ehPag);
@@ -796,7 +810,21 @@ EC.aprovacoes = (function () {
       if ($('apr-ajuste-hint')) $('apr-ajuste-hint').textContent = '';
       return;
     }
-    wrap.innerHTML = chaves.map(function (k) {
+    // Aviso quando o técnico pediu ajuste: os campos abaixo mostram o valor
+    // CALCULADO, mas o total já embute o que ele pediu. Sem isto, quem edita não
+    // entende por que o total não bate com a soma dos campos.
+    var pedidos = (s.ajustes || []).filter(function (a) {
+      return Math.abs((Number(a.valor_proposto) || 0) - (Number(a.valor_calculado) || 0)) > 0.001;
+    });
+    var aviso = pedidos.length
+      ? '<div class="apr-just" style="margin-bottom:8px;">↺ <strong>O técnico pediu ajuste</strong> — já embutido no total:<br>' +
+        pedidos.map(function (a) {
+          return esc(ITENS_ROTULO[a.item] || a.item) + ': ' + moeda(a.valor_calculado) + ' → <b>' + moeda(a.valor_proposto) + '</b>';
+        }).join('<br>') +
+        '<br><span class="rotulo-apoio">Os campos abaixo mostram o valor calculado. Se você editar um item ajustado, o SEU valor passa a valer nele.</span></div>'
+      : '';
+
+    wrap.innerHTML = aviso + chaves.map(function (k) {
       var it = CAMPOS_ITEM[k];
       var v = Math.round(Number(s[it.campo]) * 100) / 100;
       return '<label class="apr-ajuste-item"><span>' + it.rotulo + '</span>' +
@@ -809,20 +837,48 @@ EC.aprovacoes = (function () {
     recalcularAjuste(s);
   }
 
-  // Lê os campos: soma os deltas sobre o total original, marca quais mudaram.
+  /**
+   * Lê os campos editados e recalcula o total.
+   *
+   * O TOTAL é a soma das colunas (já com as edições) MAIS os ajustes do técnico
+   * que continuam valendo. Antes era `valor_total + delta`, e isso contava o
+   * ajuste DUAS vezes ao editar justo o item ajustado: o `valor_total` já
+   * embutia o ajuste, enquanto os campos da tela partem do valor CALCULADO.
+   * Exemplo real (OS 25311): combustível calculado 52,54 com ajuste para 91,00,
+   * total 241. Pôr 60 no campo dava 241 + (60 − 52,54) = 248,46 em vez de 210.
+   *
+   * Quem edita um item MANDA nele: o ajuste do técnico daquele item é superado
+   * (não soma mais). Os ajustes dos itens que ela não tocou seguem valendo.
+   */
   function lerAjuste(s) {
     var wrap = $('apr-ajuste-itens');
     var inps = wrap ? wrap.querySelectorAll('.apr-ajuste-in') : [];
-    var totalOrig = Math.round((Number(s.valor_total) || 0) * 100) / 100;
-    var delta = 0, mudou = false, campos = {};
+    var mudou = false, campos = {};
     Array.prototype.forEach.call(inps, function (inp) {
       var orig = Math.round((parseFloat(inp.dataset.orig) || 0) * 100) / 100;
       var bruto = String(inp.value).trim().replace(',', '.');
       var val = bruto === '' ? orig : Math.round(parseFloat(bruto) * 100) / 100;
       if (isNaN(val) || val < 0) val = orig;
-      if (Math.abs(val - orig) > 0.001) { mudou = true; campos[inp.dataset.campo] = val; delta += (val - orig); }
+      if (Math.abs(val - orig) > 0.001) { mudou = true; campos[inp.dataset.campo] = val; }
     });
-    return { novoTotal: Math.round((totalOrig + delta) * 100) / 100, mudou: mudou, campos: campos };
+    // Sem edição, o total é o que já está gravado — nada de recalcular à toa.
+    if (!mudou) {
+      return { novoTotal: Math.round((Number(s.valor_total) || 0) * 100) / 100, mudou: false, campos: {}, superados: [] };
+    }
+    var soma = 0;
+    for (var i = 0; i < COLUNAS_VALOR.length; i++) {
+      var c = COLUNAS_VALOR[i];
+      soma += Number(campos[c] != null ? campos[c] : s[c]) || 0;
+    }
+    var extra = 0, superados = [];
+    (s.ajustes || []).forEach(function (a) {
+      var cols = COLUNAS_DO_AJUSTE[a.item] || [];
+      var tocou = false;
+      for (var j = 0; j < cols.length; j++) if (campos[cols[j]] != null) tocou = true;
+      if (tocou) superados.push(a.item);
+      else extra += (Number(a.valor_proposto) || 0) - (Number(a.valor_calculado) || 0);
+    });
+    return { novoTotal: Math.round((soma + extra) * 100) / 100, mudou: true, campos: campos, superados: superados };
   }
 
   function recalcularAjuste(s) {
@@ -831,8 +887,16 @@ EC.aprovacoes = (function () {
     var r = lerAjuste(s);
     var totalOrig = Math.round((Number(s.valor_total) || 0) * 100) / 100;
     if (r.mudou) {
+      // Editar um item que o técnico pediu ajuste SUBSTITUI o pedido dele nesse
+      // item (senão o ajuste contaria duas vezes). Dizer isso na hora evita
+      // surpresa no total.
+      var trocado = (r.superados || []).length
+        ? '<br><span class="rotulo-apoio">↺ O pedido de ajuste do técnico em ' +
+          r.superados.map(function (i) { return esc(ITENS_ROTULO[i] || i); }).join(', ') +
+          ' foi substituído pelo seu valor.</span>'
+        : '';
       hint.innerHTML = 'Novo total: <strong>' + moeda(r.novoTotal) + '</strong> · calculado: ' + moeda(totalOrig) +
-        '. Justifique o ajuste na observação abaixo.';
+        '. Justifique o ajuste na observação abaixo.' + trocado;
     } else {
       hint.textContent = 'Total calculado: ' + moeda(totalOrig) + '. Edite um item acima para pagar mais ou menos (com justificativa).';
     }

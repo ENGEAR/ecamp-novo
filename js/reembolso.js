@@ -2640,7 +2640,7 @@ EC.reembolso = (function () {
       // (/logistica/lista), mas aqui a consulta é direta — sem isto o gestor
       // veria o valor de item ANTIGO com o total novo (ver mapaAjustes).
       try {
-        var qa = await cli.from('logistica_ajustes').select('solicitacao_id, item, valor_calculado, valor_proposto, justificativa');
+        var qa = await cli.from('logistica_ajustes').select('solicitacao_id, item, valor_calculado, valor_proposto, valor_aprovado, status, justificativa');
         var porSolic = {};
         (qa.data || []).forEach(function (a) {
           (porSolic[a.solicitacao_id] = porSolic[a.solicitacao_id] || []).push(a);
@@ -2686,8 +2686,13 @@ EC.reembolso = (function () {
       if (!chave) return;
       var calc = Number(a.valor_calculado != null ? a.valor_calculado : a.valorCalculado) || 0;
       var prop = Number(a.valor_proposto != null ? a.valor_proposto : a.valorProposto) || 0;
-      if (!m[chave]) m[chave] = { delta: 0, justificativas: [] };
+      if (!m[chave]) m[chave] = { delta: 0, calculado: calc, proposto: prop, aprovado: null, justificativas: [] };
       m[chave].delta = Math.round((m[chave].delta + (prop - calc)) * 100) / 100;
+      m[chave].proposto = prop;
+      // Valor HOMOLOGADO pela Logística ao decidir. Quando existe, é ele que
+      // vale — inclusive quando ela redefiniu o item por cima do pedido, caso em
+      // que somar o delta contaria o ajuste duas vezes.
+      if (a.valor_aprovado != null) m[chave].aprovado = Number(a.valor_aprovado);
       if (a.justificativa) m[chave].justificativas.push(a.justificativa);
     });
     return m;
@@ -2710,11 +2715,17 @@ EC.reembolso = (function () {
   function linhaValorAjustada(chave, rotulo, base, ajustes) {
     var a = ajustes[chave];
     var atual = Number(base) || 0;
-    var valor = Math.round((atual + (a ? a.delta : 0)) * 100) / 100;
+    // Decidido pela Logística → vale o homologado. Ainda pendente → a previsão
+    // é a coluna mais o que o técnico pediu.
+    var valor = a && a.aprovado != null
+      ? a.aprovado
+      : Math.round((atual + (a ? a.delta : 0)) * 100) / 100;
     if (!(valor > 0) && !a) return '';
     var html = '<div class="apr-linha"><span>' + rotulo + '</span><strong>' + moedaBR(valor) + '</strong></div>';
     if (a) {
-      html += '<p class="texto-apoio">↺ Ajuste: de ' + moedaBR(atual) + ' para ' + moedaBR(valor) +
+      // Mostra o PEDIDO do técnico (calculado → proposto). O valor da linha
+      // acima é o que valeu — pode ser outro, se a Logística redefiniu o item.
+      html += '<p class="texto-apoio">↺ Ajuste pedido: de ' + moedaBR(a.calculado) + ' para ' + moedaBR(a.proposto) +
         (a.justificativas.length ? ' — ' + a.justificativas.join(' · ') : '') + '</p>';
     }
     return html;
