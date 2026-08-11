@@ -715,6 +715,16 @@ EC.pdf = (function () {
         y = LY + 7;
       }
 
+      // Veredito da vazão de um bloco da coleta (início/fim), logo abaixo da
+      // coluna 800 mm — mesmo padrão da curva: só APROVADO (verde) ou REPROVADO
+      // (vermelho). Sem dado suficiente, não sai nada.
+      function vazaoColetaPdf(ponto, col, sufixo, escopo) {
+        if (!(EC.campoQar && EC.campoQar.vazaoColeta)) return;
+        var v = EC.campoQar.vazaoColeta(ponto, col, sufixo, escopo);
+        if (!v || v.falta) return;
+        kvVeredito('Vazão da coleta (' + (sufixo === 'ini' ? 'início' : 'fim') + ')', v.ok);
+      }
+
       function corpoGenerico() {
         var campo = reg.campo || {};
         var geral = campo.geral || {};
@@ -765,7 +775,22 @@ EC.pdf = (function () {
             if (cols.length) {
               tituloSimples('Coletas');
               var base = Math.max(1, parseInt(it.primeiraColeta, 10) || 1) - 1;
-              cols.forEach(function (col, j) { subtitulo('Coleta ' + (j + 1 + base)); renderCampos(col || {}); });
+              var escopoOs = (reg.servico && reg.servico.escopo) || '';
+              cols.forEach(function (col, j) {
+                col = col || {};
+                subtitulo('Coleta ' + (j + 1 + base));
+                // Os dois blocos saem separados para o veredito da vazão entrar
+                // logo depois da coluna 800 mm de cada um (a última leitura do
+                // bloco): 1º os campos do início, 2º os do fim.
+                var soIni = {}, soFim = {};
+                Object.keys(col).forEach(function (k) {
+                  if (/_fim$/.test(k)) soIni[k] = 1; else soFim[k] = 1;
+                });
+                renderCampos(col, soIni);
+                vazaoColetaPdf(it, col, 'ini', escopoOs);
+                renderCampos(col, soFim);
+                vazaoColetaPdf(it, col, 'fim', escopoOs);
+              });
             }
             continue;
           }

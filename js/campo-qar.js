@@ -321,35 +321,43 @@ EC.campoQar = (function () {
       '<div class="cq-vazao-coleta" data-sufixo="' + sufixo + '"></div>';
   }
 
-  // Vazão da coleta (equação da coluna BT da planilha QR_AGV): usa a2/b2 da
-  // curva do PONTO com a temperatura, a pressão e a coluna 800 (↑+↓) do próprio
-  // bloco (inicial e final). Mostra o Qr em m³/min e o veredito pela mesma
-  // faixa da fração: MP10/MP2,5 1,02–1,24; PTS 1,10–1,70.
+  // Vazão de UM bloco da coleta (equação da coluna BT da planilha QR_AGV): usa
+  // a2/b2 da curva do PONTO com a temperatura, a pressão e a coluna 800 (↑+↓)
+  // do próprio bloco. Devolve null enquanto não dá para calcular. Pura — a tela
+  // e o PDF (EC.campoQar.vazaoColeta) usam a mesma conta.
+  function vazaoColeta(ponto, coleta, sufixo, escopo) {
+    coleta = coleta || {};
+    var c = calcularCurva(ponto, escopo);
+    if (c.falta) return { falta: c.falta };
+    var t = numDe(coleta['temp_' + sufixo]), pb = pressaoEmMmHg(numDe(coleta['pressao_' + sufixo]));
+    var sobe = numDe(coleta['col800sobe_' + sufixo]), desce = numDe(coleta['col800desce_' + sufixo]);
+    if (t === null || pb === null || pb <= 0 || sobe === null || desce === null) return null;
+    var T = t + 273;
+    var y = (((sobe + desce) / 1.361) - pb) / -pb;
+    var qr = (1 / c.a2) * (y - c.b2) * Math.sqrt(T);
+    var fracao = fracaoDoEscopo(escopo);
+    var faixa = (fracao === 'PTS') ? [1.10, 1.70] : [1.02, 1.24];
+    return { qr: qr, faixa: faixa, fracao: fracao, ok: qr >= faixa[0] && qr <= faixa[1] };
+  }
+
+  // Mostra o resultado abaixo da coluna 800 mm de cada bloco da coleta aberta.
   function atualizarVazaoColeta(area, ponto) {
     var card = area.querySelector('#cq-coleta-card');
     if (!card) return;
     var coleta = (ponto.coletas || [])[coletaExibida - 1] || {};
     var escopo = (ctx.estado.servico && ctx.estado.servico.escopo) || '';
-    var c = calcularCurva(ponto, escopo);
-    var fracao = fracaoDoEscopo(escopo);
-    var faixa = (fracao === 'PTS') ? [1.10, 1.70] : [1.02, 1.24];
     ['ini', 'fim'].forEach(function (suf) {
       var div = card.querySelector('.cq-vazao-coleta[data-sufixo="' + suf + '"]');
       if (!div) return;
-      var t = numDe(coleta['temp_' + suf]), pb = pressaoEmMmHg(numDe(coleta['pressao_' + suf]));
-      var sobe = numDe(coleta['col800sobe_' + suf]), desce = numDe(coleta['col800desce_' + suf]);
-      if (t === null || pb === null || pb <= 0 || sobe === null || desce === null) { div.innerHTML = ''; return; }
-      if (c.falta) {
-        div.innerHTML = '<div class="alerta alerta-info">A vazão desta coleta aparece quando a curva de calibração do ponto estiver completa (falta ' + c.falta + ').</div>';
+      var v = vazaoColeta(ponto, coleta, suf, escopo);
+      if (!v) { div.innerHTML = ''; return; }
+      if (v.falta) {
+        div.innerHTML = '<div class="alerta alerta-info">A vazão desta coleta aparece quando a curva de calibração do ponto estiver completa (falta ' + v.falta + ').</div>';
         return;
       }
-      var T = t + 273;
-      var y = (((sobe + desce) / 1.361) - pb) / -pb;
-      var qr = (1 / c.a2) * (y - c.b2) * Math.sqrt(T);
-      var ok = qr >= faixa[0] && qr <= faixa[1];
-      div.innerHTML = '<div class="alerta ' + (ok ? 'alerta-verde' : 'alerta-vermelho') + '">' +
-        (ok ? '✅ Vazão da coleta APROVADA' : '❌ Vazão da coleta REPROVADA') + ' — Qr = ' + fmtBr(qr) +
-        ' m³/min, ' + (ok ? 'dentro' : 'fora') + ' da tolerância normativa de ' + fmtBr(faixa[0], 2) + ' a ' + fmtBr(faixa[1], 2) + ' m³/min (' + fracao + ').</div>';
+      div.innerHTML = '<div class="alerta ' + (v.ok ? 'alerta-verde' : 'alerta-vermelho') + '">' +
+        (v.ok ? '✅ Vazão da coleta APROVADA' : '❌ Vazão da coleta REPROVADA') + ' — Qr = ' + fmtBr(v.qr) +
+        ' m³/min, ' + (v.ok ? 'dentro' : 'fora') + ' da tolerância normativa de ' + fmtBr(v.faixa[0], 2) + ' a ' + fmtBr(v.faixa[1], 2) + ' m³/min (' + v.fracao + ').</div>';
     });
   }
 
@@ -807,6 +815,7 @@ EC.campoQar = (function () {
     renderizar: renderizar,
     itensFaltando: itensFaltando,
     calcular: calcularCurva, // usado pelo PDF p/ desenhar a curva do ponto
+    vazaoColeta: vazaoColeta, // idem, p/ o veredito de cada bloco da coleta
     TIPO_CARIMBO: TIPO_CARIMBO
   };
 })();
