@@ -609,40 +609,23 @@ EC.fluxo = (function () {
       if (campanhas.indexOf(nome) === -1) campanhas.push(nome);
     });
 
-    // Cadeado sequencial: uma campanha só libera quando a anterior está toda
-    // concluída (o resto da OS é planejado no laboratório, campanha a campanha).
-    let liberada = true;
-    let campanhaAnterior = '';
+    // TODAS as campanhas ficam abertas. Havia um cadeado sequencial (a campanha
+    // só liberava com a anterior concluída), mas "concluída" é o histórico LOCAL
+    // do aparelho: o técnico escalado só para a campanha 4 — porque as
+    // anteriores foram de outro técnico ou de outro celular — ficava travado
+    // para sempre (caso do Robson na OS 26139, 2026-08-12). Além disso, o
+    // cadeado contradizia o próprio texto da tela ("abra os serviços na ordem
+    // que quiser"). A ordem do trabalho é decidida na Agenda, não aqui.
     let html = '';
     campanhas.forEach(function (campanha) {
       const itens = os.servicos.map(function (s, i) { return { s: s, i: i }; })
         .filter(function (o) { return (o.s.campanha || 'Serviços') === campanha; });
-      const estaLiberada = liberada;
-      const todasConcluidas = itens.every(function (o) { return situacaoServico(os.numero, o.i) === 'concluido'; });
 
-      html += '<p class="servico-campanha">' + campanha +
-        (estaLiberada ? '' : ' <span class="servico-status status-bloqueado">🔒 fora de ordem</span>') + '</p>';
-      if (!estaLiberada) {
-        html += '<p class="servico-bloqueio">A ' + campanhaAnterior + ' ainda não foi concluída <strong>neste aparelho</strong>. Se o serviço desta campanha é seu, pode abrir mesmo assim.</p>';
-      }
-
+      html += '<p class="servico-campanha">' + campanha + '</p>';
       html += itens.map(function (o) {
         const st = situacaoServico(os.numero, o.i);
         const info = '<span class="os-resumo">' + (o.s.qtdePontos ? o.s.qtdePontos + ' ponto(s)' : '') +
           (o.s.periodo ? ' · ' + o.s.periodo : '') + '</span>';
-        // Campanha fora de ordem: NÃO é mais um bloqueio de pedra — o técnico
-        // escalado só para a campanha 4 (as anteriores foram de outro técnico ou
-        // de outro aparelho) ficava travado para sempre, porque "concluído" é o
-        // histórico LOCAL. Agora abre com uma confirmação (caso do Robson na OS
-        // 26139, 2026-08-12).
-        if (!estaLiberada) {
-          return (
-            '<button type="button" class="os-item servico-item servico-bloqueado" data-indice="' + o.i + '" data-fora-ordem="1">' +
-            '  <span class="os-numero">🔓 ' + o.s.escopo + '</span>' + info +
-            '  ' + SELO[st] +
-            '</button>'
-          );
-        }
         return (
           '<button type="button" class="os-item servico-item" data-indice="' + o.i + '">' +
           '  <span class="os-numero">▶️ ' + o.s.escopo + '</span>' + info +
@@ -650,32 +633,12 @@ EC.fluxo = (function () {
           '</button>'
         );
       }).join('');
-
-      campanhaAnterior = campanha;
-      if (!todasConcluidas) liberada = false; // próximas campanhas ficam travadas
     });
     lista.innerHTML = html;
 
     lista.querySelectorAll('.servico-item[data-indice]').forEach(function (item) {
       item.addEventListener('click', function () {
-        const indice = parseInt(item.dataset.indice, 10);
-        // Fora de ordem: confirma antes de abrir (o técnico pode ser o dono só
-        // desta campanha — as anteriores são de outro técnico/aparelho).
-        if (item.dataset.foraOrdem) {
-          const camp = os.servicos[indice].campanha || 'esta campanha';
-          EC.app.abrirOverlay('🔓 ' + camp,
-            '<p>As campanhas anteriores não estão concluídas <strong>neste aparelho</strong>.</p>' +
-            '<p class="texto-apoio">Isso é normal quando elas foram feitas por outro técnico ou em outro celular. Se você está escalado para esta campanha, siga em frente.</p>' +
-            '<div class="pilha-botoes">' +
-            '  <button type="button" class="botao botao-primario" id="sv-fora-ordem-ok">Abrir mesmo assim</button>' +
-            '  <button type="button" class="botao botao-secundario" id="sv-fora-ordem-nao">Voltar</button>' +
-            '</div>');
-          const ok = $('sv-fora-ordem-ok'), nao = $('sv-fora-ordem-nao');
-          if (ok) ok.addEventListener('click', function () { EC.app.fecharOverlay(); aoTocarServico(os, indice); });
-          if (nao) nao.addEventListener('click', EC.app.fecharOverlay);
-          return;
-        }
-        aoTocarServico(os, indice);
+        aoTocarServico(os, parseInt(item.dataset.indice, 10));
       });
     });
 

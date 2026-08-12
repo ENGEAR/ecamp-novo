@@ -534,15 +534,9 @@ textarea { resize: vertical; font-family: inherit; }
 .status-novo { background: var(--cinza-fundo); border: 1px solid var(--cinza-borda); color: var(--cinza-texto); }
 .status-andamento { background: var(--amarelo-claro); border: 1px solid var(--amarelo); color: #6e5a00; }
 .status-concluido { background: var(--verde-claro); border: 1px solid var(--verde); color: var(--verde); }
-.status-bloqueado { background: var(--cinza-fundo); border: 1px solid var(--cinza-borda); color: var(--cinza-texto); }
 /* Rascunho colaborativo: a equipe começou este serviço em outro aparelho. */
 .status-continuar { background: #ede7fb; border: 1px solid #b9a6ef; color: #5b3fb0; }
-
-/* Serviço bloqueado (campanha ainda não liberada) */
-/* Campanha fora de ordem: fica esmaecida (avisa que está fora da sequência),
-   mas É clicável — abre com confirmação (o técnico pode ser dono só dela). */
-.servico-bloqueado { opacity: 0.7; cursor: pointer; }
-.servico-bloqueio { font-size: 0.82rem; color: var(--cinza-texto); margin: 0 0 8px; }
+/* (o cadeado sequencial de campanhas foi removido em 2026-08-12 — todas abrem) */
 
 /* Etiqueta de fase (Preparação / Em campo) */
 .fase-tag {
