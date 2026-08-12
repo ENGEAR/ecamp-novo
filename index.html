@@ -461,6 +461,23 @@
             <button type="button" class="botao botao-secundario" id="rb-viagem-bloqueio-saldo" style="margin-top:10px;">💠 Ir para Serviços com saldo pendente</button>
           </div>
 
+          <!-- Campanha 100% solicitada/paga: o técnico escolhe entre COMPLEMENTO
+               (fluxo já existente) e NOVA VIAGEM (repetição de serviço). -->
+          <div id="rb-nv-pergunta" class="alerta alerta-info oculto">
+            <strong>💰 Este designado já teve 100% da logística desta campanha solicitado/pago.</strong><br>
+            O valor que você quer pedir é:
+            <label class="linha-check check-campo" style="margin-top:8px"><input type="radio" name="rb-nv-opcao" value="complemento"><span>➕ <strong>Complemento</strong> do reembolso pago anteriormente (km a mais, gastos não previstos)</span></label>
+            <label class="linha-check check-campo"><input type="radio" name="rb-nv-opcao" value="nova"><span>🧳 <strong>Nova viagem</strong> realizada para o mesmo serviço (ex.: repetição do serviço)</span></label>
+            <div id="rb-nv-aviso" class="oculto" style="margin-top:8px"></div>
+          </div>
+
+          <div id="rb-nv-motivo-bloco" class="oculto">
+            <div class="alerta alerta-amarelo">🧳 <strong>Nova viagem em proposta 100% paga</strong> — o pedido segue para aprovação com o motivo abaixo e será pago em parcela única (100%).</div>
+            <label>Por que está solicitando reembolso para uma proposta 100% paga?*
+              <textarea id="rb-nv-motivo" rows="2" placeholder="ex.: repetição de serviço — equipamento reprovou na calibração"></textarea>
+            </label>
+          </div>
+
           <div id="rb-evento-bloco" class="oculto">
             <p class="dg-secao">Evento</p>
             <label>Quantos dias de serviço?<input type="number" id="rb-evento-dias" min="1" step="1" inputmode="numeric" placeholder="0"></label>

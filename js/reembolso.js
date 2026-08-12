@@ -62,6 +62,10 @@ EC.reembolso = (function () {
   var tipoSel = null;      // 'viagem' | 'sem_hosp' | 'evento' | 'veiculo' | 'complemento'
   var compViagem = null;   // viagem PAGA do designado nesta OS (base do complemento por km)
   var dispCampanha = 100; // % da logística ainda disponível na campanha (100 − já solicitado)
+  // Campanha 100% solicitada/paga: escolha do técnico na pergunta obrigatória —
+  // 'complemento' (fluxo existente) ou 'nova' (NOVA VIAGEM, ex.: repetição de
+  // serviço, com motivo obrigatório). null = ainda não respondeu.
+  var nvEscolha = null;
   var anexos = {};
   var iniciado = false;
   var restaurando = false; // evita salvar rascunho no meio da restauração
@@ -841,6 +845,7 @@ EC.reembolso = (function () {
 
   function aoEscolherCampanha() {
     campSel = null;
+    nvEscolha = null; // trocou OS/campanha: a pergunta da campanha 100% recomeça
     var n = parseInt($('rb-campanha').value, 10);
     if (osSel) campSel = (osSel.campanhas || []).filter(function (c) { return c.numero === n; })[0] || null;
 
@@ -1029,7 +1034,16 @@ EC.reembolso = (function () {
   // Viagem TRAVADA: o designado já solicitou parte da viagem desta OS/campanha
   // (deve pedir o restante em "Serviços com saldo pendente", não abrir outra).
   function viagemTravada() {
-    return ehTipoViagem() && !!tecSel && !editando && dispCampanha < 100;
+    if (!(ehTipoViagem() && !!tecSel && !editando)) return false;
+    if (dispCampanha >= 100) return false;
+    // Campanha 100% consumida + técnico marcou NOVA VIAGEM: libera o formulário
+    // (as travas viram humanas: motivo obrigatório + "de acordo" na aprovação).
+    if (dispCampanha <= 0 && nvEscolha === 'nova') return false;
+    return true;
+  }
+  // Nova viagem ATIVA: campanha esgotada e o técnico escolheu "nova viagem".
+  function ehNovaViagem() {
+    return ehTipoViagem() && !!tecSel && !editando && dispCampanha <= 0 && nvEscolha === 'nova';
   }
 
   // Sem hospedagem: a data de início + o nº de dias alimentam as quatro datas
@@ -1076,6 +1090,9 @@ EC.reembolso = (function () {
     // Trava: designado que já solicitou parte da viagem desta OS/campanha deve
     // pedir o restante em "Serviços com saldo pendente" — não abrir outra nova.
     var travarViagem = viagemTravada();
+    // Campanha 100% consumida: no lugar do bloqueio entra a PERGUNTA
+    // (complemento × nova viagem) — decisão da Raisa, 2026-08-12.
+    var perguntaNv = ehViagem && !!tecSel && !editando && dispCampanha <= 0;
     var mostraViagem = ehViagem && !travarViagem;
     $('rb-viagem').classList.toggle('oculto', !(mostraViagem && campSel));
     // Sem hospedagem: data de início + nº de dias no lugar das quatro datas.
@@ -1089,11 +1106,16 @@ EC.reembolso = (function () {
     $('rb-viagem-fonte').classList.toggle('oculto', ehSemHosp());
     $('rb-sec-transporte').classList.toggle('oculto', !mostraViagem);
     $('rb-sec-valores').classList.toggle('oculto', !mostraViagem);
-    $('rb-pct-viagem').classList.toggle('oculto', !mostraViagem);
+    // Nova viagem é pagamento único (100%): esconde o percentual e fixa 100.
+    $('rb-pct-viagem').classList.toggle('oculto', !mostraViagem || ehNovaViagem());
+    if (ehNovaViagem() && $('rb-percentual')) $('rb-percentual').value = 100;
     var blq = $('rb-viagem-bloqueio');
     if (blq) {
-      blq.classList.toggle('oculto', !travarViagem);
-      if (travarViagem) {
+      // Com a campanha 100% consumida quem aparece é a PERGUNTA, não o bloqueio
+      // (que orienta a pedir o RESTANTE — e restante não existe mais).
+      var mostraBloqueio = travarViagem && !perguntaNv;
+      blq.classList.toggle('oculto', !mostraBloqueio);
+      if (mostraBloqueio) {
         $('rb-viagem-bloqueio-txt').innerHTML = '🚫 <strong>' + egEsc(tecSel.nome) + '</strong> já tem uma solicitação de viagem nesta OS. ' +
           'Para pedir o restante (' + dispCampanha + '% faltante), use <strong>Serviços com saldo pendente</strong> — não abra uma nova. ' +
           'Quando os 100% estiverem pagos, aí sim aparece o +Complemento.' +
@@ -1101,6 +1123,14 @@ EC.reembolso = (function () {
           '<br><br>Gastos extras com quilometragem serão pagos após a chegada em casa e a conferência do hodômetro (<strong>+Complemento</strong>).';
       }
     }
+    // Pergunta da campanha 100%: complemento × nova viagem.
+    var per = $('rb-nv-pergunta');
+    if (per) {
+      per.classList.toggle('oculto', !perguntaNv);
+      if (perguntaNv) sincronizarPerguntaNv();
+    }
+    // Motivo da nova viagem (obrigatório) — aparece junto do formulário liberado.
+    if ($('rb-nv-motivo-bloco')) $('rb-nv-motivo-bloco').classList.toggle('oculto', !(mostraViagem && ehNovaViagem()));
     // Esconde o botão de enviar quando a viagem está travada.
     if ($('rb-enviar')) $('rb-enviar').classList.toggle('oculto', travarViagem);
     $('rb-evento-bloco').classList.toggle('oculto', !ehEvento);
@@ -1125,6 +1155,49 @@ EC.reembolso = (function () {
         info.textContent = '⚠️ A diária de eventos ainda não foi configurada no SGP (Logística → Valores).';
         info.classList.remove('oculto');
       }
+    }
+  }
+
+  /* ==== Pergunta da campanha 100% (complemento × nova viagem) ==== */
+
+  function sincronizarPerguntaNv() {
+    var per = $('rb-nv-pergunta');
+    if (!per) return;
+    per.querySelectorAll('input[name="rb-nv-opcao"]').forEach(function (r) {
+      r.checked = (nvEscolha === r.value) || (nvEscolha === 'nova' && r.value === 'nova');
+      if (!r.dataset.ligado) {
+        r.dataset.ligado = '1';
+        r.addEventListener('change', function () { escolherNvOpcao(r.value); });
+      }
+    });
+    atualizarAvisoNv();
+  }
+
+  function escolherNvOpcao(op) {
+    if (op === 'complemento') {
+      // Complemento liberado (grupo 100% PAGO): vai direto para o fluxo dele.
+      var liberado = $('rb-tipo-complemento') && !$('rb-tipo-complemento').classList.contains('oculto');
+      if (liberado) {
+        nvEscolha = null;
+        escolherTipo('complemento');
+        return;
+      }
+      nvEscolha = 'complemento'; // ainda não pago: mantém a escolha e explica
+    } else {
+      nvEscolha = 'nova';
+    }
+    atualizarTipoUI();
+    pintarValores();
+  }
+
+  function atualizarAvisoNv() {
+    var av = $('rb-nv-aviso');
+    if (!av) return;
+    var complementoPreso = nvEscolha === 'complemento' &&
+      $('rb-tipo-complemento') && $('rb-tipo-complemento').classList.contains('oculto');
+    av.classList.toggle('oculto', !complementoPreso);
+    if (complementoPreso) {
+      av.innerHTML = '⏳ O <strong>Complemento</strong> só abre quando as parcelas desta campanha estiverem <strong>pagas</strong> — ainda há parcela aguardando aprovação ou pagamento. Você recebe o aviso no sino 🔔 quando o pagamento cair.';
     }
   }
 
@@ -1398,9 +1471,12 @@ EC.reembolso = (function () {
     // parcelas). O disponível do designado manda quando é menor que 70%.
     var grande = totalFinal >= 2500;
     var maxPct = grande ? Math.min(70, dispCampanha) : dispCampanha;
+    // NOVA VIAGEM: 100% fixo, fora do teto da campanha (que está em 0).
+    if (ehNovaViagem()) maxPct = 100;
     var pctInp = $('rb-percentual');
     pctInp.max = Math.max(1, maxPct);
     if (percentualVal() > maxPct + 0.001) pctInp.value = maxPct > 0 ? maxPct : 0;
+    if (ehNovaViagem() && percentualVal() < 100) pctInp.value = 100;
 
     // Nota de disponível — POR DESIGNADO (pode pedir qualquer valor até 100%).
     var info = $('rb-pct-info');
@@ -2079,12 +2155,23 @@ EC.reembolso = (function () {
       }
     }
     var pct = percentualVal();
-    if (!(pct > 0 && pct <= 100)) return mostrarErro('O percentual solicitado precisa ficar entre 1% e 100%.');
-    if (dispCampanha <= 0) return mostrarErro('Este designado já teve 100% da logística desta campanha solicitado/pago — não é possível novo reembolso para ele.');
-    if (pct > dispCampanha + 0.01) return mostrarErro('Você pode solicitar no máximo ' + dispCampanha + '% para este designado (o resto já foi solicitado/pago).');
-    // Valor total ≥ R$ 2.500: teto de 70% por solicitação.
+    // NOVA VIAGEM (campanha 100% consumida + escolha do técnico): sempre 100%,
+    // com motivo obrigatório; fora dela valem as travas normais do percentual.
+    var nv = ehNovaViagem();
+    var nvMotivo = '';
+    if (nv) {
+      pct = 100;
+      nvMotivo = $('rb-nv-motivo') ? $('rb-nv-motivo').value.trim() : '';
+      if (nvMotivo.length < 5) return mostrarErro('Explique o motivo da nova viagem (ex.: repetição de serviço).');
+    } else {
+      if (!(pct > 0 && pct <= 100)) return mostrarErro('O percentual solicitado precisa ficar entre 1% e 100%.');
+      if (dispCampanha <= 0) return mostrarErro('Este designado já teve 100% da logística desta campanha solicitado/pago — não é possível novo reembolso para ele.');
+      if (pct > dispCampanha + 0.01) return mostrarErro('Você pode solicitar no máximo ' + dispCampanha + '% para este designado (o resto já foi solicitado/pago).');
+    }
+    // Valor total ≥ R$ 2.500: teto de 70% por solicitação (a nova viagem fica
+    // fora — é pagamento único com "de acordo" explícito da aprovação).
     var totalViagem = Math.round(((calc ? totalComAjustes(calc) : 0) + outrosVal() + (ehSemHosp() ? geradorValor('rb') : 0)) * 100) / 100;
-    if (totalViagem >= 2500 && pct > 70.001) {
+    if (!nv && totalViagem >= 2500 && pct > 70.001) {
       return mostrarErro('O valor total (' + moedaBR(totalViagem) + ') é ≥ R$ 2.500 — o máximo por solicitação é 70%. Peça até 70% agora e o restante em outra solicitação.');
     }
     mostrarErro(null);
@@ -2141,6 +2228,9 @@ EC.reembolso = (function () {
       // horário de chegada em casa — só no caso 1 serviço/0 deslocamento (decide o jantar)
       horaChegadaCasa: casoDiaUnico() ? ($('rb-chegada-casa').value || null) : null,
       percentualSolicitado: pct,
+      // Nova viagem (campanha 100% consumida; ex.: repetição de serviço).
+      novaViagem: nv,
+      novaViagemMotivo: nv ? nvMotivo : null,
       adiantamentoValor: adiantamentoVal(),
       adiantamentoData: (adiantamentoAtivo() && $('rb-adiant-data').value) ? $('rb-adiant-data').value : null,
       ajustes: ajustes,
@@ -3812,6 +3902,7 @@ EC.reembolso = (function () {
     $('rb-os-busca').addEventListener('input', function () { pintarResultadosOs(this.value); });
     $('rb-campanha').addEventListener('change', aoEscolherCampanha);
     $('rb-designado').addEventListener('change', function () {
+      nvEscolha = null; // trocou o designado: a pergunta da campanha 100% recomeça
       atualizarTecSel();
       atualizarDisponivel();
       pintarResumoAuto();

@@ -237,7 +237,7 @@ EC.aprovacoes = (function () {
 
   /* ============ Lista de pendentes ============ */
 
-  var COLS_LISTA = 'id, os, cliente, solicitante, designado, valor_total, percentual_solicitado, valor_solicitado, adiantamento_valor, tipo, status, created_at';
+  var COLS_LISTA = 'id, os, cliente, solicitante, designado, valor_total, percentual_solicitado, valor_solicitado, adiantamento_valor, tipo, status, created_at, campanha_numero, nova_viagem';
 
   function cartao(s) {
     var pct = s.percentual_solicitado != null ? Number(s.percentual_solicitado) : 100;
@@ -263,10 +263,12 @@ EC.aprovacoes = (function () {
     var campTxt = !ehAvulso && s.campanha_numero != null && s.campanha_numero !== ''
       ? '<span class="rotulo-apoio">Campanha ' + esc(s.campanha_numero) + '</span> · ' : '';
     var cabecalho = ehAvulso ? '💸 Outros gastos' : 'OS ' + esc(s.os);
+    // Nova viagem (campanha 100% paga): marcado já no cartão da lista.
+    var nvTxt = s.nova_viagem ? '<span class="rb-status rb-pendente">🧳 NOVA VIAGEM</span> · ' : '';
     return (
       '<button type="button" class="rb-pedido apr-cartao" data-id="' + s.id + '">' +
       '  <div class="rb-pedido-topo"><span class="os-numero">' + cabecalho + '</span>' + chip + '</div>' +
-      '  <div class="rb-pedido-linha">' + tipoTxt + campTxt + '<strong>' + moeda(valor) + '</strong>' + detalhe + '</div>' +
+      '  <div class="rb-pedido-linha">' + nvTxt + tipoTxt + campTxt + '<strong>' + moeda(valor) + '</strong>' + detalhe + '</div>' +
       (s.cliente ? '  <div class="os-resumo">' + esc(s.cliente) + '</div>' : '') +
       '  <div class="os-resumo">' + (ehAvulso ? '' : '👷 ' + esc(s.designado || '—') + ' · ') + '✍️ ' + esc(s.solicitante || '—') + '</div>' +
       '</button>'
@@ -398,6 +400,22 @@ EC.aprovacoes = (function () {
 
   function linhaInfo(rot, val) {
     return '<div><span>' + rot + '</span><strong>' + esc(val) + '</strong></div>';
+  }
+
+  // NOVA VIAGEM (campanha 100% paga): destaque com o motivo do técnico e a
+  // pergunta ADICIONAL do aprovador ("estamos de acordo?") — além da aprovação
+  // normal dos valores. Pedido da Raisa, 2026-08-12.
+  function blocoNovaViagem(s) {
+    if (!s.nova_viagem) return '';
+    var podeDecidir = s.status === 'aguardando_logistica' && ehAprovador();
+    return '<div class="alerta alerta-amarelo" style="margin-bottom:10px">' +
+      '🧳 <strong>NOVA VIAGEM — proposta 100% paga</strong><br>' +
+      'Este designado já teve 100% da logística desta campanha solicitado/pago; o técnico está pedindo por uma <strong>nova viagem</strong> para o mesmo serviço (pagamento único, 100%).' +
+      '<br><br><strong>Motivo informado:</strong> ' + esc(s.nova_viagem_motivo || '—') +
+      (podeDecidir
+        ? '<label class="linha-check check-campo" style="margin-top:10px"><input type="checkbox" id="apr-nv-acordo"><span><strong>Estamos de acordo</strong> com esta solicitação de reembolso para uma proposta 100% paga.</span></label>'
+        : (s.nova_viagem_acordo ? '<br><br>✅ A logística registrou o <strong>de acordo</strong> desta nova viagem na aprovação.' : '')) +
+      '</div>';
   }
 
   // Detalhe de EVENTOS, VEÍCULOS e COMPLEMENTO: pagamento único (100%), sem datas
@@ -660,6 +678,8 @@ EC.aprovacoes = (function () {
 
     return (
       titulo +
+      // Nova viagem em campanha 100% paga: motivo + "de acordo" em destaque.
+      blocoNovaViagem(s) +
       // Resumo orçamentário só para a Logística (o Financeiro não vê).
       (ehAprovador() ? renderOrcamento(orcAtual) : '') +
       '<p class="dg-secao">Quem</p>' +
@@ -927,6 +947,14 @@ EC.aprovacoes = (function () {
         (orcAtual.jaAprovado + orcAtual.esta) > orcAtual.previsto && !obs) {
       return mostrarErro('Esta aprovação passa do orçamento previsto da campanha — escreva a justificativa na observação.');
     }
+    // NOVA VIAGEM (campanha 100% paga): a aprovação exige o "de acordo" explícito
+    // — pergunta adicional à aprovação dos valores (caixinha no destaque amarelo).
+    if (acao === 'aguardando_pagamento' && s.nova_viagem) {
+      var chkNv = $('apr-nv-acordo');
+      if (!chkNv || !chkNv.checked) {
+        return mostrarErro('Marque o "Estamos de acordo" da NOVA VIAGEM (no destaque amarelo, acima) antes de aprovar.');
+      }
+    }
     var cli = sb();
     if (!cli) return mostrarErro('Sem conexão — abra com internet para decidir.');
     mostrarErro(null);
@@ -941,6 +969,8 @@ EC.aprovacoes = (function () {
         decidido_em: new Date().toISOString(),
         decidido_por: user ? user.id : null
       };
+      // Registra o "de acordo" da nova viagem junto da aprovação.
+      if (acao === 'aguardando_pagamento' && s.nova_viagem) campos.nova_viagem_acordo = true;
       // Aplica o ajuste (para mais ou para menos): grava os itens editados, o novo
       // total e a parcela recalculada pelo percentual. Segue direto p/ pagamento.
       if (temAjuste) {
@@ -966,6 +996,9 @@ EC.aprovacoes = (function () {
               Object.keys(aj.campos).map(function (c) { return rotDeCampo(c) + ' → ' + moeda(aj.campos[c]); }).join(', ') +
               (obs ? ' — ' + obs : '')
             : (obs || null);
+          if (acao === 'aguardando_pagamento' && s.nova_viagem) {
+            det = (det ? det + ' — ' : '') + 'DE ACORDO com a NOVA VIAGEM (proposta 100% paga)';
+          }
           await cli.from('logistica_eventos').insert({
             solicitacao_id: s.id, acao: EVENTO[acao],
             detalhe: det, por_nome: sessao().nome || null
