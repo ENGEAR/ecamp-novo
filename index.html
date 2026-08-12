@@ -127,7 +127,29 @@
           <button type="button" class="botao botao-acao" id="btn-reembolso">💰 Solicitação de reembolso</button>
           <button type="button" class="botao botao-acao" id="btn-agenda-acao">📅 Agenda</button>
           <button type="button" class="botao botao-acao botao-acao-gestor oculto" id="btn-extrato-geral">🧾 Extrato geral</button>
+          <button type="button" class="botao botao-acao botao-acao-gestor oculto" id="btn-checagem">🧪 Checagens intermediárias</button>
         </div>
+      </div>
+    </section>
+
+    <!-- ======= Checagens intermediárias (logística) — menu ======= -->
+    <section id="tela-checagem-menu" class="tela oculto">
+      <div class="cartao">
+        <h1>🧪 Checagens intermediárias</h1>
+        <p class="texto-apoio">Calibração feita fora de serviço, para avaliar o próprio equipamento. O resultado vai para o histórico do equipamento no SGP.</p>
+        <div class="pilha-botoes">
+          <button type="button" class="botao botao-acao" id="btn-checagem-part">🌫️ Particulados</button>
+        </div>
+        <button type="button" class="botao botao-secundario" id="checagem-menu-voltar" style="margin-top:18px;">← Voltar</button>
+      </div>
+    </section>
+
+    <!-- ======= Checagem intermediária — Particulados (AGV) ======= -->
+    <section id="tela-checagem-part" class="tela oculto">
+      <div class="cartao">
+        <h1>🌫️ Checagem intermediária — Particulados</h1>
+        <div id="checagem-form"></div>
+        <button type="button" class="botao botao-secundario" id="checagem-part-voltar" style="margin-top:18px;">← Voltar</button>
       </div>
     </section>
 
@@ -864,6 +886,7 @@
   <script src="js/campo-qarint.js"></script>
   <script src="js/campo-outro.js"></script>
   <script src="js/fluxo.js"></script>
+  <script src="js/checagem.js"></script>
   <script src="js/reembolso.js"></script>
   <script src="js/ajuda.js"></script>
   <script src="js/aprovacoes.js"></script>

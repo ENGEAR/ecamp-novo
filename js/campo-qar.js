@@ -816,6 +816,8 @@ EC.campoQar = (function () {
     itensFaltando: itensFaltando,
     calcular: calcularCurva, // usado pelo PDF p/ desenhar a curva do ponto
     vazaoColeta: vazaoColeta, // idem, p/ o veredito de cada bloco da coleta
+    svg: svgCurva,            // gráfico da curva (reuso: checagem intermediária)
+    diagnostico: diagnosticoCurva, // avisos internos de manutenção (idem)
     TIPO_CARIMBO: TIPO_CARIMBO
   };
 })();
