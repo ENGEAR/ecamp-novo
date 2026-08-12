@@ -62,6 +62,8 @@ EC.reembolso = (function () {
   var tipoSel = null;      // 'viagem' | 'sem_hosp' | 'evento' | 'veiculo' | 'complemento'
   var compViagem = null;   // viagem PAGA do designado nesta OS (base do complemento por km)
   var dispCampanha = 100; // % da logística ainda disponível na campanha (100 − já solicitado)
+  var jaCampanha = 0;     // % já solicitado do designado (pode passar de 100 com novas viagens)
+  var cicloResto = 0;     // jaCampanha % 100 — em que ponto do ciclo atual estamos
   // Campanha 100% solicitada/paga: escolha do técnico na pergunta obrigatória —
   // 'complemento' (fluxo existente) ou 'nova' (NOVA VIAGEM, ex.: repetição de
   // serviço, com motivo obrigatório). null = ainda não respondeu.
@@ -1033,17 +1035,23 @@ EC.reembolso = (function () {
 
   // Viagem TRAVADA: o designado já solicitou parte da viagem desta OS/campanha
   // (deve pedir o restante em "Serviços com saldo pendente", não abrir outra).
+  // Ciclo atual COMPLETO (100, 200, …): é quando a pergunta complemento × nova
+  // viagem aparece. No meio de um ciclo (ex.: 170% = nova viagem parcial), o
+  // caminho é o saldo pendente, como sempre.
+  function cicloCompleto() {
+    return jaCampanha >= 99.99 && (cicloResto <= 0.01 || cicloResto >= 99.99);
+  }
   function viagemTravada() {
     if (!(ehTipoViagem() && !!tecSel && !editando)) return false;
-    if (dispCampanha >= 100) return false;
-    // Campanha 100% consumida + técnico marcou NOVA VIAGEM: libera o formulário
+    if (dispCampanha >= 100 && jaCampanha < 99.99) return false;
+    // Ciclo completo + técnico marcou NOVA VIAGEM: libera o formulário
     // (as travas viram humanas: motivo obrigatório + "de acordo" na aprovação).
-    if (dispCampanha <= 0 && nvEscolha === 'nova') return false;
+    if (dispCampanha <= 0 && cicloCompleto() && nvEscolha === 'nova') return false;
     return true;
   }
-  // Nova viagem ATIVA: campanha esgotada e o técnico escolheu "nova viagem".
+  // Nova viagem ATIVA: ciclo completo e o técnico escolheu "nova viagem".
   function ehNovaViagem() {
-    return ehTipoViagem() && !!tecSel && !editando && dispCampanha <= 0 && nvEscolha === 'nova';
+    return ehTipoViagem() && !!tecSel && !editando && dispCampanha <= 0 && cicloCompleto() && nvEscolha === 'nova';
   }
 
   // Sem hospedagem: a data de início + o nº de dias alimentam as quatro datas
@@ -1090,9 +1098,10 @@ EC.reembolso = (function () {
     // Trava: designado que já solicitou parte da viagem desta OS/campanha deve
     // pedir o restante em "Serviços com saldo pendente" — não abrir outra nova.
     var travarViagem = viagemTravada();
-    // Campanha 100% consumida: no lugar do bloqueio entra a PERGUNTA
-    // (complemento × nova viagem) — decisão da Raisa, 2026-08-12.
-    var perguntaNv = ehViagem && !!tecSel && !editando && dispCampanha <= 0;
+    // Ciclo completo (100%, 200%, …): no lugar do bloqueio entra a PERGUNTA
+    // (complemento × nova viagem) — decisão da Raisa, 2026-08-12. No meio de um
+    // ciclo (nova viagem parcial) o caminho continua sendo o saldo pendente.
+    var perguntaNv = ehViagem && !!tecSel && !editando && dispCampanha <= 0 && cicloCompleto();
     var mostraViagem = ehViagem && !travarViagem;
     $('rb-viagem').classList.toggle('oculto', !(mostraViagem && campSel));
     // Sem hospedagem: data de início + nº de dias no lugar das quatro datas.
@@ -1106,9 +1115,9 @@ EC.reembolso = (function () {
     $('rb-viagem-fonte').classList.toggle('oculto', ehSemHosp());
     $('rb-sec-transporte').classList.toggle('oculto', !mostraViagem);
     $('rb-sec-valores').classList.toggle('oculto', !mostraViagem);
-    // Nova viagem é pagamento único (100%): esconde o percentual e fixa 100.
-    $('rb-pct-viagem').classList.toggle('oculto', !mostraViagem || ehNovaViagem());
-    if (ehNovaViagem() && $('rb-percentual')) $('rb-percentual').value = 100;
+    // Nova viagem segue as MESMAS regras de percentual/parcelas (o ciclo novo
+    // tem 100% próprios) — o campo de percentual continua visível.
+    $('rb-pct-viagem').classList.toggle('oculto', !mostraViagem);
     var blq = $('rb-viagem-bloqueio');
     if (blq) {
       // Com a campanha 100% consumida quem aparece é a PERGUNTA, não o bloqueio
@@ -1116,8 +1125,11 @@ EC.reembolso = (function () {
       var mostraBloqueio = travarViagem && !perguntaNv;
       blq.classList.toggle('oculto', !mostraBloqueio);
       if (mostraBloqueio) {
+        // Faltante do CICLO atual: no meio de uma nova viagem (ex.: 170%) o que
+        // falta são os 30% do ciclo, não o dispCampanha (que já zerou).
+        var faltanteCiclo = dispCampanha > 0 ? dispCampanha : Math.round((100 - cicloResto) * 100) / 100;
         $('rb-viagem-bloqueio-txt').innerHTML = '🚫 <strong>' + egEsc(tecSel.nome) + '</strong> já tem uma solicitação de viagem nesta OS. ' +
-          'Para pedir o restante (' + dispCampanha + '% faltante), use <strong>Serviços com saldo pendente</strong> — não abra uma nova. ' +
+          'Para pedir o restante (' + faltanteCiclo + '% faltante), use <strong>Serviços com saldo pendente</strong> — não abra uma nova. ' +
           'Quando os 100% estiverem pagos, aí sim aparece o +Complemento.' +
           '<br><br>Caso necessite solicitar reembolso <strong>imediato</strong> de outros gastos (compra de equipamentos, insumos, outros), use a opção <strong>"Outros do serviço"</strong>.' +
           '<br><br>Gastos extras com quilometragem serão pagos após a chegada em casa e a conferência do hodômetro (<strong>+Complemento</strong>).';
@@ -1221,6 +1233,10 @@ EC.reembolso = (function () {
     // Disponível = 100% − o que este designado já solicitou (sem trava de data).
     var teto = tetoPercentual(); // sempre 100
     dispCampanha = tecSel ? Math.max(0, Math.round((teto - ja) * 100) / 100) : 100;
+    // Ciclo atual (novas viagens consomem o limite: 100 → 200 → …): o resto diz
+    // se o ciclo está completo (pergunta) ou no meio (saldo pendente).
+    jaCampanha = tecSel ? Math.round(ja * 100) / 100 : 0;
+    cicloResto = Math.round((jaCampanha % 100) * 100) / 100;
     var pctInp = $('rb-percentual');
     pctInp.max = Math.max(1, dispCampanha);
     if (tecSel && dispCampanha < 100) pctInp.value = dispCampanha > 0 ? dispCampanha : 0;
@@ -1471,17 +1487,23 @@ EC.reembolso = (function () {
     // parcelas). O disponível do designado manda quando é menor que 70%.
     var grande = totalFinal >= 2500;
     var maxPct = grande ? Math.min(70, dispCampanha) : dispCampanha;
-    // NOVA VIAGEM: 100% fixo, fora do teto da campanha (que está em 0).
-    if (ehNovaViagem()) maxPct = 100;
+    // NOVA VIAGEM: o ciclo novo tem 100% próprios — mesmas regras de sempre
+    // (inclusive o teto de 70% quando o total é ≥ R$ 2.500).
+    if (ehNovaViagem()) maxPct = grande ? 70 : 100;
     var pctInp = $('rb-percentual');
     pctInp.max = Math.max(1, maxPct);
     if (percentualVal() > maxPct + 0.001) pctInp.value = maxPct > 0 ? maxPct : 0;
-    if (ehNovaViagem() && percentualVal() < 100) pctInp.value = 100;
+    if (ehNovaViagem() && !(percentualVal() > 0)) pctInp.value = maxPct;
 
     // Nota de disponível — POR DESIGNADO (pode pedir qualquer valor até 100%).
     var info = $('rb-pct-info');
     var quem = (tecSel && tecSel.nome) ? tecSel.nome : 'este designado';
-    if (dispCampanha <= 0) {
+    if (ehNovaViagem()) {
+      info.className = 'alerta alerta-info';
+      info.textContent = '🧳 Nova viagem: ciclo novo de 100% — mesmas regras de percentual e parcelas' +
+        (grande ? ' (total ≥ R$ 2.500: máximo 70% nesta solicitação; o restante vai pelo saldo pendente).' : '.');
+      info.classList.remove('oculto');
+    } else if (dispCampanha <= 0) {
       info.className = 'alerta alerta-vermelho';
       info.textContent = '🚫 ' + quem + ' já teve 100% da logística desta campanha solicitado/pago — não é possível novo reembolso para ele.';
       info.classList.remove('oculto');
@@ -2155,23 +2177,23 @@ EC.reembolso = (function () {
       }
     }
     var pct = percentualVal();
-    // NOVA VIAGEM (campanha 100% consumida + escolha do técnico): sempre 100%,
-    // com motivo obrigatório; fora dela valem as travas normais do percentual.
+    // NOVA VIAGEM (ciclo completo + escolha do técnico): mesmas regras de
+    // percentual do fluxo normal (o ciclo novo tem 100% próprios), com motivo
+    // obrigatório; fora dela valem as travas normais do disponível.
     var nv = ehNovaViagem();
     var nvMotivo = '';
+    if (!(pct > 0 && pct <= 100)) return mostrarErro('O percentual solicitado precisa ficar entre 1% e 100%.');
     if (nv) {
-      pct = 100;
       nvMotivo = $('rb-nv-motivo') ? $('rb-nv-motivo').value.trim() : '';
       if (nvMotivo.length < 5) return mostrarErro('Explique o motivo da nova viagem (ex.: repetição de serviço).');
     } else {
-      if (!(pct > 0 && pct <= 100)) return mostrarErro('O percentual solicitado precisa ficar entre 1% e 100%.');
       if (dispCampanha <= 0) return mostrarErro('Este designado já teve 100% da logística desta campanha solicitado/pago — não é possível novo reembolso para ele.');
       if (pct > dispCampanha + 0.01) return mostrarErro('Você pode solicitar no máximo ' + dispCampanha + '% para este designado (o resto já foi solicitado/pago).');
     }
-    // Valor total ≥ R$ 2.500: teto de 70% por solicitação (a nova viagem fica
-    // fora — é pagamento único com "de acordo" explícito da aprovação).
+    // Valor total ≥ R$ 2.500: teto de 70% por solicitação — vale igual para a
+    // nova viagem (mesmas regras; o restante vai pelo saldo pendente).
     var totalViagem = Math.round(((calc ? totalComAjustes(calc) : 0) + outrosVal() + (ehSemHosp() ? geradorValor('rb') : 0)) * 100) / 100;
-    if (!nv && totalViagem >= 2500 && pct > 70.001) {
+    if (totalViagem >= 2500 && pct > 70.001) {
       return mostrarErro('O valor total (' + moedaBR(totalViagem) + ') é ≥ R$ 2.500 — o máximo por solicitação é 70%. Peça até 70% agora e o restante em outra solicitação.');
     }
     mostrarErro(null);
