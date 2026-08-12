@@ -2120,6 +2120,11 @@ EC.reembolso = (function () {
       origemCidade: pedido.origemCidade, origemUf: pedido.origemUf,
       destinoCidade: pedido.destinoCidade, destinoUf: pedido.destinoUf,
       percentualSolicitado: pedido.percentualSolicitado,
+      // NOVA VIAGEM (campanha 100% consumida): a marca e o motivo precisam
+      // viajar até o servidor — este payload é montado campo a campo, então
+      // campo novo que não entra aqui simplesmente não chega (achado no teste
+      // do Edgar, 2026-08-12).
+      novaViagem: pedido.novaViagem, novaViagemMotivo: pedido.novaViagemMotivo,
       adiantamentoValor: pedido.adiantamentoValor, adiantamentoData: pedido.adiantamentoData,
       ajustes: pedido.ajustes
     });
@@ -2146,9 +2151,14 @@ EC.reembolso = (function () {
     }
     if (!tecSel) return mostrarErro('Escolha o designado (o técnico do serviço).');
     if (!ehTipoViagem()) return enviarFormularioSimples();
-    // Trava (viagem): já tem solicitação nesta OS/campanha → só pelo Saldo pendente.
-    if (!editando && dispCampanha < 100) {
-      return mostrarErro(tecSel.nome + ' já tem uma solicitação de viagem nesta OS. Peça o restante (' + dispCampanha + '% faltante) em "Serviços com saldo pendente" — não abra uma nova.');
+    // Trava (viagem): já tem solicitação nesta OS/campanha → só pelo Saldo
+    // pendente. Usa a MESMA regra da tela (viagemTravada), que já abre exceção
+    // para a NOVA VIAGEM do ciclo completo — antes esta checagem tinha a regra
+    // antiga (dispCampanha < 100) e barrava a nova viagem no envio, mesmo com o
+    // formulário todo liberado (relato da Raisa, 2026-08-12).
+    if (viagemTravada()) {
+      var faltante = dispCampanha > 0 ? dispCampanha : Math.round((100 - cicloResto) * 100) / 100;
+      return mostrarErro(tecSel.nome + ' já tem uma solicitação de viagem nesta OS. Peça o restante (' + faltante + '% faltante) em "Serviços com saldo pendente" — não abra uma nova.');
     }
     if (ehSemHosp()) sincronizarDataDia();
     if (ehSemHosp() && !$('rb-dia-data').value) {
