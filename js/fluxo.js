@@ -621,20 +621,26 @@ EC.fluxo = (function () {
       const todasConcluidas = itens.every(function (o) { return situacaoServico(os.numero, o.i) === 'concluido'; });
 
       html += '<p class="servico-campanha">' + campanha +
-        (estaLiberada ? '' : ' <span class="servico-status status-bloqueado">🔒 bloqueada</span>') + '</p>';
+        (estaLiberada ? '' : ' <span class="servico-status status-bloqueado">🔒 fora de ordem</span>') + '</p>';
       if (!estaLiberada) {
-        html += '<p class="servico-bloqueio">Disponível depois de concluir a ' + campanhaAnterior + '.</p>';
+        html += '<p class="servico-bloqueio">A ' + campanhaAnterior + ' ainda não foi concluída <strong>neste aparelho</strong>. Se o serviço desta campanha é seu, pode abrir mesmo assim.</p>';
       }
 
       html += itens.map(function (o) {
         const st = situacaoServico(os.numero, o.i);
         const info = '<span class="os-resumo">' + (o.s.qtdePontos ? o.s.qtdePontos + ' ponto(s)' : '') +
           (o.s.periodo ? ' · ' + o.s.periodo : '') + '</span>';
+        // Campanha fora de ordem: NÃO é mais um bloqueio de pedra — o técnico
+        // escalado só para a campanha 4 (as anteriores foram de outro técnico ou
+        // de outro aparelho) ficava travado para sempre, porque "concluído" é o
+        // histórico LOCAL. Agora abre com uma confirmação (caso do Robson na OS
+        // 26139, 2026-08-12).
         if (!estaLiberada) {
           return (
-            '<div class="os-item servico-item servico-bloqueado">' +
-            '  <span class="os-numero">🔒 ' + o.s.escopo + '</span>' + info +
-            '</div>'
+            '<button type="button" class="os-item servico-item servico-bloqueado" data-indice="' + o.i + '" data-fora-ordem="1">' +
+            '  <span class="os-numero">🔓 ' + o.s.escopo + '</span>' + info +
+            '  ' + SELO[st] +
+            '</button>'
           );
         }
         return (
@@ -652,7 +658,24 @@ EC.fluxo = (function () {
 
     lista.querySelectorAll('.servico-item[data-indice]').forEach(function (item) {
       item.addEventListener('click', function () {
-        aoTocarServico(os, parseInt(item.dataset.indice, 10));
+        const indice = parseInt(item.dataset.indice, 10);
+        // Fora de ordem: confirma antes de abrir (o técnico pode ser o dono só
+        // desta campanha — as anteriores são de outro técnico/aparelho).
+        if (item.dataset.foraOrdem) {
+          const camp = os.servicos[indice].campanha || 'esta campanha';
+          EC.app.abrirOverlay('🔓 ' + camp,
+            '<p>As campanhas anteriores não estão concluídas <strong>neste aparelho</strong>.</p>' +
+            '<p class="texto-apoio">Isso é normal quando elas foram feitas por outro técnico ou em outro celular. Se você está escalado para esta campanha, siga em frente.</p>' +
+            '<div class="pilha-botoes">' +
+            '  <button type="button" class="botao botao-primario" id="sv-fora-ordem-ok">Abrir mesmo assim</button>' +
+            '  <button type="button" class="botao botao-secundario" id="sv-fora-ordem-nao">Voltar</button>' +
+            '</div>');
+          const ok = $('sv-fora-ordem-ok'), nao = $('sv-fora-ordem-nao');
+          if (ok) ok.addEventListener('click', function () { EC.app.fecharOverlay(); aoTocarServico(os, indice); });
+          if (nao) nao.addEventListener('click', EC.app.fecharOverlay);
+          return;
+        }
+        aoTocarServico(os, indice);
       });
     });
 

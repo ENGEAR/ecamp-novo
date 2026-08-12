@@ -539,7 +539,9 @@ textarea { resize: vertical; font-family: inherit; }
 .status-continuar { background: #ede7fb; border: 1px solid #b9a6ef; color: #5b3fb0; }
 
 /* Serviço bloqueado (campanha ainda não liberada) */
-.servico-bloqueado { opacity: 0.55; cursor: default; }
+/* Campanha fora de ordem: fica esmaecida (avisa que está fora da sequência),
+   mas É clicável — abre com confirmação (o técnico pode ser dono só dela). */
+.servico-bloqueado { opacity: 0.7; cursor: pointer; }
 .servico-bloqueio { font-size: 0.82rem; color: var(--cinza-texto); margin: 0 0 8px; }
 
 /* Etiqueta de fase (Preparação / Em campo) */
