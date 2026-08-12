@@ -88,7 +88,9 @@ EC.checagem = (function () {
       '<label>Técnico<input type="text" data-chk="tecnico" value="' + (dados.tecnico || '') + '"></label>' +
       '</div>' +
       '<div class="grade-2">' + lblNum('Temperatura (°C)', 'temperatura') + lblNum('Pressão (hPa)', 'pressao') + '</div>' +
-      '<div class="grade-2">' + lblNum('Inclinação a1 (certificado)', 'calibA1', 'any') + lblNum('Intercepto b1 (certificado)', 'calibB1', 'any') + '</div>' +
+      // rótulos curtos p/ não quebrarem linha no celular (o kit preenche os dois
+      // com os valores do certificado; seguem editáveis)
+      '<div class="grade-2">' + lblNum('Inclinação a1', 'calibA1', 'any') + lblNum('Intercepto b1', 'calibB1', 'any') + '</div>' +
       CARTAS.map(function (c) {
         return '<p class="grupo-checks-titulo">Placa de retenção ' + c + '</p>' +
           '<p class="cq-sub">Coluna 800 mm (cmH₂O)</p><div class="grade-2">' +
