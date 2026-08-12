@@ -264,9 +264,12 @@ EC.reembolso = (function () {
     var inGaleria = container.querySelector('.anx-entrada-galeria');
     var inPdf = container.querySelector('.anx-entrada-pdf');
 
-    // Blocos que exigem foto AO VIVO (ex.: quilometragem, com carimbo de data/hora
-    // e coordenada) não podem usar a galeria/fototeca — só a câmera na hora.
+    // Blocos que exigem foto AO VIVO (com carimbo de data/hora e coordenada)
+    // podem esconder a galeria/fototeca.
     if (opcoes.semGaleria && btnGaleria) btnGaleria.style.display = 'none';
+    // Blocos que só aceitam FOTO (ex.: quilometragem do carro): sem PDF — a
+    // evidência é sempre a imagem do hodômetro, da câmera ou da galeria.
+    if (opcoes.semPdf && btnPdf) btnPdf.style.display = 'none';
 
     function notificar() { if (typeof opcoes.aoMudar === 'function') opcoes.aoMudar(); }
 
@@ -1318,8 +1321,9 @@ EC.reembolso = (function () {
     }).join('');
 
     anexos = {
-      // Evidência da quilometragem inicial (na viagem): foto ao vivo com carimbo, sem galeria.
-      combustivel: criarAnexos($('rb-anexos-combustivel'), { iniciais: anexosIniciais.combustivel, aoMudar: salvarRascunhoLogo, carimbar: true, semGaleria: true }),
+      // Evidência da quilometragem inicial (na viagem): foto com carimbo. Aceita
+      // câmera E galeria (pedido da Raisa, 2026-08-12); PDF não faz sentido aqui.
+      combustivel: criarAnexos($('rb-anexos-combustivel'), { iniciais: anexosIniciais.combustivel, aoMudar: salvarRascunhoLogo, carimbar: true, semPdf: true }),
       pedagio: criarAnexos($('rb-anexos-pedagio'), { iniciais: anexosIniciais.pedagio, aoMudar: salvarRascunhoLogo }),
       // Outros gastos (três tipos) + evidências do reembolso de VEÍCULOS
       outros: criarAnexos($('rb-anexos-outros'), { iniciais: anexosIniciais.outros, aoMudar: salvarRascunhoLogo }),
@@ -1327,8 +1331,9 @@ EC.reembolso = (function () {
       pecas: criarAnexos($('rb-anexos-pecas'), { iniciais: anexosIniciais.pecas, aoMudar: salvarRascunhoLogo }),
       manutencao: criarAnexos($('rb-anexos-manutencao'), { iniciais: anexosIniciais.manutencao, aoMudar: salvarRascunhoLogo }),
       gerador: criarAnexos($('rb-anexos-gerador'), { iniciais: anexosIniciais.gerador, aoMudar: salvarRascunhoLogo }),
-      // Evidências do COMPLEMENTO de gastos (OS já paga)
-      complemento: criarAnexos($('rb-anexos-complemento'), { iniciais: anexosIniciais.complemento, aoMudar: salvarRascunhoLogo, carimbar: true, semGaleria: true }),
+      // Evidências do COMPLEMENTO de gastos (OS já paga) — quilometragem final:
+      // mesma regra do bloco acima (câmera ou galeria, sem PDF).
+      complemento: criarAnexos($('rb-anexos-complemento'), { iniciais: anexosIniciais.complemento, aoMudar: salvarRascunhoLogo, carimbar: true, semPdf: true }),
       // Evidências do ajuste do valor calculado do complemento
       comp_ajuste: criarAnexos($('rb-anexos-comp-ajuste'), { iniciais: anexosIniciais.comp_ajuste, aoMudar: salvarRascunhoLogo })
     };
@@ -3116,10 +3121,7 @@ EC.reembolso = (function () {
     var pagas = parcelas.map(function (x, i) { return { x: x, n: i + 1 }; })
       .filter(function (o) { return o.x.status === 'pago' && o.x.id; });
     var temAdiant = adiant > 0 && p.id;
-    // Reembolso de VEÍCULOS: pode anexar/ver a evidência da solicitação a
-    // qualquer momento (inclusive depois de pago) — bloco 'solicitacao'.
-    var ehVeiculo = (p.tipo === 'veiculo') && !!p.id;
-    if (pagas.length || temAdiant || ehVeiculo) {
+    if (pagas.length || temAdiant) {
       var secComp = document.createElement('div');
       secComp.innerHTML = '<p class="dg-secao">Comprovantes de pagamento</p>';
       $('rb-extrato').appendChild(secComp);
@@ -3153,26 +3155,27 @@ EC.reembolso = (function () {
           secComp.appendChild(bDelAdi);
         }
       }
-      if (ehVeiculo) {
-        // O botão "ver" só aparece se JÁ houver evidência anexada (confere no
-        // servidor). Fica oculto até a confirmação; some quando não há nenhuma.
-        var bVerSol = document.createElement('button');
-        bVerSol.type = 'button'; bVerSol.className = 'botao botao-secundario';
-        bVerSol.style.marginBottom = '8px'; bVerSol.style.display = 'none';
-        bVerSol.textContent = '📄 Comprovante da solicitação';
-        bVerSol.addEventListener('click', function () { verComprovante(p.id, bVerSol, null, 'solicitacao'); });
-        secComp.appendChild(bVerSol);
-        temComprovanteSolicitacao(p.id).then(function (tem) { if (tem) bVerSol.style.display = 'block'; });
-        // O próprio designado (extrato dele) ou o gestor pode anexar — vários.
-        if (!soLeitura || ehGestor()) {
-          var bAddSol = document.createElement('button');
-          bAddSol.type = 'button'; bAddSol.className = 'botao botao-secundario';
-          bAddSol.style.display = 'block'; bAddSol.style.marginTop = '6px';
-          bAddSol.textContent = '➕ Anexar comprovante da solicitação';
-          bAddSol.addEventListener('click', function () { anexarComprovanteSolicitacao(p, bVerSol); });
-          secComp.appendChild(bAddSol);
-        }
-      }
+    }
+
+    // EVIDÊNCIA DO GASTO — qualquer tipo de reembolso, a qualquer momento
+    // (inclusive depois de pago). Antes só o reembolso de veículos permitia
+    // anexar aqui; agora vale para viagem, sem hospedagem, eventos, complemento
+    // e outros gastos (pedido da Raisa, 2026-08-12). Vai no bloco 'solicitacao'
+    // da MESMA solicitação que exibe as evidências, então aparece logo acima,
+    // junto das demais. O próprio designado ou o gestor podem anexar.
+    if (idEvid && (!soLeitura || ehGestor())) {
+      var secEv = document.createElement('div');
+      secEv.innerHTML = '<p class="dg-secao">Evidência do gasto</p>' +
+        '<p class="texto-apoio">Nota fiscal, recibo ou foto do gasto. Pode anexar a qualquer momento, mesmo depois de pago.</p>';
+      var bAddEv = document.createElement('button');
+      bAddEv.type = 'button'; bAddEv.className = 'botao botao-secundario';
+      bAddEv.style.display = 'block';
+      bAddEv.textContent = '➕ Anexar evidência do gasto';
+      bAddEv.addEventListener('click', function () {
+        anexarComprovanteSolicitacao({ id: idEvid }, null, function () { mostrarEvidencias(idEvid); });
+      });
+      secEv.appendChild(bAddEv);
+      $('rb-extrato').appendChild(secEv);
     }
 
     // Ações só enquanto dá para mexer: apagar (fila do aparelho ou aguardando a
@@ -3305,23 +3308,15 @@ EC.reembolso = (function () {
     setTimeout(function () { input.remove(); }, 120000);
   }
 
-  // Anexar EVIDÊNCIA da solicitação (bloco 'solicitacao') — reembolso de VEÍCULOS,
-  // disponível a qualquer momento (inclusive depois de pago). Permite VÁRIOS
-  // anexos (câmera/galeria/PDF, via o mesmo componente do formulário). Sobe pelo
-  // SERVIDOR (/anexo, token) — funciona para o técnico e para o gestor. Precisa
-  // de internet.
-  // Há alguma evidência anexada à solicitação? (bloco 'solicitacao', via servidor.)
-  async function temComprovanteSolicitacao(id) {
-    if (!id) return false;
-    try {
-      var r = await getJson(BASE + '/comprovante?id=' + encodeURIComponent(id) + '&bloco=solicitacao');
-      return !!(r && r.ok && r.comprovantes && r.comprovantes.length);
-    } catch (e) { return false; }
-  }
+  // Anexar EVIDÊNCIA DO GASTO (bloco 'solicitacao') a partir do extrato — vale
+  // para QUALQUER tipo de reembolso e a qualquer momento (inclusive depois de
+  // pago). Permite vários anexos (câmera/galeria/PDF, mesmo componente do
+  // formulário) e sobe pelo SERVIDOR (/anexo, token), então funciona tanto para
+  // o técnico quanto para o gestor. Precisa de internet.
 
-  function anexarComprovanteSolicitacao(p, botaoVer) {
-    EC.app.abrirOverlay('➕ Comprovante da solicitação',
-      '<p class="texto-apoio">Anexe as evidências da solicitação (fotos ou PDF). Pode adicionar mais de uma.</p>' +
+  function anexarComprovanteSolicitacao(p, botaoVer, aoConcluir) {
+    EC.app.abrirOverlay('➕ Evidência do gasto',
+      '<p class="texto-apoio">Anexe a nota, o recibo ou a foto do gasto (fotos ou PDF). Pode adicionar mais de uma.</p>' +
       '<div id="cs-anexos"></div>' +
       '<div id="cs-status" class="texto-apoio" style="min-height:18px;"></div>' +
       '<button type="button" class="botao botao-primario" id="cs-enviar" style="margin-top:8px;">Enviar comprovante(s) ✓</button>');
@@ -3337,8 +3332,9 @@ EC.reembolso = (function () {
           var a = itens[i];
           await postJson(BASE + '/anexo', { solicitacao_id: p.id, bloco: 'solicitacao', nomeArquivo: a.nomeArquivo, base64: a.base64, mime: a.mime });
         }
-        EC.app.mostrarToast('✅ ' + itens.length + ' comprovante(s) da solicitação anexado(s).');
+        EC.app.mostrarToast('✅ ' + itens.length + ' evidência(s) anexada(s).');
         if (botaoVer) botaoVer.style.display = 'block'; // agora há o que ver
+        if (typeof aoConcluir === 'function') aoConcluir(); // repinta as evidências do extrato
         if (EC.app.fecharOverlay) EC.app.fecharOverlay();
       } catch (e) {
         btn.disabled = false; btn.textContent = 'Enviar comprovante(s) ✓';
