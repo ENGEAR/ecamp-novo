@@ -1207,9 +1207,23 @@ EC.reembolso = (function () {
       nvEscolha = 'complemento'; // ainda não pago: mantém a escolha e explica
     } else {
       nvEscolha = 'nova';
+      // Trocou de ideia depois de abrir o Complemento: devolve o tipo VIAGEM,
+      // senão o formulário seguiria no bloco do complemento.
+      if (tipoSel === 'complemento') escolherTipo('viagem');
     }
     atualizarTipoUI();
     pintarValores();
+    // Valor inicial do percentual da NOVA VIAGEM — UMA vez, e DEPOIS de
+    // repintar (a repintura anterior ainda usava o teto antigo, 0%, e zerava o
+    // campo). Daqui em diante o campo é livre: repor a cada tecla travava a
+    // digitação (relato da Raisa, 2026-08-12).
+    if (nvEscolha === 'nova') {
+      var pctInp = $('rb-percentual');
+      // Olha o valor CRU do campo — percentualVal() devolve 100 no vazio e a
+      // condição nunca seria verdadeira.
+      var atual = parseFloat(String(pctInp && pctInp.value).replace(',', '.'));
+      if (pctInp && !(atual > 0)) { pctInp.value = 100; pintarValores(); }
+    }
   }
 
   function atualizarAvisoNv() {
@@ -1504,8 +1518,15 @@ EC.reembolso = (function () {
     if (ehNovaViagem()) maxPct = grande ? 70 : 100;
     var pctInp = $('rb-percentual');
     pctInp.max = Math.max(1, maxPct);
-    if (percentualVal() > maxPct + 0.001) pctInp.value = maxPct > 0 ? maxPct : 0;
-    if (ehNovaViagem() && !(percentualVal() > 0)) pctInp.value = maxPct;
+    // Só corta quando há um número DIGITADO acima do teto. Campo vazio fica
+    // vazio: esta função roda a cada tecla e percentualVal() devolve 100 no
+    // vazio — com isso o corte disparava sozinho e o campo não deixava apagar
+    // para digitar outro número (relato da Raisa, 2026-08-12).
+    var pctBruto = String(pctInp.value).trim();
+    var pctDigitado = parseFloat(pctBruto.replace(',', '.'));
+    if (pctBruto !== '' && !isNaN(pctDigitado) && pctDigitado > maxPct + 0.001) {
+      pctInp.value = maxPct > 0 ? maxPct : 0;
+    }
 
     // Nota de disponível — POR DESIGNADO (pode pedir qualquer valor até 100%).
     var info = $('rb-pct-info');
