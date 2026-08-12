@@ -22,7 +22,7 @@
   // lugar nenhum). Opt-in explícito: só grava se a pessoa marcar a caixinha.
   const CHAVE_CREDENCIAIS = 'sessao:credenciais';
   // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
-  const VERSAO_APP = '0.58.205';
+  const VERSAO_APP = '0.58.206';
   // Mínimo de caracteres da senha. Quem manda de verdade é o painel do Supabase
   // (Authentication → "Minimum password length"); aqui é só para avisar ANTES de
   // enviar, com mensagem em português. Mudou lá, mude aqui e no
@@ -343,8 +343,19 @@
     if (EC.reembolso && EC.reembolso.verificarPagamentos) EC.reembolso.verificarPagamentos();
     // Preparo de laboratório: há serviço preparado esperando por mim?
     if (EC.fluxo && EC.fluxo.verificarPreparos) EC.fluxo.verificarPreparos();
+    aplicarPapeis(sessao.papeis || []);
+    mostrarTela('tela-acao');
+    // Conta ainda vale? (só com internet; quem foi desligado cai fora aqui)
+    revalidarConta(true);
+  }
+
+  // Botões da tela inicial que dependem do PAPEL. Fica separado porque também
+  // roda na revalidação: um papel concedido DEPOIS do último login precisa
+  // aparecer sem a pessoa ter que sair e entrar de novo (foi o que aconteceu
+  // com o Kildhary e a Checagem intermediária, 2026-08-12).
+  function aplicarPapeis(pap) {
+    pap = pap || [];
     // Extrato geral (todas as solicitações): só Financeiro/Logística/admin.
-    var pap = sessao.papeis || [];
     var ehGestor = pap.indexOf('financeiro') !== -1 || pap.indexOf('logistica') !== -1 || pap.indexOf('admin') !== -1;
     $('btn-extrato-geral').classList.toggle('oculto', !ehGestor);
     // Checagens intermediárias (avaliação de equipamento): quem OPERA o campo —
@@ -352,9 +363,23 @@
     // "cheia" (com valores) não faz checagem de equipamento.
     var ehLogisticaCampo = pap.indexOf('logistica_campo') !== -1 || pap.indexOf('admin') !== -1;
     $('btn-checagem').classList.toggle('oculto', !ehLogisticaCampo);
-    mostrarTela('tela-acao');
-    // Conta ainda vale? (só com internet; quem foi desligado cai fora aqui)
-    revalidarConta(true);
+  }
+
+  // Papéis FRESCOS do servidor → sessão do aparelho + botões da tela inicial.
+  // Sem isso, quem ganha um papel novo continua sem ver o menu até sair e
+  // entrar de novo (a sessão guardava os papéis do dia do login).
+  async function atualizarPapeis() {
+    if (!(EC.auth && EC.auth.meusPapeis) || !sessaoAtual()) return;
+    var novos;
+    try { novos = await EC.auth.meusPapeis(); } catch (e) { return; }
+    if (!novos || !novos.length) return; // offline/erro: mantém o que já tinha
+    var sessao = sessaoAtual();
+    if (!sessao) return;
+    var antes = (sessao.papeis || []).slice().sort().join(',');
+    if (antes === novos.slice().sort().join(',')) return; // nada mudou
+    sessao.papeis = novos;
+    EC.storage.salvar(CHAVE_SESSAO, sessao);
+    aplicarPapeis(novos);
   }
 
   function prepararLogin() {
@@ -399,7 +424,10 @@
     var situacao = 'indefinido';
     try { situacao = await EC.auth.revalidar(); } catch (e) { situacao = 'indefinido'; }
     revalidando = false;
-    if (situacao === 'ok' || situacao === 'indefinido') return;
+    // Conta válida: aproveita a ida ao servidor para atualizar os PAPÉIS (um
+    // papel concedido depois do login precisa valer sem sair e entrar de novo).
+    if (situacao === 'ok') { atualizarPapeis(); return; }
+    if (situacao === 'indefinido') return;
 
     // Última tentativa de salvar o que ainda não subiu (a fila usa o token do
     // app, então funciona mesmo com a conta já bloqueada).
