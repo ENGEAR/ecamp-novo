@@ -946,7 +946,14 @@ EC.reembolso = (function () {
   async function listaDoDesignado(nome) {
     var chave = String(nome || '').trim().toLowerCase();
     if (!chave) return [];
-    if (chave === sessionNome().trim().toLowerCase()) return listaEmCache();
+    // SOU EU? Compara com mesmoNome (nome curto × completo, acento, aspa) — e não
+    // letra por letra. O login costuma ter o nome completo e a Agenda o curto
+    // ("Edgar Oliveira Tomé" × "Edgar Tomé", "Robson Luiz Pimenta" × "Robson
+    // Pimenta"): com a comparação exata, o app ia pedir a lista ao servidor como
+    // se fosse de OUTRA pessoa, recebia de volta as PRÓPRIAS solicitações
+    // (escopo 'proprio'), descartava — e o Complemento nunca liberava, mesmo com
+    // tudo pago (caso do Edgar, 2026-08-12).
+    if (mesmoNome(nome, sessionNome())) return listaEmCache();
     if (cacheDesignado[chave]) return cacheDesignado[chave];
     try {
       var corpo = await getJson(BASE + '/lista?solicitante=' + encodeURIComponent(nome));
