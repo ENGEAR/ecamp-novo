@@ -22,7 +22,7 @@
   // lugar nenhum). Opt-in explícito: só grava se a pessoa marcar a caixinha.
   const CHAVE_CREDENCIAIS = 'sessao:credenciais';
   // Fallback exibido antes do cache responder; bump junto com VERSAO_CACHE no SW.
-  const VERSAO_APP = '0.58.204';
+  const VERSAO_APP = '0.58.205';
   // Mínimo de caracteres da senha. Quem manda de verdade é o painel do Supabase
   // (Authentication → "Minimum password length"); aqui é só para avisar ANTES de
   // enviar, com mensagem em português. Mudou lá, mude aqui e no
@@ -347,9 +347,11 @@
     var pap = sessao.papeis || [];
     var ehGestor = pap.indexOf('financeiro') !== -1 || pap.indexOf('logistica') !== -1 || pap.indexOf('admin') !== -1;
     $('btn-extrato-geral').classList.toggle('oculto', !ehGestor);
-    // Checagens intermediárias (avaliação de equipamento): só Logística/admin.
-    var ehLogistica = pap.indexOf('logistica') !== -1 || pap.indexOf('logistica_campo') !== -1 || pap.indexOf('admin') !== -1;
-    $('btn-checagem').classList.toggle('oculto', !ehLogistica);
+    // Checagens intermediárias (avaliação de equipamento): quem OPERA o campo —
+    // papel 'logistica_campo' (logística SEM valores) — e o admin. A logística
+    // "cheia" (com valores) não faz checagem de equipamento.
+    var ehLogisticaCampo = pap.indexOf('logistica_campo') !== -1 || pap.indexOf('admin') !== -1;
+    $('btn-checagem').classList.toggle('oculto', !ehLogisticaCampo);
     mostrarTela('tela-acao');
     // Conta ainda vale? (só com internet; quem foi desligado cai fora aqui)
     revalidarConta(true);
