@@ -346,7 +346,12 @@ EC.pesagens = (function () {
       '<div style="border:1px solid #d7dce8;border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#fff;">' +
       '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
       '<strong>Filtro ' + esc(p.numero_filtro) + '</strong>' +
-      (p.ponto ? '<span style="font-size:0.8rem;font-weight:700;color:#16276e;background:#e8f3fb;border-radius:999px;padding:1px 8px;">' + esc(p.ponto) + (p.poluente ? ' · ' + esc(p.poluente) : '') + '</span>' : (p.poluente ? '<span style="font-size:0.8rem;font-weight:700;color:#16276e;background:#e8f3fb;border-radius:999px;padding:1px 8px;">' + esc(p.poluente) + '</span>' : '')) +
+      (p.ponto || p.poluente
+        ? '<span style="font-size:0.8rem;font-weight:700;color:#16276e;background:#e8f3fb;border-radius:999px;padding:1px 8px;">' +
+          esc(p.ponto || '') + (p.ponto && p.poluente ? ' · ' : '') +
+          (p.poluente ? '<strong style="color:var(--azul);">' + esc(p.poluente) + '</strong>' : '') +
+          '</span>'
+        : '') +
       '<span style="font-size:0.85rem;color:#5a6377;">tara ' + fmtG(p.tara_g) + ' · ' + dataBR(p.tara_data) + '</span>' +
       '<button type="button" class="botao botao-mini" data-psg-final="' + esc(p.id) + '" style="margin-left:auto;">' +
       (aberto ? 'Fechar' : '⚖️ Pesagem final') + '</button>' +
@@ -381,7 +386,8 @@ EC.pesagens = (function () {
           var massa = (p.final_g != null && p.tara_g != null) ? (Number(p.final_g) - Number(p.tara_g)) : null;
           return '<div style="border:1px solid #e2e6ef;border-radius:10px;padding:8px 12px;margin-bottom:6px;background:#f7f9fc;font-size:0.9rem;">' +
             '<strong>Filtro ' + esc(p.numero_filtro) + '</strong>' +
-            (p.ponto ? ' · ' + esc(p.ponto) : '') + (p.poluente ? ' · ' + esc(p.poluente) : '') +
+            (p.ponto ? ' · ' + esc(p.ponto) : '') +
+            (p.poluente ? ' · <strong style="color:var(--azul);">' + esc(p.poluente) + '</strong>' : '') +
             ' · tara ' + fmtG(p.tara_g) + ' · final ' + fmtG(p.final_g) +
             (massa != null ? ' · <strong>massa ' + fmtG(massa) + '</strong>' : '') +
             ' · ' + dataBR(p.final_data) +
