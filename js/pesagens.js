@@ -85,6 +85,36 @@ EC.pesagens = (function () {
     return todas.filter(ehQualidadeDoAr).slice(0, 20);
   }
 
+  // Escopo em etiqueta CURTA para o cartão da OS (sem os termos de norma):
+  // "Qualidade do Ar Externo – PTS e PM10" → "PTS · PM10";
+  // "Ruído Ambiental – NBR 10151" → "Ruído".
+  function rotuloCurto(escopo) {
+    var e = String(escopo || '').toLowerCase().replace(/\s+/g, '');
+    var tags = [];
+    if (/pts/.test(e)) tags.push('PTS');
+    if (/pm ?10|mp10/.test(e)) tags.push('PM10');
+    if (/pm2[.,]?5|mp2[.,]?5/.test(e)) tags.push('PM2,5');
+    if (tags.length) return tags.join(' · ');
+    var tipo = (EC.mapaEscopo && EC.mapaEscopo.tipoPorEscopo) ? EC.mapaEscopo.tipoPorEscopo(escopo) : null;
+    if (tipo === 'ruido') return 'Ruído';
+    if (tipo === 'sismo') return 'Sismografia';
+    if (tipo === 'qarint') return 'Ar interno';
+    if (tipo === 'opacidade') return 'Opacidade';
+    if (tipo === 'qar') return 'Qualidade do ar';
+    // Desconhecido: pelo menos corta o " – NBR xxxx" do nome.
+    return String(escopo || '').replace(/\s*[–—-]\s*NBR.*$/i, '').trim();
+  }
+
+  function escoposCurtos(os) {
+    var vistos = {}, saida = [];
+    ((os && os.servicos) || []).forEach(function (s) {
+      rotuloCurto(s.escopo).split(' · ').forEach(function (t) {
+        if (t && !vistos[t]) { vistos[t] = true; saida.push(t); }
+      });
+    });
+    return saida.join(' · ');
+  }
+
   function pintarOsPesagens(termo) {
     var alvo = $('psg-os-resultados');
     if (!alvo) return;
@@ -97,7 +127,7 @@ EC.pesagens = (function () {
       return;
     }
     alvo.innerHTML = achadas.map(function (o) {
-      var escopos = (o.servicos || []).map(function (s) { return s.escopo; }).filter(Boolean).join(' · ');
+      var escopos = escoposCurtos(o);
       return '<div class="os-item" data-psg-os="' + esc(o.osId) + '">' +
         '<div class="os-numero">OS ' + esc(o.numero) + '</div>' +
         '<div class="os-resumo">' + esc(o.cliente || '') + '</div>' +
