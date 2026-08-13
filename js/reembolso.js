@@ -2329,6 +2329,10 @@ EC.reembolso = (function () {
       horaChegadaCasa: pedido.horaChegadaCasa,
       origemCidade: pedido.origemCidade, origemUf: pedido.origemUf,
       destinoCidade: pedido.destinoCidade, destinoUf: pedido.destinoUf,
+      // Trajeto com vários trechos: sem esta linha a corrente fica no celular e
+      // o servidor grava só o 1º par (aconteceu na OS 26139, 2026-08-12) — é a
+      // MESMA armadilha do aviso logo abaixo.
+      trechos: pedido.trechos,
       percentualSolicitado: pedido.percentualSolicitado,
       // NOVA VIAGEM (campanha 100% consumida): a marca e o motivo precisam
       // viajar até o servidor — este payload é montado campo a campo, então
