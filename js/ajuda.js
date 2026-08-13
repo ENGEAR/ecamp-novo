@@ -26,12 +26,14 @@ EC.ajuda = (function () {
     // a linha do Extrato geral só aparece para Financeiro / Logística / admin.
     var pap = ((EC.storage && EC.storage.ler('sessao:atual')) || {}).papeis || [];
     var ehGestor = pap.indexOf('financeiro') !== -1 || pap.indexOf('logistica') !== -1 || pap.indexOf('admin') !== -1;
+    var ehLogisticaCampo = pap.indexOf('logistica_campo') !== -1 || pap.indexOf('admin') !== -1;
     var telaInicial = [
       '<strong>🛠️ Serviços</strong> — registrar um monitoramento em campo.',
       '<strong>💰 Solicitação de reembolso</strong>.',
       '<strong>📅 Agenda</strong> — a sua programação.'
     ];
     if (ehGestor) telaInicial.push('<strong>🧾 Extrato geral</strong> — todas as solicitações (Financeiro / Logística).');
+    if (ehLogisticaCampo) telaInicial.push('<strong>⚖️ Pesagens</strong> — tara e pesagem final dos filtros de particulados (Logística de campo). Com as duas pesagens, o SGP calcula a concentração.');
     return (
       '<p class="ajuda-intro">Toque num tópico para abrir o passo a passo. Vale para o técnico de campo.</p>' +
       '<label class="overlay-busca"><input type="search" id="ajuda-busca" placeholder="🔍 Buscar na ajuda…" autocomplete="off"></label>' +
