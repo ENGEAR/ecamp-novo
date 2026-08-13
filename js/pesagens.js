@@ -33,6 +33,7 @@ EC.pesagens = (function () {
   var finalAberto = null;  // id da pesagem cujo formulário final está aberto
   var lista = { pendentes: [], concluidas: [] };
   var osSel = null;        // OS escolhida (a pesagem pertence a uma OS)
+  var campSel = null;      // campanha escolhida { rotulo, numero } — null = única
 
   function $(id) { return document.getElementById(id); }
   function toast(msg) { if (EC.app && EC.app.mostrarToast) EC.app.mostrarToast(msg); }
@@ -111,9 +112,52 @@ EC.pesagens = (function () {
     });
   }
 
+  // Campanhas dos serviços de AR da OS (é onde se pesa filtro). Rótulos como
+  // 'Campanha 1' viram { rotulo, numero }; 'Campanha única' fica sem número.
+  function campanhasDeAr(os) {
+    var vistas = {}, saida = [];
+    ((os && os.servicos) || []).forEach(function (s) {
+      var tipo = EC.mapaEscopo && EC.mapaEscopo.tipoPorEscopo
+        ? EC.mapaEscopo.tipoPorEscopo(s.escopo || '') : null;
+      if (tipo !== 'qar' && tipo !== 'qarint') return;
+      var rotulo = String(s.campanha || 'Campanha única').trim() || 'Campanha única';
+      if (vistas[rotulo]) return;
+      vistas[rotulo] = true;
+      var m = rotulo.match(/(\d+)/);
+      saida.push({ rotulo: rotulo, numero: m ? parseInt(m[1], 10) : null });
+    });
+    return saida;
+  }
+
   function escolherOs(o) {
     osSel = o;
+    campSel = null;
+    var cs = campanhasDeAr(o);
+    // Mais de uma campanha: pergunta qual, antes do formulário (pedido da
+    // Raisa, 2026-08-12 — filtros de campanhas diferentes não se misturam).
+    if (cs.length > 1) { pintarCampanhas(cs); return; }
+    campSel = cs[0] || null;
     abrirFormulario();
+  }
+
+  function pintarCampanhas(cs) {
+    var alvo = $('psg-os-resultados');
+    if (!alvo) return;
+    alvo.innerHTML =
+      '<div class="alerta alerta-info">📋 <strong>OS ' + esc(osSel.numero) + '</strong>' +
+      (osSel.cliente ? ' · ' + esc(osSel.cliente) : '') +
+      '<br><span class="texto-apoio">Esta OS tem mais de uma campanha — qual é a das pesagens?</span></div>' +
+      '<div class="pilha-botoes">' +
+      cs.map(function (c, i) {
+        return '<button type="button" class="botao botao-acao" data-psg-camp="' + i + '">' + esc(c.rotulo) + '</button>';
+      }).join('') +
+      '</div>';
+    alvo.querySelectorAll('[data-psg-camp]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        campSel = cs[Number(btn.dataset.psgCamp)] || null;
+        abrirFormulario();
+      });
+    });
   }
 
   function pintarChipOs() {
@@ -121,7 +165,9 @@ EC.pesagens = (function () {
     if (!chip || !osSel) return;
     chip.innerHTML = '<div class="alerta alerta-info" style="margin-bottom:10px">' +
       '📋 <strong>OS ' + esc(osSel.numero) + '</strong>' + (osSel.cliente ? ' · ' + esc(osSel.cliente) : '') +
-      '<br><span class="texto-apoio">Os filtros pesados aqui ficam ligados a esta OS.</span></div>';
+      (campSel && campSel.numero ? ' · <strong>' + esc(campSel.rotulo) + '</strong>' : '') +
+      '<br><span class="texto-apoio">Os filtros pesados aqui ficam ligados a est' +
+      (campSel && campSel.numero ? 'a campanha' : 'a OS') + '.</span></div>';
   }
 
   /* ===== Tela ===== */
@@ -180,8 +226,9 @@ EC.pesagens = (function () {
       return;
     }
     try {
-      // Só os filtros DESTA OS — senão apareceriam os de outro serviço.
-      var url = BASE + '/pesagens' + (osSel ? '?os=' + encodeURIComponent(osSel.numero) : '');
+      // Só os filtros DESTA OS (e desta campanha, quando há mais de uma).
+      var url = BASE + '/pesagens' + (osSel ? '?os=' + encodeURIComponent(osSel.numero) : '') +
+        (osSel && campSel && campSel.numero ? '&campanha=' + campSel.numero : '');
       var resp = await fetch(url, { headers: await cabecalhos() });
       var corpo = await resp.json().catch(function () { return {}; });
       if (!resp.ok || !corpo.ok) throw new Error(corpo.erro || ('HTTP ' + resp.status));
@@ -281,6 +328,7 @@ EC.pesagens = (function () {
           pesagem: {
             os: osSel ? osSel.numero : '',
             osId: osSel ? osSel.osId : '',
+            campanha: (campSel && campSel.numero) || null,
             numero_filtro: numero,
             tara_g: dados.tara,
             tara_data: dados.data,
