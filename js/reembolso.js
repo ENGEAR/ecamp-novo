@@ -759,9 +759,11 @@ EC.reembolso = (function () {
     var maoObra = ehFreela ? r2((diariaExc || Number(v.diaria_freelancer)) * n) : 0;
 
     // Sem hospedagem não paga almoço para ninguém. O lanche volta a existir
-    // quando o deslocamento do DIA (ida e volta) passa de 200 km — um por dia.
+    // quando o deslocamento do DIA (ida e volta) passa de 200 km — e são DOIS
+    // por dia: um na ida e um na volta (o técnico faz a estrada inteira duas
+    // vezes no mesmo dia). Espelha LANCHES_POR_DIA_SEM_HOSP do servidor.
     var almoco = 0;
-    var lanche = kmDoDia > 200 ? r2(Number(v.lanche) * n) : 0;
+    var lanche = kmDoDia > 200 ? r2(Number(v.lanche) * LANCHES_POR_DIA_SEM_HOSP * n) : 0;
     var jantar = r2(Number(v.jantar) * diasJantarVal());
 
     var pedagio = r2(lerMoeda('rb-pedagio'));
@@ -1219,6 +1221,10 @@ EC.reembolso = (function () {
   // dias. Usa o mesmo formulário e o mesmo 100% da campanha da viagem; o que
   // muda é o cálculo (ver calcularSemHospedagem, espelho de calculo.ts).
   var TIPO_SEM_HOSP = 'sem_hosp';
+  // Serviço sem hospedagem: um lanche na IDA e outro na VOLTA, a cada dia.
+  // Espelha LANCHES_POR_DIA_SEM_HOSP de src/lib/logistica/calculo.ts — quem
+  // manda no valor pago é o servidor; aqui é só a prévia da tela.
+  var LANCHES_POR_DIA_SEM_HOSP = 2;
   function ehSemHosp() { return tipoSel === TIPO_SEM_HOSP; }
   function ehTipoViagem() { return tipoSel === 'viagem' || ehSemHosp(); }
   // Mesma pergunta para uma solicitação já gravada (espelha ehReembolsoViagem do
@@ -1664,7 +1670,7 @@ EC.reembolso = (function () {
           ? moedaBR(v.jantar) + ' × ' + diasJantarVal() + ' dia(s) com chegada a partir das 23h = ' + moedaBR(calc.jantar)
           : 'não incluído (nenhum dia com chegada a partir das 23h)') + '<br>' +
         'Lanche: ' + (calc.lanche > 0
-          ? moedaBR(v.lanche) + '/dia × ' + n + ' dia(s) = ' + moedaBR(calc.lanche) +
+          ? moedaBR(v.lanche) + ' × 2 (ida e volta) × ' + n + ' dia(s) = ' + moedaBR(calc.lanche) +
             ' (deslocamento diário acima de 200 km)'
           : 'não incluído (só paga lanche para deslocamentos diários acima de 200 km)');
     }

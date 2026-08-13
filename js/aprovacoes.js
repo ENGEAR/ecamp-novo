@@ -641,7 +641,10 @@ EC.aprovacoes = (function () {
       bullets.push('Jantar: ' + moeda(vu.jantar) + '/dia');
     }
     if (Number(s.valor_lanche) > 0 && vu.lanche != null) {
-      bullets.push('Lanche: ' + moeda(vu.lanche) + '/dia de deslocamento');
+      // Sem hospedagem: são dois por dia (um na ida, um na volta).
+      bullets.push(tDet === 'sem_hosp'
+        ? 'Lanche: ' + moeda(vu.lanche) + ' × 2 (ida e volta) por dia'
+        : 'Lanche: ' + moeda(vu.lanche) + '/dia de deslocamento');
     }
     var detalheHtml = '<div class="apr-detalhe"><div class="apr-detalhe-icone">🧮</div>' +
       '<div class="apr-detalhe-corpo"><div class="apr-detalhe-titulo">Detalhamento do cálculo</div>' +
