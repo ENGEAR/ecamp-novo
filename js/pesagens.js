@@ -59,11 +59,6 @@ EC.pesagens = (function () {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
     });
   }
-  // Precisa da 3ª pesagem? (1ª e 2ª variaram mais que 0,0005 g)
-  function precisaTerceira(g1, g2) {
-    return g1 != null && g2 != null && Math.abs(g1 - g2) > VARIACAO_MAX;
-  }
-
   // F053: o filtro estabiliza por NO MÍNIMO 24 h antes de ser pesado.
   var ESTAB_MIN_H = 24;
   function horasEstab(estab, pesagem) {
@@ -121,45 +116,88 @@ EC.pesagens = (function () {
 
   /* ===== Formulário da TARA ===== */
 
-  // Série F053 completa (estabilização + 1ª e 2ª pesagens com data/hora; 3ª
-  // quando a variação exigir), reutilizada na tara e na final. `attr` é o
-  // data-atributo do formulário ('data-psg' | 'data-psgf'); `k` mapeia as
-  // chaves do estado; `alvo` é o objeto de estado (dados | dadosFinal).
-  function htmlSerie(attr, k, alvo, rotuloEstab) {
-    var g1 = numDe(alvo[k.g1]), g2 = numDe(alvo[k.g2]);
-    var mostrar3 = precisaTerceira(g1, g2);
-    var avisoVar = '';
-    if (g1 != null && g2 != null) {
-      avisoVar = mostrar3
-        ? '<div class="alerta alerta-amarelo">⚠️ A 2ª pesagem variou mais que 0,0005 g da 1ª — o F053 exige a <strong>3ª pesagem</strong>.</div>'
-        : '<div class="alerta alerta-verde">✅ 1ª e 2ª pesagens conferem (variação ≤ 0,0005 g).</div>';
-    }
-    var pode2 = intervaloOk(alvo[k.p1em], alvo[k.p2em]);
-    function campo(tipo, chave, extra) {
-      return '<input type="' + tipo + '"' + (tipo === 'number' ? ' step="0.0001" inputmode="decimal" placeholder="ex.: 2,7336"' : '') +
-        ' ' + attr + '="' + chave + '" value="' + esc(alvo[chave] || '') + '"' + (extra || '') + '>';
-    }
-    return '<label>' + rotuloEstab + campo('datetime-local', k.estab) + '</label>' +
-      '<p class="grupo-checks-titulo" style="margin-top:6px;">1ª pesagem</p>' +
-      '<div class="grade-2">' +
-      '<label>Data/hora' + campo('datetime-local', k.p1em) + '</label>' +
-      '<label>Peso (g)' + campo('number', k.g1) + '</label>' +
-      '</div>' +
-      avisoEstab(alvo[k.estab], alvo[k.p1em]) +
-      '<p class="grupo-checks-titulo" style="margin-top:6px;">2ª pesagem — verificação (mín. 4 h depois)</p>' +
-      '<div class="grade-2">' +
-      '<label>Data/hora' + campo('datetime-local', k.p2em) + '</label>' +
-      // O peso da 2ª só destrava quando o intervalo de 4 h estiver cumprido.
-      '<label>Peso (g)' + campo('number', k.g2, pode2 ? '' : ' disabled') + '</label>' +
-      '</div>' +
-      avisoIntervalo(alvo[k.p1em], alvo[k.p2em]) +
-      avisoVar +
-      (mostrar3
-        ? '<label>3ª pesagem (g) — obrigatória, a 2ª variou' + campo('number', k.g3) + '</label>'
-        : '');
+  // Peso com EXATAMENTE 4 casas após a vírgula (resolução da balança).
+  function casas4(t) { return /^\d+[.,]\d{4}$/.test(String(t == null ? '' : t).trim()); }
+  function ord(i) { return (i + 1) + 'ª'; }
+
+  // A série é ABERTA: enquanto o último par preenchido variar mais que
+  // 0,0005 g, abre-se a próxima pesagem — só fecha quando duas consecutivas
+  // conferem (regra da Raisa, 2026-08-13; sem limite de 3).
+  function serieDe(alvo, k) {
+    if (!Array.isArray(alvo[k.serie])) alvo[k.serie] = ['', ''];
+    return alvo[k.serie];
   }
-  var CHAVES_TARA = { estab: 'testab', p1em: 'tpesagem', p2em: 't2em', g1: 'tg1', g2: 'tg2', g3: 'tg3' };
-  var CHAVES_FINAL = { estab: 'festab', p1em: 'fpesagem', p2em: 'f2em', g1: 'fg1', g2: 'fg2', g3: 'fg3' };
+  function ajustarSerie(serie) {
+    var precisa = 2;
+    for (var i = 1; i < serie.length; i++) {
+      var a = numDe(serie[i - 1]), b = numDe(serie[i]);
+      if (a === null || b === null) break;
+      if (Math.abs(a - b) > VARIACAO_MAX) precisa = i + 2; else break;
+    }
+    while (serie.length > precisa && String(serie[serie.length - 1]).trim() === '') serie.pop();
+    while (serie.length < precisa) serie.push('');
+  }
+
+  // Série F053 completa (estabilização + pesagens com a regra da variação),
+  // reutilizada na tara e na final. `attr` é o data-atributo do formulário
+  // ('data-psg' | 'data-psgf'); os pesos usam a chave composta 'serie.i'.
+  function htmlSerie(attr, k, alvo, rotuloEstab) {
+    var serie = serieDe(alvo, k);
+    ajustarSerie(serie);
+    var pode2 = intervaloOk(alvo[k.p1em], alvo[k.p2em]);
+    function campoData(chave) {
+      return '<input type="datetime-local" ' + attr + '="' + chave + '" value="' + esc(alvo[chave] || '') + '">';
+    }
+    function campoPeso(i, extra) {
+      return '<input type="number" step="0.0001" inputmode="decimal" placeholder="4 casas — ex.: 2,5860" ' +
+        attr + '="' + k.serie + '.' + i + '" value="' + esc(serie[i] || '') + '"' + (extra || '') + '>';
+    }
+    var html = '<label>' + rotuloEstab + campoData(k.estab) + '</label>';
+    for (var i = 0; i < serie.length; i++) {
+      if (i === 0) {
+        html += '<p class="grupo-checks-titulo" style="margin-top:6px;">1ª pesagem</p>' +
+          '<div class="grade-2">' +
+          '<label>Data/hora' + campoData(k.p1em) + '</label>' +
+          '<label>Peso (g)' + campoPeso(0) + '</label>' +
+          '</div>' +
+          avisoEstab(alvo[k.estab], alvo[k.p1em]);
+      } else if (i === 1) {
+        html += '<p class="grupo-checks-titulo" style="margin-top:6px;">2ª pesagem — verificação (mín. 4 h depois)</p>' +
+          '<div class="grade-2">' +
+          '<label>Data/hora' + campoData(k.p2em) + '</label>' +
+          // O peso da 2ª só destrava quando o intervalo de 4 h estiver cumprido.
+          '<label>Peso (g)' + campoPeso(1, pode2 ? '' : ' disabled') + '</label>' +
+          '</div>' +
+          avisoIntervalo(alvo[k.p1em], alvo[k.p2em]);
+      } else {
+        html += '<label>' + ord(i) + ' pesagem (g) — obrigatória, a anterior variou' + campoPeso(i) + '</label>';
+      }
+    }
+    // Estado do par mais recente: fechou a série, ou pede a próxima.
+    var n = serie.length;
+    var ua = numDe(serie[n - 2]), ub = numDe(serie[n - 1]);
+    if (ua != null && ub != null) {
+      html += Math.abs(ua - ub) > VARIACAO_MAX
+        ? '<div class="alerta alerta-amarelo">⚠️ A ' + ord(n - 1) + ' pesagem variou mais que 0,0005 g da anterior — o F053 exige a <strong>' + ord(n) + '</strong>.</div>'
+        : '<div class="alerta alerta-verde">✅ ' + ord(n - 2) + ' e ' + ord(n - 1) + ' pesagens conferem — série fechada, oficial ' + fmtG(ub) + '.</div>';
+    }
+    // 4 casas: aponta na hora o peso digitado errado.
+    var errados = [];
+    serie.forEach(function (v, j) { if (String(v || '').trim() !== '' && !casas4(v)) errados.push(ord(j)); });
+    if (errados.length) {
+      html += '<div class="alerta alerta-vermelho">🔢 ' + (errados.length === 1 ? 'A ' + errados[0] + ' pesagem precisa' : 'As pesagens ' + errados.join(', ') + ' precisam') + ' de exatamente 4 casas após a vírgula (ex.: 2,5860).</div>';
+    }
+    return html;
+  }
+  var CHAVES_TARA = { estab: 'testab', p1em: 'tpesagem', p2em: 't2em', serie: 'tserie' };
+  var CHAVES_FINAL = { estab: 'festab', p1em: 'fpesagem', p2em: 'f2em', serie: 'fserie' };
+
+  // Chave composta 'serie.i' → grava no array; simples → no objeto.
+  function atribuir(alvo, chave, valor) {
+    var m = chave.split('.');
+    if (m.length === 2 && Array.isArray(alvo[m[0]])) alvo[m[0]][Number(m[1])] = valor;
+    else alvo[chave] = valor;
+  }
 
   function renderizar() {
     var area = $('pesagens-form');
@@ -200,12 +238,11 @@ EC.pesagens = (function () {
     area.querySelectorAll('[data-psg]').forEach(function (el) {
       var c = el.dataset.psg;
       dados[c] = el.value;
-      el.addEventListener('input', function () { dados[c] = el.value; });
-      // Os avisos (variação/3ª pesagem e 24 h de estabilização) atualizam no
-      // CHANGE (ao sair do campo/fechar o seletor) — re-renderizar a cada tecla
-      // roubaria o foco no meio da digitação.
-      if (c === 'tg1' || c === 'tg2' || c === 'testab' || c === 'tpesagem' || c === 't2em') {
-        el.addEventListener('change', function () { dados[c] = el.value; renderizar(); renderizarListas(); });
+      el.addEventListener('input', function () { atribuir(dados, c, el.value); });
+      // Os avisos (série/variação, 24 h e 4 h) atualizam no CHANGE (ao sair do
+      // campo/fechar o seletor) — re-renderizar a cada tecla roubaria o foco.
+      if (c === 'testab' || c === 'tpesagem' || c === 't2em' || c.indexOf('tserie.') === 0) {
+        el.addEventListener('change', function () { atribuir(dados, c, el.value); renderizar(); renderizarListas(); });
       }
     });
     var busca = $('psg-busca');
@@ -302,17 +339,17 @@ EC.pesagens = (function () {
       btn.addEventListener('click', function () {
         var id = btn.getAttribute('data-psg-final');
         finalAberto = (finalAberto === id) ? null : id;
-        dadosFinal = { festab: '', fpesagem: agoraLocal(), f2em: '', fg1: '', fg2: '', fg3: '', fumidade: '', ftemperatura: '' };
+        dadosFinal = { festab: '', fpesagem: agoraLocal(), f2em: '', fserie: ['', ''], fumidade: '', ftemperatura: '' };
         renderizarListas();
       });
     });
     pend.querySelectorAll('[data-psgf]').forEach(function (el) {
       var c = el.dataset.psgf;
       dadosFinal[c] = el.value;
-      el.addEventListener('input', function () { dadosFinal[c] = el.value; });
+      el.addEventListener('input', function () { atribuir(dadosFinal, c, el.value); });
       // Avisos no CHANGE, pelo mesmo motivo do formulário da tara (foco).
-      if (c === 'fg1' || c === 'fg2' || c === 'festab' || c === 'fpesagem' || c === 'f2em') {
-        el.addEventListener('change', function () { dadosFinal[c] = el.value; renderizarListas(); });
+      if (c === 'festab' || c === 'fpesagem' || c === 'f2em' || c.indexOf('fserie.') === 0) {
+        el.addEventListener('change', function () { atribuir(dadosFinal, c, el.value); renderizarListas(); });
       }
     });
     var btnF = $('psg-salvar-final');
@@ -321,11 +358,18 @@ EC.pesagens = (function () {
 
   /* ===== Salvar (exige internet) ===== */
 
-  function validarSerie(rotulo, g1, g2, g3) {
-    if (g1 === null || g1 <= 0) return 'Informe a 1ª pesagem ' + rotulo + '.';
-    if (g2 === null || g2 <= 0) return 'Informe a 2ª pesagem ' + rotulo + ' (verificação após ~4 h).';
-    if (precisaTerceira(g1, g2) && (g3 === null || g3 <= 0)) {
-      return 'A 2ª pesagem ' + rotulo + ' variou mais que 0,0005 g — a 3ª é obrigatória (F053).';
+  // Série completa: tudo preenchido, 4 casas em cada peso e o último par
+  // conferindo (senão a série ainda está aberta).
+  function erroSerie(rotulo, serie) {
+    for (var i = 0; i < serie.length; i++) {
+      if (String(serie[i] || '').trim() === '') return 'Informe a ' + ord(i) + ' pesagem ' + rotulo + '.';
+      if (!casas4(serie[i])) return 'A ' + ord(i) + ' pesagem ' + rotulo + ' precisa de exatamente 4 casas após a vírgula (ex.: 2,5860).';
+      var v = numDe(serie[i]);
+      if (v === null || v <= 0) return 'A ' + ord(i) + ' pesagem ' + rotulo + ' é inválida.';
+    }
+    var n = serie.length;
+    if (Math.abs(numDe(serie[n - 1]) - numDe(serie[n - 2])) > VARIACAO_MAX) {
+      return 'A ' + ord(n - 1) + ' pesagem ' + rotulo + ' variou mais que 0,0005 g — a série só fecha quando duas consecutivas conferirem.';
     }
     return '';
   }
@@ -334,8 +378,8 @@ EC.pesagens = (function () {
     var btn = $('psg-salvar-tara');
     var numero = String(dados.numero || '').trim();
     if (!numero) { toast('Informe o número do filtro.'); return; }
-    var g1 = numDe(dados.tg1), g2 = numDe(dados.tg2), g3 = numDe(dados.tg3);
-    var erro = validarSerie('da tara', g1, g2, g3);
+    var serieT = serieDe(dados, CHAVES_TARA);
+    var erro = erroSerie('da tara', serieT);
     if (erro) { toast(erro); return; }
     if (!dados.tpesagem) { toast('Informe a data/hora da pesagem.'); return; }
     var eEstab = erroEstab(dados.testab, dados.tpesagem, 'da tara');
@@ -356,7 +400,7 @@ EC.pesagens = (function () {
             tara_estab_inicio: dados.testab || null,
             tara_pesagem_em: dados.tpesagem,
             tara_pesagem2_em: dados.t2em || null,
-            tara_g1: dados.tg1, tara_g2: dados.tg2, tara_g3: dados.tg3 || null,
+            tara_serie: serieT.slice(),
             tara_umidade: dados.umidade || null,
             tara_temperatura: dados.temperatura || null,
             balanca: dados.balanca || '',
@@ -382,8 +426,8 @@ EC.pesagens = (function () {
     var btn = $('psg-salvar-final');
     var item = lista.pendentes.filter(function (p) { return p.id === finalAberto; })[0];
     if (!item) return;
-    var g1 = numDe(dadosFinal.fg1), g2 = numDe(dadosFinal.fg2), g3 = numDe(dadosFinal.fg3);
-    var erro = validarSerie('final', g1, g2, g3);
+    var serieF = serieDe(dadosFinal, CHAVES_FINAL);
+    var erro = erroSerie('final', serieF);
     if (erro) { toast(erro); return; }
     if (!dadosFinal.fpesagem) { toast('Informe a data/hora da pesagem.'); return; }
     var eEstabF = erroEstab(dadosFinal.festab, dadosFinal.fpesagem, 'final');
@@ -393,7 +437,7 @@ EC.pesagens = (function () {
     if (!navigator.onLine) { toast('📡 Salvar a pesagem precisa de internet.'); return; }
     // Final menor que a tara = massa negativa. Acontece em branco de campo, mas
     // quase sempre é dedo trocado — confirma antes de gravar.
-    var oficialPrevia = precisaTerceira(g1, g2) ? g3 : g2;
+    var oficialPrevia = numDe(serieF[serieF.length - 1]); // a última fecha a série
     if (item.tara_g != null && oficialPrevia != null && oficialPrevia < Number(item.tara_g) &&
         !window.confirm('O peso final (' + fmtG(oficialPrevia) + ') é MENOR que a tara (' + fmtG(item.tara_g) + ') — a massa ficaria negativa.\n\nTem certeza de que os valores estão certos?')) {
       return;
@@ -411,7 +455,7 @@ EC.pesagens = (function () {
             final_estab_inicio: dadosFinal.festab || null,
             final_pesagem_em: dadosFinal.fpesagem,
             final_pesagem2_em: dadosFinal.f2em || null,
-            final_g1: dadosFinal.fg1, final_g2: dadosFinal.fg2, final_g3: dadosFinal.fg3 || null,
+            final_serie: serieF.slice(),
             final_umidade: dadosFinal.fumidade || null,
             final_temperatura: dadosFinal.ftemperatura || null,
             final_tecnico: ((EC.storage && EC.storage.ler('sessao:atual')) || {}).nome || ''
