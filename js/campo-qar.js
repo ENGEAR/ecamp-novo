@@ -850,6 +850,9 @@ EC.campoQar = (function () {
     const iniColeta = primeiraColetaDe(ponto); // numeração contínua no revezamento
     (ponto.coletas || []).slice(0, nColetas).forEach(function (col, k) {
       col = col || {};
+      // Sem o código do filtro a coleta não fecha: é ele que liga a pesagem do
+      // laboratório à coleta — sem ele, não há concentração (Raisa, 2026-08-13).
+      if (String(col.codigoFiltro || '').trim() === '') falta.push((k + iniColeta) + 'ª coleta: código do filtro');
       ['ini', 'fim'].forEach(function (suf) {
         const rotPer = (suf === 'ini' ? 'inicial' : 'final');
         [['data_' + suf, 'data'], ['hora_' + suf, 'hora'], ['horimetro_' + suf, 'horímetro'],
