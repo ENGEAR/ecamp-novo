@@ -580,6 +580,11 @@
                 <label>Cidade de destino<input type="text" id="rb-destino-cidade" autocomplete="off" placeholder="Para onde foi"></label>
                 <label>UF<select id="rb-destino-uf"></select></label>
               </div>
+              <!-- Trechos extras (tipo avião: X→Y, Y→Z, Z→X) — só aparecem se a
+                   pessoa tocar em "Adicionar trecho". Com trechos, a distância
+                   vira a SOMA (sem dobrar ida e volta). -->
+              <div id="rb-trechos-extra"></div>
+              <button type="button" class="link-discreto" id="rb-add-trecho" style="margin:2px 0 6px;">➕ Adicionar trecho (fui para mais de um lugar)</button>
               <div id="rb-dist-status" class="texto-apoio"></div>
             </div>
             <label id="rb-distancia-rot">Distância total percorrida — ida e volta (km) <span class="rotulo-apoio" id="rb-distancia-hint"></span><input type="text" id="rb-distancia" inputmode="decimal" placeholder="km"></label>

@@ -559,10 +559,21 @@ EC.aprovacoes = (function () {
     var pct = s.percentual_solicitado != null ? Number(s.percentual_solicitado) : 100;
     var solicitado = s.valor_solicitado != null ? s.valor_solicitado : s.valor_total;
     var comb = s.tipo_combustivel ? (s.tipo_combustivel === 'diesel' ? 'Diesel' : 'Gasolina') : null;
-    var trajeto = (s.origem_cidade || s.destino_cidade)
-      ? (esc(s.origem_cidade || '?') + (s.origem_uf ? '/' + esc(s.origem_uf) : '') + ' → ' +
-         esc(s.destino_cidade || '?') + (s.destino_uf ? '/' + esc(s.destino_uf) : ''))
-      : '—';
+    // Trajeto múltiplo (tipo avião): mostra a corrente completa; senão o par.
+    var ehMultiTraj = Array.isArray(s.trechos) && s.trechos.length > 1;
+    var trajeto;
+    if (ehMultiTraj) {
+      var ptsTraj = [esc(s.trechos[0].origem_cidade || '?') + (s.trechos[0].origem_uf ? '/' + esc(s.trechos[0].origem_uf) : '')];
+      s.trechos.forEach(function (t) {
+        ptsTraj.push(esc(t.destino_cidade || '?') + (t.destino_uf ? '/' + esc(t.destino_uf) : ''));
+      });
+      trajeto = ptsTraj.join(' → ');
+    } else {
+      trajeto = (s.origem_cidade || s.destino_cidade)
+        ? (esc(s.origem_cidade || '?') + (s.origem_uf ? '/' + esc(s.origem_uf) : '') + ' → ' +
+           esc(s.destino_cidade || '?') + (s.destino_uf ? '/' + esc(s.destino_uf) : ''))
+        : '—';
+    }
     var combTxt = comb
       ? comb + (s.preco_litro ? ' · ' + moeda(s.preco_litro) + '/L' : '')
       : 'não informado';
@@ -708,8 +719,8 @@ EC.aprovacoes = (function () {
           : s.veiculo === 'engear' ? 'ENGEAR'
           : s.veiculo === 'carona' ? 'Carona (sem transporte a pagar)' : '—') +
         (s.km_atual != null && s.km_atual !== '' ? linhaInfo('Quilometragem atual do carro', s.km_atual + ' km') : '') +
-        linhaInfo('Origem → Destino', trajeto) +
-        linhaInfo('Distância (ida e volta)', s.distancia_km ? s.distancia_km + ' km' : '—') +
+        linhaInfo(ehMultiTraj ? 'Trajeto (vários trechos)' : 'Origem → Destino', trajeto) +
+        linhaInfo(ehMultiTraj ? 'Distância (soma dos trechos)' : 'Distância (ida e volta)', s.distancia_km ? s.distancia_km + ' km' : '—') +
         linhaInfo('Combustível', combTxt) +
       '</div>' +
       (s.combustivel_justificativa ? '<div class="apr-just">⛽ Justificativa do combustível acima do teto: ' + esc(s.combustivel_justificativa) + '</div>' : '') +

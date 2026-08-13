@@ -460,6 +460,122 @@ EC.reembolso = (function () {
   function fillUFselect(id) { $(id).innerHTML = opcao('', 'UF') + UFS.map(function (u) { return opcao(u, u); }).join(''); }
   function setUF(id, uf) { $(id).value = String(uf || '').toUpperCase(); }
 
+  /* ---- Trajeto com MÚLTIPLOS trechos (tipo avião: X→Y, Y→Z, Z→X) ---- */
+
+  // Pontos EXTRAS depois do destino: [{cidade, uf}, ...]. Vazio = trajeto
+  // simples (origem→destino, ida e volta dobrada — como sempre foi). Com 1+
+  // extras, a distância vira a SOMA dos trechos, sem dobrar: quem volta para
+  // casa inclui o trecho de volta na lista.
+  var trechosExtra = [];
+  function ehMultiTrecho() { return trechosExtra.length > 0; }
+
+  // Sequência completa de pontos: origem, destino e os extras.
+  function pontosTrajeto() {
+    var pts = [
+      { cidade: $('rb-origem-cidade').value.trim(), uf: $('rb-origem-uf').value },
+      { cidade: $('rb-destino-cidade').value.trim(), uf: $('rb-destino-uf').value }
+    ];
+    trechosExtra.forEach(function (t) {
+      pts.push({ cidade: String(t.cidade || '').trim(), uf: String(t.uf || '') });
+    });
+    return pts;
+  }
+
+  function escHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (ch) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+    });
+  }
+
+  function renderTrechosExtra() {
+    var area = $('rb-trechos-extra');
+    if (!area) return;
+    if (!trechosExtra.length) { area.innerHTML = ''; return; }
+    var opts = opcao('', 'UF') + UFS.map(function (u) { return opcao(u, u); }).join('');
+    var html =
+      '<div class="alerta alerta-info">✈️ Trajeto com vários trechos: a distância vira a <strong>soma dos trechos</strong> (sem dobrar a ida e volta). Para voltar ao ponto de partida, inclua o último trecho de volta.</div>';
+    trechosExtra.forEach(function (t, i) {
+      html +=
+        '<p class="rb-sub" style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">Trecho ' + (i + 2) + ' — para onde foi depois' +
+        '<button type="button" class="link-discreto" data-trecho-rm="' + i + '" style="margin-left:auto;">✕ remover</button></p>' +
+        '<div class="grade-2">' +
+        '<label>Cidade<input type="text" autocomplete="off" placeholder="Próxima cidade" data-trecho="' + i + '" value="' + escHtml(t.cidade) + '"></label>' +
+        '<label>UF<select data-trecho-uf="' + i + '">' + opts + '</select></label>' +
+        '</div>';
+    });
+    area.innerHTML = html;
+    trechosExtra.forEach(function (t, i) {
+      var sel = area.querySelector('[data-trecho-uf="' + i + '"]');
+      if (sel) sel.value = String(t.uf || '').toUpperCase();
+    });
+    area.querySelectorAll('[data-trecho]').forEach(function (el) {
+      el.addEventListener('input', function () {
+        trechosExtra[Number(el.dataset.trecho)].cidade = el.value;
+        agendarCalculo();
+      });
+    });
+    area.querySelectorAll('[data-trecho-uf]').forEach(function (el) {
+      el.addEventListener('change', function () {
+        trechosExtra[Number(el.dataset.trechoUf)].uf = el.value;
+        calcularDistancia();
+      });
+    });
+    area.querySelectorAll('[data-trecho-rm]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        trechosExtra.splice(Number(el.dataset.trechoRm), 1);
+        renderTrechosExtra();
+        calcularDistancia();
+      });
+    });
+  }
+
+  function adicionarTrecho() {
+    if (trechosExtra.length >= 4) { toast('No máximo 5 trechos (4 extras) por trajeto.'); return; }
+    // A UF do trecho novo começa igual à do ponto anterior (viagem no mesmo estado).
+    var ufAnterior = trechosExtra.length
+      ? trechosExtra[trechosExtra.length - 1].uf
+      : $('rb-destino-uf').value;
+    trechosExtra.push({ cidade: '', uf: ufAnterior || '' });
+    renderTrechosExtra();
+    var area = $('rb-trechos-extra');
+    var inputs = area ? area.querySelectorAll('[data-trecho]') : [];
+    if (inputs.length) inputs[inputs.length - 1].focus();
+    calcularDistancia(); // reescreve o status ("preencha…") já no modo soma
+  }
+
+  // Corrente de trechos para o servidor (só no trajeto múltiplo): 1º trecho =
+  // origem→destino; depois um por ponto extra. km do mapa quando houver.
+  function trechosPayload() {
+    if (!ehMultiTrecho()) return null;
+    var pts = pontosTrajeto();
+    var kms = (ultimoTrajeto && ultimoTrajeto.multi && ultimoTrajeto.trechosKm) || [];
+    var out = [];
+    for (var i = 0; i < pts.length - 1; i++) {
+      out.push({
+        origemCidade: pts[i].cidade || null, origemUf: pts[i].uf || null,
+        destinoCidade: pts[i + 1].cidade || null, destinoUf: pts[i + 1].uf || null,
+        km: kms[i] != null ? kms[i] : null
+      });
+    }
+    return out;
+  }
+
+  // Texto do trajeto para resumos: corrente completa quando há vários trechos
+  // (servidor manda snake_case; a fila offline, camelCase), senão null e o
+  // chamador usa o par origem→destino de sempre.
+  function trajetoCorrente(p) {
+    var ts = p && p.trechos;
+    if (!ts || !ts.length || ts.length < 2) return null;
+    var pts = [];
+    ts.forEach(function (t, i) {
+      var oc = t.origem_cidade || t.origemCidade, ou = t.origem_uf || t.origemUf;
+      var dc = t.destino_cidade || t.destinoCidade, du = t.destino_uf || t.destinoUf;
+      if (i === 0) pts.push((oc || '?') + (ou ? '/' + ou : ''));
+      pts.push((dc || '?') + (du ? '/' + du : ''));
+    });
+    return pts.join(' → ');
+  }
+
   function pintarDistancia() {
     var inp = $('rb-distancia'), hint = $('rb-distancia-hint'), cidades = $('rb-dist-cidades');
     // A distância SEMPRE vem do trajeto origem→destino (calculada pelo mapa),
@@ -470,6 +586,8 @@ EC.reembolso = (function () {
     setUF('rb-origem-uf', 'MG');
     $('rb-destino-cidade').value = (osSel && osSel.municipio) || '';
     setUF('rb-destino-uf', (osSel && osSel.uf) || '');
+    trechosExtra = []; // OS nova = trajeto simples até a pessoa adicionar trechos
+    renderTrechosExtra();
     inp.value = '';
     inp.readOnly = true;   // vem do cálculo; vira editável se offline/erro
     hint.textContent = '(calculada pelo trajeto)';
@@ -492,6 +610,14 @@ EC.reembolso = (function () {
     var status = $('rb-dist-status');
     if (!status || !ultimoTrajeto) return;
     var t = ultimoTrajeto;
+    // Trajeto múltiplo: a frase mostra a soma trecho a trecho (sem dobrar).
+    if (t.multi) {
+      var soma = (t.trechosKm || []).join(' + ');
+      status.textContent = ehSemHosp()
+        ? '✅ ' + t.totalKm + ' km POR DIA — soma dos ' + t.trechosKm.length + ' trechos (' + soma + '), calculado pelo mapa.'
+        : '✅ ' + t.totalKm + ' km no total — soma dos ' + t.trechosKm.length + ' trechos (' + soma + '), calculado pelo mapa.';
+      return;
+    }
     status.textContent = ehSemHosp()
       ? '✅ ' + t.totalKm + ' km de ida e volta POR DIA (ida ' + t.idaKm + ' + volta ' + t.idaKm + '), calculado pelo mapa.'
       : '✅ ' + t.totalKm + ' km no total (ida ' + t.idaKm + ' + volta ' + t.idaKm + '), calculado pelo mapa.';
@@ -500,32 +626,47 @@ EC.reembolso = (function () {
   async function calcularDistancia() {
     clearTimeout(distTimer); // cancela um debounce pendente (evita chamada dupla)
     if (!osSel) return;
-    var oc = $('rb-origem-cidade').value.trim(), ou = $('rb-origem-uf').value;
-    var dc = $('rb-destino-cidade').value.trim(), du = $('rb-destino-uf').value;
+    var multi = ehMultiTrecho();
     var status = $('rb-dist-status'), inp = $('rb-distancia');
-    if (!oc || !ou || !dc || !du) {
-      status.textContent = 'Preencha origem e destino (cidade e UF) para calcular a distância.';
-      return;
+    var url;
+    if (multi) {
+      var pts = pontosTrajeto();
+      if (pts.some(function (p) { return !p.cidade || !p.uf; })) {
+        status.textContent = 'Preencha cidade e UF de todos os trechos para calcular a distância.';
+        return;
+      }
+      url = BASE + '/distancia?pontos=' + encodeURIComponent(JSON.stringify(pts));
+    } else {
+      var oc = $('rb-origem-cidade').value.trim(), ou = $('rb-origem-uf').value;
+      var dc = $('rb-destino-cidade').value.trim(), du = $('rb-destino-uf').value;
+      if (!oc || !ou || !dc || !du) {
+        status.textContent = 'Preencha origem e destino (cidade e UF) para calcular a distância.';
+        return;
+      }
+      url = BASE + '/distancia?origem=' + encodeURIComponent(oc) + '&ufOrigem=' + encodeURIComponent(ou) +
+        '&destino=' + encodeURIComponent(dc) + '&ufDestino=' + encodeURIComponent(du);
     }
+    var rotuloManual = multi ? 'a distância TOTAL (soma dos trechos)' : 'a distância (ida e volta)';
     if (!navigator.onLine) {
       ultimoTrajeto = null;
-      status.textContent = '📴 Sem internet — digite a distância (ida e volta) manualmente.';
+      status.textContent = '📴 Sem internet — digite ' + rotuloManual + ' manualmente.';
       inp.readOnly = false;
       return;
     }
     status.textContent = '🔄 Calculando a distância…';
     inp.readOnly = true;
     try {
-      var corpo = await getJson(BASE + '/distancia?origem=' + encodeURIComponent(oc) + '&ufOrigem=' + encodeURIComponent(ou) +
-        '&destino=' + encodeURIComponent(dc) + '&ufDestino=' + encodeURIComponent(du));
+      var corpo = await getJson(url);
       inp.value = corpo.totalKm + ' km';
       inp.readOnly = true;
-      ultimoTrajeto = { idaKm: corpo.idaKm, totalKm: corpo.totalKm };
+      ultimoTrajeto = multi
+        ? { multi: true, trechosKm: corpo.trechosKm || [], totalKm: corpo.totalKm }
+        : { idaKm: corpo.idaKm, totalKm: corpo.totalKm };
       pintarStatusDistancia();
       pintarValores();
     } catch (e) {
       ultimoTrajeto = null;
-      status.textContent = '⚠️ ' + e.message + '. Digite a distância (ida e volta) manualmente.';
+      status.textContent = '⚠️ ' + e.message + '. Digite ' + rotuloManual + ' manualmente.';
       inp.value = '';
       inp.readOnly = false;
       pintarValores();
@@ -1695,15 +1836,19 @@ EC.reembolso = (function () {
       hint.textContent = mostra ? '(de um dia, calculada pelo trajeto)' : '(calculada pelo trajeto)';
     }
     pintarStatusDistancia();
-    // O rótulo muda de sentido: sem hospedagem, o campo é o trajeto de UM dia.
+    // O rótulo muda de sentido: sem hospedagem, o campo é o trajeto de UM dia;
+    // no trajeto múltiplo, é a SOMA dos trechos (sem dobrar).
     rot.childNodes[0].nodeValue = mostra
-      ? 'Distância de ida e volta entre as cidades, em um dia (km) '
-      : 'Distância total percorrida — ida e volta (km) ';
+      ? (ehMultiTrecho() ? 'Distância do trajeto em um dia — soma dos trechos (km) '
+        : 'Distância de ida e volta entre as cidades, em um dia (km) ')
+      : (ehMultiTrecho() ? 'Distância total do trajeto — soma dos trechos (km) '
+        : 'Distância total percorrida — ida e volta (km) ');
     var km = distanciaAtual();
     if (!mostra || !(km > 0)) { caixa.classList.add('oculto'); return; }
     var n = diasIdaVoltaVal();
     caixa.innerHTML =
-      '📏 Entre as cidades: <strong>' + km + ' km</strong> por dia (ida e volta).<br>' +
+      '📏 ' + (ehMultiTrecho() ? 'Trajeto do dia (soma dos trechos)' : 'Entre as cidades') +
+      ': <strong>' + km + ' km</strong> por dia' + (ehMultiTrecho() ? '' : ' (ida e volta)') + '.<br>' +
       'Distância total: (' + km + ' km + 5 km entre os pontos) × ' + n + ' dia(s) = <strong>' +
       ((km + 5) * n) + ' km</strong>.';
     caixa.classList.remove('oculto');
@@ -1770,6 +1915,7 @@ EC.reembolso = (function () {
       outrosJust: $('rb-outros-just').value,
       origemCidade: $('rb-origem-cidade').value, origemUf: $('rb-origem-uf').value,
       destinoCidade: $('rb-destino-cidade').value, destinoUf: $('rb-destino-uf').value,
+      trechosExtra: trechosExtra.map(function (t) { return { cidade: t.cidade, uf: t.uf }; }),
       distancia: $('rb-distancia').value,
       // datas da viagem (podem ter sido editadas)
       ida: $('rb-ida').value, servicoInicio: $('rb-servico-inicio').value,
@@ -1853,6 +1999,10 @@ EC.reembolso = (function () {
       if (r.origemUf) setUF('rb-origem-uf', r.origemUf);
       if (r.destinoCidade) $('rb-destino-cidade').value = r.destinoCidade;
       if (r.destinoUf) setUF('rb-destino-uf', r.destinoUf);
+      trechosExtra = (r.trechosExtra || []).map(function (t) {
+        return { cidade: t.cidade || '', uf: t.uf || '' };
+      });
+      renderTrechosExtra();
       if (r.distancia && !$('rb-distancia').readOnly) $('rb-distancia').value = r.distancia;
       // datas da viagem (se editadas) — sobrescreve o que veio da Agenda
       if (r.ida) $('rb-ida').value = r.ida;
@@ -1942,6 +2092,10 @@ EC.reembolso = (function () {
       veiculo: p.veiculo || '',
       origemCidade: p.origem_cidade || '', origemUf: p.origem_uf || '',
       destinoCidade: p.destino_cidade || '', destinoUf: p.destino_uf || '',
+      // Trajeto múltiplo: os pontos extras são os destinos do 2º trecho em diante.
+      trechosExtra: (Array.isArray(p.trechos) ? p.trechos.slice(1) : []).map(function (t) {
+        return { cidade: t.destino_cidade || t.destinoCidade || '', uf: t.destino_uf || t.destinoUf || '' };
+      }),
       distancia: p.distancia_km != null ? String(p.distancia_km) : '',
       ida: (p.data_inicio || '').slice(0, 10), servicoInicio: (p.servico_inicio || '').slice(0, 10),
       servicoFim: (p.servico_fim || '').slice(0, 10), volta: (p.data_retorno || '').slice(0, 10),
@@ -2020,6 +2174,8 @@ EC.reembolso = (function () {
     $('rb-cliente').value = '';
     $('rb-distancia').value = '';
     $('rb-distancia-hint').textContent = '';
+    trechosExtra = [];
+    renderTrechosExtra();
     $('rb-campanha-bloco').classList.add('oculto');
     $('rb-solicitante').value = sessionNome();
     $('rb-sem-agenda').classList.add('oculto');
@@ -2183,6 +2339,10 @@ EC.reembolso = (function () {
     if (tipoComb && preco > 0 && distanciaCombustivel() <= 0) {
       return mostrarErro('Informe a distância percorrida (km) para calcular o combustível.');
     }
+    // Trajeto múltiplo: trecho pela metade não pode ir — ou completa, ou remove.
+    if (ehMultiTrecho() && pontosTrajeto().some(function (p) { return !p.cidade || !p.uf; })) {
+      return mostrarErro('Complete a cidade e a UF de todos os trechos do trajeto (ou remova o trecho vazio).');
+    }
     // Sem hospedagem não pergunta a hora de chegada (o jantar vem pelo nº de
     // dias em que chegou às 23h ou depois), então a exigência é só da viagem.
     if (!ehSemHosp() && casoDiaUnico() && !$('rb-chegada-casa').value) {
@@ -2283,6 +2443,8 @@ EC.reembolso = (function () {
       origemUf: $('rb-origem-uf').value || null,
       destinoCidade: $('rb-destino-cidade').value.trim() || null,
       destinoUf: $('rb-destino-uf').value || null,
+      // Trajeto múltiplo (tipo avião): a corrente completa; null = simples.
+      trechos: trechosPayload(),
       // dias/datas informados (o servidor usa só quando a OS não tem viagem na Agenda)
       dataInicio: $('rb-ida').value || null,
       dataRetorno: $('rb-volta').value || null,
@@ -2950,9 +3112,9 @@ EC.reembolso = (function () {
     if (t === 'evento' || t === 'veiculo' || t === 'complemento' || t === 'outros_gastos') return renderResumoSimples(p, t);
     var tipo = p.solicitante_tipo === 'freelancer' ? 'Freelancer' : (p.solicitante_tipo === 'clt' ? 'CLT' : '—');
     var comb = p.tipo_combustivel ? (p.tipo_combustivel === 'diesel' ? 'Diesel' : 'Gasolina') : null;
-    var trajeto = (p.origem_cidade || p.destino_cidade)
+    var trajeto = trajetoCorrente(p) || ((p.origem_cidade || p.destino_cidade)
       ? ((p.origem_cidade || '?') + (p.origem_uf ? '/' + p.origem_uf : '') + ' → ' + (p.destino_cidade || '?') + (p.destino_uf ? '/' + p.destino_uf : ''))
-      : (p.origemCidade ? (p.origemCidade + '/' + (p.origemUf || '') + ' → ' + (p.destinoCidade || '') + '/' + (p.destinoUf || '')) : '—');
+      : (p.origemCidade ? (p.origemCidade + '/' + (p.origemUf || '') + ' → ' + (p.destinoCidade || '') + '/' + (p.destinoUf || '')) : '—'));
     var alimentacao = Number(p.valor_almoco || 0) + Number(p.valor_jantar || 0) + Number(p.valor_lanche || 0);
     function linha(rot, val) { return '<div class="apr-linha"><span>' + rot + '</span><strong>' + val + '</strong></div>'; }
     // As chaves ('transporte', 'alimentacao'…) são as mesmas de ITENS, que é o
@@ -3016,16 +3178,17 @@ EC.reembolso = (function () {
     var distKm = Number(p.distancia_km) || 0;
     var diasServ = Number(p.dias_servico) || 0;
     var kmServico = 5 * diasServ;
-    var trajeto = (p.origem_cidade || p.destino_cidade)
+    var corrente = trajetoCorrente(p);
+    var trajeto = corrente || ((p.origem_cidade || p.destino_cidade)
       ? ((p.origem_cidade || '?') + (p.origem_uf ? '/' + p.origem_uf : '') + ' → ' + (p.destino_cidade || '?') + (p.destino_uf ? '/' + p.destino_uf : ''))
-      : '—';
+      : '—');
     var itens = [];
     itens.push(['Veículo', p.veiculo === 'proprio' ? 'Próprio'
       : p.veiculo === 'engear' ? 'ENGEAR'
       : p.veiculo === 'carona' ? 'Carona (sem transporte a pagar)' : '—']);
     if (p.km_atual != null && p.km_atual !== '') itens.push(['Quilometragem atual do carro', p.km_atual + ' km']);
-    itens.push(['Origem → Destino', trajeto]);
-    itens.push(['Distância (ida e volta)', distKm ? distKm + ' km' : '—']);
+    itens.push([corrente ? 'Trajeto (vários trechos)' : 'Origem → Destino', trajeto]);
+    itens.push([corrente ? 'Distância (soma dos trechos)' : 'Distância (ida e volta)', distKm ? distKm + ' km' : '—']);
     itens.push(['Dias', (p.dias_servico != null ? p.dias_servico + ' serviço' : '—') +
       (p.dias_deslocamento != null ? ' · ' + p.dias_deslocamento + ' deslocamento' : '')]);
     if (distKm) itens.push(['Combustível (km)', distKm + ' km' +
@@ -3982,6 +4145,9 @@ EC.reembolso = (function () {
     $('rb-destino-cidade').addEventListener('input', agendarCalculo);
     $('rb-origem-uf').addEventListener('change', calcularDistancia);
     $('rb-destino-uf').addEventListener('change', calcularDistancia);
+    // Trajeto múltiplo (tipo avião): o botão fica discreto; os trechos extras
+    // só aparecem se a pessoa quiser (renderTrechosExtra liga os listeners deles).
+    $('rb-add-trecho').addEventListener('click', adicionarTrecho);
     ligarMoeda('rb-pedagio', pintarValores);
     $('rb-percentual').addEventListener('input', pintarValores);
     // Tipo do reembolso (Viagem / Eventos / Veículos) + campos dos novos tipos
