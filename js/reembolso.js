@@ -8,9 +8,9 @@
  * de outro técnico. O app calcula os valores com as diárias vigentes do SGP:
  *   • hospedagem  = R$/diária × nº de diárias (chegada − saída);
  *   • alimentação = almoço/jantar × dias de serviço + lanche × deslocamento
- *     (exceção 1 serviço/0 deslocamento: almoço só para
- *     freelancer, jantar só se chegou em casa às 23h ou depois e lanche só
- *     acima de 200 km);
+ *     (exceção 1 serviço/0 deslocamento: almoço do dia sempre — freelancer a
+ *     tarifa cheia, CLT o complemento —, jantar só se chegou em casa às 23h
+ *     ou depois e lanche só acima de 200 km);
  *   • combustível usa ida+volta + 5 km por dia de serviço (entre os pontos);
  *   • mão de obra = freelancer (desloc+serviço) ou CLT (viagem ≥ 2 dias);
  *   • combustível/aluguel/pedágio no bloco Transporte.
@@ -162,10 +162,10 @@ EC.reembolso = (function () {
   function servicoPuroVal() { var d = diasInfo(); return d ? d.servicoPuro : 0; }
 
   // Caso especial de alimentação: vai e volta no mesmo dia (1 dia total, 0
-  // deslocamento) — almoço SÓ para
-  // freelancer (o CLT não recebe, é um dia normal de trabalho dele), jantar só
-  // se chegou a partir das 23h, e lanche só se a distância (ida+volta) passar
-  // de 200 km.
+  // deslocamento) — almoço do dia SEMPRE (freelancer a tarifa cheia; CLT o
+  // complemento de dia útil e a cheia no fim de semana — Raisa, 2026-08-13),
+  // jantar só se chegou a partir das 23h, e lanche só se a distância
+  // (ida+volta) passar de 200 km.
   function casoDiaUnico() { var d = diasInfo(); return !!d && d.total === 1 && d.desloc === 0; }
   function chegouAPartirDas23() {
     var el = $('rb-chegada-casa');
@@ -814,8 +814,9 @@ EC.reembolso = (function () {
       : 0;
     // Alimentação (espelho do servidor). Jantar por dia (freela e CLT). Almoço:
     // freelancer sempre padrão; CLT = dia útil (13) / fim de semana (padrão).
-    // Lanche por dia de deslocamento. EXCEÇÃO (1 serviço / 0 deslocamento): 1
-    // almoço, jantar só se chegada ≥ 23h, lanche só se ida+volta > 200 km.
+    // Lanche por dia de deslocamento. EXCEÇÃO (1 serviço / 0 deslocamento): o
+    // almoço do dia sempre (mesma régua acima), jantar só se chegada ≥ 23h,
+    // lanche só se ida+volta > 200 km.
     var ehFreela = tecSel.tipo === 'freelancer';
     var almocoPadrao = Number(v.almoco);
     var almocoCltUtil = Number(v.almoco_clt_util) || 13;
@@ -825,12 +826,12 @@ EC.reembolso = (function () {
     var diasRef = datasRefeicao(); // todas as datas da viagem (ida→chegada)
     var almoco = 0, jantar = 0, lanche = 0;
     if (casoDiaUnico()) {
-      // Acima de 200 km no dia entram o almoço do dia e DOIS lanches (ida e
-      // volta) — mesma régua do sem hospedagem. Abaixo, segue como era: almoço
-      // só para o freelancer e nenhum lanche.
+      // Almoço do dia sempre (freelancer a cheia; CLT o complemento — Raisa,
+      // 2026-08-13). Acima de 200 km no dia entram também DOIS lanches (ida e
+      // volta) — mesma régua do sem hospedagem.
       var diaLongoUnico = dist > KM_DIA_COM_REFEICAO;
       var dataUnica = diasRef[0] || $('rb-servico-inicio').value || $('rb-ida').value || '';
-      almoco = diaLongoUnico ? r2(almocoDoDia(dataUnica)) : (ehFreela ? r2(almocoPadrao) : 0);
+      almoco = r2(almocoDoDia(dataUnica));
       jantar = chegouAPartirDas23() ? r2(Number(v.jantar)) : 0;
       lanche = diaLongoUnico ? r2(Number(v.lanche) * LANCHES_POR_DIA_SEM_HOSP) : 0;
     } else if (diasRef.length) {
@@ -1639,8 +1640,8 @@ EC.reembolso = (function () {
     var alimSub = casoDiaUnico()
       ? 'Foi e voltou no mesmo dia:<br>' +
         'Almoço: ' + (calc.almoco > 0
-          ? moedaBR(calc.almoco) + (distanciaAtual() > KM_DIA_COM_REFEICAO ? ' (ida+volta acima de 200 km)' : '')
-          : 'não incluído (CLT só recebe almoço acima de 200 km no dia)') + '<br>' +
+          ? moedaBR(calc.almoco) + (ehFreelaSub || ehFimDeSemana(datasRef[0]) ? ' (tarifa cheia)' : ' (complemento do CLT em dia útil)')
+          : 'não incluído') + '<br>' +
         'Jantar: ' + (calc.jantar > 0
           ? moedaBR(calc.jantar) + ' (chegou a partir das 23h)'
           : 'não incluído (chegada antes das 23h ou em branco)') + '<br>' +
