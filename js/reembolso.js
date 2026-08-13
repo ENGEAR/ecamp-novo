@@ -460,6 +460,53 @@ EC.reembolso = (function () {
   function fillUFselect(id) { $(id).innerHTML = opcao('', 'UF') + UFS.map(function (u) { return opcao(u, u); }).join(''); }
   function setUF(id, uf) { $(id).value = String(uf || '').toUpperCase(); }
 
+  /* ---- Lista de cidades da UF (digite e busque) ---- */
+
+  // O campo de cidade sugere os municípios da UF escolhida (dados do IBGE, via
+  // SGP). A lista fica guardada no aparelho: da segunda vez em diante abre
+  // offline. Sem lista (primeira vez sem internet, ou serviço fora do ar), o
+  // campo continua aceitando texto livre — nada trava.
+  var cidadesPorUf = {};
+
+  function carregarCidades(uf, cb) {
+    uf = String(uf || '').toUpperCase();
+    if (!uf) { cb(null); return; }
+    if (cidadesPorUf[uf]) { cb(cidadesPorUf[uf]); return; }
+    var salvas = EC.storage.ler('cidades:' + uf);
+    if (salvas && salvas.length) { cidadesPorUf[uf] = salvas; cb(salvas); return; }
+    if (!navigator.onLine) { cb(null); return; }
+    getJson(BASE + '/municipios?uf=' + encodeURIComponent(uf)).then(function (corpo) {
+      var lista = (corpo && corpo.cidades) || [];
+      if (!lista.length) { cb(null); return; }
+      cidadesPorUf[uf] = lista;
+      EC.storage.salvar('cidades:' + uf, lista);
+      cb(lista);
+    })['catch'](function () { cb(null); });
+  }
+
+  // Um <datalist> por UF, reaproveitado por todos os campos daquela UF.
+  function datalistDe(uf, lista) {
+    var id = 'rb-cidades-' + uf;
+    var dl = document.getElementById(id);
+    if (!dl) {
+      dl = document.createElement('datalist');
+      dl.id = id;
+      document.body.appendChild(dl);
+    }
+    if (dl.childElementCount !== lista.length) {
+      dl.innerHTML = lista.map(function (c) { return '<option value="' + escHtml(c) + '"></option>'; }).join('');
+    }
+    return id;
+  }
+
+  function ligarListaCidade(input, uf) {
+    if (!input) return;
+    carregarCidades(uf, function (lista) {
+      if (!lista) { input.removeAttribute('list'); return; }
+      input.setAttribute('list', datalistDe(String(uf).toUpperCase(), lista));
+    });
+  }
+
   /* ---- Trajeto com MÚLTIPLOS trechos (tipo avião: X→Y, Y→Z, Z→X) ---- */
 
   // Pontos EXTRAS depois do destino: [{cidade, uf}, ...]. Vazio = trajeto
@@ -493,13 +540,13 @@ EC.reembolso = (function () {
     if (!trechosExtra.length) { area.innerHTML = ''; return; }
     var opts = opcao('', 'UF') + UFS.map(function (u) { return opcao(u, u); }).join('');
     var html =
-      '<div class="alerta alerta-info">✈️ Trajeto com vários trechos: a distância vira a <strong>soma dos trechos</strong> (sem dobrar a ida e volta). Para voltar ao ponto de partida, inclua o último trecho de volta.</div>';
+      '<div class="alerta alerta-info">Trajeto com vários trechos: a distância vira a <strong>soma dos trechos</strong> (sem dobrar a ida e volta). Para voltar ao ponto de partida, inclua o último trecho de volta.</div>';
     trechosExtra.forEach(function (t, i) {
       html +=
         '<p class="rb-sub" style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">Trecho ' + (i + 2) + ' — para onde foi depois' +
         '<button type="button" class="link-discreto" data-trecho-rm="' + i + '" style="margin-left:auto;">✕ remover</button></p>' +
         '<div class="grade-2">' +
-        '<label>Cidade<input type="text" autocomplete="off" placeholder="Próxima cidade" data-trecho="' + i + '" value="' + escHtml(t.cidade) + '"></label>' +
+        '<label>Cidade<input type="text" autocomplete="off" placeholder="Digite para buscar" data-trecho="' + i + '" value="' + escHtml(t.cidade) + '"></label>' +
         '<label>UF<select data-trecho-uf="' + i + '">' + opts + '</select></label>' +
         '</div>';
     });
@@ -507,6 +554,8 @@ EC.reembolso = (function () {
     trechosExtra.forEach(function (t, i) {
       var sel = area.querySelector('[data-trecho-uf="' + i + '"]');
       if (sel) sel.value = String(t.uf || '').toUpperCase();
+      // Lista de cidades da UF do trecho (digite e busque).
+      ligarListaCidade(area.querySelector('[data-trecho="' + i + '"]'), t.uf);
     });
     area.querySelectorAll('[data-trecho]').forEach(function (el) {
       el.addEventListener('input', function () {
@@ -516,7 +565,9 @@ EC.reembolso = (function () {
     });
     area.querySelectorAll('[data-trecho-uf]').forEach(function (el) {
       el.addEventListener('change', function () {
-        trechosExtra[Number(el.dataset.trechoUf)].uf = el.value;
+        var i = Number(el.dataset.trechoUf);
+        trechosExtra[i].uf = el.value;
+        ligarListaCidade(area.querySelector('[data-trecho="' + i + '"]'), el.value);
         calcularDistancia();
       });
     });
@@ -588,6 +639,9 @@ EC.reembolso = (function () {
     setUF('rb-destino-uf', (osSel && osSel.uf) || '');
     trechosExtra = []; // OS nova = trajeto simples até a pessoa adicionar trechos
     renderTrechosExtra();
+    // Lista de cidades das duas UFs (o campo passa a sugerir os municípios).
+    ligarListaCidade($('rb-origem-cidade'), $('rb-origem-uf').value);
+    ligarListaCidade($('rb-destino-cidade'), $('rb-destino-uf').value);
     inp.value = '';
     inp.readOnly = true;   // vem do cálculo; vira editável se offline/erro
     hint.textContent = '(calculada pelo trajeto)';
@@ -4143,8 +4197,15 @@ EC.reembolso = (function () {
     $('rb-distancia').addEventListener('input', pintarValores);
     $('rb-origem-cidade').addEventListener('input', agendarCalculo);
     $('rb-destino-cidade').addEventListener('input', agendarCalculo);
-    $('rb-origem-uf').addEventListener('change', calcularDistancia);
-    $('rb-destino-uf').addEventListener('change', calcularDistancia);
+    // Trocar a UF troca a lista de cidades sugeridas naquele campo.
+    $('rb-origem-uf').addEventListener('change', function () {
+      ligarListaCidade($('rb-origem-cidade'), this.value);
+      calcularDistancia();
+    });
+    $('rb-destino-uf').addEventListener('change', function () {
+      ligarListaCidade($('rb-destino-cidade'), this.value);
+      calcularDistancia();
+    });
     // Trajeto múltiplo (tipo avião): o botão fica discreto; os trechos extras
     // só aparecem se a pessoa quiser (renderTrechosExtra liga os listeners deles).
     $('rb-add-trecho').addEventListener('click', adicionarTrecho);
