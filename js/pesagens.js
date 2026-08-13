@@ -130,7 +130,7 @@ EC.pesagens = (function () {
       var escopos = escoposCurtos(o);
       return '<div class="os-item" data-psg-os="' + esc(o.osId) + '">' +
         '<div class="os-numero">OS ' + esc(o.numero) + '</div>' +
-        '<div class="os-resumo">' + esc(o.cliente || '') + '</div>' +
+        '<div class="os-resumo">' + esc(o.cliente || '') + (o.projeto ? ' · 📁 ' + esc(o.projeto) : '') + '</div>' +
         (escopos ? '<div class="os-resumo" style="font-size:0.82rem;opacity:.8">' + esc(escopos) + '</div>' : '') +
         '</div>';
     }).join('');
@@ -176,6 +176,7 @@ EC.pesagens = (function () {
     alvo.innerHTML =
       '<div class="alerta alerta-info">📋 <strong>OS ' + esc(osSel.numero) + '</strong>' +
       (osSel.cliente ? ' · ' + esc(osSel.cliente) : '') +
+      (osSel.projeto ? '<br>📁 ' + esc(osSel.projeto) : '') +
       '<br><span class="texto-apoio">Esta OS tem mais de uma campanha — qual é a das pesagens?</span></div>' +
       '<div class="pilha-botoes">' +
       cs.map(function (c, i) {
@@ -196,6 +197,7 @@ EC.pesagens = (function () {
     chip.innerHTML = '<div class="alerta alerta-info" style="margin-bottom:10px">' +
       '📋 <strong>OS ' + esc(osSel.numero) + '</strong>' + (osSel.cliente ? ' · ' + esc(osSel.cliente) : '') +
       (campSel && campSel.numero ? ' · <strong>' + esc(campSel.rotulo) + '</strong>' : '') +
+      (osSel.projeto ? '<br>📁 ' + esc(osSel.projeto) : '') +
       '<br><span class="texto-apoio">Os filtros pesados aqui ficam ligados a est' +
       (campSel && campSel.numero ? 'a campanha' : 'a OS') + '.</span></div>';
   }
