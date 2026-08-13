@@ -387,14 +387,35 @@ EC.campoVibracao = (function () {
     renderizarPonto(pontoExibido);
   }
 
+  // Nº de série do sismógrafo (lista do SGP; mock como reserva no 1º uso sem
+  // internet). Se a lista ainda não trouxer o campo `serie` (cache antigo),
+  // cai no 3º trecho da descrição "fabricante | modelo | nº de série".
+  function serieEquipamento(codigo) {
+    const lista = (EC.equip && EC.equip.porVariante && EC.equip.porVariante('sismo')) || [];
+    const e = lista.filter(function (x) { return x.codigo === codigo; })[0];
+    if (!e) return '';
+    if (e.serie) return e.serie;
+    const partes = String(e.descricao || '').split('|');
+    return partes.length >= 3 ? partes[partes.length - 1].trim() : '';
+  }
+
+  // Código + nº de série para exibição — "SIS 004 (0204)". Alguns códigos já
+  // trazem a série entre parênteses (ex.: "SIS 05 (0077)"); nesses, não repete.
+  function rotuloEquipamento(codigo) {
+    const serie = serieEquipamento(codigo);
+    return (serie && codigo.indexOf(serie) === -1) ? codigo + ' (' + serie + ')' : codigo;
+  }
+
   // Escolha do equipamento usado no ponto, entre os PRÉ-SELECIONADOS no pré-campo.
+  // O VALOR salvo continua sendo só o código (rascunhos antigos seguem válidos);
+  // a série aparece apenas no rótulo da opção.
   function htmlEquipamentoPonto() {
     const eqs = ctx.estado.equipamentos || [];
     if (!eqs.length) {
       return '<p class="texto-apoio">Nenhum equipamento pré-selecionado — volte ao pré-campo para escolher.</p>';
     }
     return '<label>Equipamento utilizado<select data-campo="equipamento"><option value="">Selecione…</option>' +
-      eqs.map(function (c) { return '<option>' + c + '</option>'; }).join('') +
+      eqs.map(function (c) { return '<option value="' + c + '">' + rotuloEquipamento(c) + '</option>'; }).join('') +
       '</select></label>';
   }
 
@@ -563,7 +584,7 @@ EC.campoVibracao = (function () {
         const inpNome = card.querySelector('.cv-med-nome');
         if (inpNome) { inpNome.value = ponto.nome || ''; med.nome = ponto.nome || ''; }
         const inpEquip = card.querySelector('.cv-med-equip');
-        if (inpEquip) { inpEquip.value = ponto.equipamento || ''; med.equipamento = ponto.equipamento || ''; }
+        if (inpEquip) { inpEquip.value = ponto.equipamento ? rotuloEquipamento(ponto.equipamento) : ''; med.equipamento = ponto.equipamento || ''; }
       });
     }
     sincronizarIdentidade();
