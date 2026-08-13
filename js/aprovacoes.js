@@ -719,7 +719,16 @@ EC.aprovacoes = (function () {
           : s.veiculo === 'engear' ? 'ENGEAR'
           : s.veiculo === 'carona' ? 'Carona (sem transporte a pagar)' : '—') +
         (s.km_atual != null && s.km_atual !== '' ? linhaInfo('Quilometragem atual do carro', s.km_atual + ' km') : '') +
-        linhaInfo(ehMultiTraj ? 'Trajeto (vários trechos)' : 'Origem → Destino', trajeto) +
+        // Com vários trechos, UMA LINHA POR TRECHO: a corrente inteira numa
+        // linha só não cabe na tela do celular.
+        (ehMultiTraj
+          ? s.trechos.map(function (t, i) {
+              return linhaInfo('Trecho ' + (i + 1),
+                esc(t.origem_cidade || '?') + (t.origem_uf ? '/' + esc(t.origem_uf) : '') + ' → ' +
+                esc(t.destino_cidade || '?') + (t.destino_uf ? '/' + esc(t.destino_uf) : '') +
+                (t.km ? ' · ' + t.km + ' km' : ''));
+            }).join('')
+          : linhaInfo('Origem → Destino', trajeto)) +
         linhaInfo(ehMultiTraj ? 'Distância (soma dos trechos)' : 'Distância (ida e volta)', s.distancia_km ? s.distancia_km + ' km' : '—') +
         linhaInfo('Combustível', combTxt) +
       '</div>' +

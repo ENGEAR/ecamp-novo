@@ -3166,9 +3166,7 @@ EC.reembolso = (function () {
     if (t === 'evento' || t === 'veiculo' || t === 'complemento' || t === 'outros_gastos') return renderResumoSimples(p, t);
     var tipo = p.solicitante_tipo === 'freelancer' ? 'Freelancer' : (p.solicitante_tipo === 'clt' ? 'CLT' : '—');
     var comb = p.tipo_combustivel ? (p.tipo_combustivel === 'diesel' ? 'Diesel' : 'Gasolina') : null;
-    var trajeto = trajetoCorrente(p) || ((p.origem_cidade || p.destino_cidade)
-      ? ((p.origem_cidade || '?') + (p.origem_uf ? '/' + p.origem_uf : '') + ' → ' + (p.destino_cidade || '?') + (p.destino_uf ? '/' + p.destino_uf : ''))
-      : (p.origemCidade ? (p.origemCidade + '/' + (p.origemUf || '') + ' → ' + (p.destinoCidade || '') + '/' + (p.destinoUf || '')) : '—'));
+    // O trajeto em si sai em baseCalculoHtml(), logo abaixo.
     var alimentacao = Number(p.valor_almoco || 0) + Number(p.valor_jantar || 0) + Number(p.valor_lanche || 0);
     function linha(rot, val) { return '<div class="apr-linha"><span>' + rot + '</span><strong>' + val + '</strong></div>'; }
     // As chaves ('transporte', 'alimentacao'…) são as mesmas de ITENS, que é o
@@ -3241,7 +3239,19 @@ EC.reembolso = (function () {
       : p.veiculo === 'engear' ? 'ENGEAR'
       : p.veiculo === 'carona' ? 'Carona (sem transporte a pagar)' : '—']);
     if (p.km_atual != null && p.km_atual !== '') itens.push(['Quilometragem atual do carro', p.km_atual + ' km']);
-    itens.push([corrente ? 'Trajeto (vários trechos)' : 'Origem → Destino', trajeto]);
+    // Com vários trechos, UMA LINHA POR TRECHO (com o km de cada um); a corrente
+    // inteira numa linha só não cabe na tela do celular.
+    if (corrente) {
+      (p.trechos || []).forEach(function (t, i) {
+        var oc = t.origem_cidade || t.origemCidade, ou = t.origem_uf || t.origemUf;
+        var dc = t.destino_cidade || t.destinoCidade, du = t.destino_uf || t.destinoUf;
+        itens.push(['Trecho ' + (i + 1),
+          (oc || '?') + (ou ? '/' + ou : '') + ' → ' + (dc || '?') + (du ? '/' + du : '') +
+          (t.km ? ' · ' + t.km + ' km' : '')]);
+      });
+    } else {
+      itens.push(['Origem → Destino', trajeto]);
+    }
     itens.push([corrente ? 'Distância (soma dos trechos)' : 'Distância (ida e volta)', distKm ? distKm + ' km' : '—']);
     itens.push(['Dias', (p.dias_servico != null ? p.dias_servico + ' serviço' : '—') +
       (p.dias_deslocamento != null ? ' · ' + p.dias_deslocamento + ' deslocamento' : '')]);

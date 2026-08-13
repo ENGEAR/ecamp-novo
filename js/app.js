@@ -80,6 +80,44 @@
     }
   }
 
+  /* ============ Rodapé: não virar faixa cinza no meio da tela ============ */
+  // O rodapé é fixo no pé da JANELA. No iPhone, quando o teclado ou um seletor
+  // (data, forma de pagamento, banco) abre, a janela encolhe; ao fechar, o iOS
+  // às vezes devolve o tamanho sem recalcular o que é fixo — e o rodapé fica
+  // preso na altura antiga, atravessando o meio da tela por cima do conteúdo.
+  // Aqui ele some enquanto a janela está encolhida e é recolocado depois: voltar
+  // do display:none obriga o navegador a refazer a conta da posição fixa.
+  function acompanharRodape() {
+    const rodape = $('rodape');
+    if (!rodape) return;
+    let escondido = false;
+
+    function repintar() {
+      if (escondido) return;
+      rodape.style.display = 'none';
+      void rodape.offsetHeight; // força o recálculo antes de mostrar de novo
+      rodape.style.display = '';
+    }
+
+    const janela = window.visualViewport;
+    if (janela) {
+      const ajustar = function () {
+        // Quanto do pé da janela está coberto pelo teclado/seletor.
+        const coberto = Math.max(0, window.innerHeight - janela.height - janela.offsetTop);
+        const esconder = coberto > 80;
+        if (esconder === escondido) return;
+        escondido = esconder;
+        rodape.style.display = esconder ? 'none' : '';
+      };
+      janela.addEventListener('resize', ajustar);
+      janela.addEventListener('scroll', ajustar);
+      ajustar();
+    }
+    // Rede de segurança para quem não tem visualViewport (ou quando o seletor
+    // fecha sem avisar): ao sair de um campo, recoloca o rodapé no lugar.
+    document.addEventListener('focusout', function () { setTimeout(repintar, 300); });
+  }
+
   /* ============ Aviso de endereço não-oficial ============ */
   // O app responde em mais de um endereço do Vercel (apelidos criados junto com o
   // projeto). O navegador guarda os rascunhos SEPARADOS POR ENDEREÇO — então quem
@@ -985,6 +1023,7 @@
   /* ============ Inicialização ============ */
   garantirPersistencia();
   mostrarVersao();
+  acompanharRodape();
   avisarEndereco();
   avisarNavegador();
   configurarInstalar();
