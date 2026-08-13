@@ -30,6 +30,67 @@ EC.campoQar = (function () {
   let pontoExibido = 1;
   let coletaExibida = 1; // coleta aberta DENTRO do ponto (paginada; lembrada por ponto)
   let temporizadorSalvar = null;
+  // Filtros já pesados no laboratório (menu Pesagens) para esta OS/campanha —
+  // viram sugestões no "Código do filtro" da coleta. Cache no aparelho: em
+  // campo (offline) vale a última lista baixada.
+  const PESAGENS_BASE = 'https://engear-sgp.vercel.app/api/monitoramento';
+  const PESAGENS_TOKEN = '1488d0e2eece92e0796951cb693a4689c95cad0193e91ad2';
+  let filtrosPesados = null;
+
+  function chaveFiltrosPesados() {
+    const os = (ctx && ctx.estado.os && ctx.estado.os.numero) || '';
+    const m = String((ctx && ctx.estado.servico && ctx.estado.servico.campanha) || '').match(/(\d+)/);
+    return { os: os, campanha: m ? m[1] : '', chave: 'filtrosPesados:' + os + ':' + (m ? m[1] : 'u') };
+  }
+
+  function carregarFiltrosPesados() {
+    const info = chaveFiltrosPesados();
+    if (!info.os) return;
+    filtrosPesados = (EC.storage && EC.storage.ler(info.chave)) || null;
+    if (filtrosPesados) aplicarSugestoesFiltro(); // a coleta pode já estar na tela
+    if (!navigator.onLine) return;
+    (async function () {
+      try {
+        const headers = { 'x-ecamp-token': PESAGENS_TOKEN };
+        const t = (EC.auth && EC.auth.tokenValido) ? await EC.auth.tokenValido() : '';
+        if (t) headers['Authorization'] = 'Bearer ' + t;
+        const resp = await fetch(PESAGENS_BASE + '/pesagens?apenas=filtros&os=' + encodeURIComponent(info.os) +
+          (info.campanha ? '&campanha=' + info.campanha : ''), { headers: headers });
+        const corpo = await resp.json();
+        if (!resp.ok || !corpo.ok || !corpo.filtros) return;
+        filtrosPesados = corpo.filtros;
+        if (EC.storage) EC.storage.salvar(info.chave, filtrosPesados);
+        aplicarSugestoesFiltro(); // a coleta pode já estar aberta
+      } catch (e) { /* offline/erro: fica com o cache */ }
+    })();
+  }
+
+  // Sugestões do campo "Código do filtro": primeiro os filtros DESTE ponto e
+  // DESTE poluente; se nenhum casar, todos os da OS/campanha. O campo continua
+  // aceitando texto livre — sugestão não é trava.
+  function aplicarSugestoesFiltro() {
+    if (!raiz || !document.body.contains(raiz)) return;
+    const inp = raiz.querySelector('[data-campo="codigoFiltro"]');
+    if (!inp) return;
+    if (!filtrosPesados || !filtrosPesados.length) { inp.removeAttribute('list'); return; }
+    const pontoNome = 'P' + String(pontoExibido).padStart(2, '0');
+    const fr = fracaoDoEscopo((ctx.estado.servico && ctx.estado.servico.escopo) || '');
+    const pol = fr === 'MP10' ? 'PM10' : (fr === 'MP2,5' ? 'PM2,5' : fr);
+    const exatos = filtrosPesados.filter(function (f) {
+      return (!f.ponto || f.ponto === pontoNome) && (!f.poluente || f.poluente === pol);
+    });
+    const numeros = (exatos.length ? exatos : filtrosPesados).map(function (f) { return f.numero_filtro; });
+    let dl = document.getElementById('cq-filtros-pesados');
+    if (!dl) {
+      dl = document.createElement('datalist');
+      dl.id = 'cq-filtros-pesados';
+      document.body.appendChild(dl);
+    }
+    dl.innerHTML = numeros.map(function (n) {
+      return '<option value="' + String(n).replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '"></option>';
+    }).join('');
+    inp.setAttribute('list', 'cq-filtros-pesados');
+  }
 
   function $(seletor) { return raiz.querySelector(seletor); }
   function campo() { return ctx.estado.campo; }
@@ -414,6 +475,7 @@ EC.campoQar = (function () {
       '<p class="grupo-checks-titulo">Dados finais</p>' + htmlBlocoColeta('fim') + '</div>';
     vincular(card.querySelector('.cartao-coleta'), ponto.coletas[k]);
     atualizarVazaoColeta(div, ponto); // mostra a vazão já ao abrir a coleta
+    aplicarSugestoesFiltro();         // sugere os filtros pesados deste ponto/poluente
   }
 
 
@@ -809,6 +871,9 @@ EC.campoQar = (function () {
     if (EC.equip && EC.equip.carregar) EC.equip.carregar(function () {
       if (raiz && document.body.contains(raiz) && ctx && ctx.estado && ctx.estado.campo) renderizarPontos();
     });
+    // Filtros pesados desta OS/campanha (sugestões do "Código do filtro") —
+    // baixa quando há internet; offline vale o cache do aparelho.
+    carregarFiltrosPesados();
   }
 
   return {
