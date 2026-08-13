@@ -172,7 +172,9 @@ EC.pesagens = (function () {
         '<div class="grade-2">' +
         '<label>Umidade (%)' + campoDe(i, 'um') + '</label>' +
         '<label>Temperatura (°C)' + campoDe(i, 'te') + '</label>' +
-        '</div>';
+        '</div>' +
+        // Leitura ao vivo do termohigrômetro da sala de balança (eWeLink).
+        '<button type="button" class="link-discreto" data-psg-amb="' + k.serie + '.' + i + '" style="margin:-6px 0 10px;">🌡️ Usar a sala de balança</button>';
       if (i === 0) html += avisoEstab(alvo[k.estab], serie[0].em);
       if (i === 1) html += avisoIntervalo(serie[0].em, serie[1].em);
     }
@@ -200,6 +202,37 @@ EC.pesagens = (function () {
     var m = chave.split('.');
     if (m.length === 3 && Array.isArray(alvo[m[0]]) && alvo[m[0]][Number(m[1])]) alvo[m[0]][Number(m[1])][m[2]] = valor;
     else alvo[chave] = valor;
+  }
+
+  // 🌡️ Puxa umidade/temperatura AO VIVO do termohigrômetro da sala de balança
+  // (Sonoff via eWeLink, rota /ambiente do SGP) para a pesagem tocada.
+  async function puxarAmbiente(alvo, chaveSerie, indice, rerender, botao) {
+    if (!navigator.onLine) { toast('📡 Ler o termohigrômetro precisa de internet.'); return; }
+    var rotulo = botao ? botao.textContent : '';
+    if (botao) { botao.disabled = true; botao.textContent = '⏳ Lendo o sensor…'; }
+    try {
+      var resp = await fetch(BASE + '/ambiente', { headers: await cabecalhos() });
+      var corpo = await resp.json().catch(function () { return {}; });
+      if (!resp.ok || !corpo.ok) throw new Error(corpo.erro || ('HTTP ' + resp.status));
+      var serie = alvo[chaveSerie];
+      if (!serie || !serie[indice]) return;
+      // Ponto, não vírgula: input type="number" rejeita "54,4" no value.
+      serie[indice].um = String(corpo.umidade);
+      serie[indice].te = String(corpo.temperatura);
+      toast('🌡️ ' + corpo.sensor + ': ' + String(corpo.temperatura).replace('.', ',') + ' °C · ' + String(corpo.umidade).replace('.', ',') + '% UR');
+      rerender();
+    } catch (e) {
+      toast('🛑 Não deu para ler o sensor: ' + (e && e.message ? e.message : e));
+      if (botao) { botao.disabled = false; botao.textContent = rotulo; }
+    }
+  }
+  function ligarBotoesAmbiente(container, attrSel, alvo, rerender) {
+    container.querySelectorAll('[' + attrSel + ']').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var m = btn.getAttribute(attrSel).split('.');
+        puxarAmbiente(alvo, m[0], Number(m[1]), rerender, btn);
+      });
+    });
   }
 
   function renderizar() {
@@ -249,6 +282,7 @@ EC.pesagens = (function () {
     var busca = $('psg-busca');
     if (busca) busca.addEventListener('input', function () { buscaPend = this.value; renderizarListas(); });
     $('psg-salvar-tara').addEventListener('click', salvarTara);
+    ligarBotoesAmbiente(area, 'data-psg-amb', dados, function () { renderizar(); renderizarListas(); });
   }
 
   /* ===== Listas (GET) ===== */
@@ -353,6 +387,7 @@ EC.pesagens = (function () {
     });
     var btnF = $('psg-salvar-final');
     if (btnF) btnF.addEventListener('click', salvarFinal);
+    ligarBotoesAmbiente(pend, 'data-psg-amb', dadosFinal, renderizarListas);
   }
 
   /* ===== Salvar (exige internet) ===== */
