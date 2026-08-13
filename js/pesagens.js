@@ -105,6 +105,22 @@ EC.pesagens = (function () {
     return String(escopo || '').replace(/\s*[–—-]\s*NBR.*$/i, '').trim();
   }
 
+  // Quantos PONTOS amostrais tem a seleção (serviços de AR; respeita a campanha
+  // escolhida). As pesagens são por ponto — o filtro é preparado para o P01,
+  // P02… — então esse número guia o laboratório.
+  function qtdePontosDe(os, campanha) {
+    var n = 0;
+    ((os && os.servicos) || []).forEach(function (s) {
+      var tipo = EC.mapaEscopo && EC.mapaEscopo.tipoPorEscopo
+        ? EC.mapaEscopo.tipoPorEscopo(s.escopo || '') : null;
+      if (tipo !== 'qar' && tipo !== 'qarint') return;
+      if (campanha && campanha.rotulo && String(s.campanha || '').trim() !== campanha.rotulo) return;
+      var q = parseInt(String(s.qtdePontos || ''), 10);
+      if (q > n) n = q;
+    });
+    return n;
+  }
+
   function escoposCurtos(os) {
     var vistos = {}, saida = [];
     ((os && os.servicos) || []).forEach(function (s) {
@@ -128,10 +144,12 @@ EC.pesagens = (function () {
     }
     alvo.innerHTML = achadas.map(function (o) {
       var escopos = escoposCurtos(o);
+      var nPts = qtdePontosDe(o, null);
+      var linha2 = [escopos, nPts ? '📍 ' + nPts + ' ponto' + (nPts > 1 ? 's' : '') : ''].filter(Boolean).join(' · ');
       return '<div class="os-item" data-psg-os="' + esc(o.osId) + '">' +
         '<div class="os-numero">OS ' + esc(o.numero) + '</div>' +
         '<div class="os-resumo">' + esc(o.cliente || '') + (o.projeto ? ' · 📁 ' + esc(o.projeto) : '') + '</div>' +
-        (escopos ? '<div class="os-resumo" style="font-size:0.82rem;opacity:.8">' + esc(escopos) + '</div>' : '') +
+        (linha2 ? '<div class="os-resumo" style="font-size:0.82rem;opacity:.8">' + esc(linha2) + '</div>' : '') +
         '</div>';
     }).join('');
     alvo.querySelectorAll('[data-psg-os]').forEach(function (el) {
@@ -198,6 +216,11 @@ EC.pesagens = (function () {
       '📋 <strong>OS ' + esc(osSel.numero) + '</strong>' + (osSel.cliente ? ' · ' + esc(osSel.cliente) : '') +
       (campSel && campSel.numero ? ' · <strong>' + esc(campSel.rotulo) + '</strong>' : '') +
       (osSel.projeto ? '<br>📁 ' + esc(osSel.projeto) : '') +
+      (function () {
+        var n = qtdePontosDe(osSel, campSel);
+        if (!n) return '';
+        return '<br>📍 ' + n + (n > 1 ? ' pontos amostrais' : ' ponto amostral') + ' — a pesagem é por ponto';
+      })() +
       '<br><span class="texto-apoio">Os filtros pesados aqui ficam ligados a est' +
       (campSel && campSel.numero ? 'a campanha' : 'a OS') + '.</span></div>';
   }
@@ -218,10 +241,21 @@ EC.pesagens = (function () {
       '<p class="texto-apoio">Pese o filtro na balança do laboratório. A <strong>tara</strong> é lançada antes do campo — o número do filtro é o mesmo que o técnico digita na coleta. Depois do campo, lance a <strong>pesagem final</strong> aqui embaixo. Com as duas, o SGP calcula a concentração em <strong>Serviços → Particulados</strong>.</p>' +
 
       '<p class="grupo-checks-titulo">➕ Pesagem inicial (tara)</p>' +
+      // A pesagem é POR PONTO: o filtro é preparado para o P01, P02… da OS.
       '<div class="grade-2">' +
+      '<label>Ponto amostral<select data-psg="ponto"><option value="">Selecione…</option>' +
+      (function () {
+        var n = Math.max(1, qtdePontosDe(osSel, campSel));
+        var ops = '';
+        for (var i = 1; i <= n; i++) {
+          var p = 'P' + String(i).padStart(2, '0');
+          ops += '<option value="' + p + '">' + p + '</option>';
+        }
+        return ops;
+      })() + '</select></label>' +
       '<label>Nº do filtro<input type="text" data-psg="numero" autocomplete="off" placeholder="ex.: 1234"></label>' +
-      '<label>Data<input type="date" data-psg="data" value="' + dados.data + '"></label>' +
       '</div>' +
+      '<label>Data<input type="date" data-psg="data" value="' + dados.data + '"></label>' +
       '<label>Tara — filtro limpo (g)<input type="number" step="0.0001" inputmode="decimal" data-psg="tara" placeholder="ex.: 3,4567"></label>' +
       '<div class="grade-2">' +
       '<label>Umidade (%)<input type="number" step="0.1" inputmode="decimal" data-psg="umidade"></label>' +
@@ -280,6 +314,7 @@ EC.pesagens = (function () {
       '<div style="border:1px solid #d7dce8;border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#fff;">' +
       '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
       '<strong>Filtro ' + esc(p.numero_filtro) + '</strong>' +
+      (p.ponto ? '<span style="font-size:0.8rem;font-weight:700;color:#16276e;background:#e8f3fb;border-radius:999px;padding:1px 8px;">' + esc(p.ponto) + '</span>' : '') +
       '<span style="font-size:0.85rem;color:#5a6377;">tara ' + fmtG(p.tara_g) + ' · ' + dataBR(p.tara_data) + '</span>' +
       '<button type="button" class="botao botao-mini" data-psg-final="' + esc(p.id) + '" style="margin-left:auto;">' +
       (aberto ? 'Fechar' : '⚖️ Pesagem final') + '</button>' +
@@ -314,6 +349,7 @@ EC.pesagens = (function () {
           var massa = (p.final_g != null && p.tara_g != null) ? (Number(p.final_g) - Number(p.tara_g)) : null;
           return '<div style="border:1px solid #e2e6ef;border-radius:10px;padding:8px 12px;margin-bottom:6px;background:#f7f9fc;font-size:0.9rem;">' +
             '<strong>Filtro ' + esc(p.numero_filtro) + '</strong>' +
+            (p.ponto ? ' · ' + esc(p.ponto) : '') +
             ' · tara ' + fmtG(p.tara_g) + ' · final ' + fmtG(p.final_g) +
             (massa != null ? ' · <strong>massa ' + fmtG(massa) + '</strong>' : '') +
             ' · ' + dataBR(p.final_data) +
@@ -345,6 +381,7 @@ EC.pesagens = (function () {
     var numero = String(dados.numero || '').trim();
     var tara = numDe(dados.tara);
     if (!osSel) { toast('Escolha a OS antes de pesar.'); abrirMenu(); return; }
+    if (!dados.ponto) { toast('Escolha o ponto amostral — a pesagem é por ponto.'); return; }
     if (!numero) { toast('Informe o número do filtro.'); return; }
     if (tara === null || tara <= 0) { toast('Informe a tara (peso do filtro limpo, em gramas).'); return; }
     if (!dados.data) { toast('Informe a data da pesagem.'); return; }
@@ -361,6 +398,7 @@ EC.pesagens = (function () {
             os: osSel ? osSel.numero : '',
             osId: osSel ? osSel.osId : '',
             campanha: (campSel && campSel.numero) || null,
+            ponto: dados.ponto || null,
             numero_filtro: numero,
             tara_g: dados.tara,
             tara_data: dados.data,
