@@ -64,6 +64,32 @@ EC.pesagens = (function () {
     return g1 != null && g2 != null && Math.abs(g1 - g2) > VARIACAO_MAX;
   }
 
+  // F053: o filtro estabiliza por NO MÍNIMO 24 h antes de ser pesado.
+  var ESTAB_MIN_H = 24;
+  function horasEstab(estab, pesagem) {
+    if (!estab || !pesagem) return null;
+    var h = (new Date(pesagem).getTime() - new Date(estab).getTime()) / 3600000;
+    return isNaN(h) ? null : h;
+  }
+  function fmtHoras(h) { return h.toFixed(1).replace('.', ','); }
+  // Aviso ao vivo entre as duas datas (vazio enquanto não der para calcular).
+  function avisoEstab(estab, pesagem) {
+    var h = horasEstab(estab, pesagem);
+    if (h === null) return '';
+    if (h < 0) return '<div class="alerta alerta-vermelho">⚠️ A pesagem está <strong>antes</strong> do início da estabilização — confira as datas.</div>';
+    if (h < ESTAB_MIN_H) return '<div class="alerta alerta-vermelho">⏱️ Estabilização de <strong>' + fmtHoras(h) + ' h</strong> — o F053 exige no mínimo <strong>24 h</strong> entre o início da estabilização e a pesagem. Não dá para salvar assim.</div>';
+    return '<div class="alerta alerta-verde">✅ Estabilização de ' + fmtHoras(h) + ' h (mínimo de 24 h atendido).</div>';
+  }
+  // Trava do salvar: devolve a mensagem de erro, ou '' quando pode salvar.
+  function erroEstab(estab, pesagem, rotulo) {
+    if (!estab) return 'Informe o início da estabilização ' + rotulo + ' — o F053 exige no mínimo 24 h antes da pesagem.';
+    var h = horasEstab(estab, pesagem);
+    if (h === null) return '';
+    if (h < 0) return 'A pesagem ' + rotulo + ' está antes do início da estabilização — confira as datas.';
+    if (h < ESTAB_MIN_H) return '⏱️ Estabilização ' + rotulo + ' de ' + fmtHoras(h) + ' h — o F053 exige no mínimo 24 h.';
+    return '';
+  }
+
   async function cabecalhos() {
     var h = { 'Content-Type': 'application/json', 'x-ecamp-token': TOKEN };
     var t = (EC.auth && EC.auth.tokenValido) ? await EC.auth.tokenValido() : '';
@@ -115,6 +141,7 @@ EC.pesagens = (function () {
       '<label>Início da estabilização<input type="datetime-local" data-psg="testab" value="' + esc(dados.testab || '') + '"></label>' +
       '<label>Data/hora da pesagem<input type="datetime-local" data-psg="tpesagem" value="' + esc(dados.tpesagem || '') + '"></label>' +
       '</div>' +
+      avisoEstab(dados.testab, dados.tpesagem) +
       htmlSerie('t', dados) +
       '<div class="grade-2">' +
       '<label>Umidade (%)<input type="number" step="0.1" inputmode="decimal" data-psg="umidade" value="' + esc(dados.umidade || '') + '"></label>' +
@@ -136,11 +163,13 @@ EC.pesagens = (function () {
     area.querySelectorAll('[data-psg]').forEach(function (el) {
       var c = el.dataset.psg;
       dados[c] = el.value;
-      el.addEventListener('input', function () {
-        dados[c] = el.value;
-        // 1ª/2ª pesagem mudou: o aviso da variação e o campo da 3ª acompanham.
-        if (c === 'tg1' || c === 'tg2') { renderizar(); renderizarListas(); }
-      });
+      el.addEventListener('input', function () { dados[c] = el.value; });
+      // Os avisos (variação/3ª pesagem e 24 h de estabilização) atualizam no
+      // CHANGE (ao sair do campo/fechar o seletor) — re-renderizar a cada tecla
+      // roubaria o foco no meio da digitação.
+      if (c === 'tg1' || c === 'tg2' || c === 'testab' || c === 'tpesagem') {
+        el.addEventListener('change', function () { dados[c] = el.value; renderizar(); renderizarListas(); });
+      }
     });
     var busca = $('psg-busca');
     if (busca) busca.addEventListener('input', function () { buscaPend = this.value; renderizarListas(); });
@@ -196,6 +225,7 @@ EC.pesagens = (function () {
         '<label>Início da estabilização pós-coleta<input type="datetime-local" data-psgf="festab" value="' + esc(dadosFinal.festab || '') + '"></label>' +
         '<label>Data/hora da pesagem<input type="datetime-local" data-psgf="fpesagem" value="' + esc(dadosFinal.fpesagem || '') + '"></label>' +
         '</div>' +
+        avisoEstab(dadosFinal.festab, dadosFinal.fpesagem) +
         (function () {
           var g1 = numDe(dadosFinal.fg1), g2 = numDe(dadosFinal.fg2);
           var mostrar3 = precisaTerceira(g1, g2);
@@ -261,10 +291,11 @@ EC.pesagens = (function () {
     pend.querySelectorAll('[data-psgf]').forEach(function (el) {
       var c = el.dataset.psgf;
       dadosFinal[c] = el.value;
-      el.addEventListener('input', function () {
-        dadosFinal[c] = el.value;
-        if (c === 'fg1' || c === 'fg2') renderizarListas(); // aviso/3ª acompanham
-      });
+      el.addEventListener('input', function () { dadosFinal[c] = el.value; });
+      // Avisos no CHANGE, pelo mesmo motivo do formulário da tara (foco).
+      if (c === 'fg1' || c === 'fg2' || c === 'festab' || c === 'fpesagem') {
+        el.addEventListener('change', function () { dadosFinal[c] = el.value; renderizarListas(); });
+      }
     });
     var btnF = $('psg-salvar-final');
     if (btnF) btnF.addEventListener('click', salvarFinal);
@@ -289,6 +320,8 @@ EC.pesagens = (function () {
     var erro = validarSerie('da tara', g1, g2, g3);
     if (erro) { toast(erro); return; }
     if (!dados.tpesagem) { toast('Informe a data/hora da pesagem.'); return; }
+    var eEstab = erroEstab(dados.testab, dados.tpesagem, 'da tara');
+    if (eEstab) { toast(eEstab); return; }
     if (!navigator.onLine) { toast('📡 Salvar a pesagem precisa de internet.'); return; }
 
     btn.disabled = true; btn.textContent = '⏳ Salvando…';
@@ -332,6 +365,8 @@ EC.pesagens = (function () {
     var erro = validarSerie('final', g1, g2, g3);
     if (erro) { toast(erro); return; }
     if (!dadosFinal.fpesagem) { toast('Informe a data/hora da pesagem.'); return; }
+    var eEstabF = erroEstab(dadosFinal.festab, dadosFinal.fpesagem, 'final');
+    if (eEstabF) { toast(eEstabF); return; }
     if (!navigator.onLine) { toast('📡 Salvar a pesagem precisa de internet.'); return; }
     // Final menor que a tara = massa negativa. Acontece em branco de campo, mas
     // quase sempre é dedo trocado — confirma antes de gravar.
