@@ -32,6 +32,7 @@ EC.pesagens = (function () {
   var dadosFinal = {};     // formulário da pesagem final aberta
   var finalAberto = null;  // id da pesagem cujo formulário final está aberto
   var lista = { pendentes: [], concluidas: [] };
+  var osSel = null;        // OS escolhida (a pesagem pertence a uma OS)
 
   function $(id) { return document.getElementById(id); }
   function toast(msg) { if (EC.app && EC.app.mostrarToast) EC.app.mostrarToast(msg); }
@@ -61,6 +62,66 @@ EC.pesagens = (function () {
     var t = (EC.auth && EC.auth.tokenValido) ? await EC.auth.tokenValido() : '';
     if (t) h['Authorization'] = 'Bearer ' + t;
     return h;
+  }
+
+  /* ===== Escolha da OS (só as de qualidade do ar) ===== */
+
+  // Filtro é coisa de qualidade do ar: QAR externo (particulados) e ar interno
+  // (MQAI) — os outros escopos (ruído, vibração…) não pesam nada.
+  function ehQualidadeDoAr(os) {
+    var servicos = (os && os.servicos) || [];
+    for (var i = 0; i < servicos.length; i++) {
+      var tipo = EC.mapaEscopo && EC.mapaEscopo.tipoPorEscopo
+        ? EC.mapaEscopo.tipoPorEscopo(servicos[i].escopo || '')
+        : null;
+      if (tipo === 'qar' || tipo === 'qarint') return true;
+    }
+    return false;
+  }
+
+  function osDeArDisponiveis(termo) {
+    var todas = (EC.os && EC.os.buscar) ? EC.os.buscar(termo || '') : [];
+    return todas.filter(ehQualidadeDoAr).slice(0, 20);
+  }
+
+  function pintarOsPesagens(termo) {
+    var alvo = $('psg-os-resultados');
+    if (!alvo) return;
+    var achadas = osDeArDisponiveis(termo);
+    if (!achadas.length) {
+      alvo.innerHTML = '<p class="texto-apoio">' +
+        ((EC.os && EC.os.jaCarregou && EC.os.jaCarregou())
+          ? 'Nenhuma OS de qualidade do ar encontrada.'
+          : 'Carregando as OS…') + '</p>';
+      return;
+    }
+    alvo.innerHTML = achadas.map(function (o) {
+      var escopos = (o.servicos || []).map(function (s) { return s.escopo; }).filter(Boolean).join(' · ');
+      return '<div class="os-item" data-psg-os="' + esc(o.osId) + '">' +
+        '<div class="os-numero">OS ' + esc(o.numero) + '</div>' +
+        '<div class="os-resumo">' + esc(o.cliente || '') + '</div>' +
+        (escopos ? '<div class="os-resumo" style="font-size:0.82rem;opacity:.8">' + esc(escopos) + '</div>' : '') +
+        '</div>';
+    }).join('');
+    alvo.querySelectorAll('[data-psg-os]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var achada = osDeArDisponiveis('').filter(function (o) { return o.osId === el.dataset.psgOs; })[0];
+        if (achada) escolherOs(achada);
+      });
+    });
+  }
+
+  function escolherOs(o) {
+    osSel = o;
+    abrirFormulario();
+  }
+
+  function pintarChipOs() {
+    var chip = $('psg-os-chip');
+    if (!chip || !osSel) return;
+    chip.innerHTML = '<div class="alerta alerta-info" style="margin-bottom:10px">' +
+      '📋 <strong>OS ' + esc(osSel.numero) + '</strong>' + (osSel.cliente ? ' · ' + esc(osSel.cliente) : '') +
+      '<br><span class="texto-apoio">Os filtros pesados aqui ficam ligados a esta OS.</span></div>';
   }
 
   /* ===== Tela ===== */
@@ -119,7 +180,9 @@ EC.pesagens = (function () {
       return;
     }
     try {
-      var resp = await fetch(BASE + '/pesagens', { headers: await cabecalhos() });
+      // Só os filtros DESTA OS — senão apareceriam os de outro serviço.
+      var url = BASE + '/pesagens' + (osSel ? '?os=' + encodeURIComponent(osSel.numero) : '');
+      var resp = await fetch(url, { headers: await cabecalhos() });
       var corpo = await resp.json().catch(function () { return {}; });
       if (!resp.ok || !corpo.ok) throw new Error(corpo.erro || ('HTTP ' + resp.status));
       lista.pendentes = corpo.pendentes || [];
@@ -202,6 +265,7 @@ EC.pesagens = (function () {
     var btn = $('psg-salvar-tara');
     var numero = String(dados.numero || '').trim();
     var tara = numDe(dados.tara);
+    if (!osSel) { toast('Escolha a OS antes de pesar.'); abrirMenu(); return; }
     if (!numero) { toast('Informe o número do filtro.'); return; }
     if (tara === null || tara <= 0) { toast('Informe a tara (peso do filtro limpo, em gramas).'); return; }
     if (!dados.data) { toast('Informe a data da pesagem.'); return; }
@@ -215,6 +279,8 @@ EC.pesagens = (function () {
         body: JSON.stringify({
           acao: 'tara',
           pesagem: {
+            os: osSel ? osSel.numero : '',
+            osId: osSel ? osSel.osId : '',
             numero_filtro: numero,
             tara_g: dados.tara,
             tara_data: dados.data,
@@ -282,11 +348,27 @@ EC.pesagens = (function () {
 
   /* ===== Navegação ===== */
 
-  function abrir() {
+  // Entrada do menu: primeiro a OS, depois as pesagens daquela OS.
+  function abrirMenu() {
+    EC.app.mostrarTela('tela-pesagens-os');
+    if ($('psg-os-busca')) $('psg-os-busca').value = '';
+    pintarOsPesagens('');
+    // Lista de OS fresca em segundo plano (o técnico pode ter ganhado OS novas).
+    if (EC.os && EC.os.carregar) {
+      EC.os.carregar(function () {
+        if ($('tela-pesagens-os') && !$('tela-pesagens-os').classList.contains('oculto')) {
+          pintarOsPesagens(($('psg-os-busca') && $('psg-os-busca').value) || '');
+        }
+      });
+    }
+  }
+
+  function abrirFormulario() {
     EC.app.mostrarTela('tela-pesagens');
+    pintarChipOs();
     renderizar();
     carregarLista();
   }
 
-  return { abrir: abrir };
+  return { abrirMenu: abrirMenu, abrirOs: escolherOs, buscarOs: pintarOsPesagens };
 })();

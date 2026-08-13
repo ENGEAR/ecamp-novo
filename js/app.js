@@ -623,11 +623,18 @@
   });
   $('checagem-menu-voltar').addEventListener('click', function () { mostrarTela('tela-acao'); });
   $('checagem-part-voltar').addEventListener('click', function () { mostrarTela('tela-checagem-menu'); });
-  // Pesagens de filtros (logística de campo): tara antes do campo, final depois.
+  // Pesagens de filtros (logística de campo): escolhe a OS (só qualidade do
+  // ar), depois pesa — tara antes do campo, final depois.
   $('btn-pesagens').addEventListener('click', function () {
-    if (EC.pesagens) EC.pesagens.abrir();
+    if (EC.pesagens) EC.pesagens.abrirMenu();
   });
-  $('pesagens-voltar').addEventListener('click', function () { mostrarTela('tela-acao'); });
+  $('pesagens-os-voltar').addEventListener('click', function () { mostrarTela('tela-acao'); });
+  $('pesagens-voltar').addEventListener('click', function () {
+    if (EC.pesagens) EC.pesagens.abrirMenu(); else mostrarTela('tela-acao');
+  });
+  $('psg-os-busca').addEventListener('input', function () {
+    if (EC.pesagens && EC.pesagens.buscarOs) EC.pesagens.buscarOs(this.value);
+  });
   $('btn-extrato-geral').addEventListener('click', function () {
     if (EC.reembolso && EC.reembolso.extratoGeral) EC.reembolso.extratoGeral();
   });
