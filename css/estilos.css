@@ -335,9 +335,12 @@ textarea { resize: vertical; font-family: inherit; }
 /* Checagem intermediária: ritmo vertical uniforme — todo campo (solto ou em
    grade de 2 colunas) termina 12px antes do próximo e a caixa fica à mesma
    distância do rótulo (sem o empurrão do margin-top:auto das grades). */
-#checagem-form .grade-2 > label { margin-bottom: 12px; }
+#checagem-form .grade-2 > label,
+#pesagens-form .grade-2 > label { margin-bottom: 12px; }
 #checagem-form .grade-2 > label > input,
-#checagem-form .grade-2 > label > select { margin-top: 4px; }
+#checagem-form .grade-2 > label > select,
+#pesagens-form label > input,
+#pesagens-form label > select { margin-top: 4px; }
 .cq-neg-linha { display: flex; gap: 6px; align-items: center; }
 .cq-neg-linha input { flex: 1; min-width: 0; }
 .cq-neg { flex-shrink: 0; }
