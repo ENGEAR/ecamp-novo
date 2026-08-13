@@ -94,6 +94,12 @@ EC.pesagens = (function () {
     if (/pts/.test(e)) tags.push('PTS');
     if (/pm ?10|mp10/.test(e)) tags.push('PM10');
     if (/pm2[.,]?5|mp2[.,]?5/.test(e)) tags.push('PM2,5');
+    // Gases e fuligem têm nome próprio — melhor que o genérico do tipo.
+    if (/\bno2\b/.test(e)) tags.push('NO2');
+    if (/\bso2\b/.test(e)) tags.push('SO2');
+    if (/\bco\b/.test(e) && !/co2/.test(e)) tags.push('CO');
+    if (/ozonio|\bo3\b/.test(e)) tags.push('O3');
+    if (/fuligem|ringelmann/.test(e)) tags.push('Fuligem');
     if (tags.length) return tags.join(' · ');
     var tipo = (EC.mapaEscopo && EC.mapaEscopo.tipoPorEscopo) ? EC.mapaEscopo.tipoPorEscopo(escopo) : null;
     if (tipo === 'ruido') return 'Ruído';
