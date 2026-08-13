@@ -623,18 +623,12 @@
   });
   $('checagem-menu-voltar').addEventListener('click', function () { mostrarTela('tela-acao'); });
   $('checagem-part-voltar').addEventListener('click', function () { mostrarTela('tela-checagem-menu'); });
-  // Pesagens de filtros (logística de campo): escolhe a OS (só qualidade do
-  // ar), depois pesa — tara antes do campo, final depois.
+  // Pesagens de filtros (logística de campo): F053 por NÚMERO do filtro, sem
+  // OS — tara antes do campo, final depois; o vínculo nasce na coleta.
   $('btn-pesagens').addEventListener('click', function () {
-    if (EC.pesagens) EC.pesagens.abrirMenu();
+    if (EC.pesagens) EC.pesagens.abrir();
   });
-  $('pesagens-os-voltar').addEventListener('click', function () { mostrarTela('tela-acao'); });
-  $('pesagens-voltar').addEventListener('click', function () {
-    if (EC.pesagens) EC.pesagens.abrirMenu(); else mostrarTela('tela-acao');
-  });
-  $('psg-os-busca').addEventListener('input', function () {
-    if (EC.pesagens && EC.pesagens.buscarOs) EC.pesagens.buscarOs(this.value);
-  });
+  $('pesagens-voltar').addEventListener('click', function () { mostrarTela('tela-acao'); });
   $('btn-extrato-geral').addEventListener('click', function () {
     if (EC.reembolso && EC.reembolso.extratoGeral) EC.reembolso.extratoGeral();
   });

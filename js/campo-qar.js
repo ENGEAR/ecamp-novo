@@ -30,23 +30,17 @@ EC.campoQar = (function () {
   let pontoExibido = 1;
   let coletaExibida = 1; // coleta aberta DENTRO do ponto (paginada; lembrada por ponto)
   let temporizadorSalvar = null;
-  // Filtros já pesados no laboratório (menu Pesagens) para esta OS/campanha —
-  // viram sugestões no "Código do filtro" da coleta. Cache no aparelho: em
-  // campo (offline) vale a última lista baixada.
+  // ESTOQUE de filtros tarados no laboratório (menu Pesagens) — o filtro é
+  // pesado por número, SEM OS (F053); o vínculo nasce nesta coleta. A lista de
+  // disponíveis vira busca no "Código do filtro". Cache no aparelho: em campo
+  // (offline) vale a última lista baixada.
   const PESAGENS_BASE = 'https://engear-sgp.vercel.app/api/monitoramento';
   const PESAGENS_TOKEN = '1488d0e2eece92e0796951cb693a4689c95cad0193e91ad2';
+  const CHAVE_ESTOQUE = 'filtrosPesados:estoque';
   let filtrosPesados = null;
 
-  function chaveFiltrosPesados() {
-    const os = (ctx && ctx.estado.os && ctx.estado.os.numero) || '';
-    const m = String((ctx && ctx.estado.servico && ctx.estado.servico.campanha) || '').match(/(\d+)/);
-    return { os: os, campanha: m ? m[1] : '', chave: 'filtrosPesados:' + os + ':' + (m ? m[1] : 'u') };
-  }
-
   function carregarFiltrosPesados() {
-    const info = chaveFiltrosPesados();
-    if (!info.os) return;
-    filtrosPesados = (EC.storage && EC.storage.ler(info.chave)) || null;
+    filtrosPesados = (EC.storage && EC.storage.ler(CHAVE_ESTOQUE)) || null;
     if (filtrosPesados) aplicarSugestoesFiltro(); // a coleta pode já estar na tela
     if (!navigator.onLine) return;
     (async function () {
@@ -54,21 +48,21 @@ EC.campoQar = (function () {
         const headers = { 'x-ecamp-token': PESAGENS_TOKEN };
         const t = (EC.auth && EC.auth.tokenValido) ? await EC.auth.tokenValido() : '';
         if (t) headers['Authorization'] = 'Bearer ' + t;
-        const resp = await fetch(PESAGENS_BASE + '/pesagens?apenas=filtros&os=' + encodeURIComponent(info.os) +
-          (info.campanha ? '&campanha=' + info.campanha : ''), { headers: headers });
+        const resp = await fetch(PESAGENS_BASE + '/pesagens?apenas=filtros', { headers: headers });
         const corpo = await resp.json();
         if (!resp.ok || !corpo.ok || !corpo.filtros) return;
         filtrosPesados = corpo.filtros;
-        if (EC.storage) EC.storage.salvar(info.chave, filtrosPesados);
+        if (EC.storage) EC.storage.salvar(CHAVE_ESTOQUE, filtrosPesados);
         aplicarSugestoesFiltro(); // a coleta pode já estar aberta
       } catch (e) { /* offline/erro: fica com o cache */ }
     })();
   }
 
-  // Sugestões do campo "Código do filtro" como FICHAS visíveis embaixo do campo
-  // (no iPhone a sugestão nativa de lista é quase invisível): as do ponto e
-  // poluente ATUAIS viram botões de um toque; sem nenhuma, um aviso explica.
-  // O campo continua aceitando texto livre — sugestão não é trava.
+  // Busca no ESTOQUE de filtros tarados, como FICHAS visíveis embaixo do campo
+  // (no iPhone a sugestão nativa de lista é quase invisível): digite parte do
+  // número e as disponíveis viram botões de um toque; a lista encolhe conforme
+  // digita. O campo continua aceitando texto livre — sugestão não é trava.
+  const CHIPS_MAX = 6;
   function aplicarSugestoesFiltro() {
     if (!raiz || !document.body.contains(raiz)) return;
     const inp = raiz.querySelector('[data-campo="codigoFiltro"]');
@@ -78,14 +72,7 @@ EC.campoQar = (function () {
     if (caixa) caixa.remove();
     if (!filtrosPesados || !filtrosPesados.length) { inp.removeAttribute('list'); return; }
 
-    const pontoNome = 'P' + String(pontoExibido).padStart(2, '0');
-    const fr = fracaoDoEscopo((ctx.estado.servico && ctx.estado.servico.escopo) || '');
-    const pol = fr === 'MP10' ? 'PM10' : (fr === 'MP2,5' ? 'PM2,5' : fr);
-    const exatos = filtrosPesados.filter(function (f) {
-      return (!f.ponto || f.ponto === pontoNome) && (!f.poluente || f.poluente === pol);
-    });
-
-    // Lista nativa (digite e busque) com TODOS os filtros da OS/campanha.
+    // Lista nativa (digite e busque) com todo o estoque disponível.
     let dl = document.getElementById('cq-filtros-pesados');
     if (!dl) {
       dl = document.createElement('datalist');
@@ -97,26 +84,46 @@ EC.campoQar = (function () {
     }).join('');
     inp.setAttribute('list', 'cq-filtros-pesados');
 
-    // Fichas de um toque — só as que batem com ESTE ponto e poluente.
     caixa = document.createElement('div');
     caixa.id = 'cq-filtros-chips';
     caixa.style.cssText = 'margin:-6px 0 12px;';
-    if (exatos.length) {
-      caixa.innerHTML = '<span style="font-size:0.78rem;color:var(--cinza-texto);">⚖️ Pesados para ' + pontoNome + ' · ' + pol + ':</span> ' +
-        exatos.map(function (f) {
+    label.insertAdjacentElement('afterend', caixa);
+
+    function pintarChips() {
+      const termo = String(inp.value || '').trim().toLowerCase();
+      const casam = filtrosPesados.filter(function (f) {
+        return !termo || String(f.numero_filtro).toLowerCase().indexOf(termo) !== -1;
+      });
+      const mostra = casam.slice(0, CHIPS_MAX);
+      if (!mostra.length) {
+        caixa.innerHTML = '<span style="font-size:0.78rem;color:var(--cinza-texto);">⚖️ Nenhum filtro disponível no estoque ' +
+          (termo ? 'com “' + termo.replace(/</g, '&lt;') + '”' : '') + ' — confira o número ou lance a tara no menu Pesagens.</span>';
+        return;
+      }
+      caixa.innerHTML =
+        '<span style="font-size:0.78rem;color:var(--cinza-texto);">⚖️ Disponíveis no estoque' + (termo ? ' com “' + termo.replace(/</g, '&lt;') + '”' : '') + ':</span> ' +
+        mostra.map(function (f) {
           return '<button type="button" class="botao-mini" data-cq-filtro="' + String(f.numero_filtro).replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '" style="margin:2px 4px 2px 0;border-radius:999px;">' +
             String(f.numero_filtro).replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</button>';
-        }).join('');
-    } else {
-      caixa.innerHTML = '<span style="font-size:0.78rem;color:var(--cinza-texto);">⚖️ Nenhum filtro pesado nas Pesagens para ' + pontoNome + ' · ' + pol + ' ainda — digite o código, ou lance a tara no menu Pesagens.</span>';
-    }
-    label.insertAdjacentElement('afterend', caixa);
-    caixa.querySelectorAll('[data-cq-filtro]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        inp.value = btn.getAttribute('data-cq-filtro');
-        inp.dispatchEvent(new Event('input', { bubbles: true })); // grava no rascunho
+        }).join('') +
+        (casam.length > CHIPS_MAX ? '<span style="font-size:0.78rem;color:var(--cinza-texto);"> +' + (casam.length - CHIPS_MAX) + ' — digite para afinar</span>' : '');
+      caixa.querySelectorAll('[data-cq-filtro]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          inp.value = btn.getAttribute('data-cq-filtro');
+          inp.dispatchEvent(new Event('input', { bubbles: true })); // grava no rascunho
+        });
       });
-    });
+    }
+    // Um listener só por render (a caixa é recriada; o flag evita empilhar).
+    if (!inp._cqChips) {
+      inp._cqChips = true;
+      inp.addEventListener('input', function () {
+        const c = raiz && raiz.querySelector('#cq-filtros-chips');
+        if (c && c._pintar) c._pintar();
+      });
+    }
+    caixa._pintar = pintarChips;
+    pintarChips();
   }
 
   function $(seletor) { return raiz.querySelector(seletor); }
