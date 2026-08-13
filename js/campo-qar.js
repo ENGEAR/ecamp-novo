@@ -65,31 +65,58 @@ EC.campoQar = (function () {
     })();
   }
 
-  // Sugestões do campo "Código do filtro": primeiro os filtros DESTE ponto e
-  // DESTE poluente; se nenhum casar, todos os da OS/campanha. O campo continua
-  // aceitando texto livre — sugestão não é trava.
+  // Sugestões do campo "Código do filtro" como FICHAS visíveis embaixo do campo
+  // (no iPhone a sugestão nativa de lista é quase invisível): as do ponto e
+  // poluente ATUAIS viram botões de um toque; sem nenhuma, um aviso explica.
+  // O campo continua aceitando texto livre — sugestão não é trava.
   function aplicarSugestoesFiltro() {
     if (!raiz || !document.body.contains(raiz)) return;
     const inp = raiz.querySelector('[data-campo="codigoFiltro"]');
     if (!inp) return;
+    const label = inp.closest('label') || inp;
+    let caixa = raiz.querySelector('#cq-filtros-chips');
+    if (caixa) caixa.remove();
     if (!filtrosPesados || !filtrosPesados.length) { inp.removeAttribute('list'); return; }
+
     const pontoNome = 'P' + String(pontoExibido).padStart(2, '0');
     const fr = fracaoDoEscopo((ctx.estado.servico && ctx.estado.servico.escopo) || '');
     const pol = fr === 'MP10' ? 'PM10' : (fr === 'MP2,5' ? 'PM2,5' : fr);
     const exatos = filtrosPesados.filter(function (f) {
       return (!f.ponto || f.ponto === pontoNome) && (!f.poluente || f.poluente === pol);
     });
-    const numeros = (exatos.length ? exatos : filtrosPesados).map(function (f) { return f.numero_filtro; });
+
+    // Lista nativa (digite e busque) com TODOS os filtros da OS/campanha.
     let dl = document.getElementById('cq-filtros-pesados');
     if (!dl) {
       dl = document.createElement('datalist');
       dl.id = 'cq-filtros-pesados';
       document.body.appendChild(dl);
     }
-    dl.innerHTML = numeros.map(function (n) {
-      return '<option value="' + String(n).replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '"></option>';
+    dl.innerHTML = filtrosPesados.map(function (f) {
+      return '<option value="' + String(f.numero_filtro).replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '"></option>';
     }).join('');
     inp.setAttribute('list', 'cq-filtros-pesados');
+
+    // Fichas de um toque — só as que batem com ESTE ponto e poluente.
+    caixa = document.createElement('div');
+    caixa.id = 'cq-filtros-chips';
+    caixa.style.cssText = 'margin:-6px 0 12px;';
+    if (exatos.length) {
+      caixa.innerHTML = '<span style="font-size:0.78rem;color:var(--cinza-texto);">⚖️ Pesados para ' + pontoNome + ' · ' + pol + ':</span> ' +
+        exatos.map(function (f) {
+          return '<button type="button" class="botao-mini" data-cq-filtro="' + String(f.numero_filtro).replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '" style="margin:2px 4px 2px 0;border-radius:999px;">' +
+            String(f.numero_filtro).replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</button>';
+        }).join('');
+    } else {
+      caixa.innerHTML = '<span style="font-size:0.78rem;color:var(--cinza-texto);">⚖️ Nenhum filtro pesado nas Pesagens para ' + pontoNome + ' · ' + pol + ' ainda — digite o código, ou lance a tara no menu Pesagens.</span>';
+    }
+    label.insertAdjacentElement('afterend', caixa);
+    caixa.querySelectorAll('[data-cq-filtro]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        inp.value = btn.getAttribute('data-cq-filtro');
+        inp.dispatchEvent(new Event('input', { bubbles: true })); // grava no rascunho
+      });
+    });
   }
 
   function $(seletor) { return raiz.querySelector(seletor); }
