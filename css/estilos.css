@@ -1620,3 +1620,30 @@ textarea { resize: vertical; font-family: inherit; }
   min-width: 0;
   width: 100%;
 }
+
+/* Títulos das listas de pesagens que abrem/fecham com "+". Botão que parece
+   título — sem cara de botão, mas com área de toque confortável no celular. */
+.psg-abre {
+  background: none;
+  border: none;
+  padding: 4px 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.psg-abre-sinal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35em;
+  height: 1.35em;
+  border-radius: 6px;
+  background: #e8eef7;
+  color: #1976d2;
+  font-weight: 700;
+  line-height: 1;
+}
+.psg-abre-conta { color: #8b97a8; font-weight: 400; }

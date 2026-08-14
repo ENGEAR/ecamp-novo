@@ -36,6 +36,9 @@ EC.pesagens = (function () {
   var lista = { pendentes: [], concluidas: [] };
   var buscaPend = '';      // busca na lista de aguardando final
   var proximoNumero = '';  // próximo nº da sequência (o banco é quem manda)
+  // As duas listas nascem FECHADAS: quem abre a tela vem pesar, e o formulário
+  // é o que interessa. O "+" abre a consulta.
+  var abertas = { pend: false, conc: false };
 
   function $(id) { return document.getElementById(id); }
   function toast(msg) { if (EC.app && EC.app.mostrarToast) EC.app.mostrarToast(msg); }
@@ -308,6 +311,17 @@ EC.pesagens = (function () {
     });
   }
 
+  // Título de lista que abre/fecha. Mostra quantos itens há, para dar para
+  // decidir se vale abrir sem precisar abrir.
+  function cabecalhoLista(qual, titulo) {
+    var n = qual === 'pend' ? lista.pendentes.length : Math.min(lista.concluidas.length, 10);
+    return '<p class="grupo-checks-titulo" style="margin-top:22px;">' +
+      '<button type="button" class="psg-abre" data-psg-abre="' + qual + '">' +
+        '<span class="psg-abre-sinal">' + (abertas[qual] ? '−' : '+') + '</span> ' + titulo +
+        (n ? ' <span class="psg-abre-conta">(' + n + ')</span>' : '') +
+      '</button></p>';
+  }
+
   function renderizar() {
     var area = $('pesagens-form');
     if (!area) return;
@@ -338,12 +352,16 @@ EC.pesagens = (function () {
       '</div>' +
       '<button type="button" class="botao" id="psg-salvar-tara" style="width:100%;margin-top:12px;">💾 Salvar tara no SGP</button>' +
 
-      '<p class="grupo-checks-titulo" style="margin-top:22px;">⏳ Aguardando pesagem final</p>' +
-      '<label class="oculto" id="psg-busca-rotulo">Buscar filtro<input type="search" id="psg-busca" value="' + esc(buscaPend) + '" placeholder="🔎 Nº do filtro ou OS" autocomplete="off"></label>' +
-      '<div id="psg-pendentes"><div class="alerta alerta-info">Carregando a lista…</div></div>' +
+      cabecalhoLista('pend', '⏳ Aguardando pesagem final') +
+      '<div id="psg-bloco-pend"' + (abertas.pend ? '' : ' class="oculto"') + '>' +
+        '<label class="oculto" id="psg-busca-rotulo">Buscar filtro<input type="search" id="psg-busca" value="' + esc(buscaPend) + '" placeholder="🔎 Nº do filtro ou OS" autocomplete="off"></label>' +
+        '<div id="psg-pendentes"><div class="alerta alerta-info">Carregando a lista…</div></div>' +
+      '</div>' +
 
-      '<p class="grupo-checks-titulo" style="margin-top:22px;">✅ Últimas 10 concluídas</p>' +
-      '<div id="psg-concluidas"></div>';
+      cabecalhoLista('conc', '✅ Últimas 10 concluídas') +
+      '<div id="psg-bloco-conc"' + (abertas.conc ? '' : ' class="oculto"') + '>' +
+        '<div id="psg-concluidas"></div>' +
+      '</div>';
 
     area.querySelectorAll('[data-psg]').forEach(function (el) {
       var c = el.dataset.psg;
@@ -362,6 +380,17 @@ EC.pesagens = (function () {
         el.addEventListener('change', function () { atribuir(dados, c, el.value); renderizar(); renderizarListas(); });
       }
     });
+    area.querySelectorAll('[data-psg-abre]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var qual = b.getAttribute('data-psg-abre');
+        abertas[qual] = !abertas[qual];
+        var bloco = $(qual === 'pend' ? 'psg-bloco-pend' : 'psg-bloco-conc');
+        if (bloco) bloco.classList.toggle('oculto', !abertas[qual]);
+        var sinal = b.querySelector('.psg-abre-sinal');
+        if (sinal) sinal.textContent = abertas[qual] ? '−' : '+';
+      });
+    });
+
     var busca = $('psg-busca');
     if (busca) busca.addEventListener('input', function () { buscaPend = this.value; renderizarListas(); });
     $('psg-salvar-tara').addEventListener('click', salvarTara);
@@ -425,6 +454,20 @@ EC.pesagens = (function () {
   function renderizarListas() {
     var pend = $('psg-pendentes'), conc = $('psg-concluidas');
     if (!pend || !conc) return;
+
+    // A contagem no título é o que permite decidir se vale abrir a lista.
+    var contas = { pend: lista.pendentes.length, conc: Math.min(lista.concluidas.length, 10) };
+    Object.keys(contas).forEach(function (qual) {
+      var b = document.querySelector('[data-psg-abre="' + qual + '"]');
+      if (!b) return;
+      var el = b.querySelector('.psg-abre-conta');
+      if (!el && contas[qual]) {
+        el = document.createElement('span');
+        el.className = 'psg-abre-conta';
+        b.appendChild(el);
+      }
+      if (el) el.textContent = contas[qual] ? ' (' + contas[qual] + ')' : '';
+    });
 
     var rotBusca = $('psg-busca-rotulo');
     if (rotBusca) rotBusca.classList.toggle('oculto', lista.pendentes.length <= 8);
