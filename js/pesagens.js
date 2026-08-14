@@ -35,6 +35,7 @@ EC.pesagens = (function () {
   var finalAberto = null;  // id da pesagem cujo formulário final está aberto
   var lista = { pendentes: [], concluidas: [] };
   var buscaPend = '';      // busca na lista de aguardando final
+  var proximoNumero = '';  // próximo nº da sequência (o banco é quem manda)
 
   function $(id) { return document.getElementById(id); }
   function toast(msg) { if (EC.app && EC.app.mostrarToast) EC.app.mostrarToast(msg); }
@@ -162,6 +163,19 @@ EC.pesagens = (function () {
     if (h < 0) return 'A 2ª pesagem ' + rotulo + ' está antes da 1ª — confira as datas.';
     if (h + 1e-9 < INTERVALO_MIN_H) return '⏱️ Intervalo de ' + fmtHoras(h) + ' h entre as pesagens ' + rotulo + ' — é exigido no mínimo 4 h.';
     return '';
+  }
+
+  // Pergunta ao servidor qual será o próximo número (só espia, não reserva).
+  async function carregarProximo() {
+    try {
+      var r = await fetch(BASE + '/pesagens?apenas=proximo', { headers: await cabecalhos() });
+      var c = await r.json();
+      if (c && c.ok && c.proximo) {
+        proximoNumero = c.proximo;
+        var el = $('psg-proximo');
+        if (el) el.value = proximoNumero;
+      }
+    } catch (e) { /* offline: o servidor numera na hora de salvar */ }
   }
 
   async function cabecalhos() {
@@ -311,7 +325,10 @@ EC.pesagens = (function () {
       '<p class="texto-apoio">O filtro é pesado <strong>por número</strong>, sem OS — o vínculo com o serviço nasce na coleta, quando o técnico usa o filtro. Estabilize (~24 h), faça a 1ª pesagem e confirme com a 2ª (~4 h depois). Com tara e final, o SGP calcula a concentração em <strong>Serviços → Particulados</strong>.</p>' +
 
       '<p class="grupo-checks-titulo">➕ Tara (filtro limpo)</p>' +
-      '<label>Nº do filtro<input type="text" data-psg="numero" autocomplete="off" value="' + esc(dados.numero || '') + '" placeholder="ex.: 181"></label>' +
+      // O número NÃO é digitado: vem da sequência do banco, a mesma que o SGP
+      // usa (migração 0221). Só leitura, para não haver dois donos da régua.
+      '<label>Nº do filtro<input type="text" id="psg-proximo" readonly value="' +
+        esc(proximoNumero || 'buscando…') + '" title="Numeração automática, igual à do SGP"></label>' +
       htmlSerie('data-psg', CHAVES_TARA, dados, 'Início da estabilização') +
       '<div class="grade-2">' +
       '</div>' +
@@ -505,8 +522,7 @@ EC.pesagens = (function () {
 
   async function salvarTara() {
     var btn = $('psg-salvar-tara');
-    var numero = String(dados.numero || '').trim();
-    if (!numero) { toast('Informe o número do filtro.'); return; }
+    // Sem número: quem numera é o banco (sequência única com o SGP).
     var serieT = serieDe(dados, CHAVES_TARA);
     var erro = erroSerie('da tara', serieT);
     if (erro) { toast(erro); return; }
@@ -524,7 +540,7 @@ EC.pesagens = (function () {
         body: JSON.stringify({
           acao: 'tara',
           pesagem: {
-            numero_filtro: numero,
+            numero_filtro: '',
             tara_estab_inicio: dados.testab || null,
             tara_serie: seriePayload(serieT),
             balanca: dados.balanca || '',
@@ -535,10 +551,13 @@ EC.pesagens = (function () {
       var corpo = await resp.json().catch(function () { return {}; });
       if (!resp.ok || !corpo.ok) throw new Error(corpo.erro || ('HTTP ' + resp.status));
       if (dados.balanca) EC.storage.salvar(CHAVE_BALANCA, String(dados.balanca).trim());
-      toast('✅ Tara do filtro ' + numero + ' salva — oficial ' + fmtG(corpo.tara_oficial) + '.');
+      // O número quem deu foi o banco: avisa qual filtro nasceu.
+      toast('✅ Tara do filtro ' + (corpo.numero_filtro || '') + ' salva — oficial ' + fmtG(corpo.tara_oficial) + '.');
       dados = { _novo: true };
-      renderizar();     // limpa o formulário
-      carregarLista();  // o filtro aparece em "Aguardando pesagem final"
+      proximoNumero = '';
+      renderizar();      // limpa o formulário
+      carregarProximo(); // já mostra o número do PRÓXIMO filtro
+      carregarLista();   // o filtro aparece em "Aguardando pesagem final"
     } catch (e) {
       toast('🛑 Não salvou: ' + (e && e.message ? e.message : e));
     } finally {
@@ -596,8 +615,10 @@ EC.pesagens = (function () {
   function abrir() {
     dados = { _novo: true };
     buscaPend = '';
+    proximoNumero = '';
     EC.app.mostrarTela('tela-pesagens');
     renderizar();
+    carregarProximo();
     carregarLista();
   }
 
