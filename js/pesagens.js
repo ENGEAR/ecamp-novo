@@ -93,6 +93,17 @@ EC.pesagens = (function () {
       if (aoTerminar) aoTerminar();
     });
   }
+  // Ordem dos filtros. O número é TEXTO ('10-26', '613-26', '405-25'), então
+  // comparar como texto colocaria o 10 depois do 9. Aqui vale o NÚMERO; o ano
+  // (o que vem depois do traço) só desempata.
+  function compararFiltro(a, b) {
+    var pa = String(a || '').split('-'), pb = String(b || '').split('-');
+    var na = parseInt(pa[0], 10), nb = parseInt(pb[0], 10);
+    if (isNaN(na)) na = -1;
+    if (isNaN(nb)) nb = -1;
+    if (na !== nb) return na - nb;
+    return String(pa[1] || '').localeCompare(String(pb[1] || ''));
+  }
   function numDe(v) {
     var n = Number(String(v == null ? '' : v).replace(',', '.'));
     return String(v == null ? '' : v).trim() === '' || isNaN(n) ? null : n;
@@ -404,7 +415,7 @@ EC.pesagens = (function () {
     var t = String(buscaPend || '').trim().toLowerCase();
     var pendentes = lista.pendentes.filter(function (p) {
       return !t || (String(p.numero_filtro) + ' ' + String(p.os || '')).toLowerCase().indexOf(t) !== -1;
-    });
+    }).sort(function (a, b) { return -compararFiltro(a.numero_filtro, b.numero_filtro); });
 
     pend.innerHTML = pendentes.length
       ? pendentes.map(itemPendente).join('')
