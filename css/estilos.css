@@ -1611,3 +1611,12 @@ textarea { resize: vertical; font-family: inherit; }
   padding: 0;
 }
 .fab-voltar-campo:active { transform: scale(0.93); }
+
+/* Data/hora curta das pesagens (DD/MM/AA HH:MM): campo de texto com máscara,
+   dimensionado para caber numa linha só mesmo em celular estreito. */
+.psg-datahora {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  min-width: 0;
+  width: 100%;
+}

@@ -47,6 +47,52 @@ EC.pesagens = (function () {
     var s = String(iso || '').slice(0, 10).split('-');
     return s.length === 3 ? s[2] + '/' + s[1] + '/' + s[0] : (iso || '—');
   }
+
+  /* ---- Data/hora no formato curto DD/MM/AA HH:MM ----
+   * O campo nativo (datetime-local) mostra o ano com 4 dígitos e ocupa duas
+   * linhas no celular. Aqui o campo é de TEXTO com máscara: a pessoa digita só
+   * números e o traço/os dois-pontos entram sozinhos. O valor GUARDADO segue
+   * sendo ISO ('AAAA-MM-DDTHH:MM'), que é o que as contas de 24 h/4 h usam. */
+  function isoParaCurto(iso) {
+    var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+    return m ? m[3] + '/' + m[2] + '/' + m[1].slice(2) + ' ' + m[4] + ':' + m[5] : '';
+  }
+  function curtoParaIso(txt) {
+    var d = String(txt || '').replace(/\D/g, '');
+    if (d.length < 10) return '';                 // DDMMAAHHMM = 10 dígitos
+    var dia = d.slice(0, 2), mes = d.slice(2, 4), ano = d.slice(4, 6);
+    var hh = d.slice(6, 8), mm = d.slice(8, 10);
+    if (+dia < 1 || +dia > 31 || +mes < 1 || +mes > 12 || +hh > 23 || +mm > 59) return '';
+    return '20' + ano + '-' + mes + '-' + dia + 'T' + hh + ':' + mm;
+  }
+  // Vai formatando enquanto digita: 1302 → "13/02", 130226143 → "13/02/26 14:3"
+  function mascararDataHora(txt) {
+    var d = String(txt || '').replace(/\D/g, '').slice(0, 10);
+    var s = d.slice(0, 2);
+    if (d.length > 2) s += '/' + d.slice(2, 4);
+    if (d.length > 4) s += '/' + d.slice(4, 6);
+    if (d.length > 6) s += ' ' + d.slice(6, 8);
+    if (d.length > 8) s += ':' + d.slice(8, 10);
+    return s;
+  }
+  // Campo de data/hora pronto (curto, cabe em uma linha).
+  function inputDataHora(attr, chave, iso, extra) {
+    return '<input type="text" inputmode="numeric" maxlength="14" class="psg-datahora"' +
+      ' placeholder="DD/MM/AA HH:MM" ' + attr + '="' + chave + '"' +
+      ' data-datahora="1" value="' + esc(isoParaCurto(iso)) + '"' + (extra || '') + '>';
+  }
+  // Liga a máscara e converte para ISO ao guardar. `guardar(valorIso)` é quem
+  // grava no formulário; `aoTerminar` roda no blur (avisos de 24 h/4 h).
+  function ligarDataHora(el, guardar, aoTerminar) {
+    el.addEventListener('input', function () {
+      el.value = mascararDataHora(el.value);
+      guardar(curtoParaIso(el.value));
+    });
+    el.addEventListener('change', function () {
+      guardar(curtoParaIso(el.value));
+      if (aoTerminar) aoTerminar();
+    });
+  }
   function numDe(v) {
     var n = Number(String(v == null ? '' : v).replace(',', '.'));
     return String(v == null ? '' : v).trim() === '' || isNaN(n) ? null : n;
@@ -72,16 +118,16 @@ EC.pesagens = (function () {
     var h = horasEstab(estab, pesagem);
     if (h === null) return '';
     if (h < 0) return '<div class="alerta alerta-vermelho">⚠️ A pesagem está <strong>antes</strong> do início da estabilização — confira as datas.</div>';
-    if (h < ESTAB_MIN_H) return '<div class="alerta alerta-vermelho">⏱️ Estabilização de <strong>' + fmtHoras(h) + ' h</strong> — o F053 exige no mínimo <strong>24 h</strong> entre o início da estabilização e a pesagem. Não dá para salvar assim.</div>';
+    if (h < ESTAB_MIN_H) return '<div class="alerta alerta-vermelho">⏱️ Estabilização de <strong>' + fmtHoras(h) + ' h</strong> — é exigido no mínimo <strong>24 h</strong> entre o início da estabilização e a pesagem. Não dá para salvar assim.</div>';
     return '<div class="alerta alerta-verde">✅ Estabilização de ' + fmtHoras(h) + ' h (mínimo de 24 h atendido).</div>';
   }
   // Trava do salvar: devolve a mensagem de erro, ou '' quando pode salvar.
   function erroEstab(estab, pesagem, rotulo) {
-    if (!estab) return 'Informe o início da estabilização ' + rotulo + ' — o F053 exige no mínimo 24 h antes da pesagem.';
+    if (!estab) return 'Informe o início da estabilização ' + rotulo + ' — é exigido no mínimo 24 h antes da pesagem.';
     var h = horasEstab(estab, pesagem);
     if (h === null) return '';
     if (h < 0) return 'A pesagem ' + rotulo + ' está antes do início da estabilização — confira as datas.';
-    if (h < ESTAB_MIN_H) return '⏱️ Estabilização ' + rotulo + ' de ' + fmtHoras(h) + ' h — o F053 exige no mínimo 24 h.';
+    if (h < ESTAB_MIN_H) return '⏱️ Estabilização ' + rotulo + ' de ' + fmtHoras(h) + ' h — é exigido no mínimo 24 h.';
     return '';
   }
 
@@ -95,7 +141,7 @@ EC.pesagens = (function () {
     var h = horasEstab(p1em, p2em);
     if (h === null) return '';
     if (h < 0) return '<div class="alerta alerta-vermelho">⚠️ A 2ª pesagem está <strong>antes</strong> da 1ª — confira as datas.</div>';
-    if (h + 1e-9 < INTERVALO_MIN_H) return '<div class="alerta alerta-vermelho">⏱️ Intervalo de <strong>' + fmtHoras(h) + ' h</strong> desde a 1ª pesagem — a verificação do F053 só pode ser feita após <strong>4 h</strong>. O peso da 2ª fica travado até lá.</div>';
+    if (h + 1e-9 < INTERVALO_MIN_H) return '<div class="alerta alerta-vermelho">⏱️ Intervalo de <strong>' + fmtHoras(h) + ' h</strong> desde a 1ª pesagem — a verificação só pode ser feita após <strong>4 h</strong>. O peso da 2ª fica travado até lá.</div>';
     return '<div class="alerta alerta-verde">✅ Intervalo de ' + fmtHoras(h) + ' h entre as pesagens (mínimo de 4 h atendido).</div>';
   }
   function erroIntervalo(p1em, p2em, rotulo) {
@@ -103,7 +149,7 @@ EC.pesagens = (function () {
     var h = horasEstab(p1em, p2em);
     if (h === null) return '';
     if (h < 0) return 'A 2ª pesagem ' + rotulo + ' está antes da 1ª — confira as datas.';
-    if (h + 1e-9 < INTERVALO_MIN_H) return '⏱️ Intervalo de ' + fmtHoras(h) + ' h entre as pesagens ' + rotulo + ' — o F053 exige no mínimo 4 h.';
+    if (h + 1e-9 < INTERVALO_MIN_H) return '⏱️ Intervalo de ' + fmtHoras(h) + ' h entre as pesagens ' + rotulo + ' — é exigido no mínimo 4 h.';
     return '';
   }
 
@@ -150,12 +196,14 @@ EC.pesagens = (function () {
     ajustarSerie(serie);
     var pode2 = intervaloOk(serie[0].em, serie[1].em);
     function campoData(chave, valor) {
-      return '<input type="datetime-local" ' + attr + '="' + chave + '" value="' + esc(valor || '') + '">';
+      return inputDataHora(attr, chave, valor);
     }
     function campoDe(i, campo, extra) {
-      var tipo = campo === 'em' ? 'datetime-local' : 'number';
-      var passo = campo === 'g' ? ' step="0.0001" placeholder="4 casas — ex.: 2,5860"' : (campo === 'em' ? '' : ' step="0.1"');
-      return '<input type="' + tipo + '"' + (tipo === 'number' ? passo + ' inputmode="decimal"' : '') +
+      if (campo === 'em') {
+        return inputDataHora(attr, k.serie + '.' + i + '.' + campo, serie[i][campo], extra);
+      }
+      var passo = campo === 'g' ? ' step="0.0001" placeholder="4 casas — ex.: 2,5860"' : ' step="0.1"';
+      return '<input type="number"' + passo + ' inputmode="decimal"' +
         ' ' + attr + '="' + k.serie + '.' + i + '.' + campo + '" value="' + esc(serie[i][campo] || '') + '"' + (extra || '') + '>';
     }
     var html = '<label>' + rotuloEstab + campoData(k.estab, alvo[k.estab]) + '</label>';
@@ -183,7 +231,7 @@ EC.pesagens = (function () {
     var ua = numDe(serie[n - 2].g), ub = numDe(serie[n - 1].g);
     if (ua != null && ub != null) {
       html += Math.abs(ua - ub) > VARIACAO_MAX
-        ? '<div class="alerta alerta-amarelo">⚠️ A ' + ord(n - 1) + ' pesagem variou mais que 0,0005 g da anterior — o F053 exige a <strong>' + ord(n) + '</strong>.</div>'
+        ? '<div class="alerta alerta-amarelo">⚠️ A ' + ord(n - 1) + ' pesagem variou mais que 0,0005 g da anterior — é exigida a <strong>' + ord(n) + '</strong>.</div>'
         : '<div class="alerta alerta-verde">✅ ' + ord(n - 2) + ' e ' + ord(n - 1) + ' pesagens conferem — série fechada, oficial ' + fmtG(ub) + '.</div>';
     }
     // 4 casas: aponta na hora o peso digitado errado.
@@ -266,16 +314,23 @@ EC.pesagens = (function () {
       '<label class="oculto" id="psg-busca-rotulo">Buscar filtro<input type="search" id="psg-busca" value="' + esc(buscaPend) + '" placeholder="🔎 Nº do filtro ou OS" autocomplete="off"></label>' +
       '<div id="psg-pendentes"><div class="alerta alerta-info">Carregando a lista…</div></div>' +
 
-      '<p class="grupo-checks-titulo" style="margin-top:22px;">✅ Últimas concluídas</p>' +
+      '<p class="grupo-checks-titulo" style="margin-top:22px;">✅ Últimas 10 concluídas</p>' +
       '<div id="psg-concluidas"></div>';
 
     area.querySelectorAll('[data-psg]').forEach(function (el) {
       var c = el.dataset.psg;
+      // Os avisos (série/variação, 24 h e 4 h) atualizam no CHANGE (ao sair do
+      // campo) — re-renderizar a cada tecla roubaria o foco.
+      var recalcula = (c === 'testab' || c.indexOf('tserie.') === 0);
+      if (el.dataset.datahora) {
+        atribuir(dados, c, curtoParaIso(el.value));
+        ligarDataHora(el, function (iso) { atribuir(dados, c, iso); },
+          recalcula ? function () { renderizar(); renderizarListas(); } : null);
+        return;
+      }
       dados[c] = el.value;
       el.addEventListener('input', function () { atribuir(dados, c, el.value); });
-      // Os avisos (série/variação, 24 h e 4 h) atualizam no CHANGE (ao sair do
-      // campo/fechar o seletor) — re-renderizar a cada tecla roubaria o foco.
-      if (c === 'testab' || c.indexOf('tserie.') === 0) {
+      if (recalcula) {
         el.addEventListener('change', function () { atribuir(dados, c, el.value); renderizar(); renderizarListas(); });
       }
     });
@@ -356,7 +411,9 @@ EC.pesagens = (function () {
       : '<div class="alerta alerta-info">' + (t ? 'Nenhum filtro encontrado para essa busca.' : 'Nenhum filtro aguardando pesagem final.') + '</div>';
 
     conc.innerHTML = lista.concluidas.length
-      ? lista.concluidas.map(function (p) {
+      // .slice(10): o servidor já manda 10, mas um app com cache antigo pode
+      // ter guardado 30 — a tela mostra 10 de qualquer jeito.
+      ? lista.concluidas.slice(0, 10).map(function (p) {
           var massa = (p.final_g != null && p.tara_g != null) ? (Number(p.final_g) - Number(p.tara_g)) : null;
           return '<div style="border:1px solid #e2e6ef;border-radius:10px;padding:8px 12px;margin-bottom:6px;background:#f7f9fc;font-size:0.9rem;">' +
             '<strong>Filtro ' + esc(p.numero_filtro) + '</strong>' +
@@ -378,10 +435,17 @@ EC.pesagens = (function () {
     });
     pend.querySelectorAll('[data-psgf]').forEach(function (el) {
       var c = el.dataset.psgf;
+      // Avisos no CHANGE, pelo mesmo motivo do formulário da tara (foco).
+      var recalcula = (c === 'festab' || c.indexOf('fserie.') === 0);
+      if (el.dataset.datahora) {
+        atribuir(dadosFinal, c, curtoParaIso(el.value));
+        ligarDataHora(el, function (iso) { atribuir(dadosFinal, c, iso); },
+          recalcula ? function () { renderizarListas(); } : null);
+        return;
+      }
       dadosFinal[c] = el.value;
       el.addEventListener('input', function () { atribuir(dadosFinal, c, el.value); });
-      // Avisos no CHANGE, pelo mesmo motivo do formulário da tara (foco).
-      if (c === 'festab' || c.indexOf('fserie.') === 0) {
+      if (recalcula) {
         el.addEventListener('change', function () { atribuir(dadosFinal, c, el.value); renderizarListas(); });
       }
     });
