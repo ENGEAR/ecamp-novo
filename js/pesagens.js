@@ -415,7 +415,14 @@ EC.pesagens = (function () {
     var t = String(buscaPend || '').trim().toLowerCase();
     var pendentes = lista.pendentes.filter(function (p) {
       return !t || (String(p.numero_filtro) + ' ' + String(p.os || '')).toLowerCase().indexOf(t) !== -1;
-    }).sort(function (a, b) { return -compararFiltro(a.numero_filtro, b.numero_filtro); });
+    // Do mais recente para o mais antigo: manda a data da tara (quando foi
+    // preenchido) e, dentro do mesmo dia, o filtro de maior número — que é o
+    // último a ter sido lançado.
+    }).sort(function (a, b) {
+      var da = String(a.tara_data || ''), db = String(b.tara_data || '');
+      if (da !== db) return db.localeCompare(da);
+      return -compararFiltro(a.numero_filtro, b.numero_filtro);
+    });
 
     pend.innerHTML = pendentes.length
       ? pendentes.map(itemPendente).join('')
