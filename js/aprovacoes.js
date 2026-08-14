@@ -1154,6 +1154,22 @@ EC.aprovacoes = (function () {
     return bytes;
   }
 
+  // Pede ao SGP o "Extrato da solicitação" em PDF (o histórico das parcelas
+  // daquele valor) e o anexa no pagamento. Mesma porta das outras rotas.
+  var BASE_SGP = 'https://engear-sgp.vercel.app/api/monitoramento';
+  var TOKEN_SGP = '1488d0e2eece92e0796951cb693a4689c95cad0193e91ad2';
+  async function gerarComprovante(solicitacaoId) {
+    var h = { 'Content-Type': 'application/json', 'x-ecamp-token': TOKEN_SGP };
+    try {
+      var t = (EC.auth && EC.auth.tokenValido) ? await EC.auth.tokenValido() : '';
+      if (t) h['Authorization'] = 'Bearer ' + t;
+    } catch (e) { /* sem sessão */ }
+    var r = await fetch(BASE_SGP + '/logistica-comprovante', {
+      method: 'POST', headers: h, body: JSON.stringify({ solicitacaoId: solicitacaoId })
+    });
+    return await r.json().catch(function () { return { ok: false, erro: 'resposta inválida' }; });
+  }
+
   async function registrarPagamento() {
     var s = detalheAtual;
     if (!s) return;
@@ -1164,7 +1180,8 @@ EC.aprovacoes = (function () {
     if (!data) return mostrarErro('Informe a data do pagamento.');
     if (!forma) return mostrarErro('Escolha a forma de pagamento.');
     if (!banco) return mostrarErro('Escolha o banco de saída.');
-    if (!comprovantes.length) return mostrarErro('Anexe o comprovante do pagamento (foto ou PDF).');
+    // O anexo manual é OPCIONAL desde 2026-08-14: o comprovante oficial é o
+    // extrato da solicitação, que o SGP gera e anexa sozinho.
     var cli = sb();
     if (!cli) return mostrarErro('Sem conexão — abra com internet para registrar o pagamento.');
     mostrarErro(null);
@@ -1190,7 +1207,15 @@ EC.aprovacoes = (function () {
         toast('Este pagamento já foi registrado por outra pessoa.');
       } else {
         try { await cli.from('logistica_eventos').insert({ solicitacao_id: s.id, acao: 'pagou', detalhe: forma + ' (' + banco + ') em ' + data, por_nome: sessao().nome || null }); } catch (e) { /* best-effort */ }
-        toast('💰 Pagamento registrado! Solicitação concluída.');
+        // Comprovante oficial: o extrato da solicitação, gerado e anexado
+        // pelo SGP. Falhar aqui NÃO desfaz o pagamento — a pessoa
+        // continua podendo anexar à mão.
+        var avisoComp = '';
+        try {
+          var rc = await gerarComprovante(s.id);
+          if (!rc.ok) avisoComp = ' (o comprovante automático falhou: ' + (rc.erro || 'erro') + ')';
+        } catch (e) { avisoComp = ' (o comprovante automático falhou)'; }
+        toast('💰 Pagamento registrado! Solicitação concluída.' + avisoComp);
       }
       EC.app.mostrarTela('tela-aprovacoes');
       pintarLista(); atualizarBadge();
