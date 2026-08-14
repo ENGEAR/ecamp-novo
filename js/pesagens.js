@@ -36,6 +36,7 @@ EC.pesagens = (function () {
   var lista = { pendentes: [], concluidas: [] };
   var buscaPend = '';      // busca na lista de aguardando final
   var proximoNumero = '';  // próximo nº da sequência (o banco é quem manda)
+  var tecnicos = [];       // quem pode pesar (mesma lista do SGP)
   // As duas listas nascem FECHADAS: quem abre a tela vem pesar, e o formulário
   // é o que interessa. O "+" abre a consulta.
   var abertas = { pend: false, conc: false };
@@ -179,6 +180,28 @@ EC.pesagens = (function () {
         if (el) el.value = proximoNumero;
       }
     } catch (e) { /* offline: o servidor numera na hora de salvar */ }
+  }
+
+  // Quem pode pesar, direto do servidor — o nome deixa de ser digitado.
+  async function carregarTecnicos() {
+    try {
+      var r = await fetch(BASE + '/pesagens?apenas=tecnicos', { headers: await cabecalhos() });
+      var c = await r.json();
+      if (c && c.ok && Array.isArray(c.tecnicos)) {
+        tecnicos = c.tecnicos;
+        var el = $('psg-tecnico');
+        if (el) el.innerHTML = opcoesTecnico(dados.tecnico);
+      }
+    } catch (e) { /* offline: fica com o nome da sessão */ }
+  }
+  // <option>s do campo Técnico. Nome fora da lista (registro antigo) continua
+  // aparecendo, para a edição não apagá-lo sem querer.
+  function opcoesTecnico(atual) {
+    var lista = tecnicos.slice();
+    if (atual && lista.indexOf(atual) === -1) lista.unshift(atual);
+    return '<option value="">— selecione —</option>' + lista.map(function (n) {
+      return '<option value="' + esc(n) + '"' + (n === atual ? ' selected' : '') + '>' + esc(n) + '</option>';
+    }).join('');
   }
 
   async function cabecalhos() {
@@ -348,7 +371,7 @@ EC.pesagens = (function () {
       '</div>' +
       '<div class="grade-2">' +
       '<label>Balança<input type="text" data-psg="balanca" value="' + esc(dados.balanca) + '"></label>' +
-      '<label>Técnico<input type="text" data-psg="tecnico" value="' + esc(dados.tecnico) + '"></label>' +
+      '<label>Técnico<select id="psg-tecnico" data-psg="tecnico">' + opcoesTecnico(dados.tecnico) + '</select></label>' +
       '</div>' +
       '<button type="button" class="botao" id="psg-salvar-tara" style="width:100%;margin-top:12px;">💾 Salvar tara no SGP</button>' +
 
@@ -662,6 +685,7 @@ EC.pesagens = (function () {
     EC.app.mostrarTela('tela-pesagens');
     renderizar();
     carregarProximo();
+    carregarTecnicos();
     carregarLista();
   }
 
