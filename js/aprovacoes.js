@@ -1214,7 +1214,7 @@ EC.aprovacoes = (function () {
       // 1) sobe os comprovantes no bucket (bloco 'pagamento')
       for (var i = 0; i < comprovantes.length; i++) {
         var c = comprovantes[i];
-        var caminho = s.os + '/' + s.codigo + '/pagamento/' + c.nomeArquivo;
+        var caminho = EC.reembolso.caminhoAnexo(s, 'pagamento', c.nomeArquivo);
         var up = await cli.storage.from('logistica').upload(caminho, b64ParaBytes(c.base64), { contentType: c.mime, upsert: true });
         if (up.error) throw up.error;
         await cli.from('logistica_anexos').insert({ solicitacao_id: s.id, bloco: 'pagamento', arquivo: c.nomeArquivo, url: caminho, mime: c.mime });

@@ -99,6 +99,29 @@ EC.reembolso = (function () {
   // Nº da campanha de uma solicitação, venha ela do servidor (campanha_numero)
   // ou da fila do aparelho, ainda não enviada (campanha). '' quando não tem —
   // caso do "Outros gastos" avulso, que não é ligado a OS nem a campanha.
+  /* ---- Onde mora cada anexo no bucket `logistica` ----
+     A regra é UMA SÓ, e a gêmea no servidor é src/lib/logistica/caminho-anexo.ts
+     (mudou aqui, mude lá). Ela estava copiada em quatro lugares e, como "Outros
+     gastos" avulso não tem OS, três cópias escreviam a pasta literal "null/".
+     Formato: <os ou "sem-os">/<código>/<bloco>/<arquivo> */
+  function pedacoCaminho(v, rotulo) {
+    var t = String(v == null ? '' : v).trim();
+    if (!t || t === 'null' || t === 'undefined') {
+      throw new Error('Não consigo montar o caminho do anexo: ' + rotulo + ' vazio.');
+    }
+    return t.replace(/[/\\]+/g, '_').replace(/\.{2,}/g, '_');
+  }
+
+  function caminhoAnexo(solic, bloco, arquivo) {
+    var os = String((solic && solic.os) == null ? '' : solic.os).trim();
+    return [
+      os && os !== 'null' ? pedacoCaminho(os, 'OS') : 'sem-os',
+      pedacoCaminho(solic && solic.codigo, 'código da solicitação'),
+      pedacoCaminho(bloco, 'bloco'),
+      pedacoCaminho(arquivo, 'nome do arquivo')
+    ].join('/');
+  }
+
   function campanhaDe(p) {
     var n = p.campanha_numero != null && p.campanha_numero !== '' ? p.campanha_numero : p.campanha;
     return n == null || n === '' ? '' : n;
@@ -3593,7 +3616,7 @@ EC.reembolso = (function () {
         for (var i = 0; i < aEnviar.length; i++) {
           var file = aEnviar[i];
           var nome = (file.name || ('adiantamento_' + new Date().getTime() + '_' + i + '.jpg')).replace(/[^\w.\-()À-ſ ]+/g, '_');
-          var caminho = p.os + '/' + p.codigo + '/adiantamento/' + new Date().getTime() + '_' + i + '_' + nome;
+          var caminho = caminhoAnexo(p, 'adiantamento', new Date().getTime() + '_' + i + '_' + nome);
           var up = await cli.storage.from('logistica').upload(caminho, file, { contentType: file.type || 'application/octet-stream', upsert: true });
           if (up.error) throw up.error;
           var ins = await cli.from('logistica_anexos').insert({ solicitacao_id: p.id, bloco: 'adiantamento', arquivo: nome, url: caminho, mime: file.type || null });
@@ -4325,6 +4348,7 @@ EC.reembolso = (function () {
   return {
     abrir: abrir,
     abrirMenu: abrirMenu,
+    caminhoAnexo: caminhoAnexo,
     extratoGeral: extratoGeral,
     verificarPagamentos: verificarPagamentos,
     abrirPagosSino: abrirPagosSino,
