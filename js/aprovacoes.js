@@ -1050,7 +1050,7 @@ EC.aprovacoes = (function () {
       montarAjusteEditor(s);
       bLog.classList.remove('oculto');
     } else if (s.status === 'aguardando_pagamento' && ehFinanceiro()) {
-      $('pag-data').value = hojeISO();
+      $('pag-data').value = hojeBR();
       $('pag-forma').value = '';
       $('pag-banco').value = '';
       pagUploader = criarUploadComprovante($('pag-anexos'));
@@ -1058,10 +1058,31 @@ EC.aprovacoes = (function () {
     }
   }
 
-  function hojeISO() {
+  /* ---- Data do pagamento em DD/MM/AAAA ----
+     Era <input type="date">, que mostra no formato do NAVEGADOR — em máquina
+     com idioma inglês aparecia MM/DD/AAAA. Agora é texto com máscara, no
+     formato do papel; para o banco continua indo AAAA-MM-DD. */
+  function hojeBR() {
     var d = new Date();
     function dois(n) { return n < 10 ? '0' + n : '' + n; }
-    return d.getFullYear() + '-' + dois(d.getMonth() + 1) + '-' + dois(d.getDate());
+    return dois(d.getDate()) + '/' + dois(d.getMonth() + 1) + '/' + d.getFullYear();
+  }
+
+  function mascararData(txt) {
+    var d = String(txt || '').replace(/\D/g, '').slice(0, 8);
+    if (d.length <= 2) return d;
+    if (d.length <= 4) return d.slice(0, 2) + '/' + d.slice(2);
+    return d.slice(0, 2) + '/' + d.slice(2, 4) + '/' + d.slice(4);
+  }
+
+  // DD/MM/AAAA -> AAAA-MM-DD; devolve null se a data não existe (31/02, por ex.).
+  function dataParaISO(br) {
+    var m = String(br || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!m) return null;
+    var dia = Number(m[1]), mes = Number(m[2]), ano = Number(m[3]);
+    var d = new Date(ano, mes - 1, dia);
+    if (d.getFullYear() !== ano || d.getMonth() !== mes - 1 || d.getDate() !== dia) return null;
+    return m[3] + '-' + m[2] + '-' + m[1];
   }
 
   /* ============ Comprovante do pagamento (foto/galeria/PDF) ============ */
@@ -1173,11 +1194,11 @@ EC.aprovacoes = (function () {
   async function registrarPagamento() {
     var s = detalheAtual;
     if (!s) return;
-    var data = $('pag-data').value;
+    var data = dataParaISO($('pag-data').value);
     var forma = $('pag-forma').value;
     var banco = $('pag-banco').value;
     var comprovantes = pagUploader ? pagUploader.obter() : [];
-    if (!data) return mostrarErro('Informe a data do pagamento.');
+    if (!data) return mostrarErro('Informe a data do pagamento no formato DD/MM/AAAA.');
     if (!forma) return mostrarErro('Escolha a forma de pagamento.');
     if (!banco) return mostrarErro('Escolha o banco de saída.');
     // O anexo manual é OPCIONAL desde 2026-08-14: o comprovante oficial é o
@@ -1236,6 +1257,7 @@ EC.aprovacoes = (function () {
     $('apr-aprovar').addEventListener('click', function () { decidir('aguardando_pagamento'); });
     $('apr-correcao').addEventListener('click', function () { decidir('correcao'); });
     $('apr-rejeitar').addEventListener('click', function () { decidir('rejeitado'); });
+    $('pag-data').addEventListener('input', function () { this.value = mascararData(this.value); });
     $('pag-registrar').addEventListener('click', registrarPagamento);
   }
 
