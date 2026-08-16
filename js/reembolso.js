@@ -127,6 +127,19 @@ EC.reembolso = (function () {
     return n == null || n === '' ? '' : n;
   }
 
+  /* ---- Quanto ainda dá para pedir nesta campanha ----
+     O teto anda em CICLOS de 100%: a 1ª viagem consome 0→100 e cada "nova
+     viagem" abre outro ciclo (100→200, …). O que resta é o que falta para
+     fechar o ciclo ATUAL — 100 − total daria NEGATIVO em 150% e escondia o
+     saldo pendente (caso do Edgar na OS 26040, 2026-08-16).
+     Gêmea da conta do servidor em /api/logistica/saldo: mudou aqui, mude lá. */
+  function dispDoCiclo(consumido) {
+    var ja = Number(consumido) || 0;
+    var resto = Math.round((ja % 100) * 100) / 100;
+    var cicloFechado = ja >= 99.99 && (resto <= 0.01 || resto >= 99.99);
+    return cicloFechado ? 0 : Math.round((100 - resto) * 100) / 100;
+  }
+
   function moedaBR(v) { return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
   // Formata "AAAA-MM-DD" ou um TIMESTAMP (ex.: created_at) em DD/MM/AAAA. Datas
   // puras (sem hora) vão direto; timestamps são convertidos para o horário de
@@ -921,10 +934,6 @@ EC.reembolso = (function () {
     var d = new Date(); function pz(n) { return (n < 10 ? '0' : '') + n; }
     return d.getFullYear() + '-' + pz(d.getMonth() + 1) + '-' + pz(d.getDate());
   }
-  // Teto do percentual: SEMPRE 100% — pode solicitar qualquer valor a qualquer
-  // momento, até somar 100% da logística por designado (sem trava de data).
-  function tetoPercentual() { return 100; }
-
   // Adiantamento de pagamento (opcional): descontado do valor solicitado.
   function adiantamentoAtivo() {
     var m = document.querySelector('input[name="rb-adiant"]:checked');
@@ -1505,9 +1514,8 @@ EC.reembolso = (function () {
       var t = campSel.tecnicos.filter(function (x) { return x.nome === tecSel.nome; })[0];
       ja = t ? (Number(t.jaSolicitado) || 0) : 0;
     }
-    // Disponível = 100% − o que este designado já solicitou (sem trava de data).
-    var teto = tetoPercentual(); // sempre 100
-    dispCampanha = tecSel ? Math.max(0, Math.round((teto - ja) * 100) / 100) : 100;
+    // Disponível = o que falta para fechar o CICLO atual (ver dispDoCiclo).
+    dispCampanha = tecSel ? dispDoCiclo(ja) : 100;
     // Ciclo atual (novas viagens consomem o limite: 100 → 200 → …): o resto diz
     // se o ciclo está completo (pergunta) ou no meio (saldo pendente).
     jaCampanha = tecSel ? Math.round(ja * 100) / 100 : 0;
@@ -3737,7 +3745,7 @@ EC.reembolso = (function () {
     var out = [];
     Object.keys(grupos).forEach(function (k) {
       var g = grupos[k];
-      var disp = Math.round((100 - g.jaConsumido) * 100) / 100;
+      var disp = dispDoCiclo(g.jaConsumido);
       if (g.aprovada && disp > 0) out.push({ os: g.os, campanha: g.campanha, cliente: g.cliente, template: g.aprovada, jaConsumido: g.jaConsumido, disponivel: disp });
     });
     return out;
@@ -3758,7 +3766,9 @@ EC.reembolso = (function () {
     if (!cli) return saldosGeraisCache; // offline: mantém o último carregado
     try {
       var q = await cli.from('logistica_solicitacoes').select('*')
-        .eq('tipo', 'viagem') // saldo só existe na viagem
+        // Saldo existe na viagem E no serviço sem hospedagem — os dois dividem
+        // o mesmo 100% (é o que o servidor faz em /api/logistica/saldo).
+        .in('tipo', ['viagem', TIPO_SEM_HOSP])
         .in('status', ['aguardando_logistica', 'aguardando_pagamento', 'pago'])
         .order('created_at', { ascending: false });
       if (q.error) throw q.error;
@@ -3773,7 +3783,7 @@ EC.reembolso = (function () {
       var out = [];
       Object.keys(grupos).forEach(function (k) {
         var g = grupos[k];
-        var disp = Math.round((100 - g.consumido) * 100) / 100;
+        var disp = dispDoCiclo(g.consumido);
         if (g.aprovada && disp > 0) out.push({ os: g.os, campanha: g.campanha, cliente: g.cliente, designado: g.designado, template: g.aprovada, jaConsumido: Math.round(g.consumido * 100) / 100, disponivel: disp });
       });
       out.sort(function (a, b) { return String(a.os).localeCompare(String(b.os)) || String(a.designado).localeCompare(String(b.designado)); });
