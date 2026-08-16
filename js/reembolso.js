@@ -4016,6 +4016,11 @@ EC.reembolso = (function () {
     EC.app.mostrarTela('tela-reembolso-menu');
     pintarLista();
     enviarPendentes(true);
+    // O status de OUTRO técnico muda fora do app (a logística aprova e paga no
+    // meio da sessão). Sem esvaziar aqui, o gestor ficava com a foto antiga e o
+    // botão "➕ Complemento" não voltava depois do pagamento — caso do Edgar na
+    // OS 26040 (16/08/2026), em que o cache dizia "ainda tem parcela pendente".
+    cacheDesignado = {};
     atualizarListaDoServidor();
     // O aviso de pagamento no sino NÃO é limpo aqui de propósito: ele só some
     // quando a pessoa realmente abre o aviso pelo sino (🔔). Assim um pagamento
@@ -4350,6 +4355,8 @@ EC.reembolso = (function () {
     EC.app.mostrarTela('tela-reembolso');
     atualizarSaldoBtn();
     enviarPendentes(true);
+    cacheDesignado = {};      // mesma razão do abrirMenu: o pagamento vem de fora
+    atualizarListaDoServidor();
     atualizarContexto();
   }
 
