@@ -1213,10 +1213,27 @@ EC.reembolso = (function () {
       return String(x.os) === String(osSel.numero) && Number(x.campanha_numero) === Number(camp) &&
         pedidoDeViagem(x);
     });
+    // A MAIS RECENTE manda: numa campanha com NOVA VIAGEM, a viagem-base do
+    // complemento é a nova, não a velha (gêmea da regra do servidor em
+    // /api/logistica/enviar — mudou aqui, mude lá).
+    vs = vs.slice().sort(function (a, b) {
+      return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+    });
     return vs.filter(function (x) { return x.status === 'pago' && x.km_atual != null; })[0]
         || vs.filter(function (x) { return x.km_atual != null; })[0]
         || vs.filter(function (x) { return x.status === 'pago'; })[0]
         || vs[0] || null;
+  }
+
+  // Km já reembolsada por complementos ANTERIORES desta campanha: o próximo
+  // complemento não pode cobrar de novo o trecho que aquele já pagou.
+  function kmJaCobrada(rows) {
+    if (!osSel) return 0;
+    var camp = campSel ? campSel.numero : null;
+    return (rows || []).filter(function (x) {
+      return String(x.os) === String(osSel.numero) && Number(x.campanha_numero) === Number(camp) &&
+        x.tipo === 'complemento' && x.status === 'pago' && x.km_final != null;
+    }).reduce(function (m, x) { return Math.max(m, Number(x.km_final) || 0); }, 0);
   }
 
   // Cálculo do COMPLEMENTO por quilometragem (espelho do servidor):
@@ -1228,8 +1245,16 @@ EC.reembolso = (function () {
     var v = compViagem;
     var finalTxt = String($('rb-comp-kmfinal').value).trim();
     var finalKm = finalTxt === '' ? null : parseFloat(finalTxt.replace(',', '.'));
-    var out = { inicial: (v && v.km_atual != null ? Number(v.km_atual) : null), final: finalKm, percorrida: null, efetiva: null, extra: null, valor: 0, ok: false, msg: '', erroKm: false };
-    if (out.inicial != null) out.efetiva = Math.round(((Number(v.distancia_km) || 0) + 5 * (Number(v.dias_servico) || 0)) * 100) / 100;
+    // Trecho que um complemento já pago cobriu: se ele passou da km inicial da
+    // viagem-base, o novo começa onde aquele parou e SEM nova franquia.
+    var jaCobrada = kmJaCobrada(listaEmCache());
+    var kmDaViagem = (v && v.km_atual != null) ? Number(v.km_atual) : null;
+    var recobrando = kmDaViagem != null && jaCobrada > kmDaViagem;
+    var out = { inicial: recobrando ? jaCobrada : kmDaViagem, final: finalKm, percorrida: null, efetiva: null, extra: null, valor: 0, ok: false, msg: '', erroKm: false };
+    if (out.inicial != null) {
+      out.efetiva = recobrando ? 0
+        : Math.round(((Number(v.distancia_km) || 0) + 5 * (Number(v.dias_servico) || 0)) * 100) / 100;
+    }
     // Km é OPCIONAL: em branco → sem complemento por km (a pessoa pode lançar só outros gastos).
     if (finalKm == null) return out;
     // A partir daqui a pessoa digitou uma km final — validamos de verdade (erroKm bloqueia o envio).
