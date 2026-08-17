@@ -3151,7 +3151,10 @@ EC.reembolso = (function () {
     (p.ajustes || []).forEach(function (a) {
       var chave = a.item || a.chave;
       if (!chave) return;
-      var calc = Number(a.valor_calculado != null ? a.valor_calculado : a.valorCalculado) || 0;
+      // Decidido: vale a base do dia da DECISÃO (o item pode ter mudado depois
+      // do pedido). Pendente: vale o que o técnico viu ao pedir.
+      var calc = Number(a.valor_base_decisao != null ? a.valor_base_decisao
+        : (a.valor_calculado != null ? a.valor_calculado : a.valorCalculado)) || 0;
       var prop = Number(a.valor_proposto != null ? a.valor_proposto : a.valorProposto) || 0;
       if (!m[chave]) m[chave] = { delta: 0, calculado: calc, proposto: prop, aprovado: null, justificativas: [] };
       m[chave].delta = Math.round((m[chave].delta + (prop - calc)) * 100) / 100;

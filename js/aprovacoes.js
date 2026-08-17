@@ -84,7 +84,11 @@ EC.aprovacoes = (function () {
    * Logística tenha editado agora) + o delta do ajuste do técnico. É a MESMA
    * conta que o extrato usa para exibir a linha, então os dois nunca discordam.
    */
-  function valorAprovadoDoAjuste(s, camposEditados, ajuste) {
+  // Quanto o item VALE AGORA na solicitação (com o que a Logística acabou de
+  // editar, se editou). É a base do valor aprovado — e o que o extrato precisa
+  // mostrar como "de", senão a linha do item e o ajuste contam histórias
+  // diferentes (caso da OS 26253: linha R$ 166, ajuste "calculado R$ 136").
+  function baseDoAjuste(s, camposEditados, ajuste) {
     var cols = COLUNAS_DO_AJUSTE[ajuste.item] || [];
     var base = 0, superado = false;
     for (var c = 0; c < cols.length; c++) {
@@ -93,11 +97,16 @@ EC.aprovacoes = (function () {
       if (editado != null) superado = true;
       base += Number(editado != null ? editado : s[nome]) || 0;
     }
+    return { base: Math.round(base * 100) / 100, superado: superado };
+  }
+
+  function valorAprovadoDoAjuste(s, camposEditados, ajuste) {
+    var r = baseDoAjuste(s, camposEditados, ajuste);
     // A Logística mexeu neste item: o valor dela é o final (não soma o delta do
     // técnico por cima — era isso que fazia o ajuste contar duas vezes).
-    if (superado) return Math.round(base * 100) / 100;
+    if (r.superado) return r.base;
     var delta = (Number(ajuste.valor_proposto) || 0) - (Number(ajuste.valor_calculado) || 0);
-    return Math.round((base + delta) * 100) / 100;
+    return Math.round((r.base + delta) * 100) / 100;
   }
 
   /**
@@ -127,6 +136,8 @@ EC.aprovacoes = (function () {
         var patch = { status: acao === 'rejeitado' ? 'rejeitado' : 'aprovado' };
         if (acao === 'aguardando_pagamento') {
           patch.valor_aprovado = valorAprovadoDoAjuste(s, camposEditados, a);
+          // A base do dia da decisão: é o "de" que o extrato mostra.
+          patch.valor_base_decisao = baseDoAjuste(s, camposEditados, a).base;
         }
         await cli.from('logistica_ajustes').update(patch).eq('id', a.id);
       }
