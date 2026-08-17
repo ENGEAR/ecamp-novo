@@ -91,12 +91,22 @@
     const rodape = $('rodape');
     if (!rodape) return;
     let escondido = false;
+    let cobertoAnterior = -1;
 
-    function repintar() {
-      if (escondido) return;
+    // MOSTRAR de novo não basta: o iOS guarda a posição fixa antiga e o rodapé
+    // reaparece no meio da tela. O display:none seguido da LEITURA de
+    // offsetHeight obriga o navegador a refazer a conta. E, por garantia, o
+    // rodapé é reancorado no pé da janela VISÍVEL — se o iOS devolver a janela
+    // com um pedaço a menos, o translate corrige a diferença.
+    function recolocar() {
+      rodape.style.transform = '';
       rodape.style.display = 'none';
-      void rodape.offsetHeight; // força o recálculo antes de mostrar de novo
+      void rodape.offsetHeight;   // força o recálculo antes de mostrar
       rodape.style.display = '';
+      const janela = window.visualViewport;
+      if (!janela) return;
+      const sobra = Math.round(window.innerHeight - (janela.height + janela.offsetTop));
+      rodape.style.transform = sobra > 0 ? 'translateY(-' + sobra + 'px)' : '';
     }
 
     const janela = window.visualViewport;
@@ -104,18 +114,29 @@
       const ajustar = function () {
         // Quanto do pé da janela está coberto pelo teclado/seletor.
         const coberto = Math.max(0, window.innerHeight - janela.height - janela.offsetTop);
-        const esconder = coberto > 80;
-        if (esconder === escondido) return;
-        escondido = esconder;
-        rodape.style.display = esconder ? 'none' : '';
+        if (coberto > 80) {            // teclado/seletor aberto: o rodapé sai
+          if (!escondido) { escondido = true; rodape.style.display = 'none'; }
+          cobertoAnterior = coberto;
+          return;
+        }
+        // Só recoloca quando algo mudou de verdade — o evento de scroll da
+        // janela visível dispara muito, e repintar em todos piscaria a tela.
+        if (escondido || coberto !== cobertoAnterior) {
+          escondido = false;
+          cobertoAnterior = coberto;
+          recolocar();
+        }
       };
       janela.addEventListener('resize', ajustar);
       janela.addEventListener('scroll', ajustar);
       ajustar();
     }
-    // Rede de segurança para quem não tem visualViewport (ou quando o seletor
-    // fecha sem avisar): ao sair de um campo, recoloca o rodapé no lugar.
-    document.addEventListener('focusout', function () { setTimeout(repintar, 300); });
+    // Redes de segurança: quem não tem visualViewport, o seletor que fecha sem
+    // avisar e a virada de tela.
+    document.addEventListener('focusout', function () {
+      setTimeout(function () { if (!escondido) recolocar(); }, 300);
+    });
+    window.addEventListener('orientationchange', function () { setTimeout(recolocar, 300); });
   }
 
   /* ============ Aviso de endereço não-oficial ============ */
