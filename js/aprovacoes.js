@@ -574,8 +574,11 @@ EC.aprovacoes = (function () {
            esc(s.destino_cidade || '?') + (s.destino_uf ? '/' + esc(s.destino_uf) : ''))
         : '—';
     }
+    // O consumo entra junto: sem ele não dá para conferir a conta do
+    // combustível (km ÷ km/L × R$/L) sem sair da tela.
     var combTxt = comb
-      ? comb + (s.preco_litro ? ' · ' + moeda(s.preco_litro) + '/L' : '')
+      ? comb + (s.preco_litro ? ' · ' + moeda(s.preco_litro) + '/L' : '') +
+        (s.consumo_kml ? ' · ' + String(s.consumo_kml).replace('.', ',') + ' km/L' : '')
       : 'não informado';
 
     // Caixa verde: valor final solicitado.
