@@ -579,6 +579,18 @@
       datas + escopos + '</div>';
   }
 
+  // Id da OS deste agendamento. Metade dos eventos vem SÓ com proposta_id — a
+  // OS existe, mas o vínculo direto não foi gravado; aí acha pela proposta
+  // (uma proposta tem no máximo uma OS, conferido no banco em 18/08/2026).
+  function osDoEvento(ev) {
+    if (!ev) return null;
+    if (ev.ordem_servico_id) return ev.ordem_servico_id;
+    if (!ev.proposta_id) return null;
+    var achada = null;
+    oss.forEach(function (o) { if (!achada && o.proposta_id === ev.proposta_id) achada = o; });
+    return achada ? achada.id : null;
+  }
+
   async function abrirDadosGeraisOS(osId) {
     var cli = sb();
     if (!cli || !navigator.onLine) { alert('Ver os dados gerais precisa de internet.'); return; }
@@ -723,7 +735,8 @@
     // Dados gerais da OS em LEITURA, para qualquer pessoa que veja o
     // agendamento (pedido da Raisa, 18/08/2026): quem consulta a agenda sabe do
     // que se trata o serviço sem precisar estar escalado nem abrir o registro.
-    if (mEv.ordem_servico_id) {
+    var idOsDg = osDoEvento(mEv);
+    if (idOsDg) {
       osInfo += '<button type="button" class="botao botao-secundario botao-mini" id="agdm-ver-dg" style="margin:2px 0 10px;">📄 Dados gerais do serviço</button>';
     }
 
@@ -860,7 +873,7 @@
       });
     }
     if ($('agdm-ver-dg')) {
-      $('agdm-ver-dg').addEventListener('click', function () { abrirDadosGeraisOS(mEv.ordem_servico_id); });
+      $('agdm-ver-dg').addEventListener('click', function () { abrirDadosGeraisOS(osDoEvento(mEv)); });
     }
     $('agdm-fechar').addEventListener('click', fecharModal);
     if ($('agdm-fechar2')) $('agdm-fechar2').addEventListener('click', fecharModal);
