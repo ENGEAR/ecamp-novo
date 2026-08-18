@@ -1695,7 +1695,7 @@ EC.fluxo = (function () {
       const campo = estado.campo;
       corpoCampo = (campo.geral.tipoMonitoramento ? linhaResumo('Tipo de monitoramento', campo.geral.tipoMonitoramento) : '') +
         (campo.geral.objetivo ? linhaResumo('Objetivo', campo.geral.objetivo) : '');
-      const total = Math.min(20, Math.max(0, parseInt(campo.geral.qtdePontos, 10) || 0));
+      const total = Math.min(50, Math.max(0, parseInt(campo.geral.qtdePontos, 10) || 0));
       for (let i = 0; i < total; i++) {
         const p = campo.pontos[i] || {};
         corpoCampo += linhaResumo('P' + (i + 1) + (p.nome ? ' — ' + p.nome : ''),
@@ -1705,7 +1705,7 @@ EC.fluxo = (function () {
     } else if ((estado.tipo === 'sismo' || estado.tipo === 'qar') && estado.campo && estado.campo.geral) {
       const campo = estado.campo;
       corpoCampo = (campo.geral.objetivo ? linhaResumo('Objetivo', campo.geral.objetivo) : '');
-      const total = Math.min(20, Math.max(0, parseInt(campo.geral.qtdePontos, 10) || 0));
+      const total = Math.min(50, Math.max(0, parseInt(campo.geral.qtdePontos, 10) || 0));
       for (let i = 0; i < total; i++) {
         const p = campo.pontos[i] || {};
         const extra = estado.tipo === 'qar'
@@ -1733,7 +1733,7 @@ EC.fluxo = (function () {
         }
       } else {
         corpoCampo += (campo.geral.finalidade ? linhaResumo('Finalidade', campo.geral.finalidade) : '');
-        const total = Math.min(20, Math.max(0, parseInt(campo.geral.qtdePontos, 10) || 0));
+        const total = Math.min(50, Math.max(0, parseInt(campo.geral.qtdePontos, 10) || 0));
         for (let i = 0; i < total; i++) {
           const p = campo.pontos[i] || {};
           const fotos = ['fotoTelaIni', 'fotoPonto', 'fotoTelaFim'].filter(function (chave) { return EC.foto.tem(p[chave]); }).length;
@@ -1966,7 +1966,7 @@ EC.fluxo = (function () {
     if (tipo === 'opacidade') return { chave: 'qtdeVeiculos', colecao: 'veiculos', max: 50, re: /^V(\d+)\b/ };
     if (tipo === 'qarint') return { chave: 'qtdeAmbientes', colecao: 'ambientes', max: 20, re: /^A(\d+)\b/ };
     if (tipo === 'sismo' || (tipo === 'qar' && qarParticulado())) {
-      return { chave: 'qtdePontos', colecao: 'pontos', max: 20, re: /^P(\d+)\b/ };
+      return { chave: 'qtdePontos', colecao: 'pontos', max: 50, re: /^P(\d+)\b/ };
     }
     return null; // "outro" / qar não-particulado: sem validação por ponto → sem trava.
   }

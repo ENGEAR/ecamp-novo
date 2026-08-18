@@ -55,7 +55,7 @@ EC.campoOutro = (function () {
     area.innerHTML =
       '<label>Tipo de monitoramento<input type="text" data-campo="tipoMonitoramento"></label>' +
       '<label>Objetivo<input type="text" data-campo="objetivo"></label>' +
-      '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>';
+      '<label>Quantidade de pontos (1–50)<input type="number" min="1" max="50" inputmode="numeric" data-campo="qtdePontos"></label>';
     if (g.qtdePontos === undefined) g.qtdePontos = ctx.estado.dadosGerais.qtdePontos;
     vincular(area, g);
     area.querySelector('[data-campo="qtdePontos"]').addEventListener('input', renderizarPontos);
@@ -66,7 +66,7 @@ EC.campoOutro = (function () {
 
   function renderizarPontos() {
     const g = campo().geral;
-    const total = Math.min(20, Math.max(1, parseInt(g.qtdePontos, 10) || 0));
+    const total = Math.min(50, Math.max(1, parseInt(g.qtdePontos, 10) || 0));
     if (!g.qtdePontos || total < 1) { $('#ou-paginacao').innerHTML = ''; $('#ou-ponto').innerHTML = ''; return; }
     while (campo().pontos.length < total) campo().pontos.push({});
     pontoExibido = Math.min(pontoExibido, total);
@@ -141,7 +141,7 @@ EC.campoOutro = (function () {
   function itensFaltando(estado) {
     const c = estado && estado.campo;
     if (!c || !c.geral) return ['o monitoramento em campo não foi iniciado'];
-    const total = Math.min(20, Math.max(1, parseInt(c.geral.qtdePontos, 10) || 0));
+    const total = Math.min(50, Math.max(1, parseInt(c.geral.qtdePontos, 10) || 0));
     const out = [];
     if (!c.geral.tipoMonitoramento) out.push('tipo de monitoramento');
     if (!c.geral.objetivo) out.push('objetivo');

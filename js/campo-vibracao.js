@@ -319,7 +319,7 @@ EC.campoVibracao = (function () {
           '</select></label><div id="cv-aviso-fonte"></div>'
         : '') +
       '<div id="cv-periodos"></div>' + // períodos: TODOS os escopos de sismografia
-      '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>' +
+      '<label>Quantidade de pontos (1–50)<input type="number" min="1" max="50" inputmode="numeric" data-campo="qtdePontos"></label>' +
       (previstoPontos != null && previstoPontos !== '' ? '<p class="texto-apoio">Previsto na OS: ' + previstoPontos + ' ponto(s).</p>' : '') +
       '<div id="cv-just-pontos"></div>' +
       '<p class="grupo-checks-titulo">⚙️ Configuração do aparelho</p>' +
@@ -371,7 +371,7 @@ EC.campoVibracao = (function () {
 
   function renderizarPontos() {
     const g = campo().geral;
-    const total = Math.min(20, Math.max(1, parseInt(g.qtdePontos, 10) || 0));
+    const total = Math.min(50, Math.max(1, parseInt(g.qtdePontos, 10) || 0));
     if (!g.qtdePontos || total < 1) { $('#cv-paginacao').innerHTML = ''; $('#cv-ponto').innerHTML = ''; return; }
 
     while (campo().pontos.length < total) campo().pontos.push({});
@@ -664,7 +664,7 @@ EC.campoVibracao = (function () {
   function itensFaltando(estado) {
     const c = estado && estado.campo;
     if (!c || !c.geral) return ['o monitoramento em campo não foi iniciado'];
-    const total = Math.min(20, Math.max(1, parseInt(c.geral.qtdePontos, 10) || 0));
+    const total = Math.min(50, Math.max(1, parseInt(c.geral.qtdePontos, 10) || 0));
     const out = [];
     if (!c.geral.objetivo) out.push('objetivo do monitoramento');
     if (!(c.geral.checks && c.geral.checks.cfg0)) out.push('configuração do aparelho (sismograma/histograma)');

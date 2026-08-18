@@ -326,9 +326,9 @@ EC.campoRuido = (function () {
   function totalPontosCtx() {
     if (ehInternoAtivo()) {
       const a = ambienteAtivo();
-      return Math.min(20, Math.max(1, parseInt(a && a.pontosCalculados, 10) || 0));
+      return Math.min(50, Math.max(1, parseInt(a && a.pontosCalculados, 10) || 0));
     }
-    return Math.min(20, Math.max(1, parseInt(campo().geral.qtdePontos, 10) || 0));
+    return Math.min(50, Math.max(1, parseInt(campo().geral.qtdePontos, 10) || 0));
   }
 
   /* ---------- Séries de checagem (blocos de no máximo 10 pontos) ----------
@@ -544,7 +544,7 @@ EC.campoRuido = (function () {
       if (np) lista.push(rot + np + ' confirmação(ões) de posicionamento dos pontos');
       let nm = 0; for (let i = 0; i < montItens.length; i++) if (!checks['mont' + i]) nm++;
       if (nm) lista.push(rot + nm + ' confirmação(ões) de montagem do equipamento');
-      const totalPts = Math.min(20, Math.max(1, parseInt(amb.pontosCalculados, 10) || 0));
+      const totalPts = Math.min(50, Math.max(1, parseInt(amb.pontosCalculados, 10) || 0));
       const pontos = amb.pontos || [];
       for (let p = 0; p < totalPts; p++) {
         itensFaltandoDoPonto(pontos[p], campo.subtipo, p, totalPts, g, longaDuracao).forEach(function (x) {
@@ -575,7 +575,7 @@ EC.campoRuido = (function () {
     const s = estado.servico || {};
     const longaDuracao = /longa\s*dura/i.test((s.metodo || '') + ' ' + (s.periodo || ''));
     if (ehInterno(campo.subtipo)) return itensFaltandoInterno(campo, longaDuracao);
-    const total = Math.min(20, Math.max(1, parseInt(campo.geral.qtdePontos, 10) || 0));
+    const total = Math.min(50, Math.max(1, parseInt(campo.geral.qtdePontos, 10) || 0));
     if (!total) return ['a quantidade de pontos do campo não foi definida'];
     const lista = [];
     geralChecksFaltando(campo).forEach(function (x) { lista.push(x); });
@@ -650,7 +650,7 @@ EC.campoRuido = (function () {
       for (let a = 0; a < totalAmb; a++) {
         const amb = (campo.ambientes || [])[a];
         if (!amb) break;
-        const totalPts = Math.min(20, Math.max(1, parseInt(amb.pontosCalculados, 10) || 0));
+        const totalPts = Math.min(50, Math.max(1, parseInt(amb.pontosCalculados, 10) || 0));
         const pts = [];
         for (let p = 0; p < totalPts; p++) {
           const np = pontoParcial((amb.pontos || [])[p], subtipo, p, totalPts, clone.geral, longa);
@@ -665,7 +665,7 @@ EC.campoRuido = (function () {
       clone.ambientes = ambs; clone.geral.qtdeAmbientes = ambs.length;
       return clone;
     }
-    const total = Math.min(20, Math.max(1, parseInt(clone.geral.qtdePontos, 10) || 0));
+    const total = Math.min(50, Math.max(1, parseInt(clone.geral.qtdePontos, 10) || 0));
     const pts = [];
     for (let i = 0; i < total; i++) {
       const np = pontoParcial((campo.pontos || [])[i], subtipo, i, total, clone.geral, longa);
@@ -1153,7 +1153,7 @@ EC.campoRuido = (function () {
         '<label>Finalidade do monitoramento<select data-campo="finalidade">' +
         '<option value="">Selecione…</option>' + opcoesFinalidadeExterno(g.finalidade) +
         '</select></label>' +
-        '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>' +
+        '<label>Quantidade de pontos (1–50)<input type="number" min="1" max="50" inputmode="numeric" data-campo="qtdePontos"></label>' +
         (previstoPontos != null && previstoPontos !== '' ? '<p class="texto-apoio">Previsto na OS: ' + previstoPontos + ' ponto(s).</p>' : '') +
         '<div id="cr-just-pontos"></div>';
       if (g.qtdePontos === undefined) g.qtdePontos = previstoPontos;
@@ -1204,7 +1204,7 @@ EC.campoRuido = (function () {
         FINALIDADES_FERRO.map(function (o) { return '<option>' + o + '</option>'; }).join('') +
         '</select></label>' +
         '<div id="cr-instalacao"></div>' +
-        '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>' +
+        '<label>Quantidade de pontos (1–50)<input type="number" min="1" max="50" inputmode="numeric" data-campo="qtdePontos"></label>' +
         (previstoPontos != null && previstoPontos !== '' ? '<p class="texto-apoio">Previsto na OS: ' + previstoPontos + ' ponto(s).</p>' : '') +
         '<div id="cr-just-pontos"></div>' +
         '<div id="cr-ferro-operacoes"></div>';
@@ -1247,7 +1247,7 @@ EC.campoRuido = (function () {
         FINALIDADES_AERO.map(function (o) { return '<option>' + o + '</option>'; }).join('') +
         '</select></label>' +
         '<div id="cr-instalacao"></div>' +
-        '<label>Quantidade de pontos (1–20)<input type="number" min="1" max="20" inputmode="numeric" data-campo="qtdePontos"></label>' +
+        '<label>Quantidade de pontos (1–50)<input type="number" min="1" max="50" inputmode="numeric" data-campo="qtdePontos"></label>' +
         (previstoPontos != null && previstoPontos !== '' ? '<p class="texto-apoio">Previsto na OS: ' + previstoPontos + ' ponto(s).</p>' : '') +
         '<div id="cr-just-pontos"></div>';
       if (g.qtdePontos === undefined) g.qtdePontos = previstoPontos;
