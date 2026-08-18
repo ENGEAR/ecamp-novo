@@ -548,6 +548,113 @@
   /* ============ Modal (novo / editar / leitura) ============ */
   var mEv = null, mNovo = false, mTecs = [], mDataFim = '', mBuscaOS = '', mAvisoOS = '', mBuscaTec = '';
 
+  /* ---------- Dados gerais da OS (leitura, para todo mundo) ---------- */
+  // A mesma folha "Dados gerais" do registro de serviço, montada SÓ com o que a
+  // OS traz (ordens_servico + o jsonb detalhes) — nada do rascunho do técnico.
+  // Fica numa camada por cima do modal do agendamento; o ✕ volta para ele.
+
+  function dgC(rot, val) {
+    var v = (val === undefined || val === null || String(val).trim() === '') ? '—' : val;
+    return '<div class="dg-campo"><span class="dg-rot">' + esc(rot) + '</span>' +
+      '<span class="dg-val">' + esc(String(v)) + '</span></div>';
+  }
+  function dgS(t) { return '<p class="dg-secao">' + esc(t) + '</p>'; }
+  function dgG2(a, b) { return '<div class="grade-2">' + a + b + '</div>'; }
+  function juntarAg(arr, sep) { return (arr || []).filter(Boolean).join(sep || ', '); }
+
+  function dgCampanhaHtml(c) {
+    var datas = (c.dataPrev || c.dataFim)
+      ? dgG2(dgC('Data prevista', isoParaBR(c.dataPrev)), dgC('Data fim', isoParaBR(c.dataFim)))
+      : (c.previsaoTexto ? dgC('Previsão', c.previsaoTexto) : '');
+    var escopos = (c.escopos || []).map(function (e) {
+      return '<div class="dg-escopo-min">' +
+        '<div class="dg-escopo-nome">' + esc(e.nome || 'Escopo') + (e.norma ? ' · ' + esc(e.norma) : '') + '</div>' +
+        (juntarAg(e.periodos) ? dgC('Período', juntarAg(e.periodos)) : '') +
+        (juntarAg(e.metodo) ? dgC('Método', juntarAg(e.metodo)) : '') +
+        (e.pop ? dgC('POP', e.pop) : '') +
+        (e.obs ? dgC('Observação', e.obs) : '') +
+      '</div>';
+    }).join('');
+    return '<div class="dg-camp-card"><div class="dg-camp-tit">Campanha ' + esc(c.numero) + '</div>' +
+      datas + escopos + '</div>';
+  }
+
+  async function abrirDadosGeraisOS(osId) {
+    var cli = sb();
+    if (!cli || !navigator.onLine) { alert('Ver os dados gerais precisa de internet.'); return; }
+    var caixa = document.createElement('div');
+    caixa.id = 'agd-dg';
+    caixa.innerHTML = '<div class="ecagd-m-fundo"></div>' +
+      '<div class="ecagd-m-caixa"><div class="cartao">' +
+      '<div class="ecagd-m-topo"><h2>📄 Dados gerais do serviço</h2><button type="button" id="agd-dg-fechar" title="Fechar">✕</button></div>' +
+      '<p class="texto-apoio">Carregando…</p></div></div>';
+    $('agd-modal').appendChild(caixa);
+    function fechar() { caixa.remove(); }
+    caixa.querySelector('#agd-dg-fechar').addEventListener('click', fechar);
+
+    try {
+      // A função os_dados_gerais (migração 0229) devolve a folha para QUALQUER
+      // usuário logado, desde que a OS esteja na agenda — sem afrouxar o
+      // bloqueio de OS por técnico da tabela. Se ela ainda não existir no
+      // banco, cai na leitura direta (vale para quem já enxerga a OS).
+      var x = null;
+      try {
+        var r = await cli.rpc('os_dados_gerais', { p_os_id: osId });
+        if (!r.error && r.data && r.data.length) x = r.data[0];
+      } catch (e2) { /* sem a função: tenta direto */ }
+      if (!x) {
+        var q = await cli.from('ordens_servico')
+          .select('numero, cliente_nome, municipio, uf, servico, detalhes')
+          .eq('id', osId).maybeSingle();
+        if (q.error) throw q.error;
+        x = q.data;
+      }
+      if (!x) throw new Error('OS não encontrada (a migração 0229 já foi aplicada?).');
+      var d = x.detalhes || {};
+      var L = d.local || {};
+      var mets = (d.metodologia || []).filter(function (m) { return m && (m.escopo || m.norma || m.matriz); });
+      var html =
+        dgS('Ordem de serviço') +
+        dgG2(dgC('Nº da OS', x.numero), dgC('Código', d.codigo)) +
+        dgC('Nome do projeto', d.projeto) +
+        dgG2(dgC('Emitido por', d.emitidoPor), dgC('Data de emissão', isoParaBR(d.dataOS))) +
+        dgS('Cliente (contratante)') +
+        dgC('Razão social', d.razao || x.cliente_nome) +
+        dgG2(dgC('CNPJ / CPF', d.cnpj), dgC('Contato', d.contato)) +
+        dgC('Endereço', d.endereco) +
+        dgC('Município / UF', d.cidade || juntarAg([x.municipio, x.uf], ' / ')) +
+        ((L.endereco || L.cidade || L.contato || L.referencia)
+          ? dgS('Local do serviço') +
+            dgC('Endereço', L.endereco) + dgC('Município / UF', L.cidade) +
+            (L.contato ? dgC('Contato no local', L.contato) : '') +
+            (L.referencia ? dgC('Ponto de referência', L.referencia) : '')
+          : '') +
+        dgS('Serviço') +
+        dgC('Serviço', d.servico || x.servico) +
+        (d.descricao ? dgC('Descrição', d.descricao) : '') +
+        dgG2(dgC('Frequência', d.frequencia), dgC('Nº de campanhas', d.nCampanhas)) +
+        ((d.origem || d.destino) ? dgG2(dgC('Origem', d.origem), dgC('Destino', d.destino)) : '') +
+        (mets.length
+          ? dgS('Metodologia / normas de referência') + mets.map(function (m) {
+              return dgC(m.escopo || m.matriz || 'Ensaio',
+                juntarAg([m.norma, m.revisao ? ('Rev. ' + m.revisao) : '', m.pop ? ('POP ' + m.pop) : ''], ' · '));
+            }).join('')
+          : '') +
+        ((d.campanhas || []).length
+          ? dgS('Informações por campanha') + d.campanhas.map(dgCampanhaHtml).join('')
+          : '') +
+        (d.infoRelevantes ? dgS('Informações relevantes') + dgC('Informações relevantes', d.infoRelevantes) : '') +
+        '<div class="pilha-botoes" style="margin-top:14px;"><button type="button" class="botao botao-secundario" id="agd-dg-fechar2">← Voltar</button></div>';
+      caixa.querySelector('.cartao').innerHTML =
+        '<div class="ecagd-m-topo"><h2>📄 Dados gerais do serviço</h2><button type="button" id="agd-dg-fechar" title="Fechar">✕</button></div>' + html;
+      caixa.querySelector('#agd-dg-fechar').addEventListener('click', fechar);
+      caixa.querySelector('#agd-dg-fechar2').addEventListener('click', fechar);
+    } catch (e) {
+      var alvoErro = caixa.querySelector('.texto-apoio');
+      if (alvoErro) alvoErro.textContent = '🛑 Não deu para carregar: ' + (e && e.message ? e.message : e);
+    }
+  }
+
   function abrirModal(ev, novo) {
     mEv = JSON.parse(JSON.stringify(ev)); // cópia — só grava ao salvar
     mNovo = novo;
@@ -589,6 +696,12 @@
     }
     var osInfo = (!mNovo && (mEv.os || mEv.campanha_numero))
       ? '<div class="ecagd-m-os">Ordem de Serviço: <b>' + esc(mEv.os || '—') + '</b>' + (mEv.campanha_numero ? ' · Campanha <b>' + mEv.campanha_numero + '</b>' : '') + '</div>' : '';
+    // Dados gerais da OS em LEITURA, para qualquer pessoa que veja o
+    // agendamento (pedido da Raisa, 18/08/2026): quem consulta a agenda sabe do
+    // que se trata o serviço sem precisar estar escalado nem abrir o registro.
+    if (mEv.ordem_servico_id) {
+      osInfo += '<button type="button" class="botao botao-secundario botao-mini" id="agdm-ver-dg" style="margin:2px 0 10px;">📄 Dados gerais do serviço</button>';
+    }
 
     // Campanha (quando vinculado a uma OS)
     var campBloco = '';
@@ -721,6 +834,9 @@
         var fim = $('agdm-fim').value;
         if (ini && (!fim || fim < ini)) { $('agdm-fim').value = ini; mDataFim = ini; sincLabelData('agdm-fim'); }
       });
+    }
+    if ($('agdm-ver-dg')) {
+      $('agdm-ver-dg').addEventListener('click', function () { abrirDadosGeraisOS(mEv.ordem_servico_id); });
     }
     $('agdm-fechar').addEventListener('click', fecharModal);
     if ($('agdm-fechar2')) $('agdm-fechar2').addEventListener('click', fecharModal);
