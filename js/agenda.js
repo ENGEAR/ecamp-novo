@@ -644,11 +644,35 @@
           ? dgS('Informações por campanha') + d.campanhas.map(dgCampanhaHtml).join('')
           : '') +
         (d.infoRelevantes ? dgS('Informações relevantes') + dgC('Informações relevantes', d.infoRelevantes) : '') +
+        '<div id="agd-dg-fotos"></div>' +
         '<div class="pilha-botoes" style="margin-top:14px;"><button type="button" class="botao botao-secundario" id="agd-dg-fechar2">← Voltar</button></div>';
       caixa.querySelector('.cartao').innerHTML =
         '<div class="ecagd-m-topo"><h2>📄 Dados gerais do serviço</h2><button type="button" id="agd-dg-fechar" title="Fechar">✕</button></div>' + html;
       caixa.querySelector('#agd-dg-fechar').addEventListener('click', fechar);
       caixa.querySelector('#agd-dg-fechar2').addEventListener('click', fechar);
+
+      // Fotos da OS (Análise Crítica, vindas do comercial) — a MESMA rota da
+      // tela de Dados gerais do registro; ela também aceita OS na agenda.
+      var alvoFotos = caixa.querySelector('#agd-dg-fotos');
+      if (alvoFotos && EC.os && EC.os.carregarFotos) {
+        alvoFotos.innerHTML = dgS('Fotos da OS') + '<p class="texto-apoio">⏳ Carregando fotos…</p>';
+        EC.os.carregarFotos(osId).then(function (fotos) {
+          if (!document.getElementById('agd-dg-fotos')) return; // a folha fechou
+          if (!fotos.length) {
+            alvoFotos.innerHTML = dgS('Fotos da OS') + '<p class="texto-apoio">' +
+              (navigator.onLine ? 'Esta OS não tem fotos.' : '📡 Conecte-se para ver as fotos da OS.') + '</p>';
+            return;
+          }
+          alvoFotos.innerHTML = dgS('Fotos da OS') +
+            '<div class="dg-fotos-grade">' +
+            fotos.map(function (f) {
+              return '<a class="dg-foto" href="' + esc(f.url) + '" target="_blank" rel="noopener">' +
+                '<img loading="lazy" src="' + esc(f.url) + '" alt="Foto da OS"></a>';
+            }).join('') +
+            '</div>' +
+            '<p class="texto-apoio">Toque numa foto para ver em tamanho cheio.</p>';
+        });
+      }
     } catch (e) {
       var alvoErro = caixa.querySelector('.texto-apoio');
       if (alvoErro) alvoErro.textContent = '🛑 Não deu para carregar: ' + (e && e.message ? e.message : e);
