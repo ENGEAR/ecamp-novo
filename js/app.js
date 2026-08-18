@@ -271,8 +271,7 @@
     'tela-dados-gerais', 'tela-tipo',              // início do serviço
     'tela-reembolso-novo', 'tela-outros-novo',     // solicitação sendo escrita
     'tela-saldo-detalhe', 'tela-aprovacao-detalhe',// justificativa/ajuste digitados
-    'tela-login', 'tela-trocar-senha',             // senha na tela
-    'tela-pesagens'                                // pesagem sendo digitada
+    'tela-login', 'tela-trocar-senha'              // senha na tela
   ]);
   let telaVisivel = null;
   function mostrarTela(id) {
@@ -423,9 +422,6 @@
     // "cheia" (com valores) não faz checagem de equipamento.
     var ehLogisticaCampo = pap.indexOf('logistica_campo') !== -1 || pap.indexOf('admin') !== -1;
     $('btn-checagem').classList.toggle('oculto', !ehLogisticaCampo);
-    // Pesagens de filtros (F053 digital): mesma turma da checagem — quem opera
-    // a bancada do laboratório.
-    $('btn-pesagens').classList.toggle('oculto', !ehLogisticaCampo);
   }
 
   // Papéis FRESCOS do servidor → sessão do aparelho + botões da tela inicial.
@@ -644,12 +640,6 @@
   });
   $('checagem-menu-voltar').addEventListener('click', function () { mostrarTela('tela-acao'); });
   $('checagem-part-voltar').addEventListener('click', function () { mostrarTela('tela-checagem-menu'); });
-  // Pesagens de filtros (logística de campo): F053 por NÚMERO do filtro, sem
-  // OS — tara antes do campo, final depois; o vínculo nasce na coleta.
-  $('btn-pesagens').addEventListener('click', function () {
-    if (EC.pesagens) EC.pesagens.abrir();
-  });
-  $('pesagens-voltar').addEventListener('click', function () { mostrarTela('tela-acao'); });
   $('btn-extrato-geral').addEventListener('click', function () {
     if (EC.reembolso && EC.reembolso.extratoGeral) EC.reembolso.extratoGeral();
   });
