@@ -1609,3 +1609,41 @@ textarea { resize: vertical; font-family: inherit; }
 }
 .fab-voltar-campo:active { transform: scale(0.93); }
 
+
+/* Contato dos proprietários: um bloco por ponto, todos MINIMIZADOS (com 30
+   pontos a coluna de formulários vazios empurrava a tela; nem toda casa tem
+   contato). O título é um botão com +/− e o resumo mostra o nome já digitado. */
+.dg-ct-abre {
+  background: none;
+  border: none;
+  padding: 4px 0;
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+.dg-ct-sinal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35em;
+  height: 1.35em;
+  border-radius: 6px;
+  background: #e8eef7;
+  color: #1976d2;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.dg-ct-resumo {
+  font-weight: 400;
+  color: #5a6377;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dg-ct-vazio { color: #a7b0bf; font-style: italic; }

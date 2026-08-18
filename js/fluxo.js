@@ -809,9 +809,21 @@ EC.fluxo = (function () {
     return { nome: c.nome || '', telefone: c.telefone || '', endereco: c.endereco || '', observacao: c.observacao || '' };
   }
 
-  // Monta um bloco por ponto. Reduzir o nº de pontos NÃO apaga o que já foi
-  // digitado: os blocos somem da tela, mas o texto continua guardado e volta
-  // se o número subir de novo.
+  // Um contato conta como preenchido se qualquer campo tem texto.
+  function contatoPreenchido(c) {
+    return !!(String(c.nome).trim() || String(c.telefone).trim() ||
+              String(c.endereco).trim() || String(c.observacao).trim());
+  }
+
+  // Quais blocos estão abertos AGORA (só desta visita à tela; não persiste).
+  var contatosAbertos = {};
+
+  // Monta um bloco por ponto — TODOS MINIMIZADOS (pedido da Raisa, 18/08/2026):
+  // com 30 pontos, a coluna de formulários vazios empurrava o resto da tela
+  // para longe, e nem toda casa tem contato. O título mostra o nome quando há,
+  // então dá para conferir o que já foi preenchido sem abrir nada.
+  // Reduzir o nº de pontos NÃO apaga o que já foi digitado: os blocos somem da
+  // tela, mas o texto continua guardado e volta se o número subir de novo.
   function pintarContatosPontos() {
     var alvo = $('dg-contatos');
     if (!alvo) return;
@@ -819,16 +831,36 @@ EC.fluxo = (function () {
     var html = '';
     for (var i = 0; i < n; i++) {
       var c = contatoDoPonto(i);
+      var aberto = !!contatosAbertos[i];
+      var tem = contatoPreenchido(c);
+      var resumo = tem
+        ? '<span class="dg-ct-resumo">' + escDg(c.nome || c.telefone || c.endereco || 'preenchido') + '</span>'
+        : '<span class="dg-ct-resumo dg-ct-vazio">sem contato</span>';
       html +=
-        '<fieldset class="checagem-bloco"><legend>Ponto ' + (i + 1) + '</legend>' +
-        '<label>Nome<input type="text" id="dg-ct-nome-' + i + '" autocomplete="off" placeholder="Quem mora ou responde pela casa" value="' + escDg(c.nome) + '"></label>' +
-        '<label>Telefone<input type="tel" id="dg-ct-tel-' + i + '" inputmode="tel" autocomplete="off" placeholder="(00) 00000-0000" value="' + escDg(c.telefone) + '"></label>' +
-        '<label>Endereço<input type="text" id="dg-ct-end-' + i + '" autocomplete="off" placeholder="Rua, número, bairro" value="' + escDg(c.endereco) + '"></label>' +
-        '<label>Observação<textarea id="dg-ct-obs-' + i + '" rows="2" placeholder="Ex.: só atende de manhã; cachorro solto no quintal"></textarea></label>' +
-        '</fieldset>';
+        '<fieldset class="checagem-bloco dg-ct-bloco">' +
+        '<legend><button type="button" class="dg-ct-abre" data-ct-abre="' + i + '">' +
+          '<span class="dg-ct-sinal">' + (aberto ? '−' : '+') + '</span> Ponto ' + (i + 1) + ' ' + resumo +
+        '</button></legend>';
+      if (aberto) {
+        html +=
+          '<label>Nome<input type="text" id="dg-ct-nome-' + i + '" autocomplete="off" placeholder="Quem mora ou responde pela casa" value="' + escDg(c.nome) + '"></label>' +
+          '<label>Telefone<input type="tel" id="dg-ct-tel-' + i + '" inputmode="tel" autocomplete="off" placeholder="(00) 00000-0000" value="' + escDg(c.telefone) + '"></label>' +
+          '<label>Endereço<input type="text" id="dg-ct-end-' + i + '" autocomplete="off" placeholder="Rua, número, bairro" value="' + escDg(c.endereco) + '"></label>' +
+          '<label>Observação<textarea id="dg-ct-obs-' + i + '" rows="2" placeholder="Ex.: só atende de manhã; cachorro solto no quintal"></textarea></label>';
+      }
+      html += '</fieldset>';
     }
     alvo.innerHTML = html || '<p class="texto-apoio">Informe o nº de pontos acima para preencher os contatos.</p>';
-    for (var j = 0; j < n; j++) ligarContatoDoPonto(j);
+    for (var j = 0; j < n; j++) if (contatosAbertos[j]) ligarContatoDoPonto(j);
+    alvo.querySelectorAll('[data-ct-abre]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var i = parseInt(btn.getAttribute('data-ct-abre'), 10);
+        contatosAbertos[i] = !contatosAbertos[i];
+        pintarContatosPontos();
+        // Abriu para digitar: o foco já cai no primeiro campo do bloco.
+        if (contatosAbertos[i]) { var el = $('dg-ct-nome-' + i); if (el) el.focus(); }
+      });
+    });
   }
 
   function ligarContatoDoPonto(i) {
@@ -922,7 +954,7 @@ EC.fluxo = (function () {
       dgCampo('Observação do escopo', servicoDetalhe('observacao')) +
 
       dgSecao('Contato dos proprietários das casas (se aplicável)') +
-      '<p class="texto-apoio">Um bloco por ponto, conforme o nº de pontos acima. Deixe em branco quando o ponto não for em casa de terceiros.</p>' +
+      '<p class="texto-apoio">Um bloco por ponto — toque no <strong>+</strong> para preencher. Só preencha os pontos que ficam em casa de terceiros; os demais podem ficar fechados.</p>' +
       '<div id="dg-contatos"></div>' +
 
       '<div id="dg-metodologia"></div>' +
