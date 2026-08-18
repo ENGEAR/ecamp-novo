@@ -598,7 +598,7 @@
     caixa.id = 'agd-dg';
     caixa.innerHTML = '<div class="ecagd-m-fundo"></div>' +
       '<div class="ecagd-m-caixa"><div class="cartao">' +
-      '<div class="ecagd-m-topo"><h2>📄 Dados gerais do serviço</h2><button type="button" id="agd-dg-fechar" title="Fechar">✕</button></div>' +
+      '<div class="ecagd-m-topo"><h2>📄 Dados da OS</h2><button type="button" id="agd-dg-fechar" title="Fechar">✕</button></div>' +
       '<p class="texto-apoio">Carregando…</p></div></div>';
     $('agd-modal').appendChild(caixa);
     function fechar() { caixa.remove(); }
@@ -659,7 +659,7 @@
         '<div id="agd-dg-fotos"></div>' +
         '<div class="pilha-botoes" style="margin-top:14px;"><button type="button" class="botao botao-secundario" id="agd-dg-fechar2">← Voltar</button></div>';
       caixa.querySelector('.cartao').innerHTML =
-        '<div class="ecagd-m-topo"><h2>📄 Dados gerais do serviço</h2><button type="button" id="agd-dg-fechar" title="Fechar">✕</button></div>' + html;
+        '<div class="ecagd-m-topo"><h2>📄 Dados da OS</h2><button type="button" id="agd-dg-fechar" title="Fechar">✕</button></div>' + html;
       caixa.querySelector('#agd-dg-fechar').addEventListener('click', fechar);
       caixa.querySelector('#agd-dg-fechar2').addEventListener('click', fechar);
 
@@ -737,7 +737,7 @@
     // que se trata o serviço sem precisar estar escalado nem abrir o registro.
     var idOsDg = osDoEvento(mEv);
     if (idOsDg) {
-      osInfo += '<button type="button" class="botao botao-secundario botao-mini" id="agdm-ver-dg" style="margin:2px 0 10px;">📄 Dados gerais do serviço</button>';
+      osInfo += '<button type="button" class="botao botao-secundario botao-mini" id="agdm-ver-dg" style="margin:2px 0 10px;">📄 Dados da OS</button>';
     }
 
     // Campanha (quando vinculado a uma OS)
