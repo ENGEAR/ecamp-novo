@@ -62,11 +62,17 @@ EC.sync = (function () {
   }
 
   // POST JSON com o token. Lança erro em falha (err.naoSuportado=true se 422).
-  async function postJson(url, dados) {
+  async function postJson(url, dados, opcoes) {
+    var corpoTxt = JSON.stringify(dados);
+    // `keepalive` deixa a requisição sobreviver ao fechamento da página (usado
+    // no envio ao SAIR do app). O limite do navegador é ~64 KB — acima disso a
+    // requisição seria recusada, então só liga quando cabe.
+    var manterVivo = !!(opcoes && opcoes.aoSair) && corpoTxt.length < 60000;
     var resposta = await fetch(url, {
       method: 'POST',
       headers: await cabecalhos({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(dados)
+      body: corpoTxt,
+      keepalive: manterVivo
     });
     var corpo = {};
     try { corpo = await resposta.json(); } catch (e) { /* corpo vazio */ }
@@ -265,9 +271,9 @@ EC.sync = (function () {
   // "Salvar rascunho"/Finalizar). Silencioso. Falha de rede enfileira o rascunho
   // COMPLETO (com fotos) na mesma chave estável → o auto-retry do online garante
   // a entrega (inclusive das fotos) mesmo em sinal ruim.
-  async function sincronizarRascunhoDados(registro) {
+  async function sincronizarRascunhoDados(registro, opcoes) {
     try {
-      await postJson(ROTA_REGISTRO, semFotos(registro)); // leve: só os dados
+      await postJson(ROTA_REGISTRO, semFotos(registro), opcoes); // leve: só os dados
     } catch (e) {
       if (!e.naoSuportado) {
         try { await EC.db.set('pending', chaveRascPendente(registro), registro); } catch (e2) { /* ok */ }

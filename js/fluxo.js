@@ -373,11 +373,37 @@ EC.fluxo = (function () {
   setInterval(function () {
     if (!estado || !estado.iniciado || !estado.tipo) return;
     if (!navigator.onLine || document.visibilityState !== 'visible') return;
-    var marca = estado.atualizadoEm || '';
-    if (marca === marcaUltimoAutoPush) return; // nada mudou desde o último envio
-    marcaUltimoAutoPush = marca;
+    if (!autoPushPendente()) return;            // nada mudou desde o último envio
     autoPushDados();
   }, INTERVALO_AUTO_PUSH);
+
+  // Marca de alteração: só envia se mudou algo desde o último envio.
+  function autoPushPendente() {
+    var marca = (estado && estado.atualizadoEm) || '';
+    if (!marca || marca === marcaUltimoAutoPush) return false;
+    marcaUltimoAutoPush = marca;
+    return true;
+  }
+
+  // Auto-envio AO SAIR DO APP (minimizar, trocar de app, fechar). Até aqui, sair
+  // do app só gravava no APARELHO — os dados ficavam presos ali até o técnico
+  // voltar (ou até o relógio de 15 min, que não roda em 2º plano). Quem
+  // preenchia e fechava levava o trabalho no bolso, e do servidor não dava para
+  // ver nada (caso do Ponto 01 da OS 26024, 19/08/2026).
+  //
+  // `keepalive` é o que permite a requisição sobreviver à saída da página; o
+  // limite dele é ~64 KB, e o envio é só de DADOS (as fotos continuam indo no
+  // "Salvar rascunho"/Finalizar), então cabe com folga. Silencioso: se falhar,
+  // o rascunho já está salvo no aparelho e sobe no próximo envio.
+  function autoPushAoSair() {
+    if (!estado || !estado.iniciado || !estado.tipo) return;
+    if (!navigator.onLine) return;
+    if (!autoPushPendente()) return;
+    if (!(EC.sync && EC.sync.sincronizarRascunhoDados)) return;
+    var registro = montarRegistro();
+    registro.finalizar = false;
+    EC.sync.sincronizarRascunhoDados(registro, { aoSair: true });
+  }
 
   // Sair do primeiro passo do serviço: volta à lista de serviços (OS com vários)
   // ou à lista de OS (OS com um único serviço).
@@ -2182,9 +2208,9 @@ EC.fluxo = (function () {
       salvarEstado(true);
     }
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'hidden') gravarRolagemAoSair();
+      if (document.visibilityState === 'hidden') { gravarRolagemAoSair(); autoPushAoSair(); }
     });
-    window.addEventListener('pagehide', gravarRolagemAoSair);
+    window.addEventListener('pagehide', function () { gravarRolagemAoSair(); autoPushAoSair(); });
 
     // Botão do aviso "não enviado" + botão flutuante: ambos fazem o envio COMPLETO
     // (com fotos) na hora.
