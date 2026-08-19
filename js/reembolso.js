@@ -3368,6 +3368,58 @@ EC.reembolso = (function () {
       itens.map(function (i) { return linha(i[0], i[1]); }).join('') + '</div>';
   }
 
+  /* ---- De onde saem as parcelas do extrato ----
+     A lista do técnico ("Minhas solicitações") só tem o que ele é DESIGNADO; o
+     Extrato geral (gestor) tem todas as linhas carregadas; e o cache abaixo
+     guarda o que já foi buscado no servidor. As três somam, sem repetir. */
+  var parcelasBuscadas = {};   // 'os|campanha|designado' → linhas do servidor
+
+  function fontesDeParcelas() {
+    var todas = listaEmCache().slice();
+    (egDados || []).forEach(function (it) { if (it && it.p) todas.push(it.p); });
+    Object.keys(parcelasBuscadas).forEach(function (k) {
+      (parcelasBuscadas[k] || []).forEach(function (x) { todas.push(x); });
+    });
+    var vistos = {}, saida = [];
+    todas.forEach(function (x) {
+      var chave = x && (x.id || x.codigo);
+      if (!chave || vistos[chave]) return;
+      vistos[chave] = 1;
+      saida.push(x);
+    });
+    return saida;
+  }
+
+  async function buscarIrmasDoExtrato(p, aguardandoEnvio, soLeitura) {
+    var chave = String(p.os) + '|' + p.campanha_numero + '|' + (p.designado || '');
+    if (parcelasBuscadas[chave]) return;      // já tentamos: não fica em laço
+    var cli = (EC.auth && EC.auth.cliente) ? EC.auth.cliente() : null;
+    if (!cli || !navigator.onLine || !p.os) return;
+    try {
+      var q = await cli.from('logistica_solicitacoes')
+        .select('id, codigo, os, campanha_numero, designado, tipo, status, percentual_solicitado, valor_solicitado, valor_total, adiantamento_valor, pago_em, created_at')
+        .eq('os', p.os)
+        .in('tipo', ['viagem', TIPO_SEM_HOSP])
+        .in('status', ['aguardando_logistica', 'aguardando_pagamento', 'pago']);
+      if (q.error) throw q.error;
+      parcelasBuscadas[chave] = (q.data || []).filter(function (x) {
+        return Number(x.campanha_numero) === Number(p.campanha_numero) &&
+               (x.designado || '') === (p.designado || '');
+      });
+      // Só redesenha se achou mais do que a própria — e se a tela ainda é esta.
+      if (parcelasBuscadas[chave].length > 1 && telaAtualEhExtrato()) {
+        abrirExtrato(p, aguardandoEnvio, soLeitura);
+      }
+    } catch (e) {
+      parcelasBuscadas[chave] = [];           // marca a tentativa
+    }
+  }
+
+  function telaAtualEhExtrato() {
+    var el = document.getElementById('tela-reembolso-extrato');
+    return !!el && !el.classList.contains('oculto');
+  }
+
   function abrirExtrato(p, aguardandoEnvio, soLeitura) {
     EC.app.mostrarTela('tela-reembolso-extrato');
     window.scrollTo(0, 0);
@@ -3402,7 +3454,7 @@ EC.reembolso = (function () {
 
     // Solicitações de reembolso (parcelas) desta OS+campanha+designado.
     // Eventos/veículos são pagamento único: não se misturam com as parcelas da viagem.
-    var parcelas = !pedidoDeViagem(p) ? [p] : listaEmCache().filter(function (x) {
+    var parcelas = !pedidoDeViagem(p) ? [p] : fontesDeParcelas().filter(function (x) {
       return String(x.os) === String(p.os) &&
         pedidoDeViagem(x) &&
         Number(x.campanha_numero) === Number(p.campanha_numero) &&
@@ -3410,6 +3462,11 @@ EC.reembolso = (function () {
         ['aguardando_logistica', 'aguardando_pagamento', 'pago'].indexOf(x.status) !== -1;
     }).sort(function (a, b) { return String(a.created_at || a.criadoEm || '').localeCompare(String(b.created_at || b.criadoEm || '')); });
     if (!parcelas.length) parcelas = [p];
+    // Só uma parcela e a viagem é de OUTRA pessoa? A lista local não serve —
+    // "Minhas solicitações" traz apenas onde EU sou o designado, então o gestor
+    // que abre o reembolso de um técnico via só a parcela aberta (caso da Raisa
+    // na OS 26024 do Robson, 19/08/2026). Busca as irmãs no servidor e redesenha.
+    if (parcelas.length < 2 && pedidoDeViagem(p)) buscarIrmasDoExtrato(p, aguardandoEnvio, soLeitura);
 
     // AJUSTE DA PARCELA IRMÃ: as parcelas da mesma viagem repetem os mesmos
     // itens e o mesmo `valor_total` (já com o ajuste embutido), mas o ajuste
