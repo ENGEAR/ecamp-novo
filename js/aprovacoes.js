@@ -808,6 +808,51 @@ EC.aprovacoes = (function () {
     erro.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
+  /* ---------- Histórico de pagamentos desta OS ----------
+     A mesma lista que o extrato da solicitação e o PDF mostram: as parcelas da
+     MESMA OS + campanha + designado (viagem e serviço sem hospedagem dividem o
+     mesmo 100%). Aqui ela entra na tela de decisão/pagamento, que era a única
+     das três sem o histórico — a Raisa abriu o pagamento da OS 26024 e não o
+     encontrou (19/08/2026). */
+  var TIPOS_VIAGEM = ['viagem', 'sem_hosp'];
+
+  async function irmasDaSolicitacao(cli, s) {
+    if (!s || !s.os || TIPOS_VIAGEM.indexOf(s.tipo || 'viagem') === -1) return [];
+    try {
+      var q = await cli.from('logistica_solicitacoes')
+        .select('id, percentual_solicitado, valor_solicitado, valor_total, adiantamento_valor, status, pago_em, created_at, campanha_numero, designado, tipo')
+        .eq('os', s.os)
+        .in('tipo', TIPOS_VIAGEM)
+        .in('status', ['aguardando_logistica', 'aguardando_pagamento', 'pago'])
+        .order('created_at', { ascending: true });
+      if (q.error) throw q.error;
+      return (q.data || []).filter(function (x) {
+        return Number(x.campanha_numero) === Number(s.campanha_numero) &&
+               (x.designado || '') === (s.designado || '');
+      });
+    } catch (e) { return []; }
+  }
+
+  function historicoHtml(lista, atualId) {
+    if (!lista || lista.length < 1) return '';
+    var linhas = lista.map(function (x, i) {
+      var xpct = x.percentual_solicitado != null ? Number(x.percentual_solicitado) : 100;
+      var xsol = x.valor_solicitado != null ? Number(x.valor_solicitado)
+        : Math.round(Number(x.valor_total || 0) * xpct) / 100;
+      var xadiant = Number(x.adiantamento_valor) || 0;
+      var xliq = Math.round(xsol * 100 - xadiant * xpct) / 100;
+      var paga = x.status === 'pago';
+      var quando = paga ? 'pago em ' + dataBR(x.pago_em)
+        : (STATUS[x.status] ? STATUS[x.status].txt : x.status);
+      return '<div class="apr-orc ' + (paga ? 'apr-orc-verde' : 'apr-orc-cinza') + '" style="margin:6px 0;">' +
+        '<strong>' + (i + 1) + 'ª parcela:</strong> ' + xpct + '% · ' + esc(quando) +
+        ' = <strong>' + moeda(xliq) + '</strong>' +
+        (x.id === atualId ? ' <span class="rotulo-apoio">← esta</span>' : '') +
+        '</div>';
+    }).join('');
+    return '<p class="dg-secao">Histórico de pagamentos desta OS</p>' + linhas;
+  }
+
   async function abrirDetalhe(id) {
     EC.app.mostrarTela('tela-aprovacao-detalhe');
     window.scrollTo(0, 0);
@@ -835,7 +880,8 @@ EC.aprovacoes = (function () {
       // Os pedidos de ajuste ficam junto da solicitação: o editor de valores
       // precisa deles para não somar o ajuste duas vezes (ver lerAjuste).
       s.ajustes = (res[0].data) || [];
-      area.innerHTML = renderDetalhe(s, s.ajustes);
+      var irmas = await irmasDaSolicitacao(cli, s);
+      area.innerHTML = renderDetalhe(s, s.ajustes) + historicoHtml(irmas, s.id);
       // No pagamento (Financeiro) a tela é enxuta: sem evidências do técnico.
       var ehPag = s.status === 'aguardando_pagamento';
       $('apr-evidencias-titulo').classList.toggle('oculto', ehPag);
