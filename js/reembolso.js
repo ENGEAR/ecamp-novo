@@ -3526,7 +3526,7 @@ EC.reembolso = (function () {
             '<div class="apr-linha"><span>Ficou com ' + (soLeitura ? 'o técnico' : 'você') + '</span><strong>' + moedaBR(ficou) + '</strong></div>'
           : '') +
       '</div>' +
-      '<p class="dg-secao">Solicitações de reembolso</p>' +
+      '<p class="dg-secao">Histórico de reembolso desta OS</p>' +
       (parcelasHtml || '<div class="apr-orc apr-orc-cinza">—</div>') +
       renderResumoPedido(pView) +
       '<div id="rb-evidencias"></div>';
