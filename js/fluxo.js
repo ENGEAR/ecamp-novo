@@ -187,8 +187,9 @@ EC.fluxo = (function () {
         qtdePontosOS: servico.qtdePontos, // valor previsto na OS (fixo, p/ comparar)
         justificativaPontos: '',
         // Contato do dono da casa de cada ponto (o laboratório preenche antes
-        // de ir a campo). Índice 0 = Ponto 1.
-        contatosPontos: []
+        // de ir a campo). Índice 0 = Ponto 1. Já nasce com o que a Logística
+        // preencheu na OS pela agenda (migração 0232).
+        contatosPontos: (os.contatosPontos || []).map(contatoNormal)
       },
       tipo: null,
       equipamentos: [],
@@ -793,8 +794,26 @@ EC.fluxo = (function () {
     // reidrata os dados de referência da OS/serviço (reflete a OS atual e
     // preenche campos novos em rascunhos antigos)
     const fresh = novoEstadoServico(os, indice);
+    const osAntes = estado.os || {};
+    const contatosAntes = (estado.dadosGerais && estado.dadosGerais.contatosPontos) || [];
     estado.os = fresh.os;
     estado.servico = fresh.servico;
+    // Local do monitoramento e contatos dos pontos: o que a LOGÍSTICA gravou na
+    // OS (pela agenda) manda e reaparece a cada abertura. Onde a OS está vazia,
+    // o que o técnico digitou fica de pé — antes, reabrir o serviço apagava o
+    // link do Maps, porque a reidratação trazia o campo vazio da OS por cima.
+    if (!String(fresh.os.linkMaps || '').trim()) {
+      estado.os.linkMaps = String(osAntes.linkMaps || '');
+    }
+    var contatosOS = fresh.dadosGerais.contatosPontos || [];
+    if (contatosOS.length || contatosAntes.length) {
+      var total = Math.max(contatosOS.length, contatosAntes.length), juntos = [];
+      for (var ci = 0; ci < total; ci++) {
+        var daOS = contatoNormal(contatosOS[ci]);
+        juntos.push(contatoPreenchido(daOS) ? daOS : contatoNormal(contatosAntes[ci]));
+      }
+      estado.dadosGerais.contatosPontos = juntos;
+    }
     if (estado.dadosGerais.qtdePontosOS === undefined) estado.dadosGerais.qtdePontosOS = os.servicos[indice].qtdePontos;
     if (estado.dadosGerais.justificativaPontos === undefined) estado.dadosGerais.justificativaPontos = '';
     // ABRIR/continuar o serviço não é preenchimento do técnico — persiste a
@@ -833,6 +852,16 @@ EC.fluxo = (function () {
     var lista = estado.dadosGerais.contatosPontos || [];
     var c = lista[i] || {};
     return { nome: c.nome || '', telefone: c.telefone || '', endereco: c.endereco || '', observacao: c.observacao || '' };
+  }
+
+  // Contato com os quatro campos sempre em texto (o que vem da OS pode vir
+  // faltando chave) — sem isso, String(undefined) viraria "undefined".
+  function contatoNormal(c) {
+    c = c || {};
+    return {
+      nome: String(c.nome || ''), telefone: String(c.telefone || ''),
+      endereco: String(c.endereco || ''), observacao: String(c.observacao || '')
+    };
   }
 
   // Um contato conta como preenchido se qualquer campo tem texto.

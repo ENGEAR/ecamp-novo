@@ -91,7 +91,7 @@
   /* ============ Permissões (mesmas do SGP, lidas do banco) ============ */
   async function carregarPermissoes() {
     var cli = sb();
-    var vazio = { podeEditar: false, souAdmin: false, podeFerias: false };
+    var vazio = { podeEditar: false, souAdmin: false, podeFerias: false, souLogistica: false };
     if (!cli) return vazio;
     try {
       var s = await cli.auth.getSession();
@@ -103,6 +103,7 @@
         (q.data || []).forEach(function (r) { if (r.papel && r.papel.codigo) codigos.push(r.papel.codigo); });
       } catch (e) { /* sem papéis */ }
       var souAdmin = codigos.indexOf('admin') !== -1;
+      var souLogistica = souAdmin || codigos.indexOf('logistica') !== -1;
       var podeEditar = souAdmin || ['agenda', 'comercial', 'operacional', 'logistica'].some(function (c) { return codigos.indexOf(c) !== -1; });
       var podeFerias = souAdmin;
       if (!podeFerias) {
@@ -111,7 +112,7 @@
           podeFerias = !!(m.data && m.data.pode_marcar_ferias);
         } catch (e) { /* mantém false */ }
       }
-      return { podeEditar: podeEditar, souAdmin: souAdmin, podeFerias: podeFerias };
+      return { podeEditar: podeEditar, souAdmin: souAdmin, podeFerias: podeFerias, souLogistica: souLogistica };
     } catch (e) { return vazio; }
   }
 
@@ -642,6 +643,158 @@
     return achada ? achada.id : null;
   }
 
+  /**
+   * Bloco "Local do monitoramento" da folha da OS na agenda: link do Google
+   * Maps e contatos dos proprietários das casas dos pontos.
+   *
+   * Esses campos nascem no menu SERVIÇOS — ficam no rascunho do técnico dono do
+   * serviço. A função os_dados_campo (migração 0232) devolve o que a Logística
+   * gravou na OS ou, na falta, o do rascunho mais recente daquela OS.
+   *
+   * Quem é da LOGÍSTICA (ou admin) corrige por aqui, e a correção é gravada na
+   * OS — nunca no rascunho de outra pessoa, que o aparelho do dono sobrescreve
+   * no "Salvar rascunho" seguinte.
+   */
+  async function pintarDadosCampo(caixa, osId) {
+    var alvo = caixa.querySelector('#agd-dg-campo');
+    if (!alvo || !osId) return;
+    var cli = sb();
+    var linkMaps = '', contatos = [];
+    try {
+      var r = await cli.rpc('os_dados_campo', { p_os_id: osId });
+      if (r.error) throw new Error(r.error.message);
+      var x = (r.data && r.data.length) ? r.data[0] : null;
+      linkMaps = (x && x.link_maps) || '';
+      contatos = (x && Array.isArray(x.contatos)) ? x.contatos.slice() : [];
+    } catch (e) {
+      alvo.innerHTML = '';   // banco ainda sem a migração 0232: o bloco não aparece
+      return;
+    }
+    var podeMexer = !!(perms && perms.souLogistica);
+    var editando = false, salvando = false, aviso = '';
+
+    function preenchido(c) {
+      return !!(String((c && c.nome) || '').trim() || String((c && c.telefone) || '').trim() ||
+        String((c && c.endereco) || '').trim() || String((c && c.observacao) || '').trim());
+    }
+    function soDigitos(t) { return String(t || '').replace(/[^\d+]/g, ''); }
+    // A POSIÇÃO na lista é o número do ponto (índice 0 = Ponto 1) — um ponto
+    // vazio no meio tem que continuar lá, senão o contato do Ponto 3 vira do
+    // Ponto 1. Só os vazios do FIM saem.
+    function semVaziosNoFim(lista) {
+      var out = lista.slice();
+      while (out.length && !preenchido(out[out.length - 1])) out.pop();
+      return out;
+    }
+
+    function contatoLeituraHtml(c, i) {
+      var linhas = '';
+      if (String(c.nome || '').trim()) linhas += '<div>👤 ' + esc(c.nome) + '</div>';
+      if (String(c.telefone || '').trim()) {
+        linhas += '<div>📞 <a href="tel:' + esc(soDigitos(c.telefone)) + '">' + esc(c.telefone) + '</a></div>';
+      }
+      if (String(c.endereco || '').trim()) linhas += '<div>📍 ' + esc(c.endereco) + '</div>';
+      if (String(c.observacao || '').trim()) linhas += '<div>📝 ' + esc(c.observacao) + '</div>';
+      return '<div class="contato-ponto"><strong>🏠 Ponto ' + (i + 1) + '</strong>' + linhas + '</div>';
+    }
+
+    function contatoEdicaoHtml(c, i) {
+      return '<div class="contato-ponto"><strong>🏠 Ponto ' + (i + 1) + '</strong>' +
+        '<label>Nome<input type="text" id="agd-ct-nome-' + i + '" value="' + esc(c.nome || '') + '"></label>' +
+        '<label>Telefone<input type="tel" id="agd-ct-tel-' + i + '" inputmode="tel" placeholder="(00) 00000-0000" value="' + esc(c.telefone || '') + '"></label>' +
+        '<label>Endereço<input type="text" id="agd-ct-end-' + i + '" value="' + esc(c.endereco || '') + '"></label>' +
+        '<label>Observação<input type="text" id="agd-ct-obs-' + i + '" value="' + esc(c.observacao || '') + '"></label>' +
+      '</div>';
+    }
+
+    function colher() {
+      linkMaps = (document.getElementById('agd-dg-maps') || {}).value || '';
+      linkMaps = String(linkMaps).trim();
+      contatos = contatos.map(function (c, i) {
+        function v(id) { var el = document.getElementById(id + i); return el ? el.value.trim() : ''; }
+        return { nome: v('agd-ct-nome-'), telefone: v('agd-ct-tel-'), endereco: v('agd-ct-end-'), observacao: v('agd-ct-obs-') };
+      });
+    }
+
+    async function salvar() {
+      colher();
+      salvando = true; aviso = ''; pintar();
+      try {
+        var g = await cli.rpc('os_dados_campo_salvar', {
+          p_os_id: osId, p_link_maps: linkMaps,
+          p_contatos: semVaziosNoFim(contatos)
+        });
+        if (g.error) throw new Error(g.error.message);
+        contatos = semVaziosNoFim(contatos);
+        editando = false;
+        aviso = '✅ Salvo na OS.';
+      } catch (e) {
+        var m = String((e && e.message) || e);
+        aviso = m.indexOf('Logística') !== -1 || m.indexOf('privilege') !== -1
+          ? '🛑 Só a Logística (ou o administrador) pode alterar estes campos.'
+          : '🛑 Não deu para salvar: ' + m;
+      }
+      salvando = false;
+      pintar();
+    }
+
+    function pintar() {
+      var alvoAgora = document.getElementById('agd-dg-campo');
+      if (!alvoAgora) return;   // a folha foi fechada
+      var uteis = contatos.filter(preenchido);
+      var vazio = !linkMaps && !uteis.length;
+
+      // Ninguém preencheu nada e quem está vendo não pode mexer: nem mostra.
+      if (vazio && !podeMexer && !editando) { alvoAgora.innerHTML = ''; return; }
+
+      var html = dgS('Local do monitoramento');
+      if (editando) {
+        if (!contatos.length) contatos = [{ nome: '', telefone: '', endereco: '', observacao: '' }];
+        html += '<label>Link do Google Maps<input type="text" id="agd-dg-maps" placeholder="Cole o link do Google Maps" value="' + esc(linkMaps) + '"></label>' +
+          '<p class="dg-secao">Contato dos proprietários das casas</p>' +
+          contatos.map(contatoEdicaoHtml).join('') +
+          '<div class="pilha-botoes">' +
+            '<button type="button" class="botao botao-secundario botao-mini" id="agd-dg-mais">+ Adicionar ponto</button>' +
+          '</div>' +
+          '<div class="pilha-botoes" style="margin-top:8px;">' +
+            '<button type="button" class="botao botao-primario" id="agd-dg-salvar"' + (salvando ? ' disabled' : '') + '>' +
+              (salvando ? 'Salvando…' : 'Salvar na OS') + '</button>' +
+            '<button type="button" class="botao botao-secundario" id="agd-dg-cancelar">Cancelar</button>' +
+          '</div>';
+      } else {
+        html += linkMaps
+          ? '<div class="dg-campo"><span class="dg-rot">Link do Google Maps</span>' +
+            '<a class="dg-val" href="' + esc(linkMaps) + '" target="_blank" rel="noopener">📍 Abrir no Google Maps</a></div>'
+          : dgC('Link do Google Maps', '');
+        if (uteis.length) {
+          html += '<p class="dg-secao">Contato dos proprietários das casas</p>' +
+            contatos.map(function (c, i) { return preenchido(c) ? contatoLeituraHtml(c, i) : ''; }).join('');
+        }
+        if (podeMexer) {
+          html += '<div class="pilha-botoes"><button type="button" class="botao botao-secundario botao-mini" id="agd-dg-editar">✏️ ' +
+            (vazio ? 'Preencher local e contatos' : 'Editar local e contatos') + '</button></div>';
+        }
+      }
+      if (aviso) html += '<p class="texto-apoio">' + esc(aviso) + '</p>';
+      alvoAgora.innerHTML = html;
+
+      var bE = document.getElementById('agd-dg-editar');
+      if (bE) bE.addEventListener('click', function () { editando = true; aviso = ''; pintar(); });
+      var bC = document.getElementById('agd-dg-cancelar');
+      if (bC) bC.addEventListener('click', function () { editando = false; aviso = ''; pintar(); });
+      var bM = document.getElementById('agd-dg-mais');
+      if (bM) bM.addEventListener('click', function () {
+        colher();
+        contatos.push({ nome: '', telefone: '', endereco: '', observacao: '' });
+        pintar();
+      });
+      var bS = document.getElementById('agd-dg-salvar');
+      if (bS) bS.addEventListener('click', salvar);
+    }
+
+    pintar();
+  }
+
   async function abrirDadosGeraisOS(osId) {
     var cli = sb();
     if (!cli || !navigator.onLine) { alert('Ver os dados gerais precisa de internet.'); return; }
@@ -692,6 +845,7 @@
             (L.contato ? dgC('Contato no local', L.contato) : '') +
             (L.referencia ? dgC('Ponto de referência', L.referencia) : '')
           : '') +
+        '<div id="agd-dg-campo"></div>' +
         dgS('Serviço') +
         dgC('Serviço', d.servico || x.servico) +
         (d.descricao ? dgC('Descrição', d.descricao) : '') +
@@ -713,6 +867,10 @@
         '<div class="ecagd-m-topo"><h2>📄 Dados da OS</h2><button type="button" id="agd-dg-fechar" title="Fechar">✕</button></div>' + html;
       caixa.querySelector('#agd-dg-fechar').addEventListener('click', fechar);
       caixa.querySelector('#agd-dg-fechar2').addEventListener('click', fechar);
+
+      // Local do monitoramento (link do Maps) e contatos dos proprietários —
+      // vêm do menu Serviços; a Logística corrige por aqui.
+      pintarDadosCampo(caixa, osId);
 
       // Fotos da OS (Análise Crítica, vindas do comercial) — a MESMA rota da
       // tela de Dados gerais do registro; ela também aceita OS na agenda.
