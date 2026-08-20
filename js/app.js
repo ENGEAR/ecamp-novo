@@ -298,12 +298,40 @@
 
   /* ============ Toast de feedback ============ */
   let temporizadorToast = null;
-  function mostrarToast(mensagem) {
+  // `titulo` (opcional) sai em cima, grande — para os avisos que a pessoa
+  // precisa MESMO ler, como a lista de pendências do PDF parcial. Com título o
+  // aviso também fica mais tempo na tela: é mais texto do que um toast comum.
+  // `faltas` (opcional) vira uma lista em VERMELHO embaixo da mensagem, para a
+  // pessoa bater o olho e ver o que está faltando.
+  function mostrarToast(mensagem, titulo, faltas) {
     const toast = $('toast');
-    toast.textContent = mensagem;
+    const lista = faltas || [];
+    toast.innerHTML = '';
+    toast.classList.toggle('com-titulo', !!titulo);
+    if (titulo) {
+      const t = document.createElement('strong');
+      t.className = 'toast-titulo';
+      t.textContent = titulo;
+      toast.appendChild(t);
+    }
+    const corpo = document.createElement('span');
+    corpo.textContent = mensagem;
+    toast.appendChild(corpo);
+    if (lista.length) {
+      const ul = document.createElement('ul');
+      ul.className = 'toast-faltas';
+      lista.forEach(function (f) {
+        const li = document.createElement('li');
+        li.textContent = f;
+        ul.appendChild(li);
+      });
+      toast.appendChild(ul);
+    }
     toast.classList.remove('oculto');
     clearTimeout(temporizadorToast);
-    temporizadorToast = setTimeout(function () { toast.classList.add('oculto'); }, 2600);
+    // Quanto mais itens, mais tempo na tela (é o que a pessoa precisa ler).
+    const tempo = titulo ? Math.min(14000, 7000 + lista.length * 800) : 2600;
+    temporizadorToast = setTimeout(function () { toast.classList.add('oculto'); }, tempo);
   }
 
   /* ============ Nova versão: troca sozinha quando é seguro ============

@@ -2126,8 +2126,12 @@ EC.fluxo = (function () {
     }
     var pr = montarRegistroParcial();
     if (!pr.pronto) {
-      var det = (pr.faltas && pr.faltas.length) ? (' Falta: ' + pr.faltas.slice(0, 4).join(', ') + '.') : '';
-      EC.app.mostrarToast('Complete a medição antes de gerar o PDF parcial.' + det);
+      // A lista vai separada: o aviso a mostra em vermelho, item por item (antes
+      // era uma frase só, cortada nos 4 primeiros).
+      var faltas = (pr.faltas || []).slice();
+      EC.app.mostrarToast(
+        'Complete a medição antes de gerar o PDF parcial.' + (faltas.length ? ' Falta:' : ''),
+        'PENDÊNCIAS. LER!', faltas);
       return;
     }
     var registroP = pr.registro;
