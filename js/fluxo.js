@@ -2057,15 +2057,16 @@ EC.fluxo = (function () {
   // (bloqueiosSalvar → itensFaltando), que já marca cada unidade incompleta com
   // um prefixo ("P3: …", "V2: …", "A1: …", "Ambiente 1 (…): …"). O parcial é o
   // PREFIXO de unidades completas: vai até a 1ª unidade incompleta (exclusive),
-  // preservando a numeração e a ordem de campo. O RUÍDO não passa por aqui — ele
-  // tem granularidade fina (por janela) via EC.campoRuido.campoParcial.
+  // preservando a numeração e a ordem de campo. RUÍDO e PARTICULADOS não passam
+  // por aqui — têm granularidade fina própria (por janela em
+  // EC.campoRuido.campoParcial; por coleta em EC.campoQar.campoParcial).
   function infoParcial() {
     var tipo = estado.tipo;
     if (tipo === 'opacidade') return { chave: 'qtdeVeiculos', colecao: 'veiculos', max: 50, re: /^V(\d+)\b/ };
     if (tipo === 'qarint') return { chave: 'qtdeAmbientes', colecao: 'ambientes', max: 20, re: /^A(\d+)\b/ };
-    if (tipo === 'sismo' || (tipo === 'qar' && qarParticulado())) {
-      return { chave: 'qtdePontos', colecao: 'pontos', max: 50, re: /^P(\d+)\b/ };
-    }
+    // Particulados NÃO entram aqui: o parcial deles é por COLETA
+    // (EC.campoQar.campoParcial), não por ponto inteiro.
+    if (tipo === 'sismo') return { chave: 'qtdePontos', colecao: 'pontos', max: 50, re: /^P(\d+)\b/ };
     return null; // "outro" / qar não-particulado: sem validação por ponto → sem trava.
   }
   // Quantas unidades (pontos/veículos/ambientes) completas cabem no parcial.
@@ -2120,6 +2121,17 @@ EC.fluxo = (function () {
       }
       var copia = Object.assign({}, registro); copia.campo = campoF;
       return { registro: copia, pronto: true, faltas: [] };
+    }
+    // Particulados: o parcial é por COLETA (as coletas não são no mesmo dia —
+    // instala-se o filtro num dia e recolhe-se no outro). Assim que o INÍCIO de
+    // uma coleta está completo ela já sai no PDF; o fim entra no PDF seguinte.
+    if (estado.tipo === 'qar' && qarParticulado() && EC.campoQar && EC.campoQar.campoParcial) {
+      var campoQ = EC.campoQar.campoParcial(estado);
+      if (!campoQ) {
+        return { registro: null, pronto: false, faltas: EC.campoQar.faltasParcial(estado) || [] };
+      }
+      var copiaQ = Object.assign({}, registro); copiaQ.campo = campoQ;
+      return { registro: copiaQ, pronto: true, faltas: [] };
     }
     var lim = limiteParcial();
     // `unidade` = qual ponto/veículo/ambiente está incompleto (k = unidade - 1),

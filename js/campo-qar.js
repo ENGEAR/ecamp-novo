@@ -827,7 +827,10 @@ EC.campoQar = (function () {
   // pintar de vermelho o rótulo do que está faltando: { campo } é um
   // [data-campo], { check } um [data-check], { sel } um bloco (GPS/foto) e
   // { coleta, campo } um campo dentro da coleta N.
-  function itensFaltandoDoPonto(ponto, indice, marcas) {
+  // Faltas do PONTO em si (identificação, calibração e condições) — sem as
+  // coletas. Separado porque o PDF parcial precisa saber se o ponto já está de
+  // pé mesmo com as coletas pela metade.
+  function faltasDoPontoBase(ponto, marcas) {
     ponto = ponto || {};
     const falta = [];
     const marcar = function (m) { if (marcas) marcas.push(m); };
@@ -859,34 +862,119 @@ EC.campoQar = (function () {
     reqVal('vento', 'vento'); reqVal('tempo', 'como está o tempo');
     grupoChecks('calib', 1, 'calibração aprovada');
     reqVal('validadeCalib', 'validade da calibração (em meses)');
+    return falta;
+  }
 
+  const CAMPOS_BLOCO = [['data_', 'data'], ['hora_', 'hora'], ['horimetro_', 'horímetro'],
+    ['temp_', 'temperatura'], ['umid_', 'umidade'], ['pressao_', 'pressão'],
+    ['vento_', 'vento'], ['tempo_', 'como está o tempo']];
+
+  /**
+   * Faltas de UMA coleta. `bloco`: 'ini' (a instalação), 'fim' (a retirada) ou
+   * 'ambos'. O código do filtro é cobrado no início — é ele que liga a pesagem
+   * do laboratório à coleta (Raisa, 2026-08-13). `n` é o número que o técnico
+   * vê (revezamento) e `idx` a posição na lista.
+   */
+  function faltasDaColeta(col, bloco, n, idx, marcas) {
+    col = col || {};
+    const falta = [];
+    const marcar = function (m) { if (marcas) marcas.push(m); };
+    const blocos = bloco === 'ambos' ? ['ini', 'fim'] : [bloco];
+    if (blocos.indexOf('ini') !== -1 && String(col.codigoFiltro || '').trim() === '') {
+      falta.push(n + 'ª coleta: código do filtro');
+      marcar({ coleta: idx + 1, campo: 'codigoFiltro' });
+    }
+    blocos.forEach(function (suf) {
+      const rotPer = (suf === 'ini' ? 'inicial' : 'final');
+      CAMPOS_BLOCO.forEach(function (par) {
+        const chave = par[0] + suf;
+        const v = col[chave];
+        if (v === undefined || v === null || String(v).trim() === '') {
+          falta.push(n + 'ª coleta: ' + par[1] + ' ' + rotPer);
+          marcar({ coleta: idx + 1, campo: chave });
+        }
+      });
+    });
+    return falta;
+  }
+
+  function itensFaltandoDoPonto(ponto, indice, marcas) {
+    ponto = ponto || {};
+    const falta = faltasDoPontoBase(ponto, marcas);
     const nColetas = Math.min(20, Math.max(0, parseInt(ponto.qtdeColetas, 10) || 0));
-    if (!nColetas) { falta.push('quantidade de coletas'); marcar({ campo: 'qtdeColetas' }); return falta; }
+    if (!nColetas) {
+      falta.push('quantidade de coletas');
+      if (marcas) marcas.push({ campo: 'qtdeColetas' });
+      return falta;
+    }
     const iniColeta = primeiraColetaDe(ponto); // numeração contínua no revezamento
     (ponto.coletas || []).slice(0, nColetas).forEach(function (col, k) {
-      col = col || {};
-      // Sem o código do filtro a coleta não fecha: é ele que liga a pesagem do
-      // laboratório à coleta — sem ele, não há concentração (Raisa, 2026-08-13).
-      if (String(col.codigoFiltro || '').trim() === '') {
-        falta.push((k + iniColeta) + 'ª coleta: código do filtro');
-        marcar({ coleta: k + 1, campo: 'codigoFiltro' });
-      }
-      ['ini', 'fim'].forEach(function (suf) {
-        const rotPer = (suf === 'ini' ? 'inicial' : 'final');
-        [['data_' + suf, 'data'], ['hora_' + suf, 'hora'], ['horimetro_' + suf, 'horímetro'],
-         ['temp_' + suf, 'temperatura'], ['umid_' + suf, 'umidade'], ['pressao_' + suf, 'pressão'],
-         ['vento_' + suf, 'vento'], ['tempo_' + suf, 'como está o tempo']
-        ].forEach(function (par) {
-          const v = col[par[0]];
-          if (v === undefined || v === null || String(v).trim() === '') {
-            falta.push((k + iniColeta) + 'ª coleta: ' + par[1] + ' ' + rotPer);
-            marcar({ coleta: k + 1, campo: par[0] });
-          }
-        });
-      });
+      faltasDaColeta(col, 'ambos', k + iniColeta, k, marcas).forEach(function (x) { falta.push(x); });
     });
     // As leituras de manômetro (cartas e colunas) e a hora final são opcionais.
     return falta;
+  }
+
+  /* ===== PDF parcial: por COLETA, não por ponto ===== */
+  // As coletas de particulados quase nunca são no mesmo dia: instala-se o filtro
+  // num dia e recolhe-se no outro. Exigir o ponto inteiro fechado travava o PDF
+  // parcial justamente em campo (Raisa, 2026-08-20). Agora quem manda é a
+  // COLETA: assim que o INÍCIO de uma está completo, ela entra no PDF; quando o
+  // fim for preenchido, o PDF seguinte já sai com ele.
+  function coletaPronta(col, n, idx) { return faltasDaColeta(col, 'ini', n, idx).length === 0; }
+
+  /**
+   * Cópia do `campo` só com o que já dá para relatar: pontos com a base
+   * completa, cada um truncado nas coletas cujo início está preenchido.
+   * Devolve null quando ainda não há nada — aí `faltasParcial` diz o que falta.
+   */
+  function campoParcial(estado) {
+    const campo = (estado && estado.campo) || {};
+    const geral = campo.geral || {};
+    const total = Math.min(50, Math.max(0, parseInt(geral.qtdePontos, 10) || 0));
+    const pontos = campo.pontos || [];
+    const saida = [];
+    for (let i = 0; i < total; i++) {
+      const p = pontos[i] || {};
+      if (faltasDoPontoBase(p).length) break;          // ponto ainda não está de pé
+      const nColetas = Math.min(20, Math.max(0, parseInt(p.qtdeColetas, 10) || 0));
+      const base = primeiraColetaDe(p);
+      const cols = (p.coletas || []).slice(0, nColetas);
+      let k = 0;
+      while (k < cols.length && coletaPronta(cols[k], k + base, k)) k++;
+      if (!k) break;                                   // nenhuma coleta pronta neste ponto
+      const copia = Object.assign({}, p);
+      copia.coletas = cols.slice(0, k);
+      copia.qtdeColetas = k;
+      saida.push(copia);
+      if (k < cols.length) break;                      // ponto incompleto: para nele
+    }
+    if (!saida.length) return null;
+    const campoF = Object.assign({}, campo);
+    campoF.geral = Object.assign({}, geral, { qtdePontos: saida.length });
+    campoF.pontos = saida;
+    return campoF;
+  }
+
+  /** O que falta para o PRIMEIRO PDF parcial sair (o ponto/coleta que travou). */
+  function faltasParcial(estado) {
+    const campo = (estado && estado.campo) || {};
+    const pontos = campo.pontos || [];
+    const total = Math.min(50, Math.max(0, parseInt((campo.geral || {}).qtdePontos, 10) || 0));
+    for (let i = 0; i < total; i++) {
+      const p = pontos[i] || {};
+      const marca = 'P' + (i + 1) + ': ';
+      const base = faltasDoPontoBase(p);
+      if (base.length) return base.map(function (x) { return marca + x; });
+      const nColetas = Math.min(20, Math.max(0, parseInt(p.qtdeColetas, 10) || 0));
+      if (!nColetas) return [marca + 'quantidade de coletas'];
+      const ini = primeiraColetaDe(p);
+      const cols = (p.coletas || []).slice(0, nColetas);
+      let k = 0;
+      while (k < cols.length && coletaPronta(cols[k], k + ini, k)) k++;
+      if (!k) return faltasDaColeta(cols[0], 'ini', ini, 0).map(function (x) { return marca + x; });
+    }
+    return ['o monitoramento em campo não foi iniciado'];
   }
 
   /* ===== Marcar na TELA o que está faltando ===== */
@@ -976,7 +1064,9 @@ EC.campoQar = (function () {
   return {
     renderizar: renderizar,
     itensFaltando: itensFaltando,
-    marcarFaltas: marcarFaltas,   // pinta na tela o que falta (aviso de pendências)
+    marcarFaltas: marcarFaltas,     // pinta na tela o que falta (aviso de pendências)
+    campoParcial: campoParcial,     // PDF parcial por coleta (o início já vale)
+    faltasParcial: faltasParcial,   // o que falta para o parcial sair
     calcular: calcularCurva, // usado pelo PDF p/ desenhar a curva do ponto
     vazaoColeta: vazaoColeta, // idem, p/ o veredito de cada bloco da coleta
     svg: svgCurva,            // gráfico da curva (reuso: checagem intermediária)
