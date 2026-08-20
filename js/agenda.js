@@ -314,6 +314,37 @@
     return res;
   }
 
+  // Dois agendamentos são da MESMA OS? Metade dos eventos vem só com
+  // proposta_id, então compara pelo vínculo que existir, do mais forte ao mais
+  // fraco (OS → proposta → número da OS no texto).
+  function mesmaOS(a, b) {
+    if (a.ordem_servico_id && b.ordem_servico_id) return a.ordem_servico_id === b.ordem_servico_id;
+    if (a.proposta_id && b.proposta_id) return a.proposta_id === b.proposta_id;
+    var na = String(a.os || '').trim(), nb = String(b.os || '').trim();
+    return !!na && na === nb;
+  }
+
+  // Bloqueio (ao salvar): a MESMA OS não pode ter dois agendamentos no mesmo
+  // dia (decisão da Raisa, 2026-08-20 — a OS 24137 acabou com duas unidades do
+  // cliente marcadas no dia 20/08). Vale para qualquer campanha, cidade ou
+  // técnico; férias não têm OS e ficam de fora.
+  function checarOsNoDia(ev, dias, ignorar) {
+    if (ev.tipo === 'ferias') return null;
+    if (!ev.ordem_servico_id && !ev.proposta_id && !String(ev.os || '').trim()) return null;
+    if (!ignorar) ignorar = function (x) { return x.id === ev.id; };
+    for (var i = 0; i < dias.length; i++) {
+      for (var j = 0; j < eventos.length; j++) {
+        var x = eventos[j];
+        if (x.data !== dias[i] || x.status === 'canc' || x.tipo === 'ferias' || ignorar(x)) continue;
+        if (!mesmaOS(ev, x)) continue;
+        return 'A OS ' + (ev.os || x.os || '') + ' já tem agendamento em ' + isoParaBR(dias[i]) +
+          (x.empresa ? ' — ' + x.empresa : '') + (x.cidade ? ' (' + x.cidade + ')' : '') +
+          '. A mesma OS não pode ter dois serviços no mesmo dia; escolha outro dia.';
+      }
+    }
+    return null;
+  }
+
   // Assinatura das dobras já confirmadas — se o técnico ou o dia mudar depois
   // do "Sim, pode agendar", a pergunta volta a aparecer.
   function assinaturaDobras(dobras) {
@@ -1236,6 +1267,12 @@
     var ignorar = porCampanha
       ? function (x) { return mesmaCampanha(mEv, x); }   // os dias da própria campanha estão sendo alterados
       : function (x) { return x.id === mEv.id; };
+    // A mesma OS não pode ter dois agendamentos no mesmo dia.
+    var dup = checarOsNoDia({
+      id: mEv.id, tipo: mEv.tipo, os: mEv.os,
+      ordem_servico_id: mEv.ordem_servico_id, proposta_id: mEv.proposta_id
+    }, dias, ignorar);
+    if (dup) { renderModal(dup); return; }
     // Limite de 2 serviços por dia: 3+ não salva; exatamente 2 pede o "de acordo".
     var lim = checarLimiteDiario({ id: mEv.id, tipo: mEv.tipo, tecnicos: mTecs }, dias, ignorar);
     if (lim.excesso) { renderModal(lim.excesso); return; }
