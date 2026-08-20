@@ -1026,16 +1026,22 @@ EC.pdf = (function () {
       tituloSecao('Ordem de serviço');
       kv('Nº da OS', os.numero);
       kv('Código', os.codigo);
-      kv('Nome do projeto', os.projeto);
       kv('Emitido por', os.emitidoPor);
       kv('Data de emissão', fmtDataBR(os.dataEmissao));
 
-      /* ---------- Cliente ---------- */
-      tituloSecao('Cliente');
-      kv('Razão social', os.cliente);
-      kv('CNPJ / CPF', os.cnpjCpf);
+      /* ---------- Local do serviço, depois o contratante ----------
+         Antes era uma seção só, "Cliente", com o endereço do LOCAL no meio dos
+         dados da empresa — não dava para saber o que era de quem (pedido da
+         Raisa, 2026-08-20). Agora o local vem primeiro, com o nome do projeto
+         junto do endereço, e o contratante fica na sua própria seção. */
+      tituloSecao('Local do serviço');
+      kv('Nome do projeto', os.projeto);
       kv('Endereço', os.endereco);
       kv('Município / UF', os.municipioUF);
+
+      tituloSecao('Cliente (contratante)');
+      kv('Razão social', os.cliente);
+      kv('CNPJ / CPF', os.cnpjCpf);
       kv('Contato', os.contato);
 
       /* ---------- Serviço ---------- */
