@@ -913,6 +913,25 @@ textarea { resize: vertical; font-family: inherit; }
   letter-spacing: 0.02em; margin-bottom: 8px; padding-bottom: 8px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.35);
 }
+/* Campo pendente: o RÓTULO fica vermelho e o controle ganha borda vermelha,
+   para achar na tela o que o aviso de pendências listou. A marca sai sozinha
+   quando o campo é preenchido. O texto digitado continua na cor normal — só o
+   rótulo é vermelho, senão o próprio dado parece erro. */
+label.falta, .falta > .cq-gps, .falta.cq-gps, .falta.cq-foto-ponto {
+  color: var(--vermelho);
+  font-weight: 700;
+}
+label.falta input, label.falta select, label.falta textarea {
+  border-color: var(--vermelho);
+  color: var(--texto);
+  font-weight: 400;
+}
+.falta.cq-gps, .falta.cq-foto-ponto {
+  border: 1px solid var(--vermelho);
+  border-radius: 10px;
+  padding: 6px;
+}
+
 /* O que falta, em vermelho. Não é o --vermelho do app: sobre o azul-escuro do
    aviso ele fica ilegível, então usa um vermelho claro, que salta e se lê. */
 .toast-faltas { margin: 8px 0 0; padding-left: 22px; color: #ff9b9b; font-weight: 700; }

@@ -1690,6 +1690,17 @@ EC.fluxo = (function () {
 
   // Itens em branco do "Monitoramento em campo" que IMPEDEM o salvamento
   // (qualquer item, exceto hora de término). Só vale para o ruído por enquanto.
+  // Módulo de campo do serviço aberto (o mesmo mapa de bloqueiosSalvar).
+  function moduloDeCampo() {
+    if (estado.tipo === 'ruido') return EC.campoRuido;
+    if (estado.tipo === 'sismo') return EC.campoVibracao;
+    if (estado.tipo === 'qar' && qarParticulado()) return EC.campoQar;
+    if (estado.tipo === 'opacidade') return EC.campoOpacidade;
+    if (estado.tipo === 'qarint') return EC.campoQarInterno;
+    if (estado.tipo === 'outro') return EC.campoOutro;
+    return null;
+  }
+
   function bloqueiosSalvar() {
     if (estado.tipo === 'ruido' && EC.campoRuido.itensFaltando) {
       return EC.campoRuido.itensFaltando(estado);
@@ -2111,7 +2122,11 @@ EC.fluxo = (function () {
       return { registro: copia, pronto: true, faltas: [] };
     }
     var lim = limiteParcial();
-    if (lim.info && (lim.k == null || lim.k < 1)) return { registro: null, pronto: false, faltas: lim.faltas || [] };
+    // `unidade` = qual ponto/veículo/ambiente está incompleto (k = unidade - 1),
+    // para a tela marcar em vermelho os campos que faltam nele.
+    if (lim.info && (lim.k == null || lim.k < 1)) {
+      return { registro: null, pronto: false, faltas: lim.faltas || [], unidade: (lim.k || 0) + 1 };
+    }
     return { registro: registroParcial(registro, lim), pronto: true, faltas: [] };
   }
 
@@ -2132,6 +2147,10 @@ EC.fluxo = (function () {
       EC.app.mostrarToast(
         'Complete a medição antes de gerar o PDF parcial.' + (faltas.length ? ' Falta:' : ''),
         'PENDÊNCIAS. LER!', faltas);
+      // A lista diz O QUE falta; isto mostra ONDE — pinta de vermelho o rótulo
+      // dos campos na tela (e abre o ponto/coleta em que eles estão).
+      var mod = moduloDeCampo();
+      if (mod && mod.marcarFaltas) { try { mod.marcarFaltas(pr.unidade); } catch (e) { /* marcar é extra */ } }
       return;
     }
     var registroP = pr.registro;

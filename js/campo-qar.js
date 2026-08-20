@@ -816,23 +816,33 @@ EC.campoQar = (function () {
     // Curva de calibração e vazão da coleta ao vivo: recalculam a cada digitação
     // no cartão (os campos ficam fora dos blocos redesenhados — não rouba o foco).
     atualizarCurva(area, ponto);
-    area.addEventListener('input', function () { atualizarCurva(area, ponto); atualizarVazaoColeta(area, ponto); });
-    area.addEventListener('change', function () { atualizarCurva(area, ponto); atualizarVazaoColeta(area, ponto); });
+    // Preencheu o campo → a marca vermelha de pendência sai na hora.
+    var tirarMarca = function (ev) {
+      var alvo = ev.target && ev.target.closest ? (ev.target.closest('label.falta') || ev.target.closest('.falta')) : null;
+      if (alvo) alvo.classList.remove('falta');
+    };
+    area.addEventListener('input', function (ev) { tirarMarca(ev); atualizarCurva(area, ponto); atualizarVazaoColeta(area, ponto); });
+    area.addEventListener('change', function (ev) { tirarMarca(ev); atualizarCurva(area, ponto); atualizarVazaoColeta(area, ponto); });
   }
 
   /* ===== Validação ===== */
 
-  function itensFaltandoDoPonto(ponto, indice) {
+  // `marcas` (opcional) recolhe ONDE cada falta está na tela, para o formulário
+  // pintar de vermelho o rótulo do que está faltando: { campo } é um
+  // [data-campo], { check } um [data-check], { sel } um bloco (GPS/foto) e
+  // { coleta, campo } um campo dentro da coleta N.
+  function itensFaltandoDoPonto(ponto, indice, marcas) {
     ponto = ponto || {};
     const falta = [];
+    const marcar = function (m) { if (marcas) marcas.push(m); };
     const reqVal = function (chave, rotulo) {
       const v = ponto[chave];
-      if (v === undefined || v === null || String(v).trim() === '') falta.push(rotulo);
+      if (v === undefined || v === null || String(v).trim() === '') { falta.push(rotulo); marcar({ campo: chave }); }
     };
     const checks = ponto.checks || {};
     const grupoChecks = function (prefixo, qtde, rotulo) {
       let nn = 0;
-      for (let i = 0; i < qtde; i++) if (!checks[prefixo + i]) nn++;
+      for (let i = 0; i < qtde; i++) if (!checks[prefixo + i]) { nn++; marcar({ check: prefixo + i }); }
       if (nn) falta.push(nn + ' confirmação(ões) de ' + rotulo);
     };
 
@@ -840,9 +850,11 @@ EC.campoQar = (function () {
     reqVal('horaInicial', 'hora inicial');
     // Amostrador de Grande Volume é obrigatório; o Separador inercial é opcional
     // (PTS não usa separador). Aceita o campo antigo tipoEquip por compatibilidade.
-    if (!(String(ponto.equipAGV || '').trim() || String(ponto.tipoEquip || '').trim())) falta.push('amostrador de grande volume');
-    if (!ponto.gps) falta.push('GPS');
-    if (!EC.foto.tem(ponto.fotoPonto)) falta.push('foto do ponto');
+    if (!(String(ponto.equipAGV || '').trim() || String(ponto.tipoEquip || '').trim())) {
+      falta.push('amostrador de grande volume'); marcar({ campo: 'equipAGV' });
+    }
+    if (!ponto.gps) { falta.push('GPS'); marcar({ sel: '.cq-gps' }); }
+    if (!EC.foto.tem(ponto.fotoPonto)) { falta.push('foto do ponto'); marcar({ sel: '.cq-foto-ponto' }); }
     grupoChecks('aquec', 1, 'aquecimento do motor');
     grupoChecks('zerar', 2, 'zerar manômetro');
     grupoChecks('vaz', 2, 'teste de vazamento');
@@ -853,13 +865,16 @@ EC.campoQar = (function () {
     reqVal('validadeCalib', 'validade da calibração (em meses)');
 
     const nColetas = Math.min(20, Math.max(0, parseInt(ponto.qtdeColetas, 10) || 0));
-    if (!nColetas) { falta.push('quantidade de coletas'); return falta; }
+    if (!nColetas) { falta.push('quantidade de coletas'); marcar({ campo: 'qtdeColetas' }); return falta; }
     const iniColeta = primeiraColetaDe(ponto); // numeração contínua no revezamento
     (ponto.coletas || []).slice(0, nColetas).forEach(function (col, k) {
       col = col || {};
       // Sem o código do filtro a coleta não fecha: é ele que liga a pesagem do
       // laboratório à coleta — sem ele, não há concentração (Raisa, 2026-08-13).
-      if (String(col.codigoFiltro || '').trim() === '') falta.push((k + iniColeta) + 'ª coleta: código do filtro');
+      if (String(col.codigoFiltro || '').trim() === '') {
+        falta.push((k + iniColeta) + 'ª coleta: código do filtro');
+        marcar({ coleta: k + 1, campo: 'codigoFiltro' });
+      }
       ['ini', 'fim'].forEach(function (suf) {
         const rotPer = (suf === 'ini' ? 'inicial' : 'final');
         [['data_' + suf, 'data'], ['hora_' + suf, 'hora'], ['horimetro_' + suf, 'horímetro'],
@@ -867,12 +882,75 @@ EC.campoQar = (function () {
          ['vento_' + suf, 'vento'], ['tempo_' + suf, 'como está o tempo']
         ].forEach(function (par) {
           const v = col[par[0]];
-          if (v === undefined || v === null || String(v).trim() === '') falta.push((k + iniColeta) + 'ª coleta: ' + par[1] + ' ' + rotPer);
+          if (v === undefined || v === null || String(v).trim() === '') {
+            falta.push((k + iniColeta) + 'ª coleta: ' + par[1] + ' ' + rotPer);
+            marcar({ coleta: k + 1, campo: par[0] });
+          }
         });
       });
     });
     // As leituras de manômetro (cartas e colunas) e a hora final são opcionais.
     return falta;
+  }
+
+  /* ===== Marcar na TELA o que está faltando ===== */
+  // Tira as marcas vermelhas de um trecho da tela.
+  function limparMarcas(alvo) {
+    if (!alvo) return;
+    alvo.querySelectorAll('.falta').forEach(function (el) { el.classList.remove('falta'); });
+  }
+  // Pinta de vermelho o rótulo de um campo (o <label> que o contém).
+  function pintar(area, marca) {
+    if (!area) return null;
+    var el = null;
+    if (marca.campo) el = area.querySelector('[data-campo="' + marca.campo + '"]');
+    else if (marca.check) el = area.querySelector('[data-check="' + marca.check + '"]');
+    else if (marca.sel) el = area.querySelector(marca.sel);
+    if (!el) return null;
+    var alvo = el.closest('label') || el;
+    alvo.classList.add('falta');
+    return alvo;
+  }
+
+  /**
+   * Pinta de vermelho, no formulário, o rótulo de tudo o que falta no ponto `n`
+   * (o 1º ponto incompleto) e leva a tela até o primeiro deles. Chamado quando o
+   * aviso de PENDÊNCIAS aparece — a lista diz o que falta, isto mostra ONDE.
+   * Se o ponto não é o que está aberto, abre esse ponto antes; se o que falta
+   * está numa coleta, abre a coleta.
+   */
+  function marcarFaltas(n) {
+    if (!raiz || !document.body.contains(raiz) || !ctx || !ctx.estado || !ctx.estado.campo) return 0;
+    var pontos = ctx.estado.campo.pontos || [];
+    var total = Math.min(50, Math.max(1, parseInt((ctx.estado.campo.geral || {}).qtdePontos, 10) || 1));
+    var alvo = Math.min(Math.max(parseInt(n, 10) || pontoExibido, 1), total);
+    if (alvo !== pontoExibido) { pontoExibido = alvo; lembrarPonto(alvo); renderizarPontos(); }
+
+    var area = $('#cq-ponto');
+    limparMarcas(raiz);
+    var marcas = [];
+    itensFaltandoDoPonto(pontos[alvo - 1], alvo - 1, marcas);
+    if (!marcas.length) return 0;
+
+    var doPonto = marcas.filter(function (m) { return !m.coleta; });
+    var primeiro = null, n1 = 0;
+    doPonto.forEach(function (m) { var el = pintar(area, m); if (el) { n1++; primeiro = primeiro || el; } });
+
+    // Nada faltando no corpo do ponto: o que falta está numa coleta — abre a
+    // primeira coleta incompleta e marca lá dentro.
+    if (!n1) {
+      var daColeta = marcas.filter(function (m) { return m.coleta; });
+      if (daColeta.length) {
+        var ponto = pontos[alvo - 1] || {};
+        ponto.coletaAtual = daColeta[0].coleta;
+        renderColetas(area, ponto);
+        var card = area.querySelector('#cq-coleta-card');
+        daColeta.filter(function (m) { return m.coleta === daColeta[0].coleta; })
+          .forEach(function (m) { var el = pintar(card, m); if (el) { n1++; primeiro = primeiro || el; } });
+      }
+    }
+    if (primeiro && primeiro.scrollIntoView) primeiro.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return n1;
   }
 
   function itensFaltando(estado) {
@@ -916,6 +994,7 @@ EC.campoQar = (function () {
   return {
     renderizar: renderizar,
     itensFaltando: itensFaltando,
+    marcarFaltas: marcarFaltas,   // pinta na tela o que falta (aviso de pendências)
     calcular: calcularCurva, // usado pelo PDF p/ desenhar a curva do ponto
     vazaoColeta: vazaoColeta, // idem, p/ o veredito de cada bloco da coleta
     svg: svgCurva,            // gráfico da curva (reuso: checagem intermediária)
