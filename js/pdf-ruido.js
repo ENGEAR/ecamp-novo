@@ -898,7 +898,10 @@ EC.pdf = (function () {
         }
         // Gráfico (jsPDF, mm): eixos nomeados centrados e colados no quadro,
         // pontos azuis rotulados e a LEGENDA abaixo, começando com "Legenda:".
-        var GW = Math.min(120, colW - 14), GH = GW > 100 ? 60 : 46, GX = colX + 12;
+        // O gráfico ocupa a coluna toda: começa colado na margem do texto (só o
+        // espaço do título do eixo Y) e é alto o bastante para acompanhar o
+        // quadro ao lado — antes ficava pequeno, com uma faixa vazia embaixo.
+        var GW = Math.min(120, colW - 10), GH = 60, GX = colX + 9;
         garantir(GH + 24); // gráfico + título do eixo X + legenda ficam juntos
         var xs = c.pontos.map(function (q) { return q.x; });
         var ys = c.pontos.map(function (q) { return q.y; });
