@@ -12,7 +12,9 @@
  * Regras espelhadas do SGP:
  *  - tipos: serviço / deslocamento / férias; status: prog/exec/agua/canc/reag;
  *  - férias sempre no topo do dia;
- *  - conflito: mesmo técnico em 2+ serviços (não cancelados) no mesmo dia;
+ *  - limite: cada técnico pode ter até 2 serviços (não cancelados) no mesmo
+ *    dia — o 2º pede confirmação de quem agenda e o 3º não deixa salvar;
+ *  - conflito (destaque vermelho): só acima do limite, 3+ serviços no dia;
  *  - bloqueio: férias × campo do mesmo técnico no mesmo dia (não deixa salvar);
  *  - novo agendamento cria uma linha por dia (data de início → término);
  *  - editar altera SÓ o dia aberto e marca manual=true;
@@ -181,7 +183,12 @@
   }
 
   /* ============ Regras espelhadas ============ */
-  // Conflito: técnico em 2+ eventos não cancelados no mesmo dia → { dia: [nomes] }
+  // Cada técnico pode ter até MAX_SERVICOS_DIA serviços no mesmo dia: 2 é
+  // permitido (mas exige confirmação de quem agenda) e 3+ não deixa salvar.
+  var MAX_SERVICOS_DIA = 2;
+
+  // Conflito: técnico ACIMA do limite (3+ eventos não cancelados no mesmo dia)
+  // → { dia: [nomes] }. Dia com 2 serviços é normal e NÃO entra aqui.
   function calcularConflitos(lista) {
     var porDiaTec = {};
     lista.forEach(function (e) {
@@ -194,7 +201,7 @@
     var conf = {};
     Object.keys(porDiaTec).forEach(function (dia) {
       Object.keys(porDiaTec[dia]).forEach(function (nome) {
-        if (porDiaTec[dia][nome] > 1) { conf[dia] = conf[dia] || []; conf[dia].push(nome); }
+        if (porDiaTec[dia][nome] > MAX_SERVICOS_DIA) { conf[dia] = conf[dia] || []; conf[dia].push(nome); }
       });
     });
     return conf;
@@ -268,6 +275,48 @@
       }
     }
     return null;
+  }
+
+  // Limite de serviços por dia (ao salvar). Conta, para cada técnico deste
+  // agendamento, quantos serviços ele teria no dia: os que já existem (fora
+  // este) + este. Férias não contam (têm bloqueio próprio) nem entram na conta.
+  // Devolve { excesso: mensagem|null, dobras: [{ dia, nomes }] }:
+  //  - excesso → 3 ou mais: não deixa salvar;
+  //  - dobras  → exatamente 2: pode, mas pergunta antes.
+  // "ignorar" diz quais agendamentos são o PRÓPRIO salvamento (não contam como
+  // outro serviço): só este dia, ou todos os dias da campanha quando a edição
+  // vale para a campanha inteira.
+  function checarLimiteDiario(ev, dias, ignorar) {
+    var res = { excesso: null, dobras: [] };
+    var nomes = (ev.tecnicos || []).map(function (t) { return t.nome; });
+    if (ev.tipo === 'ferias' || !nomes.length || !dias.length) return res;
+    if (!ignorar) ignorar = function (x) { return x.id === ev.id; };
+    dias.forEach(function (dia) {
+      var cont = {};
+      nomes.forEach(function (n) { cont[n] = 1; });   // o próprio agendamento
+      eventos.forEach(function (x) {
+        if (ignorar(x) || x.status === 'canc' || x.tipo === 'ferias' || x.data !== dia) return;
+        (x.tecnicos || []).forEach(function (t) { if (cont[t.nome] != null) cont[t.nome] += 1; });
+      });
+      var cheios = [], dobrados = [];
+      nomes.forEach(function (n) {
+        if (cont[n] > MAX_SERVICOS_DIA) cheios.push(nomeCurto(n));
+        else if (cont[n] === MAX_SERVICOS_DIA) dobrados.push(nomeCurto(n));
+      });
+      if (cheios.length && !res.excesso) {
+        res.excesso = cheios.join(', ') + (cheios.length > 1 ? ' já têm' : ' já tem') + ' ' + MAX_SERVICOS_DIA +
+          ' serviços em ' + isoParaBR(dia) + '. O limite é de ' + MAX_SERVICOS_DIA +
+          ' serviços por dia para cada técnico — tire o técnico de um dos serviços do dia antes de agendar mais um.';
+      }
+      if (dobrados.length) res.dobras.push({ dia: dia, nomes: dobrados });
+    });
+    return res;
+  }
+
+  // Assinatura das dobras já confirmadas — se o técnico ou o dia mudar depois
+  // do "Sim, pode agendar", a pergunta volta a aparecer.
+  function assinaturaDobras(dobras) {
+    return (dobras || []).map(function (d) { return d.dia + ':' + d.nomes.join('|'); }).join(';');
   }
 
   /* ============ Render da lista ============ */
@@ -423,7 +472,7 @@
     if (diasConf.length) {
       $('agd-conflito-aviso').innerHTML =
         '<button type="button" class="ecagd-aviso-conflito">⚠ ' + diasConf.length +
-          ' dia(s) com técnico em mais de um serviço. <u>' + (confDetAberto ? 'Ocultar' : 'Toque para ver quais') + '</u></button>' +
+          ' dia(s) com técnico em mais de ' + MAX_SERVICOS_DIA + ' serviços. <u>' + (confDetAberto ? 'Ocultar' : 'Toque para ver quais') + '</u></button>' +
         (confDetAberto ? '<div class="ecagd-conflito-det">' + diasConf.map(function (d) {
           return '<div class="ecagd-conflito-item" data-dia="' + d + '"><b>' + esc(dataLonga(d)) + '</b>' +
             esc(conflitos[d].map(nomeCurto).join(', ')) + '</div>';
@@ -547,6 +596,8 @@
 
   /* ============ Modal (novo / editar / leitura) ============ */
   var mEv = null, mNovo = false, mTecs = [], mDataFim = '', mBuscaOS = '', mAvisoOS = '', mBuscaTec = '';
+  var mDobraOk = '';             // dobra (2 serviços no dia) já confirmada nesta edição
+  var mEscopoPend = 'um';        // escopo escolhido, à espera do "de acordo" da dobra
 
   /* ---------- Dados gerais da OS (leitura, para todo mundo) ---------- */
   // A mesma folha "Dados gerais" do registro de serviço, montada SÓ com o que a
@@ -699,6 +750,8 @@
     mBuscaOS = '';
     mAvisoOS = '';
     mBuscaTec = '';
+    mDobraOk = '';
+    mEscopoPend = 'um';
     renderModal();
     $('agd-modal').classList.remove('oculto');
     document.body.style.overflow = 'hidden';
@@ -710,7 +763,7 @@
     mEv = null;
   }
 
-  function renderModal(mensagemErro, confirmandoExclusao, confirmandoEscopo) {
+  function renderModal(mensagemErro, confirmandoExclusao, confirmandoEscopo, confirmandoDobra) {
     var soLeitura = !perms.podeEditar;
     var st = mEv.status || 'prog';
     var podeFerias = perms.podeFerias || mEv.tipo === 'ferias';
@@ -795,6 +848,18 @@
         '<button type="button" class="botao botao-secundario" id="agdm-del-um">Excluir só este dia</button>' +
         (nDiasCampanha() > 1 ? '<button type="button" class="botao botao-perigo" id="agdm-del-camp">Excluir os ' + nDiasCampanha() + ' dias desta campanha</button>' : '') +
         '<button type="button" class="botao botao-secundario" id="agdm-del-nao">Cancelar</button></div></div>';
+    } else if (confirmandoDobra && confirmandoDobra.length) {
+      // 2 serviços no mesmo dia é permitido, mas quem agenda precisa dizer que
+      // está ciente e concorda (o 3º serviço no dia é barrado antes daqui).
+      var nDob = confirmandoDobra.reduce(function (s, d) { return s + d.nomes.length; }, 0);
+      rodape = '<div class="ecagd-m-dobra"><b>⚠ ' + (nDob > 1 ? 'Técnicos ficam' : 'Técnico fica') + ' com 2 serviços no mesmo dia</b>' +
+        '<div class="ecagd-dobra-lista">' + confirmandoDobra.map(function (d) {
+          return '<div><b>' + esc(dataLonga(d.dia)) + '</b><br>' + esc(d.nomes.join(', ')) + '</div>';
+        }).join('') + '</div>' +
+        '<p class="texto-apoio">São <b>2 serviços no mesmo dia</b> para o mesmo técnico — o máximo permitido. Confirma o agendamento assim?</p>' +
+        '<div class="pilha-botoes">' +
+        '<button type="button" class="botao botao-primario" id="agdm-dob-sim">Sim, pode agendar</button>' +
+        '<button type="button" class="botao botao-secundario" id="agdm-dob-nao">Cancelar</button></div></div>';
     } else if (confirmandoEscopo) {
       rodape = '<div class="ecagd-m-escopo"><b>Aplicar esta alteração a quê?</b><div class="pilha-botoes">' +
         '<button type="button" class="botao botao-secundario" id="agdm-esc-um">Só este dia (' + isoParaBR(mEv.data) + ')</button>' +
@@ -887,8 +952,13 @@
     if ($('agdm-del-nao')) $('agdm-del-nao').addEventListener('click', function () { renderModal(); });
     if ($('agdm-del-um')) $('agdm-del-um').addEventListener('click', function () { excluirModal('um'); });
     if ($('agdm-del-camp')) $('agdm-del-camp').addEventListener('click', function () { excluirModal('campanha'); });
-    if ($('agdm-esc-um')) $('agdm-esc-um').addEventListener('click', function () { gravarEdicao('um'); });
-    if ($('agdm-esc-camp')) $('agdm-esc-camp').addEventListener('click', function () { gravarEdicao('campanha'); });
+    if ($('agdm-dob-sim')) $('agdm-dob-sim').addEventListener('click', function () {
+      mDobraOk = assinaturaDobras(confirmandoDobra);
+      prosseguirSalvar(mEscopoPend);
+    });
+    if ($('agdm-dob-nao')) $('agdm-dob-nao').addEventListener('click', function () { renderModal(); });
+    if ($('agdm-esc-um')) $('agdm-esc-um').addEventListener('click', function () { prosseguirSalvar('um'); });
+    if ($('agdm-esc-camp')) $('agdm-esc-camp').addEventListener('click', function () { prosseguirSalvar('campanha'); });
     if ($('agdm-esc-nao')) $('agdm-esc-nao').addEventListener('click', function () { renderModal(); });
   }
 
@@ -989,9 +1059,34 @@
     var dias = mNovo ? faixaDias(mEv.data, mDataFim) : [mEv.data];
     var bloq = checarBloqueio({ id: mEv.id, tipo: mEv.tipo, tecnicos: mTecs }, dias);
     if (bloq) { renderModal(bloq); return; }
-    // Editando um dia de uma campanha com vários dias: pergunta o alcance.
+    // Editando um dia de uma campanha com vários dias: pergunta o alcance ANTES
+    // do limite de serviços, porque a conta muda se a alteração valer para todos
+    // os dias da campanha.
     if (!mNovo && nDiasCampanha() > 1) { renderModal('', false, true); return; }
-    gravarEdicao('um');
+    prosseguirSalvar('um');
+  }
+
+  // Checa o limite de serviços do dia e grava. escopo: 'um' | 'campanha'
+  // (no novo agendamento vale 'um', que já cobre a faixa de dias escolhida).
+  function prosseguirSalvar(escopo) {
+    var porCampanha = !mNovo && escopo === 'campanha';
+    var dias = mNovo ? faixaDias(mEv.data, mDataFim)
+      : porCampanha ? eventos.filter(function (x) { return mesmaCampanha(mEv, x); })
+          .map(function (x) { return x.data; })
+          .filter(function (d, i, a) { return a.indexOf(d) === i; })
+      : [mEv.data];
+    var ignorar = porCampanha
+      ? function (x) { return mesmaCampanha(mEv, x); }   // os dias da própria campanha estão sendo alterados
+      : function (x) { return x.id === mEv.id; };
+    // Limite de 2 serviços por dia: 3+ não salva; exatamente 2 pede o "de acordo".
+    var lim = checarLimiteDiario({ id: mEv.id, tipo: mEv.tipo, tecnicos: mTecs }, dias, ignorar);
+    if (lim.excesso) { renderModal(lim.excesso); return; }
+    if (lim.dobras.length && mDobraOk !== assinaturaDobras(lim.dobras)) {
+      mEscopoPend = escopo;
+      renderModal('', false, false, lim.dobras);
+      return;
+    }
+    gravarEdicao(escopo);
   }
 
   // Grava de fato. escopo: 'um' (só este dia) ou 'campanha' (todos os dias da

@@ -1123,6 +1123,12 @@ textarea { resize: vertical; font-family: inherit; }
 .ecagd-tec-item.vazio { color: var(--cinza-texto); cursor: default; font-style: italic; }
 .ecagd-m-excluir { background: var(--vermelho-claro); border-radius: 10px; padding: 10px 12px; margin-top: 8px; color: var(--vermelho); font-size: 0.92rem; }
 .ecagd-m-escopo { background: var(--azul-claro); border-radius: 10px; padding: 10px 12px; margin-top: 8px; color: var(--azul-escuro); font-size: 0.92rem; }
+/* Confirmação de 2 serviços no mesmo dia para o mesmo técnico (limite máximo). */
+.ecagd-m-dobra { background: var(--amarelo-claro); border: 1px solid var(--amarelo); border-radius: 10px; padding: 10px 12px; margin-top: 8px; color: #6e5a00; font-size: 0.92rem; }
+.ecagd-dobra-lista { background: #fff; border: 1px solid var(--amarelo); border-radius: 8px; margin: 8px 0; overflow: hidden; }
+.ecagd-dobra-lista > div { padding: 8px 10px; font-size: 0.88rem; color: var(--texto); }
+.ecagd-dobra-lista > div + div { border-top: 1px solid var(--cinza-borda); }
+.ecagd-m-dobra .texto-apoio { color: #6e5a00; }
 
 /* Campo de data com etiqueta curta "30 dez 2026". O seletor nativo do celular
    fica por cima (invisível) e recebe o toque; a etiqueta mostra o texto curto,
