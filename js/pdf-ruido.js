@@ -901,7 +901,7 @@ EC.pdf = (function () {
         // O gráfico ocupa a coluna toda: começa colado na margem do texto (só o
         // espaço do título do eixo Y) e é alto o bastante para acompanhar o
         // quadro ao lado — antes ficava pequeno, com uma faixa vazia embaixo.
-        var GW = Math.min(120, colW - 10), GH = 60, GX = colX + 9;
+        var GW = Math.min(120, colW - 5), GH = 66, GX = colX + 4;
         garantir(GH + 24); // gráfico + título do eixo X + legenda ficam juntos
         var xs = c.pontos.map(function (q) { return q.x; });
         var ys = c.pontos.map(function (q) { return q.y; });
