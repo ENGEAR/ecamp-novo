@@ -788,86 +788,6 @@ EC.pdf = (function () {
         return skip;
       }
 
-      // Tabela simples de grade (cabeçalho azul + zebra), para as leituras da
-      // calibração. Devolve o Y final.
-      function tabelaGrade(x, yy, w, cabecalhos, linhas) {
-        var n = cabecalhos.length;
-        var w0 = Math.min(30, w * 0.24), wc = (w - w0) / (n - 1);
-        var hLin = 6.4, hCab = 7.6;
-        doc.setFillColor(CAB[0], CAB[1], CAB[2]);
-        doc.rect(x, yy, w, hCab, 'F');
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(255, 255, 255);
-        doc.text(cabecalhos[0], x + 2.5, yy + 5.2);
-        for (var c = 1; c < n; c++) doc.text(cabecalhos[c], x + w0 + wc * (c - 1) + wc / 2, yy + 5.2, { align: 'center' });
-        var ly = yy + hCab, zebra = false;
-        linhas.forEach(function (l) {
-          if (zebra) { doc.setFillColor(ZEBRA[0], ZEBRA[1], ZEBRA[2]); doc.rect(x, ly, w, hLin, 'F'); }
-          zebra = !zebra;
-          doc.setDrawColor(BORDA[0], BORDA[1], BORDA[2]); doc.setLineWidth(0.2);
-          doc.line(x, ly + hLin, x + w, ly + hLin);
-          doc.setFontSize(8); doc.setTextColor(PRETO[0], PRETO[1], PRETO[2]);
-          doc.text(String(l[0]), x + 2.5, ly + 4.4);
-          for (var k = 1; k < n; k++) doc.text(v(l[k]), x + w0 + wc * (k - 1) + wc / 2, ly + 4.4, { align: 'center' });
-          ly += hLin;
-        });
-        doc.setDrawColor(BORDA[0], BORDA[1], BORDA[2]); doc.setLineWidth(0.3);
-        doc.rect(x, yy, w, ly - yy, 'S');
-        for (var d = 1; d < n; d++) doc.line(x + w0 + wc * (d - 1), yy + hCab, x + w0 + wc * (d - 1), ly);
-        return ly;
-      }
-
-      // Rótulo de cada confirmação da calibração (as caixinhas da tela).
-      var CHECKS_QAR = {
-        aquec0: 'Motor aquecido', zerar0: 'Manômetro zerado', zerar1: 'Válvulas fechadas',
-        vaz0: 'Manômetro 800 mm - vazamento OK', vaz1: 'Manômetro 400 mm - vazamento OK',
-        porta0: 'Nenhuma fuga de ar detectada', calib0: 'Calibração aprovada'
-      };
-
-      /**
-       * Caixa "Leituras da calibração": a1/b1 do certificado, as leituras de
-       * cada placa de retenção e do filtro, e as confirmações de cada passo.
-       * A curva RESUME esses números, mas não os substitui — tudo o que a tela
-       * de Serviços coleta continua no relatório (pedido da Raisa, 2026-08-20).
-       */
-      function calibracaoParticulados(it) {
-        var placas = ['18', '13', '10', '09', '08'];
-        var linhas = [];
-        placas.forEach(function (c) {
-          var p = 'carta' + c + '_';
-          var l = ['Placa ' + c, it[p + '800sobe'], it[p + '800desce'], it[p + '00sobe'], it[p + '00desce']];
-          if (l.slice(1).some(function (x) { return v(x) !== '—'; })) linhas.push(l);
-        });
-        var f = ['Com filtro', it.filtro_800sobe, it.filtro_800desce, it.filtro_00sobe, it.filtro_00desce];
-        if (f.slice(1).some(function (x) { return v(x) !== '—'; })) linhas.push(f);
-        var checks = it.checks || {};
-        var chaves = Object.keys(CHECKS_QAR).filter(function (k) { return k in checks; });
-        var temA1 = v(it.calibA1) !== '—' || v(it.calibB1) !== '—';
-        if (!linhas.length && !chaves.length && !temA1) return;
-
-        garantir(30 + linhas.length * 6.4 + chaves.length * 5.4);
-        var topo = y;
-        var yy = abrirCaixa(MARGEM, topo, LARG, 'Leituras da calibração');
-        yy = naColuna(MARGEM + 5, LARG - 10, yy, function () {
-          if (temA1) {
-            kv('Inclinação a1 (certificado do CPV)', it.calibA1);
-            kv('Intercepto b1 (certificado do CPV)', it.calibB1);
-            y += 1;
-          }
-        });
-        if (linhas.length) {
-          yy = tabelaGrade(MARGEM + 4, yy, LARG - 8,
-            ['Placa de retenção', '800 sobe', '800 desce', '400 sobe', '400 desce'], linhas) + 3;
-        }
-        if (chaves.length) {
-          yy = naColuna(MARGEM + 5, LARG - 10, yy + 2, function () {
-            subtitulo('Confirmações da calibração');
-            chaves.forEach(function (k) { kv(CHECKS_QAR[k], checks[k] ? 'Sim' : 'Não'); });
-          });
-        }
-        fecharCaixa(MARGEM, topo, LARG, yy + 2);
-        y = yy + 10;
-      }
-
       // Uma página por ponto: barra, curva + dados da calibração, foto + coleta.
       function pontoParticulados(it, n) {
         var escopoOs = (reg.servico && reg.servico.escopo) || '';
@@ -927,9 +847,6 @@ EC.pdf = (function () {
         fecharCaixa(MARGEM, topo2, wEsq, pe);
         if (cols.length) fecharCaixa(xDir, topo2, wDir, pe);
         y = pe + 8;
-
-        // Leituras e confirmações da calibração (nada do que a tela coleta fica de fora).
-        calibracaoParticulados(it);
 
         if (sobraram.length) {
           // O título desce junto com a 1ª foto (senão fica órfão no pé da página).
