@@ -136,6 +136,13 @@ EC.sync = (function () {
   // Idempotente: reenviar devolve o mapeamento dos pontos e as fotos repetidas
   // são ignoradas no servidor. Lança erro em falha (err.naoSuportado=true se 422).
   var FOTOS_EM_PARALELO = 4; // quantas fotos sobem ao mesmo tempo
+  var TENTATIVAS_FOTO = 3;   // tentativas por foto antes de deixar para depois
+  // Nomes das fotos que JÁ chegaram ao servidor. Fica no localStorage (e não no
+  // IndexedDB) de propósito: criar uma loja nova exigiria subir a versão do
+  // banco no aparelho de quem está com fotos na fila, e não vale o risco.
+  var CHAVE_FOTOS_ENVIADAS = 'fotos:enviadas';
+  var MAX_FOTOS_LEMBRADAS = 3000;   // ~200 KB; acima disso descarta as mais antigas
+  var fotosEnviadas = null;         // Set em memória, carregado uma vez
 
   // aoRegistrar (opcional): chamado assim que o SERVIDOR aceita os dados (antes
   // das fotos), com a resposta — traz `revisao`, usada no código do PDF.
@@ -181,13 +188,73 @@ EC.sync = (function () {
       });
     }
 
-    // envia em lotes paralelos (mais rápido em monitoramentos grandes)
-    for (var k = 0; k < tarefas.length; k += FOTOS_EM_PARALELO) {
-      var lote = tarefas.slice(k, k + FOTOS_EM_PARALELO);
-      await Promise.all(lote.map(function (t) { return postJson(ROTA_FOTO, t); }));
-    }
+    resp.fotos = await subirFotos(tarefas);
     return resp;
   }
+
+  /**
+   * Sobe as fotos, uma a uma, TOLERANDO falha.
+   *
+   * Antes as fotos iam em lotes de 4 com Promise.all: bastava UMA falhar para o
+   * lote inteiro estourar, o envio ser abortado e todas as fotos seguintes
+   * ficarem para trás — sem ninguém saber. Foi o que aconteceu na OS 26255, em
+   * que 164 de 242 fotos nunca saíram do aparelho (2026-08-20).
+   *
+   * Agora cada foto tem a sua própria chance (com retentativa) e uma que não
+   * sobe não impede as outras. As que subiram ficam marcadas no aparelho, para
+   * a próxima tentativa mandar só o que falta — em sinal de campo, reenviar
+   * centenas de fotos era justamente o que fazia o envio morrer.
+   *
+   * Devolve { total, enviadas, jaEstavam, falharam: [nomes] }.
+   */
+  async function subirFotos(tarefas) {
+    var res = { total: tarefas.length, enviadas: 0, jaEstavam: 0, falharam: [] };
+    for (var k = 0; k < tarefas.length; k += FOTOS_EM_PARALELO) {
+      var lote = tarefas.slice(k, k + FOTOS_EM_PARALELO);
+      await Promise.all(lote.map(async function (t) {
+        if (fotoJaEnviada(t.nomeArquivo)) { res.jaEstavam++; return; }
+        for (var tentativa = 1; tentativa <= TENTATIVAS_FOTO; tentativa++) {
+          try {
+            await postJson(ROTA_FOTO, t);
+            marcarFotoEnviada(t.nomeArquivo);
+            res.enviadas++;
+            return;
+          } catch (e) {
+            // 422 (o servidor não aceita esta foto) não melhora tentando de novo.
+            if (e && e.naoSuportado) break;
+            if (tentativa < TENTATIVAS_FOTO) await esperar(700 * tentativa);
+          }
+        }
+        res.falharam.push(t.nomeArquivo);
+      }));
+      gravarFotosEnviadas();   // a cada lote: um fechamento do app não perde a marca
+    }
+    return res;
+  }
+
+  function esperar(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  // Fotos que JÁ chegaram ao servidor, por nome de arquivo (único por foto).
+  // Se a leitura falhar, o pior caso é reenviar — nunca deixar de enviar.
+  function carregarFotosEnviadas() {
+    if (fotosEnviadas) return fotosEnviadas;
+    var lista = [];
+    try { lista = EC.storage.ler(CHAVE_FOTOS_ENVIADAS) || []; } catch (e) { lista = []; }
+    fotosEnviadas = new Set(Array.isArray(lista) ? lista : []);
+    return fotosEnviadas;
+  }
+  function gravarFotosEnviadas() {
+    try {
+      var lista = Array.from(carregarFotosEnviadas());
+      if (lista.length > MAX_FOTOS_LEMBRADAS) {
+        lista = lista.slice(lista.length - MAX_FOTOS_LEMBRADAS);
+        fotosEnviadas = new Set(lista);
+      }
+      EC.storage.salvar(CHAVE_FOTOS_ENVIADAS, lista);
+    } catch (e) { /* sem espaço: no máximo reenvia depois */ }
+  }
+  function fotoJaEnviada(nome) { return carregarFotosEnviadas().has(nome); }
+  function marcarFotoEnviada(nome) { carregarFotosEnviadas().add(nome); }
 
   // Sobe o PDF gerado para o SharePoint (pasta "PDFs Campo"), como corpo BINÁRIO
   // (não base64 → cabe mais no limite da Vercel). Best-effort: o PDF já está
@@ -223,12 +290,20 @@ EC.sync = (function () {
     if (registro.rascunhoId) { try { await EC.db.remove('pending', chaveRascPendente(registro)); } catch (e) { /* ok */ } }
     var avisado = false;
     try {
-      await enviar(registro, function (resp) {
+      var r = await enviar(registro, function (resp) {
         avisado = true;
         if (typeof aoRegistrar === 'function') { try { aoRegistrar(resp); } catch (e) { /* ok */ } }
       });
-      try { await EC.db.remove('pending', registro.codificacao); } catch (e) { /* ok */ }
-      toast('✅ Enviado ao servidor.');
+      // Fotos que não subiram: o registro CONTINUA na fila e a pessoa é avisada
+      // (antes o envio era abortado na 1ª falha e ninguém ficava sabendo).
+      var faltam = (r && r.fotos && r.fotos.falharam.length) || 0;
+      if (faltam) {
+        try { await EC.db.set('pending', registro.codificacao, registro); } catch (e2) { /* ok */ }
+        toast('⚠️ Dados enviados, mas ' + faltam + ' foto(s) não subiram. Elas seguem no aparelho — toque em Sincronizar com boa conexão.');
+      } else {
+        try { await EC.db.remove('pending', registro.codificacao); } catch (e) { /* ok */ }
+        toast('✅ Enviado ao servidor.');
+      }
     } catch (e) {
       if (e.naoSuportado) {
         toast('ℹ️ Este tipo ainda não sincroniza com o servidor. Salvo no aparelho.');
@@ -248,9 +323,17 @@ EC.sync = (function () {
   async function sincronizarRascunho(registro) {
     var chave = chaveRascPendente(registro);
     try {
-      await enviar(registro); // registro vem com finalizar:false + rascunhoId
-      try { await EC.db.remove('pending', chave); } catch (e) { /* ok */ }
-      toast('✅ Rascunho salvo no servidor (Incompleto).');
+      var r = await enviar(registro); // registro vem com finalizar:false + rascunhoId
+      // Fotos que não subiram: mantém na fila e AVISA. Antes o envio parava na
+      // 1ª falha e o técnico via "sincroniza sozinho" achando que estava tudo lá.
+      var faltam = (r && r.fotos && r.fotos.falharam.length) || 0;
+      if (faltam) {
+        try { await EC.db.set('pending', chave, registro); } catch (e2) { /* ok */ }
+        toast('⚠️ Rascunho salvo, mas ' + faltam + ' foto(s) não subiram. Elas seguem no aparelho — toque em Sincronizar com boa conexão.');
+      } else {
+        try { await EC.db.remove('pending', chave); } catch (e) { /* ok */ }
+        toast('✅ Rascunho salvo no servidor (Incompleto).');
+      }
     } catch (e) {
       if (e.naoSuportado) {
         // 422: faltam dados mínimos p/ o servidor aceitar — só o aparelho por ora.
@@ -362,7 +445,7 @@ EC.sync = (function () {
     // Fila vazia: atualiza a barra ANTES de sair — senão um badge "N pendente(s)"
     // que ficou preso (corrida ao voltar online) não some ao tocar em Sincronizar.
     if (!chaves.length) { atualizarBarra(); if (!silencioso) toast('Nada pendente para sincronizar.'); return; }
-    var ok = 0, pendente = 0, limpos = 0;
+    var ok = 0, pendente = 0, limpos = 0, fotosPendentes = 0;
     for (var i = 0; i < chaves.length; i++) {
       var chave = chaves[i];
       var reg = null;
@@ -373,17 +456,24 @@ EC.sync = (function () {
         continue;
       }
       try {
-        await enviar(reg); // servidor é idempotente: reenvio devolve "ok"
-        try { await EC.db.remove('pending', chave); } catch (e) { /* ok */ }
-        ok++;
+        var r = await enviar(reg); // servidor é idempotente: reenvio devolve "ok"
+        // Sobrou foto? O registro FICA na fila (a próxima tentativa manda só o
+        // que falta, porque as enviadas ficam marcadas no aparelho).
+        var faltam = (r && r.fotos && r.fotos.falharam.length) || 0;
+        if (faltam) { fotosPendentes += faltam; pendente++; }
+        else {
+          try { await EC.db.remove('pending', chave); } catch (e) { /* ok */ }
+          ok++;
+        }
       } catch (e) {
         if (e.naoSuportado) { try { await EC.db.remove('pending', chave); } catch (e2) { /* ok */ } }
         else { pendente++; }
       }
     }
-    if (!silencioso || ok || limpos) {
+    if (!silencioso || ok || limpos || fotosPendentes) {
       toast('Sincronização: ' + ok + ' enviado(s)' +
         (pendente ? ', ' + pendente + ' pendente(s)' : '') +
+        (fotosPendentes ? ' (' + fotosPendentes + ' foto(s) ainda no aparelho)' : '') +
         (limpos ? ', ' + limpos + ' limpo(s)' : '') + '.');
     }
     atualizarBarra();
