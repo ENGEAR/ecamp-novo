@@ -140,6 +140,7 @@ EC.pdf = (function () {
     area: 'Área', pontosCalculados: 'Pontos calculados', pessoas: 'Nº de pessoas', janela: 'Janela',
     valorVazao: 'Vazão', co2: 'CO2', temp: 'Temperatura', ur: 'Umidade relativa', velar: 'Velocidade do ar',
     pm25: 'PM2,5', pm10: 'PM10', particulas: 'Partículas', numFiltro: 'Nº do filtro',
+    codigoFiltro: 'Código do filtro', coletaAtual: 'Coleta atual', caracteristicaAmbiente: 'Característica do ambiente',
     tipoMonitoramento: 'Tipo de monitoramento', medicaoPrincipal: 'Medição principal', unidade: 'Unidade',
     esquadrias: 'Condição das esquadrias', condicao: 'Ocupação do ambiente', mobilia: 'Condição do ambiente',
     altura: 'Altura do sonômetro', condAmbiente: 'Condições do ambiente', eventualidade: 'Eventualidade',
@@ -654,7 +655,7 @@ EC.pdf = (function () {
       // Caixa de borda fina com título azul. Desenha só a moldura + o título e
       // devolve o Y de onde o conteúdo começa; a borda é fechada depois, quando
       // se sabe a altura (fecharCaixa) — assim o conteúdo manda na altura.
-      var BORDA = [200, 208, 218], ZEBRA = [244, 246, 249], CAB = [62, 92, 138];
+      var BORDA = [200, 208, 218], ZEBRA = [244, 246, 249], CAB = AZUL;  // cabeçalho no MESMO azul do resto do PDF
       function abrirCaixa(x, yy, w, titulo) {
         doc.setFont('helvetica', 'normal'); doc.setFontSize(12);
         doc.setTextColor(AZUL[0], AZUL[1], AZUL[2]);
@@ -876,8 +877,9 @@ EC.pdf = (function () {
         var GAP = 6, wDir = 72, wEsq = LARG - wDir - GAP, xDir = MARGEM + wEsq + GAP;
         var topo = y;
 
-        // Esquerda: curva (números + gráfico + legenda).
-        var fimEsq = naColuna(MARGEM, wEsq, topo, function () { curvaQarPdf(it); });
+        // Esquerda: curva (números + gráfico + legenda). Começa na MESMA linha do
+        // título da caixa ao lado (+8.5 = onde abrirCaixa põe a 1ª linha).
+        var fimEsq = naColuna(MARGEM, wEsq, topo + 8.5, function () { curvaQarPdf(it); });
         // Direita: caixa com os dados do ponto (sem as leituras brutas das placas).
         var yConteudo = abrirCaixa(xDir, topo, wDir, 'Dados da calibração do ponto');
         var fimDir = naColuna(xDir + 5, wDir - 10, yConteudo, function () { renderCampos(it, skipQar(it, true)); });
