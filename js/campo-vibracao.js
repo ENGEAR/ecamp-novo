@@ -500,6 +500,9 @@ EC.campoVibracao = (function () {
     renderMedicoes(area, alvo);
     const gpsInstancia = montarGps(area, alvo);
     montarFoto(area, '.cv-foto-ponto', alvo, 'fotoPonto', '📷 Foto do ponto (obrigatória)', gpsInstancia, n);
+    // Preencheu o campo → a marca vermelha de pendência sai na hora.
+    area.addEventListener('input', EC.app.tirarMarca);
+    area.addEventListener('change', EC.app.tirarMarca);
 
     // instalação do geofone: mostra os checks da opção escolhida (uma das três)
     const selGeo = area.querySelector('[data-campo="instalGeofone"]');
@@ -599,30 +602,33 @@ EC.campoVibracao = (function () {
   /* ===== Validação ===== */
 
   // Faltas de UMA medição (o ponto plano, ou a medição de um período no CECAV).
-  function faltasMedicao(med, estado) {
+  // `marcas` (opcional) recolhe ONDE cada falta está na tela, para o formulário
+  // pintar de vermelho o rótulo do que falta (ver EC.app.marcarCampos).
+  function faltasMedicao(med, estado, marcas) {
     med = med || {};
     const falta = [];
+    const marcar = function (m) { if (marcas) marcas.push(m); };
     const reqVal = function (chave, rotulo) {
       const v = med[chave];
-      if (v === undefined || v === null || String(v).trim() === '') falta.push(rotulo);
+      if (v === undefined || v === null || String(v).trim() === '') { falta.push(rotulo); marcar({ campo: chave }); }
     };
     const checks = med.checks || {};
     const grupoChecks = function (prefixo, qtde, rotulo) {
       let n = 0;
-      for (let i = 0; i < qtde; i++) if (!checks[prefixo + i]) n++;
+      for (let i = 0; i < qtde; i++) if (!checks[prefixo + i]) { n++; marcar({ check: prefixo + i }); }
       if (n) falta.push(n + ' confirmação(ões) de ' + rotulo);
     };
 
     reqVal('horaInicial', 'hora inicial');
     reqVal('nome', 'nome do ponto');
     if (((estado && estado.equipamentos) || []).length) reqVal('equipamento', 'equipamento utilizado');
-    if (!med.gps) falta.push('GPS');
+    if (!med.gps) { falta.push('GPS'); marcar({ sel: '.cv-gps' }); }
     reqVal('fonteVibracao', 'fonte de vibração');
     reqVal('instalGeofone', 'instalação do geofone');
     const cfgGeo = INSTAL_GEOFONE[med.instalGeofone];
     if (cfgGeo) grupoChecks(cfgGeo.prefixo, cfgGeo.checks.length, 'instalação do geofone (' + med.instalGeofone.toLowerCase() + ')');
     grupoChecks('autoverif', 1, 'auto verificação');
-    if (!EC.foto.tem(med.fotoPonto)) falta.push('foto do ponto');
+    if (!EC.foto.tem(med.fotoPonto)) { falta.push('foto do ponto'); marcar({ sel: '.cv-foto-ponto' }); }
     grupoChecks('monit', CHECKS_MONITORAMENTO.length, 'durante o monitoramento');
     reqVal('intercorrencia', 'intercorrências');
     if (med.intercorrencia === 'Sim') reqVal('intercorrenciaDesc', 'descrição da intercorrência');
@@ -659,6 +665,41 @@ EC.campoVibracao = (function () {
       faltasMedicao(med, estado).forEach(function (x) { falta.push(pref + x); });
     });
     return falta;
+  }
+
+  /**
+   * Pinta de vermelho o rótulo do que falta no ponto `n` — sem `n`, procura o
+   * primeiro ponto incompleto. Abre o ponto e o PERÍODO em que está a falta
+   * (as 2ª/3ª medições do CECAV só aparecem na lista do aviso).
+   */
+  function marcarFaltas(n) {
+    if (!raiz || !document.body.contains(raiz) || !ctx || !ctx.estado || !ctx.estado.campo) return 0;
+    const pontos = campo().pontos || [];
+    const total = Math.min(50, Math.max(1, parseInt((campo().geral || {}).qtdePontos, 10) || 1));
+    const periodos = periodosAtivos();
+    const p0 = periodos[0];
+    let alvo = parseInt(n, 10) || 0;
+    if (!alvo) {
+      for (let i = 0; i < total && !alvo; i++) {
+        if (itensFaltandoDoPonto(pontos[i], ctx.estado).length) alvo = i + 1;
+      }
+    }
+    alvo = Math.min(Math.max(alvo || pontoExibido, 1), total);
+    const ponto = pontos[alvo - 1] || {};
+    // Período com pendência (com um só período marcado, é sempre ele).
+    let per = periodoExibido;
+    for (let k = 0; k < periodos.length; k++) {
+      if (faltasMedicao(medPer(ponto, periodos[k], p0), ctx.estado).length) { per = periodos[k]; break; }
+    }
+    if (alvo !== pontoExibido || per !== periodoExibido) {
+      pontoExibido = alvo; periodoExibido = per;
+      lembrarPonto(alvo);
+      renderizarPontos();
+    }
+    EC.app.limparMarcas(raiz);
+    const marcas = [];
+    faltasMedicao(medPer(ponto, per, p0), ctx.estado, marcas);
+    return EC.app.marcarCampos($('#cv-ponto'), marcas);
   }
 
   function itensFaltando(estado) {
@@ -710,6 +751,7 @@ EC.campoVibracao = (function () {
   return {
     renderizar: renderizar,
     itensFaltando: itensFaltando,
+    marcarFaltas: marcarFaltas,
     TIPO_CARIMBO: TIPO_CARIMBO
   };
 })();

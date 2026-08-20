@@ -129,6 +129,7 @@ EC.campoOpacidade = (function () {
     veiculoExibido = Math.min(veiculoExibido, total);
     EC.paginacao.criar($('#co-paginacao'), {
       total: total,
+      atual: veiculoExibido,
       rotulo: 'V',
       // Navegação livre entre veículos (começar em qualquer um). A validação da
       // foto/dados obrigatórios continua na finalização (itensFaltando).
@@ -176,32 +177,63 @@ EC.campoOpacidade = (function () {
     vincular(area, veic);
     montarGps(area, veic);
     montarFoto(area, veic, n);
+    // Preencheu o campo → a marca vermelha de pendência sai na hora.
+    area.addEventListener('input', EC.app.tirarMarca);
+    area.addEventListener('change', EC.app.tirarMarca);
   }
 
   /* ===== Validação ===== */
 
-  function itensFaltandoDoVeiculo(veic, sub) {
+  // `marcas` (opcional) recolhe ONDE cada falta está na tela, para o formulário
+  // pintar de vermelho o rótulo do que falta (ver EC.app.marcarCampos).
+  function itensFaltandoDoVeiculo(veic, sub, marcas) {
     veic = veic || {};
     const falta = [];
+    const marcar = function (m) { if (marcas) marcas.push(m); };
     const reqVal = function (chave, rotulo) {
       const v = veic[chave];
-      if (v === undefined || v === null || String(v).trim() === '') falta.push(rotulo);
+      if (v === undefined || v === null || String(v).trim() === '') { falta.push(rotulo); marcar({ campo: chave }); }
     };
     reqVal('placa', 'placa / identificação');
-    if (!veic.gps) falta.push('GPS');
-    if (!(veic.gps && String(veic.gps.endereco || '').trim()) && !String(veic.endereco || '').trim()) falta.push('endereço (no bloco do GPS)');
+    if (!veic.gps) { falta.push('GPS'); marcar({ sel: '.co-gps' }); }
+    if (!(veic.gps && String(veic.gps.endereco || '').trim()) && !String(veic.endereco || '').trim()) {
+      falta.push('endereço (no bloco do GPS)'); marcar({ sel: '.co-gps' });
+    }
     if (sub === 'ringelmann') {
       reqVal('horaInicial', 'hora inicial');
       for (let i = 0; i < 10; i++) reqVal('leitura' + i, (i + 1) + 'ª leitura');
     } else {
       const checks = veic.checks || {};
       let n = 0;
-      for (let i = 0; i < CHECKS_OPACIMETRO.length; i++) if (!checks['op' + i]) n++;
+      for (let i = 0; i < CHECKS_OPACIMETRO.length; i++) if (!checks['op' + i]) { n++; marcar({ check: 'op' + i }); }
       if (n) falta.push(n + ' confirmação(ões) do ensaio');
     }
-    if (!EC.foto.tem(veic.foto)) falta.push('foto / evidência do veículo');
+    if (!EC.foto.tem(veic.foto)) { falta.push('foto / evidência do veículo'); marcar({ sel: '.co-foto' }); }
     // Hora final e observações são opcionais.
     return falta;
+  }
+
+  /**
+   * Pinta de vermelho o rótulo do que falta no veículo `n` — sem `n`, procura o
+   * primeiro veículo incompleto. Abre o veículo se não for o que está na tela.
+   */
+  function marcarFaltas(n) {
+    if (!raiz || !document.body.contains(raiz) || !ctx || !ctx.estado || !ctx.estado.campo) return 0;
+    const veics = campo().veiculos || [];
+    const total = Math.min(50, Math.max(1, parseInt((campo().geral || {}).qtdeVeiculos, 10) || 1));
+    const sub = campo().subtipo || subtipoPorEscopo((ctx.estado.servico || {}).escopo);
+    let alvo = parseInt(n, 10) || 0;
+    if (!alvo) {
+      for (let i = 0; i < total && !alvo; i++) {
+        if (itensFaltandoDoVeiculo(veics[i], sub).length) alvo = i + 1;
+      }
+    }
+    alvo = Math.min(Math.max(alvo || veiculoExibido, 1), total);
+    if (alvo !== veiculoExibido) { veiculoExibido = alvo; renderizarVeiculos(); }
+    EC.app.limparMarcas(raiz);
+    const marcas = [];
+    itensFaltandoDoVeiculo(veics[alvo - 1], sub, marcas);
+    return EC.app.marcarCampos($('#co-veiculo'), marcas);
   }
 
   function itensFaltando(estado) {
@@ -280,6 +312,7 @@ EC.campoOpacidade = (function () {
   return {
     renderizar: renderizar,
     itensFaltando: itensFaltando,
+    marcarFaltas: marcarFaltas,
     TIPO_CARIMBO: tipoCarimbo
   };
 })();

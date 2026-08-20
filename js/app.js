@@ -1052,12 +1052,49 @@
   $('fase2-voltar').addEventListener('click', function () { mostrarTela('tela-acao'); });
 
   /* ============ Funções compartilhadas com os módulos de fluxo ============ */
+  /* ============ Marcar na tela os campos pendentes ============ */
+  // Os módulos de campo dizem ONDE está cada pendência — { campo } é um
+  // [data-campo], { check } um [data-check] e { sel } um bloco inteiro (GPS,
+  // foto). Aqui a marca é aplicada: o RÓTULO (o <label> que contém o controle)
+  // fica vermelho e a tela rola até o primeiro. Fica em um lugar só para os
+  // seis módulos de campo não terem seis cópias da mesma regra.
+  function marcarCampos(area, marcas) {
+    if (!area) return 0;
+    let n = 0, primeiro = null;
+    (marcas || []).forEach(function (m) {
+      let el = null;
+      if (m.campo) el = area.querySelector('[data-campo="' + m.campo + '"]');
+      else if (m.check) el = area.querySelector('[data-check="' + m.check + '"]');
+      else if (m.sel) el = area.querySelector(m.sel);
+      if (!el) return;
+      const alvo = (el.closest && el.closest('label')) || el;
+      alvo.classList.add('falta');
+      n++;
+      if (!primeiro) primeiro = alvo;
+    });
+    if (primeiro && primeiro.scrollIntoView) primeiro.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return n;
+  }
+  function limparMarcas(area) {
+    if (!area || !area.querySelectorAll) return;
+    area.querySelectorAll('.falta').forEach(function (el) { el.classList.remove('falta'); });
+  }
+  // Para ligar num listener delegado de input/change: preencheu, a marca sai.
+  function tirarMarca(ev) {
+    const t = ev && ev.target;
+    const alvo = (t && t.closest) ? (t.closest('label.falta') || t.closest('.falta')) : null;
+    if (alvo) alvo.classList.remove('falta');
+  }
+
   EC.app = {
     mostrarTela: mostrarTela,
     mostrarToast: mostrarToast,
     atualizarSino: atualizarSino,
     abrirOverlay: abrirOverlay,
-    fecharOverlay: fecharOverlay
+    fecharOverlay: fecharOverlay,
+    marcarCampos: marcarCampos,
+    limparMarcas: limparMarcas,
+    tirarMarca: tirarMarca
   };
 
   /* ============ Inicialização ============ */

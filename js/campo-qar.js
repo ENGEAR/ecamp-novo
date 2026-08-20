@@ -817,12 +817,8 @@ EC.campoQar = (function () {
     // no cartão (os campos ficam fora dos blocos redesenhados — não rouba o foco).
     atualizarCurva(area, ponto);
     // Preencheu o campo → a marca vermelha de pendência sai na hora.
-    var tirarMarca = function (ev) {
-      var alvo = ev.target && ev.target.closest ? (ev.target.closest('label.falta') || ev.target.closest('.falta')) : null;
-      if (alvo) alvo.classList.remove('falta');
-    };
-    area.addEventListener('input', function (ev) { tirarMarca(ev); atualizarCurva(area, ponto); atualizarVazaoColeta(area, ponto); });
-    area.addEventListener('change', function (ev) { tirarMarca(ev); atualizarCurva(area, ponto); atualizarVazaoColeta(area, ponto); });
+    area.addEventListener('input', function (ev) { EC.app.tirarMarca(ev); atualizarCurva(area, ponto); atualizarVazaoColeta(area, ponto); });
+    area.addEventListener('change', function (ev) { EC.app.tirarMarca(ev); atualizarCurva(area, ponto); atualizarVazaoColeta(area, ponto); });
   }
 
   /* ===== Validação ===== */
@@ -894,63 +890,49 @@ EC.campoQar = (function () {
   }
 
   /* ===== Marcar na TELA o que está faltando ===== */
-  // Tira as marcas vermelhas de um trecho da tela.
-  function limparMarcas(alvo) {
-    if (!alvo) return;
-    alvo.querySelectorAll('.falta').forEach(function (el) { el.classList.remove('falta'); });
-  }
-  // Pinta de vermelho o rótulo de um campo (o <label> que o contém).
-  function pintar(area, marca) {
-    if (!area) return null;
-    var el = null;
-    if (marca.campo) el = area.querySelector('[data-campo="' + marca.campo + '"]');
-    else if (marca.check) el = area.querySelector('[data-check="' + marca.check + '"]');
-    else if (marca.sel) el = area.querySelector(marca.sel);
-    if (!el) return null;
-    var alvo = el.closest('label') || el;
-    alvo.classList.add('falta');
-    return alvo;
-  }
-
   /**
    * Pinta de vermelho, no formulário, o rótulo de tudo o que falta no ponto `n`
    * (o 1º ponto incompleto) e leva a tela até o primeiro deles. Chamado quando o
    * aviso de PENDÊNCIAS aparece — a lista diz o que falta, isto mostra ONDE.
    * Se o ponto não é o que está aberto, abre esse ponto antes; se o que falta
-   * está numa coleta, abre a coleta.
+   * está numa coleta, abre a coleta. (A pintura em si é do EC.app.)
    */
   function marcarFaltas(n) {
     if (!raiz || !document.body.contains(raiz) || !ctx || !ctx.estado || !ctx.estado.campo) return 0;
     var pontos = ctx.estado.campo.pontos || [];
     var total = Math.min(50, Math.max(1, parseInt((ctx.estado.campo.geral || {}).qtdePontos, 10) || 1));
-    var alvo = Math.min(Math.max(parseInt(n, 10) || pontoExibido, 1), total);
+    // Sem o número do ponto (aviso ao avançar da tela de campo), procura o
+    // primeiro ponto incompleto.
+    var alvo = parseInt(n, 10) || 0;
+    if (!alvo) {
+      for (var i = 0; i < total && !alvo; i++) {
+        if (itensFaltandoDoPonto(pontos[i], i).length) alvo = i + 1;
+      }
+    }
+    alvo = Math.min(Math.max(alvo || pontoExibido, 1), total);
     if (alvo !== pontoExibido) { pontoExibido = alvo; lembrarPonto(alvo); renderizarPontos(); }
 
     var area = $('#cq-ponto');
-    limparMarcas(raiz);
+    EC.app.limparMarcas(raiz);
     var marcas = [];
     itensFaltandoDoPonto(pontos[alvo - 1], alvo - 1, marcas);
     if (!marcas.length) return 0;
 
-    var doPonto = marcas.filter(function (m) { return !m.coleta; });
-    var primeiro = null, n1 = 0;
-    doPonto.forEach(function (m) { var el = pintar(area, m); if (el) { n1++; primeiro = primeiro || el; } });
+    var marcados = EC.app.marcarCampos(area, marcas.filter(function (m) { return !m.coleta; }));
 
     // Nada faltando no corpo do ponto: o que falta está numa coleta — abre a
     // primeira coleta incompleta e marca lá dentro.
-    if (!n1) {
+    if (!marcados) {
       var daColeta = marcas.filter(function (m) { return m.coleta; });
       if (daColeta.length) {
         var ponto = pontos[alvo - 1] || {};
         ponto.coletaAtual = daColeta[0].coleta;
         renderColetas(area, ponto);
-        var card = area.querySelector('#cq-coleta-card');
-        daColeta.filter(function (m) { return m.coleta === daColeta[0].coleta; })
-          .forEach(function (m) { var el = pintar(card, m); if (el) { n1++; primeiro = primeiro || el; } });
+        marcados = EC.app.marcarCampos(area.querySelector('#cq-coleta-card'),
+          daColeta.filter(function (m) { return m.coleta === daColeta[0].coleta; }));
       }
     }
-    if (primeiro && primeiro.scrollIntoView) primeiro.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    return n1;
+    return marcados;
   }
 
   function itensFaltando(estado) {

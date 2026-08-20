@@ -159,7 +159,7 @@ EC.campoQarInterno = (function () {
     while (campo().ambientes.length < total) campo().ambientes.push({ pontos: [] });
     ambienteExibido = Math.min(ambienteExibido, total);
     EC.paginacao.criar($('#qi-amb-paginacao'), {
-      total: total, rotulo: 'Amb ',
+      total: total, rotulo: 'Amb ', atual: ambienteExibido,
       aoMudar: function (a) { ambienteExibido = a; pontoExibido = 1; renderizarAmbiente(a); }
     });
     renderizarAmbiente(ambienteExibido);
@@ -202,7 +202,7 @@ EC.campoQarInterno = (function () {
       '<div id="qi-pt-paginacao" class="cr-paginacao"></div><div id="qi-ponto"></div>';
     // Sem trava de saída: o técnico navega livremente (pode começar por qualquer ponto).
     EC.paginacao.criar($('#qi-pt-paginacao'), {
-      total: total, rotuloFn: rotuloPonto,
+      total: total, rotuloFn: rotuloPonto, atual: pontoExibido,
       aoMudar: function (p) { pontoExibido = p; renderizarPonto(amb, p); }
     });
     renderizarPonto(amb, pontoExibido);
@@ -255,25 +255,31 @@ EC.campoQarInterno = (function () {
     const gps = montarGps(area, ponto);
     montarFoto(area, '.qi-foto-ponto', ponto, 'fotoPonto', '📷 Foto do ponto (obrigatória)', gps, 'PONTO', p);
     montarFoto(area, '.qi-foto-tela', ponto, 'fotoTela', '📷 Foto da tela dos equipamentos (obrigatória)', gps, 'TELA', p);
+    // Preencheu o campo → a marca vermelha de pendência sai na hora.
+    area.addEventListener('input', EC.app.tirarMarca);
+    area.addEventListener('change', EC.app.tirarMarca);
     montarFoto(area, '.qi-foto-amb', ponto, 'fotoAmbiente', '📷 Foto do ambiente geral (obrigatória)', gps, 'AMBIENTE', p);
   }
 
   /* ===== Validação (só o essencial trava) ===== */
 
-  function itensFaltandoDoPonto(ponto, ehExterno) {
+  // `marcas` (opcional) recolhe ONDE cada falta está na tela, para o formulário
+  // pintar de vermelho o rótulo do que falta (ver EC.app.marcarCampos).
+  function itensFaltandoDoPonto(ponto, ehExterno, marcas) {
     ponto = ponto || {};
     const falta = [];
+    const marcar = function (m) { if (marcas) marcas.push(m); };
     const reqVal = function (chave, rotulo) {
       const v = ponto[chave];
-      if (v === undefined || v === null || String(v).trim() === '') falta.push(rotulo);
+      if (v === undefined || v === null || String(v).trim() === '') { falta.push(rotulo); marcar({ campo: chave }); }
     };
     const checks = ponto.checks || {};
     const grupoChecks = function (prefixo, qtde, rotulo) {
-      let n = 0; for (let i = 0; i < qtde; i++) if (!checks[prefixo + i]) n++;
+      let n = 0; for (let i = 0; i < qtde; i++) if (!checks[prefixo + i]) { n++; marcar({ check: prefixo + i }); }
       if (n) falta.push(n + ' confirmação(ões) de ' + rotulo);
     };
     reqVal('nome', 'nome do ponto');
-    if (!ponto.gps) falta.push('GPS');
+    if (!ponto.gps) { falta.push('GPS'); marcar({ sel: '.qi-gps' }); }
     reqVal('horaInicial', 'hora inicial');
     reqVal('pessoas', 'quantidade de pessoas');
     // Janela (aberta/fechada) não se aplica ao ponto externo de referência.
@@ -282,11 +288,69 @@ EC.campoQarInterno = (function () {
     reqVal('valorVazao', 'valor da vazão');
     MEDICOES.forEach(function (m) { reqVal(m[0], m[1]); });
     grupoChecks('conf', CHECKS_CONFORMIDADE.length, 'conformidade');
-    if (!EC.foto.tem(ponto.fotoPonto)) falta.push('foto do ponto');
-    if (!EC.foto.tem(ponto.fotoTela)) falta.push('foto da tela dos equipamentos');
-    if (!EC.foto.tem(ponto.fotoAmbiente)) falta.push('foto do ambiente geral');
+    if (!EC.foto.tem(ponto.fotoPonto)) { falta.push('foto do ponto'); marcar({ sel: '.qi-foto-ponto' }); }
+    if (!EC.foto.tem(ponto.fotoTela)) { falta.push('foto da tela dos equipamentos'); marcar({ sel: '.qi-foto-tela' }); }
+    if (!EC.foto.tem(ponto.fotoAmbiente)) { falta.push('foto do ambiente geral'); marcar({ sel: '.qi-foto-amb' }); }
     // fungos / filtro / transporte e a hora final NÃO travam (orientação).
     return falta;
+  }
+
+  // Faltas do AMBIENTE em si (nome/área/cálculo dos pontos).
+  function faltasDoAmbiente(amb, marcas) {
+    amb = amb || {};
+    const falta = [];
+    if (!amb.nome) { falta.push('nome do ambiente'); if (marcas) marcas.push({ campo: 'nome' }); }
+    if (amb.area === undefined || String(amb.area).trim() === '') {
+      falta.push('área climatizada'); if (marcas) marcas.push({ campo: 'area' });
+    }
+    return falta;
+  }
+
+  /**
+   * Pinta de vermelho o rótulo do que falta no ambiente `n` — sem `n`, procura o
+   * primeiro ambiente incompleto. Abre o ambiente e o ponto onde está a falta.
+   */
+  function marcarFaltas(n) {
+    if (!raiz || !document.body.contains(raiz) || !ctx || !ctx.estado || !ctx.estado.campo) return 0;
+    const ambientes = campo().ambientes || [];
+    const totalAmb = Math.min(20, Math.max(1, parseInt((campo().geral || {}).qtdeAmbientes, 10) || 1));
+    const incompleto = function (amb) {
+      amb = amb || {};
+      if (faltasDoAmbiente(amb).length || !amb.pontosCalculados) return true;
+      for (let p = 0; p < amb.pontosCalculados + 1; p++) {
+        if (itensFaltandoDoPonto((amb.pontos || [])[p], p === 0).length) return true;
+      }
+      return false;
+    };
+    let alvo = parseInt(n, 10) || 0;
+    if (!alvo) { for (let i = 0; i < totalAmb && !alvo; i++) if (incompleto(ambientes[i])) alvo = i + 1; }
+    alvo = Math.min(Math.max(alvo || ambienteExibido, 1), totalAmb);
+    const amb = ambientes[alvo - 1] || {};
+
+    // Falta no próprio ambiente (nome/área): marca lá e para por aqui.
+    const marcasAmb = [];
+    faltasDoAmbiente(amb, marcasAmb);
+    if (marcasAmb.length) {
+      if (alvo !== ambienteExibido) { ambienteExibido = alvo; pontoExibido = 1; renderizarAmbientes(); }
+      EC.app.limparMarcas(raiz);
+      // Os campos do ambiente vêm ANTES dos pontos, então o 1º [data-campo] de
+      // cada nome achado em #qi-ambiente é o do próprio ambiente.
+      return EC.app.marcarCampos($('#qi-ambiente'), marcasAmb);
+    }
+    if (!amb.pontosCalculados) return 0;   // falta calcular os pontos: nada a marcar
+
+    // Senão, procura o primeiro ponto incompleto do ambiente e marca nele.
+    let alvoPt = 0;
+    for (let p = 0; p < amb.pontosCalculados + 1 && !alvoPt; p++) {
+      if (itensFaltandoDoPonto((amb.pontos || [])[p], p === 0).length) alvoPt = p + 1;
+    }
+    if (!alvoPt) return 0;
+    if (alvo !== ambienteExibido) { ambienteExibido = alvo; pontoExibido = alvoPt; renderizarAmbientes(); }
+    else if (alvoPt !== pontoExibido) { pontoExibido = alvoPt; renderPontos(amb); }
+    EC.app.limparMarcas(raiz);
+    const marcas = [];
+    itensFaltandoDoPonto((amb.pontos || [])[alvoPt - 1], alvoPt === 1, marcas);
+    return EC.app.marcarCampos($('#qi-ponto'), marcas);
   }
 
   function itensFaltando(estado) {
@@ -326,5 +390,5 @@ EC.campoQarInterno = (function () {
     renderizarGeral();
   }
 
-  return { renderizar: renderizar, itensFaltando: itensFaltando, TIPO_CARIMBO: TIPO_CARIMBO };
+  return { renderizar: renderizar, itensFaltando: itensFaltando, marcarFaltas: marcarFaltas, TIPO_CARIMBO: TIPO_CARIMBO };
 })();

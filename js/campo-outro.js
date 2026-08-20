@@ -72,6 +72,7 @@ EC.campoOutro = (function () {
     pontoExibido = Math.min(pontoExibido, total);
     EC.paginacao.criar($('#ou-paginacao'), {
       total: total,
+      atual: pontoExibido,
       // Navegação livre entre pontos (começar em qualquer ponto). A validação das
       // fotos/dados obrigatórios continua na finalização (itensFaltando).
       aoMudar: function (n) { pontoExibido = n; renderizarPonto(n); }
@@ -115,27 +116,55 @@ EC.campoOutro = (function () {
     const gps = montarGps(area, ponto);
     montarFoto(area, '.ou-foto-tela', ponto, 'fotoTela', '📷 Foto da tela do equipamento (obrigatória)', gps, 'TELA', n);
     montarFoto(area, '.ou-foto-ponto', ponto, 'fotoPonto', '📷 Foto do ponto (obrigatória)', gps, 'PONTO', n);
+    // Preencheu o campo → a marca vermelha de pendência sai na hora.
+    area.addEventListener('input', EC.app.tirarMarca);
+    area.addEventListener('change', EC.app.tirarMarca);
   }
 
   /* ===== Validação ===== */
 
-  function itensFaltandoDoPonto(ponto) {
+  // `marcas` (opcional) recolhe ONDE cada falta está na tela, para o formulário
+  // pintar de vermelho o rótulo do que falta (ver EC.app.marcarCampos).
+  function itensFaltandoDoPonto(ponto, marcas) {
     ponto = ponto || {};
     const falta = [];
+    const marcar = function (m) { if (marcas) marcas.push(m); };
     const reqVal = function (chave, rotulo) {
       const v = ponto[chave];
-      if (v === undefined || v === null || String(v).trim() === '') falta.push(rotulo);
+      if (v === undefined || v === null || String(v).trim() === '') { falta.push(rotulo); marcar({ campo: chave }); }
     };
     reqVal('nome', 'nome do ponto');
-    if (!ponto.gps) falta.push('GPS');
+    if (!ponto.gps) { falta.push('GPS'); marcar({ sel: '.ou-gps' }); }
     reqVal('horaInicial', 'hora inicial');
     reqVal('medicaoPrincipal', 'medição principal');
     reqVal('unidade', 'unidade da medição');
-    if (!EC.foto.tem(ponto.fotoTela)) falta.push('foto da tela do equipamento');
-    if (!EC.foto.tem(ponto.fotoPonto)) falta.push('foto do ponto');
+    if (!EC.foto.tem(ponto.fotoTela)) { falta.push('foto da tela do equipamento'); marcar({ sel: '.ou-foto-tela' }); }
+    if (!EC.foto.tem(ponto.fotoPonto)) { falta.push('foto do ponto'); marcar({ sel: '.ou-foto-ponto' }); }
     reqVal('temperatura', 'temperatura'); reqVal('umidade', 'umidade'); reqVal('vento', 'vento');
     // Observações são opcionais.
     return falta;
+  }
+
+  /**
+   * Pinta de vermelho o rótulo do que falta no ponto `n` — sem `n`, procura o
+   * primeiro ponto incompleto. Abre o ponto se ele não for o que está na tela.
+   */
+  function marcarFaltas(n) {
+    if (!raiz || !document.body.contains(raiz) || !ctx || !ctx.estado || !ctx.estado.campo) return 0;
+    const pontos = campo().pontos || [];
+    const total = Math.min(50, Math.max(1, parseInt((campo().geral || {}).qtdePontos, 10) || 1));
+    let alvo = parseInt(n, 10) || 0;
+    if (!alvo) {
+      for (let i = 0; i < total && !alvo; i++) {
+        if (itensFaltandoDoPonto(pontos[i]).length) alvo = i + 1;
+      }
+    }
+    alvo = Math.min(Math.max(alvo || pontoExibido, 1), total);
+    if (alvo !== pontoExibido) { pontoExibido = alvo; renderizarPontos(); }
+    EC.app.limparMarcas(raiz);
+    const marcas = [];
+    itensFaltandoDoPonto(pontos[alvo - 1], marcas);
+    return EC.app.marcarCampos($('#ou-ponto'), marcas);
   }
 
   function itensFaltando(estado) {
@@ -168,5 +197,5 @@ EC.campoOutro = (function () {
     renderizarGeral();
   }
 
-  return { renderizar: renderizar, itensFaltando: itensFaltando, TIPO_CARIMBO: TIPO_CARIMBO };
+  return { renderizar: renderizar, itensFaltando: itensFaltando, marcarFaltas: marcarFaltas, TIPO_CARIMBO: TIPO_CARIMBO };
 })();

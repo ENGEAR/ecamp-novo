@@ -377,16 +377,19 @@ EC.campoRuido = (function () {
   // foto da tela só é cobrada QUANDO a checagem correspondente estiver preenchida.
   // As condições ambientais (clima) só são obrigatórias no ponto 1 da OS (NÃO por
   // série). Tudo isso vale só na Total — na Residual (flags=false) tudo é livre.
-  function faltasJanela(subtipo, j, longa, geral, janela, ehInicioSerie, ehFimSerie, ehPonto1) {
+  // `marcas` (opcional) recolhe ONDE cada falta está na tela, para o formulário
+  // pintar de vermelho o rótulo do que falta (ver EC.app.marcarCampos).
+  function faltasJanela(subtipo, j, longa, geral, janela, ehInicioSerie, ehFimSerie, ehPonto1, marcas) {
     j = j || {};
     const falta = [];
+    const marcar = function (m) { if (marcas) marcas.push(m); };
     const ehTotal = janela === 'total';
     const iniObrig = ehTotal && ehInicioSerie;
     const fimObrig = ehTotal && ehFimSerie;
     const climaObrig = ehTotal && ehPonto1;
     const reqVal = function (chave, rotulo) {
       const v = j[chave];
-      if (v === undefined || v === null || String(v).trim() === '') falta.push(rotulo);
+      if (v === undefined || v === null || String(v).trim() === '') { falta.push(rotulo); marcar({ campo: chave }); }
     };
     const preenchido = function (chave) {
       const v = j[chave];
@@ -394,23 +397,25 @@ EC.campoRuido = (function () {
     };
     const checks = j.checks || {};
     const grupoChecks = function (prefixo, qtde, rotulo) {
-      let n = 0; for (let i = 0; i < qtde; i++) if (!checks[prefixo + i]) n++;
+      let n = 0; for (let i = 0; i < qtde; i++) if (!checks[prefixo + i]) { n++; marcar({ check: prefixo + i }); }
       if (n) falta.push(n + ' confirmação(ões) de ' + rotulo);
     };
     // Só alguns índices de um grupo (ex.: ferroviário clima usa [3,4]).
     const grupoChecksIdx = function (prefixo, indices, rotulo) {
-      let n = 0; indices.forEach(function (i) { if (!checks[prefixo + i]) n++; });
+      let n = 0; indices.forEach(function (i) { if (!checks[prefixo + i]) { n++; marcar({ check: prefixo + i }); } });
       if (n) falta.push(n + ' confirmação(ões) de ' + rotulo);
     };
     // comuns a todas as janelas
     reqVal('nome', 'nome do ponto');
     reqVal('horaInicial', 'hora inicial');
-    if (!j.gps) falta.push('GPS');
+    if (!j.gps) { falta.push('GPS'); marcar({ sel: '.cr-gps' }); }
     // Checagem inicial: obrigatória só no ponto 1 (Total). A foto da tela inicial é
     // cobrada sempre que a checagem inicial estiver preenchida.
     if (iniObrig) reqVal('chkIniValor', 'checagem inicial (1º ponto da série)');
-    if (preenchido('chkIniValor') && !EC.foto.tem(j.fotoTelaIni)) falta.push('foto da tela (checagem inicial)');
-    if (!EC.foto.tem(j.fotoPonto)) falta.push('foto do ponto');
+    if (preenchido('chkIniValor') && !EC.foto.tem(j.fotoTelaIni)) {
+      falta.push('foto da tela (checagem inicial)'); marcar({ sel: '.cr-foto-tela-ini' });
+    }
+    if (!EC.foto.tem(j.fotoPonto)) { falta.push('foto do ponto'); marcar({ sel: '.cr-foto-ponto' }); }
 
     if (ehInterno(subtipo)) {
       reqVal('altura', 'altura do sonômetro');
@@ -461,7 +466,9 @@ EC.campoRuido = (function () {
     // Checagem final: obrigatória só no último ponto (Total). Foto da tela final só
     // é cobrada quando a checagem final estiver preenchida. Uniforme a todos os subtipos.
     if (fimObrig) reqVal('chkFimValor', 'checagem final (último ponto da série)');
-    if (preenchido('chkFimValor') && !EC.foto.tem(j.fotoTelaFim)) falta.push('foto da tela (checagem final)');
+    if (preenchido('chkFimValor') && !EC.foto.tem(j.fotoTelaFim)) {
+      falta.push('foto da tela (checagem final)'); marcar({ sel: '.cr-foto-tela-fim' });
+    }
 
     return falta;
   }
@@ -677,6 +684,26 @@ EC.campoRuido = (function () {
     return clone;
   }
   // Itens que faltam na janela ABERTA agora (para orientar quando nada está pronto).
+  /**
+   * Pinta de vermelho o rótulo do que falta NA JANELA ABERTA — é exatamente o
+   * que o aviso de pendências do PDF parcial valida (faltasJanelaAtual). Não
+   * troca de ponto: no ruído o parcial é por janela, então a pendência é sempre
+   * a da tela em que a pessoa está.
+   */
+  function marcarFaltas() {
+    if (!raiz || !document.body.contains(raiz) || !ctx || !ctx.estado) return 0;
+    const campoAt = ctx.estado.campo || {};
+    if (!campoAt.subtipo) return 0;
+    const ponto = listaPontos()[pontoExibido - 1];
+    if (!ponto) return 0;
+    const med = medPer(ponto, periodoExibido);
+    const j = (med && med[janelaExibida]) || {};
+    EC.app.limparMarcas(raiz);
+    const marcas = [];
+    faltasJanela(campoAt.subtipo, j, longaDoEstado(ctx.estado), campoAt.geral, janelaExibida, false, false, false, marcas);
+    return EC.app.marcarCampos($('#cr-janela-form'), marcas);
+  }
+
   function faltasJanelaAtual(estado) {
     const campo = (estado && estado.campo) || {};
     const subtipo = campo.subtipo;
@@ -1839,6 +1866,9 @@ EC.campoRuido = (function () {
     montarFoto(wrap, '.cr-foto-tela-ini', alvo, 'fotoTelaIni', '📷 Tirar foto da tela', gps, n, suf);
     montarFoto(wrap, '.cr-foto-ponto', alvo, 'fotoPonto', '📷 Foto do ponto (obrigatória)', gps, n, suf);
     montarFoto(wrap, '.cr-foto-tela-fim', alvo, 'fotoTelaFim', '📷 Tirar foto da tela', gps, n, suf);
+    // Preencheu o campo → a marca vermelha de pendência sai na hora.
+    wrap.addEventListener('input', EC.app.tirarMarca);
+    wrap.addEventListener('change', EC.app.tirarMarca);
 
     // Interno: eventualidade — ligada à janela.
     const seletorEvent = wrap.querySelector('[data-campo="eventualidade"]');
@@ -2035,6 +2065,7 @@ EC.campoRuido = (function () {
     // PDF parcial por janela de medição (ponto×período×total/residual).
     campoParcial: campoParcial,
     faltasJanelaAtual: faltasJanelaAtual,
+    marcarFaltas: marcarFaltas,
     // Expostos para o laudo/testes: divisão das séries de checagem (máx. 10 pontos).
     blocosDaSerie: blocosDaSerie,
     blocoDoPonto: blocoDoPonto

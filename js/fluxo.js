@@ -2366,6 +2366,10 @@ EC.fluxo = (function () {
             '<div class="alerta alerta-vermelho"><strong>🛑 Não é possível continuar — itens obrigatórios em branco no monitoramento em campo:</strong>' +
             '<ul class="lista-avisos">' + faltando.map(function (a) { return '<li>' + a + '</li>'; }).join('') + '</ul></div>';
           $('campo-bloqueio').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          // A lista diz O QUE falta; a marcação mostra ONDE — pinta os rótulos
+          // em vermelho e abre o ponto/janela da 1ª pendência.
+          var m = moduloDeCampo();
+          if (m && m.marcarFaltas) { try { m.marcarFaltas(); } catch (e) { /* marcar é extra */ } }
           return;
         }
         $('campo-bloqueio').innerHTML = '';
