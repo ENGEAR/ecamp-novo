@@ -681,24 +681,30 @@ EC.pdf = (function () {
       // Linhas da tabela "Dados da coleta": rótulo + valor no início e no fim.
       // A coluna de 400 mm só entra quando algum dos dois lados tem leitura (o
       // PTS não usa separador, então costuma vir só a de 800).
+      // Ordem preferida das linhas (a do modelo); o que não estiver aqui entra
+      // depois, na ordem em que foi preenchido — assim nenhum campo da coleta
+      // some do relatório, nem hoje nem quando um campo novo for criado.
+      var ORDEM_COLETA = ['hora', 'data', 'codigoFiltro', 'horimetro', 'temp', 'umid',
+        'pressao', 'vento', 'col800sobe', 'col800desce', 'col00sobe', 'col00desce', 'tempo'];
       function linhasColeta(col, ponto, escopoOs) {
-        var pares = [
-          ['Hora:', col.hora_ini, col.hora_fim],
-          ['Data:', fmtDataBR(col.data_ini), fmtDataBR(col.data_fim)],
-          ['Código do filtro:', col.codigoFiltro, ''],
-          ['Horímetro:', col.horimetro_ini, col.horimetro_fim],
-          ['Temperatura:', fmtValor('temp_ini', col.temp_ini), fmtValor('temp_fim', col.temp_fim)],
-          ['Umidade:', fmtValor('umid_ini', col.umid_ini), fmtValor('umid_fim', col.umid_fim)],
-          ['Pressão:', fmtValor('pressao_ini', col.pressao_ini), fmtValor('pressao_fim', col.pressao_fim)],
-          ['Vento:', col.vento_ini, col.vento_fim],
-          ['Coluna 800 sobe:', col.col800sobe_ini, col.col800sobe_fim],
-          ['Coluna 800 desce:', col.col800desce_ini, col.col800desce_fim],
-          ['Coluna 400 sobe:', col.col00sobe_ini, col.col00sobe_fim],
-          ['Coluna 400 desce:', col.col00desce_ini, col.col00desce_fim],
-          ['Tempo:', col.tempo_ini, col.tempo_fim]
-        ].filter(function (l) {
-          if (l[0].indexOf('Coluna 400') !== 0) return true;
-          return v(l[1]) !== '—' || v(l[2]) !== '—';
+        var bases = [], vistos = {}, avulsos = [];
+        Object.keys(col).forEach(function (k) {
+          if (SKIP[k]) return;
+          var m = k.match(/^(.*)_(ini|fim)$/);
+          if (m) { if (!vistos[m[1]]) { vistos[m[1]] = 1; bases.push(m[1]); } return; }
+          if (ehFoto(col[k]) || (col[k] && typeof col[k] === 'object')) return; // foto/objeto: fora da tabela
+          avulsos.push(k);
+        });
+        var ordem = function (k) { var i = ORDEM_COLETA.indexOf(k); return i < 0 ? 99 : i; };
+        var todos = bases.map(function (b) { return { chave: b, par: true }; })
+          .concat(avulsos.map(function (k) { return { chave: k, par: false }; }))
+          .sort(function (a, b) { return ordem(a.chave) - ordem(b.chave); });
+        var pares = todos.map(function (t) {
+          if (!t.par) return [rotulo(t.chave) + ':', fmtValor(t.chave, col[t.chave]), ''];
+          var rot = (BASE_INI_FIM[t.chave] || prettify(t.chave)) + ':';
+          var ini = col[t.chave + '_ini'], fim = col[t.chave + '_fim'];
+          if (t.chave === 'data') return [rot, fmtDataBR(ini), fmtDataBR(fim)];
+          return [rot, fmtValor(t.chave + '_ini', ini), fmtValor(t.chave + '_fim', fim)];
         });
         // Veredito da vazão de cada lado (mesma conta da tela e do Excel).
         var vaz = ['Vazão da coleta:', null, null];
@@ -781,6 +787,86 @@ EC.pdf = (function () {
         return skip;
       }
 
+      // Tabela simples de grade (cabeçalho azul + zebra), para as leituras da
+      // calibração. Devolve o Y final.
+      function tabelaGrade(x, yy, w, cabecalhos, linhas) {
+        var n = cabecalhos.length;
+        var w0 = Math.min(30, w * 0.24), wc = (w - w0) / (n - 1);
+        var hLin = 6.4, hCab = 7.6;
+        doc.setFillColor(CAB[0], CAB[1], CAB[2]);
+        doc.rect(x, yy, w, hCab, 'F');
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(255, 255, 255);
+        doc.text(cabecalhos[0], x + 2.5, yy + 5.2);
+        for (var c = 1; c < n; c++) doc.text(cabecalhos[c], x + w0 + wc * (c - 1) + wc / 2, yy + 5.2, { align: 'center' });
+        var ly = yy + hCab, zebra = false;
+        linhas.forEach(function (l) {
+          if (zebra) { doc.setFillColor(ZEBRA[0], ZEBRA[1], ZEBRA[2]); doc.rect(x, ly, w, hLin, 'F'); }
+          zebra = !zebra;
+          doc.setDrawColor(BORDA[0], BORDA[1], BORDA[2]); doc.setLineWidth(0.2);
+          doc.line(x, ly + hLin, x + w, ly + hLin);
+          doc.setFontSize(8); doc.setTextColor(PRETO[0], PRETO[1], PRETO[2]);
+          doc.text(String(l[0]), x + 2.5, ly + 4.4);
+          for (var k = 1; k < n; k++) doc.text(v(l[k]), x + w0 + wc * (k - 1) + wc / 2, ly + 4.4, { align: 'center' });
+          ly += hLin;
+        });
+        doc.setDrawColor(BORDA[0], BORDA[1], BORDA[2]); doc.setLineWidth(0.3);
+        doc.rect(x, yy, w, ly - yy, 'S');
+        for (var d = 1; d < n; d++) doc.line(x + w0 + wc * (d - 1), yy + hCab, x + w0 + wc * (d - 1), ly);
+        return ly;
+      }
+
+      // Rótulo de cada confirmação da calibração (as caixinhas da tela).
+      var CHECKS_QAR = {
+        aquec0: 'Motor aquecido', zerar0: 'Manômetro zerado', zerar1: 'Válvulas fechadas',
+        vaz0: 'Manômetro 800 mm - vazamento OK', vaz1: 'Manômetro 400 mm - vazamento OK',
+        porta0: 'Nenhuma fuga de ar detectada', calib0: 'Calibração aprovada'
+      };
+
+      /**
+       * Caixa "Leituras da calibração": a1/b1 do certificado, as leituras de
+       * cada placa de retenção e do filtro, e as confirmações de cada passo.
+       * A curva RESUME esses números, mas não os substitui — tudo o que a tela
+       * de Serviços coleta continua no relatório (pedido da Raisa, 2026-08-20).
+       */
+      function calibracaoParticulados(it) {
+        var placas = ['18', '13', '10', '09', '08'];
+        var linhas = [];
+        placas.forEach(function (c) {
+          var p = 'carta' + c + '_';
+          var l = ['Placa ' + c, it[p + '800sobe'], it[p + '800desce'], it[p + '00sobe'], it[p + '00desce']];
+          if (l.slice(1).some(function (x) { return v(x) !== '—'; })) linhas.push(l);
+        });
+        var f = ['Com filtro', it.filtro_800sobe, it.filtro_800desce, it.filtro_00sobe, it.filtro_00desce];
+        if (f.slice(1).some(function (x) { return v(x) !== '—'; })) linhas.push(f);
+        var checks = it.checks || {};
+        var chaves = Object.keys(CHECKS_QAR).filter(function (k) { return k in checks; });
+        var temA1 = v(it.calibA1) !== '—' || v(it.calibB1) !== '—';
+        if (!linhas.length && !chaves.length && !temA1) return;
+
+        garantir(30 + linhas.length * 6.4 + chaves.length * 5.4);
+        var topo = y;
+        var yy = abrirCaixa(MARGEM, topo, LARG, 'Leituras da calibração');
+        yy = naColuna(MARGEM + 5, LARG - 10, yy, function () {
+          if (temA1) {
+            kv('Inclinação a1 (certificado do CPV)', it.calibA1);
+            kv('Intercepto b1 (certificado do CPV)', it.calibB1);
+            y += 1;
+          }
+        });
+        if (linhas.length) {
+          yy = tabelaGrade(MARGEM + 4, yy, LARG - 8,
+            ['Placa de retenção', '800 sobe', '800 desce', '400 sobe', '400 desce'], linhas) + 3;
+        }
+        if (chaves.length) {
+          yy = naColuna(MARGEM + 5, LARG - 10, yy + 2, function () {
+            subtitulo('Confirmações da calibração');
+            chaves.forEach(function (k) { kv(CHECKS_QAR[k], checks[k] ? 'Sim' : 'Não'); });
+          });
+        }
+        fecharCaixa(MARGEM, topo, LARG, yy + 2);
+        y = yy + 10;
+      }
+
       // Uma página por ponto: barra, curva + dados da calibração, foto + coleta.
       function pontoParticulados(it, n) {
         var escopoOs = (reg.servico && reg.servico.escopo) || '';
@@ -839,6 +925,9 @@ EC.pdf = (function () {
         fecharCaixa(MARGEM, topo2, wEsq, pe);
         if (cols.length) fecharCaixa(xDir, topo2, wDir, pe);
         y = pe + 8;
+
+        // Leituras e confirmações da calibração (nada do que a tela coleta fica de fora).
+        calibracaoParticulados(it);
 
         if (sobraram.length) {
           // O título desce junto com a 1ª foto (senão fica órfão no pé da página).
