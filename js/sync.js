@@ -146,6 +146,20 @@ EC.sync = (function () {
     return out;
   }
 
+  // Fotos que estão no registro só como NOME, sem a imagem: o aparelho perdeu o
+  // conteúdo (o rascunho grande não coube no banco local, por exemplo). Não há o
+  // que enviar — e dizer "enviado" esconde o problema (caso da OS 26255).
+  function fotosSemImagem(ponto) {
+    var n = 0;
+    if (!ponto) return 0;
+    Object.keys(ponto).forEach(function (k) {
+      var v = ponto[k];
+      var lista = Array.isArray(v) ? v : (v && (v.nomeArquivo || v.base64) ? [v] : []);
+      lista.forEach(function (f) { if (f && f.nomeArquivo && !f.base64) n++; });
+    });
+    return n;
+  }
+
   // Envia o registro em duas etapas (evita o limite de tamanho da Vercel):
   //   1) os DADOS (leves, sem fotos) → /registro; o servidor devolve os pontos;
   //   2) cada FOTO separada → /foto (uma de cada vez).
@@ -173,6 +187,7 @@ EC.sync = (function () {
     // período (estrutura nova: pc.periodos[periodo].total/.residual; antiga:
     // pc.total/pc.residual ou o próprio ponto flat).
     var tarefas = [];
+    var semImagem = 0;   // fotos que o registro tem só pelo nome
     pontos.forEach(function (pr) {
       var pc = pontosCampo[(pr.ordem || 1) - 1];
       if (!pc) return;
@@ -181,6 +196,7 @@ EC.sync = (function () {
       fotosDoPonto(alvo).forEach(function (f) {
         tarefas.push({ ponto_id: pr.ponto_id, tipo: f.tipo, nomeArquivo: f.nomeArquivo, base64: f.base64 });
       });
+      semImagem += fotosSemImagem(alvo);
     });
 
     // Interno: sobe o LAYOUT de cada ambiente, ligado ao 1º ponto (Total) do
@@ -205,6 +221,7 @@ EC.sync = (function () {
     }
 
     resp.fotos = await subirFotos(tarefas);
+    resp.fotos.semImagem = semImagem;
     return resp;
   }
 
@@ -358,7 +375,11 @@ EC.sync = (function () {
       // Fotos que não subiram: o registro CONTINUA na fila e a pessoa é avisada
       // (antes o envio era abortado na 1ª falha e ninguém ficava sabendo).
       var faltam = (r && r.fotos && r.fotos.falharam.length) || 0;
-      if (faltam) {
+      var sem = (r && r.fotos && r.fotos.semImagem) || 0;
+      if (!faltam && sem) {
+        try { await EC.db.remove('pending', registro.codificacao); } catch (e2) { /* ok */ }
+        toast('⚠️ Dados enviados, mas ' + sem + ' foto(s) não estão mais no aparelho (só o nome do arquivo) — não há o que enviar.');
+      } else if (faltam) {
         try { await EC.db.set('pending', registro.codificacao, registro); } catch (e2) { /* ok */ }
         toast('⚠️ Dados enviados, mas ' + faltam + ' foto(s) não subiram. Elas seguem no aparelho — toque em Sincronizar com boa conexão.');
       } else {
@@ -388,7 +409,11 @@ EC.sync = (function () {
       // Fotos que não subiram: mantém na fila e AVISA. Antes o envio parava na
       // 1ª falha e o técnico via "sincroniza sozinho" achando que estava tudo lá.
       var faltam = (r && r.fotos && r.fotos.falharam.length) || 0;
-      if (faltam) {
+      var sem = (r && r.fotos && r.fotos.semImagem) || 0;
+      if (!faltam && sem) {
+        try { await EC.db.remove('pending', chave); } catch (e2) { /* ok */ }
+        toast('⚠️ Rascunho salvo, mas ' + sem + ' foto(s) não estão mais no aparelho (só o nome do arquivo).');
+      } else if (faltam) {
         try { await EC.db.set('pending', chave, registro); } catch (e2) { /* ok */ }
         toast('⚠️ Rascunho salvo, mas ' + faltam + ' foto(s) não subiram. Elas seguem no aparelho — toque em Sincronizar com boa conexão.');
       } else {
