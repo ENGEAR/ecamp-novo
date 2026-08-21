@@ -116,6 +116,108 @@ EC.foto = (function () {
   }
 
 
+  /* ===== A imagem mora na loja 'fotos' (uma por registro) ===== */
+
+  // Guarda a imagem no aparelho, sozinha. Devolve true/false: quem chama avisa
+  // o técnico quando falha — foto sem lugar para ficar é foto que se perde.
+  async function guardarImagem(f, contexto) {
+    if (!f || !f.nomeArquivo || !f.base64 || !EC.db || !EC.db.disponivel()) return false;
+    try {
+      await EC.db.set('fotos', f.nomeArquivo, {
+        nomeArquivo: f.nomeArquivo,
+        base64: f.base64,
+        capturadaEm: f.capturadaEm || new Date().toISOString(),
+        os: (contexto && contexto.os) || '',
+        guardadaEm: new Date().toISOString()
+      });
+      return true;
+    } catch (e) { return false; }
+  }
+  function esquecerImagem(nome) {
+    if (!nome || !EC.db || !EC.db.disponivel()) return;
+    EC.db.remove('fotos', nome).catch(function () { /* ok */ });
+  }
+
+  // Cópia de qualquer objeto (rascunho, registro) SEM as imagens: fica só o
+  // nome do arquivo, que é a chave para achar a foto de volta.
+  function semImagens(obj) {
+    return JSON.parse(JSON.stringify(obj, function (chave, valor) {
+      return (chave === 'base64' || chave === 'dataUrl') ? undefined : valor;
+    }));
+  }
+
+  // Devolve as imagens para dentro do objeto, lendo a loja 'fotos'. Usado ao
+  // continuar um rascunho, ao gerar o PDF do histórico e ao reenviar.
+  // Devolve { total, achadas } — quem chama pode avisar o que não voltou.
+  async function reidratar(obj) {
+    var conta = { total: 0, achadas: 0 };
+    if (!obj || !EC.db || !EC.db.disponivel()) return conta;
+    var pendentes = [];
+    (function varrer(o) {
+      if (!o || typeof o !== 'object') return;
+      if (Array.isArray(o)) { o.forEach(varrer); return; }
+      if (o.nomeArquivo && !o.base64) { conta.total++; pendentes.push(o); return; }
+      if (o.nomeArquivo && o.base64) { conta.total++; conta.achadas++; return; }
+      Object.keys(o).forEach(function (k) { varrer(o[k]); });
+    })(obj);
+    for (var i = 0; i < pendentes.length; i++) {
+      try {
+        var rec = await EC.db.get('fotos', pendentes[i].nomeArquivo);
+        if (rec && rec.base64) { pendentes[i].base64 = rec.base64; conta.achadas++; }
+      } catch (e) { /* segue: a que faltar é contada como não achada */ }
+    }
+    return conta;
+  }
+
+  /**
+   * Garante que TODA imagem que está dentro de `obj` também exista na loja
+   * 'fotos'. É o que torna seguro salvar o rascunho só com as referências — e é
+   * a migração dos rascunhos antigos, que guardavam a imagem dentro de si.
+   * Devolve { total, guardadas, falhas }: com falha > 0, quem chama NÃO deve
+   * remover as imagens do rascunho.
+   */
+  async function garantirGuardadas(obj, contexto) {
+    var r = { total: 0, guardadas: 0, falhas: 0 };
+    if (!obj || !EC.db || !EC.db.disponivel()) return r;
+    var comImagem = [];
+    (function varrer(o) {
+      if (!o || typeof o !== 'object') return;
+      if (Array.isArray(o)) { o.forEach(varrer); return; }
+      if (o.nomeArquivo) { if (o.base64) comImagem.push(o); return; }
+      Object.keys(o).forEach(function (k) { varrer(o[k]); });
+    })(obj);
+    r.total = comImagem.length;
+    for (var i = 0; i < comImagem.length; i++) {
+      var f = comImagem[i];
+      try {
+        var ja = await EC.db.get('fotos', f.nomeArquivo);
+        if (ja && ja.base64) { r.guardadas++; continue; }
+      } catch (e) { /* tenta gravar mesmo assim */ }
+      if (await guardarImagem(f, contexto)) r.guardadas++; else r.falhas++;
+    }
+    return r;
+  }
+
+  // Faxina: imagens mais velhas que `dias` que não pertencem a nenhum rascunho
+  // aberto. Best-effort, chamada na abertura do app.
+  async function limparAntigas(dias, nomesEmUso) {
+    if (!EC.db || !EC.db.disponivel()) return 0;
+    var limite = Date.now() - (dias || 30) * 24 * 60 * 60 * 1000;
+    var emUso = {};
+    (nomesEmUso || []).forEach(function (n) { emUso[n] = 1; });
+    var apagadas = 0;
+    try {
+      var todas = (await EC.db.getAll('fotos')) || [];
+      for (var i = 0; i < todas.length; i++) {
+        var f = todas[i];
+        if (!f || !f.nomeArquivo || emUso[f.nomeArquivo]) continue;
+        var t = Date.parse(f.guardadaEm || f.capturadaEm || '');
+        if (t && t < limite) { await EC.db.remove('fotos', f.nomeArquivo); apagadas++; }
+      }
+    } catch (e) { /* ok */ }
+    return apagadas;
+  }
+
   /* ===== Levar as fotos para fora do app ===== */
 
   // ZIP "guardado" (sem compressão): JPEG já vem comprimido, então comprimir de
@@ -244,6 +346,21 @@ EC.foto = (function () {
 
     function notificar() { if (typeof opcoes.aoCapturar === 'function') opcoes.aoCapturar(fotos.slice()); }
 
+    // Toda foto nova é gravada NA HORA, sozinha, na loja 'fotos'. É o que
+    // garante que ela sobrevive a fechar o app — antes ela só existia dentro do
+    // rascunho inteiro, que podia falhar de uma vez.
+    async function guardarNoAparelho(f) {
+      var ok = await guardarImagem(f, { os: opcoes.os });
+      if (!ok && EC.app && EC.app.mostrarToast) {
+        EC.app.mostrarToast(
+          'Não consegui guardar esta foto no aparelho. Envie o rascunho com internet agora ' +
+          'ou use "Baixar todas (.zip)" — senão ela pode se perder.',
+          'ATENÇÃO — FOTO EM RISCO'
+        );
+      }
+      return ok;
+    }
+
     // O contador "(0/10)" saiu do botão: só poluía — as fotos já aparecem em
     // miniatura logo abaixo, então dá para ver quantas são. O limite só é
     // mencionado quando realmente importa, que é ao atingi-lo (o botão desliga,
@@ -357,7 +474,8 @@ EC.foto = (function () {
       }
       galeria.querySelectorAll('.foto-remover').forEach(function (b) {
         b.addEventListener('click', function () {
-          fotos.splice(parseInt(b.dataset.i, 10), 1);
+          var fora = fotos.splice(parseInt(b.dataset.i, 10), 1)[0];
+          if (fora) esquecerImagem(fora.nomeArquivo);
           renderGaleria(); atualizarBotao(); notificar();
         });
       });
@@ -430,6 +548,10 @@ EC.foto = (function () {
             daFototeca: !!daFototeca
           });
 
+          // Grava a imagem sozinha JÁ — antes de qualquer outra coisa. Assim ela
+          // sobrevive mesmo que o rascunho inteiro não consiga ser salvo.
+          guardarNoAparelho(fotos[fotos.length - 1]);
+
           renderGaleria();
           atualizarBotao();
           status.textContent = daFototeca
@@ -457,5 +579,14 @@ EC.foto = (function () {
     };
   }
 
-  return { criar: criar, tem: tem };
+  return {
+    criar: criar,
+    tem: tem,
+    guardarImagem: guardarImagem,   // grava UMA foto na loja 'fotos'
+    esquecerImagem: esquecerImagem,
+    semImagens: semImagens,         // cópia só com as referências
+    reidratar: reidratar,           // devolve as imagens ao objeto
+    garantirGuardadas: garantirGuardadas,
+    limparAntigas: limparAntigas
+  };
 })();

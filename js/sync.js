@@ -100,6 +100,17 @@ EC.sync = (function () {
     return corpo;
   }
 
+  // Cópia para a FILA: sem as imagens (elas estão na loja 'fotos' do aparelho),
+  // senão cada item da fila voltaria a ser um registro gigante.
+  async function leve(registro) {
+    if (!(EC.foto && EC.foto.semImagens)) return semFotos(registro);
+    try {
+      var r = await EC.foto.garantirGuardadas(registro, { os: registro.os && registro.os.numero });
+      if (r.falhas) return registro;   // sem cópia na loja: guarda inteiro
+    } catch (e) { return registro; }
+    return EC.foto.semImagens(registro);
+  }
+
   // Cópia do registro SEM o base64/dataUrl das fotos (envio leve dos dados).
   function semFotos(obj) {
     return JSON.parse(JSON.stringify(obj, function (k, v) {
@@ -380,7 +391,7 @@ EC.sync = (function () {
         try { await EC.db.remove('pending', registro.codificacao); } catch (e2) { /* ok */ }
         toast('⚠️ Dados enviados, mas ' + sem + ' foto(s) não estão mais no aparelho (só o nome do arquivo) — não há o que enviar.');
       } else if (faltam) {
-        try { await EC.db.set('pending', registro.codificacao, registro); } catch (e2) { /* ok */ }
+        try { await EC.db.set('pending', registro.codificacao, await leve(registro)); } catch (e2) { /* ok */ }
         toast('⚠️ Dados enviados, mas ' + faltam + ' foto(s) não subiram. Elas seguem no aparelho — toque em Sincronizar com boa conexão.');
       } else {
         try { await EC.db.remove('pending', registro.codificacao); } catch (e) { /* ok */ }
@@ -391,7 +402,7 @@ EC.sync = (function () {
         toast('ℹ️ Este tipo ainda não sincroniza com o servidor. Salvo no aparelho.');
       } else {
         // Offline/erro: guarda na fila (IndexedDB aguenta as fotos) p/ enviar depois.
-        try { await EC.db.set('pending', registro.codificacao, registro); } catch (e2) { /* ok */ }
+        try { await EC.db.set('pending', registro.codificacao, await leve(registro)); } catch (e2) { /* ok */ }
         toast('📴 Sem conexão. Guardado para sincronizar depois.');
       }
       if (!avisado && typeof aoRegistrar === 'function') { try { aoRegistrar(null); } catch (e2) { /* ok */ } }
@@ -414,7 +425,7 @@ EC.sync = (function () {
         try { await EC.db.remove('pending', chave); } catch (e2) { /* ok */ }
         toast('⚠️ Rascunho salvo, mas ' + sem + ' foto(s) não estão mais no aparelho (só o nome do arquivo).');
       } else if (faltam) {
-        try { await EC.db.set('pending', chave, registro); } catch (e2) { /* ok */ }
+        try { await EC.db.set('pending', chave, await leve(registro)); } catch (e2) { /* ok */ }
         toast('⚠️ Rascunho salvo, mas ' + faltam + ' foto(s) não subiram. Elas seguem no aparelho — toque em Sincronizar com boa conexão.');
       } else {
         try { await EC.db.remove('pending', chave); } catch (e) { /* ok */ }
@@ -427,7 +438,7 @@ EC.sync = (function () {
       } else {
         // Offline/erro de rede: guarda na fila (IndexedDB aguenta as fotos) e
         // reenvia sozinho no próximo "online". Chave estável = sobrescreve.
-        try { await EC.db.set('pending', chave, registro); } catch (e2) { /* ok */ }
+        try { await EC.db.set('pending', chave, await leve(registro)); } catch (e2) { /* ok */ }
         toast('📤 Rascunho salvo — sincroniza sozinho quando a conexão voltar.');
       }
     }
@@ -542,6 +553,8 @@ EC.sync = (function () {
         continue;
       }
       try {
+        // A fila guarda só as referências: as imagens vêm da loja 'fotos'.
+        if (EC.foto && EC.foto.reidratar) { try { await EC.foto.reidratar(reg); } catch (e2) { /* segue */ } }
         var r = await enviar(reg); // servidor é idempotente: reenvio devolve "ok"
         // Sobrou foto? O registro FICA na fila (a próxima tentativa manda só o
         // que falta, porque as enviadas ficam marcadas no aparelho).

@@ -23,8 +23,13 @@ EC.db = (function () {
   'use strict';
 
   var NOME = 'ecamp';
-  var VERSAO = 5; // v5: + loja 'biblioteca'
-  var LOJAS = ['pending', 'rascunhos', 'pendingReembolso', 'pdfs', 'registros', 'biblioteca'];
+  var VERSAO = 6; // v6: + loja 'fotos' (uma foto por registro)
+  // 'fotos' guarda UMA foto por registro, com o nome do arquivo como chave. É a
+  // única cópia da imagem no aparelho: rascunho, histórico e fila guardam só a
+  // referência. Antes as fotos iam dentro do rascunho — um registro de centenas
+  // de MB, reescrito a cada salvamento, que falhava calado e levava tudo junto
+  // (OS 26255, 157 fotos perdidas em 2026-08).
+  var LOJAS = ['pending', 'rascunhos', 'pendingReembolso', 'pdfs', 'registros', 'biblioteca', 'fotos'];
   var bancoP = null;
 
   function abrir() {

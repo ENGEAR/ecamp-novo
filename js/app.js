@@ -803,9 +803,11 @@
           const salvo = (EC.db && EC.db.disponivel())
             ? EC.db.get('pdfs', b.dataset.cod).catch(function () { return null; })
             : Promise.resolve(null);
-          salvo.then(function (rec) {
+          salvo.then(async function (rec) {
             if (rec && rec.blob) return EC.pdf.abrirSalvo(rec);
             if (!EC.pdf || !EC.pdf.suporta(it.reg)) { mostrarToast('Não foi possível gerar o PDF deste registro.'); return; }
+            // As imagens moram na loja 'fotos': traz de volta antes de imprimir.
+            await EC.foto.reidratar(it.reg);
             return Promise.resolve(EC.pdf.gerar(it.reg));
           })
             .catch(function () { mostrarToast('Não foi possível gerar o PDF. Tente de novo.'); })
@@ -813,13 +815,15 @@
         });
       });
       lista.querySelectorAll('.hist-reenviar').forEach(function (b) {
-        b.addEventListener('click', function () {
+        b.addEventListener('click', async function () {
           const it = mapa[b.dataset.cod];
           if (!it || !it.reg) return;
           if (!EC.sync || !EC.sync.sincronizarRegistro) { mostrarToast('Sincronização indisponível.'); return; }
           b.disabled = true;
           const rotulo = b.textContent;
           b.textContent = '⏳ Reenviando…';
+          // Traz as imagens de volta para dentro do registro antes de enviar.
+          await EC.foto.reidratar(it.reg);
           // Reenvia o registro COMPLETO (com fotos) como FINALIZADO. O servidor é
           // idempotente pelo rascunhoId → atualiza o MESMO monitoramento (não
           // duplica) e marca como finalizado. Em falha de rede, enfileira e sobe
@@ -1147,8 +1151,30 @@
     tirarMarca: tirarMarca
   };
 
+  /* ============ Faxina das imagens guardadas ============ */
+  // A loja 'fotos' é a única cópia da imagem no aparelho, então nada é apagado
+  // por idade sem antes conferir que NENHUM rascunho ou registro do histórico
+  // ainda aponta para aquele arquivo. Best-effort, uma vez por abertura.
+  async function faxinaDeFotos() {
+    if (!EC.db || !EC.db.disponivel() || !EC.foto || !EC.foto.limparAntigas) return;
+    try {
+      const emUso = [];
+      const varrer = function (o) {
+        if (!o || typeof o !== 'object') return;
+        if (Array.isArray(o)) { o.forEach(varrer); return; }
+        if (o.nomeArquivo) { emUso.push(o.nomeArquivo); return; }
+        Object.keys(o).forEach(function (k) { varrer(o[k]); });
+      };
+      varrer((await EC.db.getAll('rascunhos')) || []);
+      varrer((await EC.db.getAll('registros')) || []);
+      varrer((await EC.db.getAll('pending')) || []);
+      await EC.foto.limparAntigas(45, emUso);
+    } catch (e) { /* faxina é extra: nunca atrapalha a abertura */ }
+  }
+
   /* ============ Inicialização ============ */
   garantirPersistencia();
+  setTimeout(faxinaDeFotos, 4000);   // depois que a tela já abriu
   mostrarVersao();
   acompanharRodape();
   avisarEndereco();

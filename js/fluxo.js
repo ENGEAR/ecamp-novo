@@ -244,7 +244,14 @@ EC.fluxo = (function () {
     // mesmo conteúdo do base64 com um prefixo, e guardar os dois dobrava o
     // tamanho (serviço de 30 pontos passava de 300 MB num registro só).
     if (EC.db) {
-      EC.db.set('rascunhos', chave, semDataUrl(estado)).catch(function (e) {
+      // Só as REFERÊNCIAS — mas SOMENTE depois de garantir que cada imagem está
+      // na loja 'fotos'. Rascunho antigo (que guardava a imagem dentro de si) é
+      // migrado aqui; se alguma não puder ser guardada, o rascunho vai INTEIRO,
+      // como antes: nunca tirar do rascunho o que não tem outra cópia.
+      EC.foto.garantirGuardadas(estado, { os: estado.osNumero }).then(function (r) {
+        var podeAliviar = r.falhas === 0;
+        return EC.db.set('rascunhos', chave, podeAliviar ? EC.foto.semImagens(estado) : estado);
+      }).catch(function (e) {
         // Falha aqui é GRAVE: ao reabrir, as fotos voltam sem imagem. Antes
         // isso era silencioso — foi assim que a OS 26255 perdeu as fotos.
         avisarRascunhoNaoGuardado(e);
@@ -729,9 +736,21 @@ EC.fluxo = (function () {
         if (EC.db) {
           try {
             var full = await EC.db.get('rascunhos', chaveServico(os.numero, indice));
-            if (full) completo = full; // versão com as fotos
+            if (full) completo = full;
           } catch (e) { /* usa o rascunho leve */ }
         }
+        // Devolve as imagens (a loja 'fotos' é quem as guarda) e avisa se
+        // alguma não voltou — antes esse buraco era silencioso.
+        try {
+          var conta = await EC.foto.reidratar(completo);
+          if (conta.total && conta.achadas < conta.total) {
+            EC.app.mostrarToast(
+              (conta.total - conta.achadas) + ' de ' + conta.total + ' foto(s) deste serviço não estão mais no aparelho. ' +
+              'O que já subiu está no servidor; o que não subiu não dá para recuperar.',
+              'FOTOS FALTANDO'
+            );
+          }
+        } catch (e) { /* segue com o que tiver */ }
         abrirServico(os, indice, completo);
       });
       $('sv-reiniciar').addEventListener('click', function () {
@@ -1968,7 +1987,7 @@ EC.fluxo = (function () {
       EC.sync.sincronizarRegistro(registro, function (resp) {
         if (resp && typeof resp.revisao === 'number') {
           registro.revisao = resp.revisao;
-          if (EC.db && EC.db.disponivel()) EC.db.set('registros', registro.codificacao, registro).catch(function () {});
+          if (EC.db && EC.db.disponivel()) EC.db.set('registros', registro.codificacao, EC.foto.semImagens(registro)).catch(function () {});
         }
       });
     }
@@ -1990,7 +2009,12 @@ EC.fluxo = (function () {
     //     permite regerar o PDF depois pelo "🕐 Histórico recente" (ex.: o
     //     técnico saiu da tela de conclusão sem compartilhar). Best-effort.
     if (EC.db && EC.db.disponivel()) {
-      EC.db.set('registros', registro.codificacao, registro).catch(function () {});
+      // Sem as imagens: elas ficam na loja 'fotos' e voltam no "Gerar PDF" e no
+      // "Reenviar". Só alivia depois de garantir que cada uma está guardada.
+      EC.foto.garantirGuardadas(registro, { os: registro.os && registro.os.numero }).then(function (r) {
+        return EC.db.set('registros', registro.codificacao,
+          r.falhas === 0 ? EC.foto.semImagens(registro) : registro);
+      }).catch(function () {});
       EC.db.getAll('registros').then(function (todos) {
         const limite = Date.now() - 30 * 24 * 60 * 60 * 1000;
         (todos || []).forEach(function (r) {
