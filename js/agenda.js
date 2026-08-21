@@ -872,7 +872,7 @@
         dgC('Município / UF', d.cidade || juntarAg([x.municipio, x.uf], ' / ')) +
         ((L.endereco || L.cidade || L.contato || L.referencia)
           ? dgS('Local do serviço') +
-            (!L.igual && L.razao ? dgC('Razão social', L.razao) + dgG2(dgC('CNPJ / CPF', L.cnpj), dgC('Contato', L.contato)) : '') +
+            dgC('Razão social', L.razao || d.razao || x.cliente_nome) + dgG2(dgC('CNPJ / CPF', L.cnpj || d.cnpj), dgC('Contato', L.contato || d.contato)) +
             dgC('Endereço', L.endereco) + dgC('Município / UF', L.cidade) +
             (L.contato ? dgC('Contato no local', L.contato) : '') +
             (L.referencia ? dgC('Ponto de referência', L.referencia) : '')

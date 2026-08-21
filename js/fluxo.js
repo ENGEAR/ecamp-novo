@@ -1081,7 +1081,7 @@ EC.fluxo = (function () {
 
       dgSecao('Local do serviço') +
       '<div id="dg-local-extra">' +
-        (o.localRazao ? dgCampo('Razão social', o.localRazao) + dgGrade2(dgCampo('CNPJ / CPF', o.localCnpj), dgCampo('Contato', o.localContato)) : '') +
+        dgCampo('Razão social', o.localRazao || o.cliente) + dgGrade2(dgCampo('CNPJ / CPF', o.localCnpj || o.cnpjCpf), dgCampo('Contato', o.localContato || o.contato)) +
         dgCampo('Endereço', o.endereco) + dgCampo('Município / UF', o.municipioUF) + '</div>' +
       '<label>Local do monitoramento — link do Google Maps' +
         '<input type="text" id="dg-maps" placeholder="Cole o link do Google Maps" value="' + escDg(o.linkMaps || '') + '"></label>' +
@@ -1203,8 +1203,8 @@ EC.fluxo = (function () {
     if ((el = $('dg-local-extra')) && det.local && (det.local.endereco || det.local.cidade || det.local.contato || det.local.referencia)) {
       var L = det.local;
       el.innerHTML =
-        // Razão social/CNPJ do local só quando é outro lugar que não o contratante.
-        (!L.igual && L.razao ? dgCampo('Razão social', L.razao) + dgGrade2(dgCampo('CNPJ / CPF', L.cnpj), dgCampo('Contato', L.contato)) : '') +
+        // Quem é o local — sempre (se o local é o contratante, mostra o próprio).
+        dgCampo('Razão social', L.razao || estado.os.cliente) + dgGrade2(dgCampo('CNPJ / CPF', L.cnpj || estado.os.cnpjCpf), dgCampo('Contato', L.contato || estado.os.contato)) +
         dgCampo('Endereço', L.endereco) +
         dgCampo('Município / UF', L.cidade) +
         (L.contato ? dgCampo('Contato no local', L.contato) : '') +

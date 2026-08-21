@@ -1059,8 +1059,8 @@ EC.pdf = (function () {
          junto do endereço, e o contratante fica na sua própria seção. */
       tituloSecao('Local do serviço');
       kv('Nome do projeto', os.projeto);
-      // Quando o local é outra empresa que não o contratante, diz quem é.
-      if (os.localRazao) { kv('Razão social', os.localRazao); kv('CNPJ / CPF', os.localCnpj); }
+      // Quem é o local — sempre (se o local é o contratante, mostra o próprio).
+      kv('Razão social', os.localRazao || os.cliente); kv('CNPJ / CPF', os.localCnpj || os.cnpjCpf); kv('Contato', os.localContato || os.contato);
       kv('Endereço', os.endereco);
       kv('Município / UF', os.municipioUF);
 
