@@ -115,6 +115,89 @@ EC.foto = (function () {
     return f.dataUrl || (f.base64 ? 'data:image/jpeg;base64,' + f.base64 : '');
   }
 
+
+  /* ===== Levar as fotos para fora do app ===== */
+
+  // ZIP "guardado" (sem compressão): JPEG já vem comprimido, então comprimir de
+  // novo só gastaria bateria. Escrito aqui mesmo para não depender de nenhuma
+  // biblioteca — são poucos campos, todos de tamanho fixo.
+  var TABELA_CRC = null;
+  function crc32(bytes) {
+    if (!TABELA_CRC) {
+      TABELA_CRC = new Int32Array(256);
+      for (var n = 0; n < 256; n++) {
+        var c = n;
+        for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+        TABELA_CRC[n] = c;
+      }
+    }
+    var crc = -1;
+    for (var i = 0; i < bytes.length; i++) crc = (crc >>> 8) ^ TABELA_CRC[(crc ^ bytes[i]) & 0xFF];
+    return (crc ^ -1) >>> 0;
+  }
+  function dataDos(d) {
+    d = d || new Date();
+    var hora = ((d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() / 2)) & 0xFFFF;
+    var dia = (((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate()) & 0xFFFF;
+    return { hora: hora, dia: dia };
+  }
+  // arquivos: [{ nome, dados: Uint8Array, quando: Date }] → Blob .zip
+  function ziparArquivos(arquivos) {
+    var partes = [], central = [], deslocamento = 0;
+    var texto = new TextEncoder();
+    arquivos.forEach(function (a) {
+      var nome = texto.encode(a.nome);
+      var crc = crc32(a.dados);
+      var t = dataDos(a.quando);
+      var local = new DataView(new ArrayBuffer(30));
+      local.setUint32(0, 0x04034b50, true);
+      local.setUint16(4, 20, true);
+      local.setUint16(6, 0x0800, true);   // nomes em UTF-8
+      local.setUint16(8, 0, true);        // sem compressão
+      local.setUint16(10, t.hora, true); local.setUint16(12, t.dia, true);
+      local.setUint32(14, crc, true);
+      local.setUint32(18, a.dados.length, true);
+      local.setUint32(22, a.dados.length, true);
+      local.setUint16(26, nome.length, true); local.setUint16(28, 0, true);
+      partes.push(local.buffer, nome, a.dados);
+
+      var dir = new DataView(new ArrayBuffer(46));
+      dir.setUint32(0, 0x02014b50, true);
+      dir.setUint16(4, 20, true); dir.setUint16(6, 20, true);
+      dir.setUint16(8, 0x0800, true); dir.setUint16(10, 0, true);
+      dir.setUint16(12, t.hora, true); dir.setUint16(14, t.dia, true);
+      dir.setUint32(16, crc, true);
+      dir.setUint32(20, a.dados.length, true); dir.setUint32(24, a.dados.length, true);
+      dir.setUint16(28, nome.length, true);
+      dir.setUint32(42, deslocamento, true);
+      central.push(dir.buffer, nome);
+      deslocamento += 30 + nome.length + a.dados.length;
+    });
+    var tamCentral = central.reduce(function (n, b) { return n + (b.byteLength || b.length); }, 0);
+    var fim = new DataView(new ArrayBuffer(22));
+    fim.setUint32(0, 0x06054b50, true);
+    fim.setUint16(8, arquivos.length, true); fim.setUint16(10, arquivos.length, true);
+    fim.setUint32(12, tamCentral, true); fim.setUint32(16, deslocamento, true);
+    return new Blob(partes.concat(central, [fim.buffer]), { type: 'application/zip' });
+  }
+
+  // Bytes da foto (o rascunho guarda base64).
+  function bytesDaFoto(f) {
+    var b64 = f.base64 || (f.dataUrl ? String(f.dataUrl).split(',')[1] : '');
+    if (!b64) return null;
+    var bin = atob(b64);
+    var u8 = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    return u8;
+  }
+  function baixarBlob(blob, nome) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = nome;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 8000);
+  }
+
   function abrirLightbox(dataUrl) {
     const ov = document.createElement('div');
     ov.className = 'foto-lightbox';
@@ -204,12 +287,74 @@ EC.foto = (function () {
       }
     }
 
+
+    /**
+     * Levar TODAS as fotos deste ponto para fora do app:
+     *   • ENVIAR abre a folha do sistema com as fotos (WhatsApp, e-mail, Fotos);
+     *   • BAIXAR gera um .zip com todas, para guardar no aparelho ou no PC.
+     * É a rede de segurança do técnico: mesmo que algo dê errado no envio ao
+     * servidor, ele tem as fotos na mão (pedido da Raisa, 2026-08-21).
+     */
+    async function enviarTodas() {
+      var arquivos = [];
+      fotos.forEach(function (f) {
+        var b = bytesDaFoto(f);
+        if (b) arquivos.push(new File([b], f.nomeArquivo || 'foto.jpg', { type: 'image/jpeg' }));
+      });
+      if (!arquivos.length) { toastFoto('Estas fotos não estão mais no aparelho.'); return; }
+      try {
+        if (navigator.canShare && navigator.canShare({ files: arquivos }) && navigator.share) {
+          await navigator.share({ files: arquivos, title: rotuloCurto() });
+          return;
+        }
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;   // a pessoa cancelou
+        // Muitas fotos de uma vez podem ser recusadas: cai no zip.
+      }
+      baixarTodas();
+    }
+    function baixarTodas() {
+      var arquivos = [];
+      fotos.forEach(function (f) {
+        var b = bytesDaFoto(f);
+        if (b) arquivos.push({ nome: f.nomeArquivo || 'foto.jpg', dados: b, quando: f.capturadaEm ? new Date(f.capturadaEm) : null });
+      });
+      if (!arquivos.length) { toastFoto('Estas fotos não estão mais no aparelho.'); return; }
+      try {
+        baixarBlob(ziparArquivos(arquivos), rotuloCurto() + '.zip');
+        toastFoto('📥 ' + arquivos.length + ' foto(s) baixadas em um arquivo .zip.');
+      } catch (e) {
+        toastFoto('🛑 Não consegui montar o arquivo com as fotos.');
+      }
+    }
+    function rotuloCurto() {
+      var os = (opcoes.os ? 'OS ' + opcoes.os + ' ' : '') + (opcoes.ponto || '');
+      return (os.trim() || 'Fotos').replace(/[\\/:*?"<>|]+/g, '-');
+    }
+    function toastFoto(m) { if (EC.app && EC.app.mostrarToast) EC.app.mostrarToast(m); }
+
     function renderGaleria() {
       galeria.innerHTML = fotos.map(function (f, i) {
         return '<div class="foto-item"><img src="' + urlDaFoto(f) + '" alt="Foto ' + (i + 1) + '">' +
           '<button type="button" class="foto-salvar" data-i="' + i + '" title="Salvar esta foto no celular">💾</button>' +
           '<button type="button" class="foto-remover" data-i="' + i + '" title="Remover foto">✕</button></div>';
       }).join('');
+      // Linha "levar as fotos daqui" — só aparece quando há foto.
+      var acoesDiv = container.querySelector('.foto-acoes');
+      if (!acoesDiv) {
+        acoesDiv = document.createElement('div');
+        acoesDiv.className = 'foto-acoes';
+        galeria.insertAdjacentElement('afterend', acoesDiv);
+      }
+      acoesDiv.innerHTML = fotos.length
+        ? '<button type="button" class="botao botao-secundario botao-mini foto-enviar-todas">📤 Enviar as ' +
+            fotos.length + ' foto(s) deste ponto</button>' +
+          '<button type="button" class="botao botao-secundario botao-mini foto-baixar-todas">⬇️ Baixar todas (.zip)</button>'
+        : '';
+      if (fotos.length) {
+        acoesDiv.querySelector('.foto-enviar-todas').addEventListener('click', enviarTodas);
+        acoesDiv.querySelector('.foto-baixar-todas').addEventListener('click', baixarTodas);
+      }
       galeria.querySelectorAll('.foto-remover').forEach(function (b) {
         b.addEventListener('click', function () {
           fotos.splice(parseInt(b.dataset.i, 10), 1);

@@ -1692,3 +1692,8 @@ label.falta input, label.falta select, label.falta textarea {
   white-space: nowrap;
 }
 .dg-ct-vazio { color: #a7b0bf; font-style: italic; }
+
+/* Levar as fotos do ponto para fora do app (enviar no WhatsApp / baixar .zip).
+   Os dois botões dividem a linha, para caber em tela estreita. */
+.foto-acoes { display: flex; gap: 8px; margin: 8px 0 4px; }
+.foto-acoes .botao { flex: 1; }
