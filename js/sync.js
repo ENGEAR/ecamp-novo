@@ -61,6 +61,17 @@ EC.sync = (function () {
     return h;
   }
 
+  // Tempo limite de cada requisição. Sem isto, um envio pendurado (sinal que
+  // cai no meio, rede que não responde) deixava a fila esperando PARA SEMPRE —
+  // sem erro, sem aviso e sem enviar mais nada (caso do Erick, OS 26255).
+  var LIMITE_MS = 45000;
+  function comLimite(ms) {
+    if (typeof AbortController === 'undefined') return { signal: undefined, pronto: function () {} };
+    var ac = new AbortController();
+    var t = setTimeout(function () { ac.abort(); }, ms || LIMITE_MS);
+    return { signal: ac.signal, pronto: function () { clearTimeout(t); } };
+  }
+
   // POST JSON com o token. Lança erro em falha (err.naoSuportado=true se 422).
   async function postJson(url, dados, opcoes) {
     var corpoTxt = JSON.stringify(dados);
@@ -68,12 +79,17 @@ EC.sync = (function () {
     // no envio ao SAIR do app). O limite do navegador é ~64 KB — acima disso a
     // requisição seria recusada, então só liga quando cabe.
     var manterVivo = !!(opcoes && opcoes.aoSair) && corpoTxt.length < 60000;
-    var resposta = await fetch(url, {
-      method: 'POST',
-      headers: await cabecalhos({ 'Content-Type': 'application/json' }),
-      body: corpoTxt,
-      keepalive: manterVivo
-    });
+    var limite = comLimite();
+    var resposta;
+    try {
+      resposta = await fetch(url, {
+        method: 'POST',
+        headers: await cabecalhos({ 'Content-Type': 'application/json' }),
+        body: corpoTxt,
+        keepalive: manterVivo,
+        signal: limite.signal
+      });
+    } finally { limite.pronto(); }
     var corpo = {};
     try { corpo = await resposta.json(); } catch (e) { /* corpo vazio */ }
     if (!resposta.ok || !corpo.ok) {
@@ -209,15 +225,26 @@ EC.sync = (function () {
    */
   async function subirFotos(tarefas) {
     var res = { total: tarefas.length, enviadas: 0, jaEstavam: 0, falharam: [] };
+    // Enquanto sobe, a barra do topo mostra o andamento: o técnico precisa saber
+    // que ESTÁ indo e que sair do app interrompe (o iPhone congela o app ao
+    // trocar de aplicativo — foi o que cortou o envio no meio, OS 26255).
+    var feitas = 0;
+    function passo() {
+      feitas++;
+      if (EC.app && EC.app.mostrarProgressoEnvio) {
+        EC.app.mostrarProgressoEnvio(feitas, tarefas.length);
+      }
+    }
     for (var k = 0; k < tarefas.length; k += FOTOS_EM_PARALELO) {
       var lote = tarefas.slice(k, k + FOTOS_EM_PARALELO);
       await Promise.all(lote.map(async function (t) {
-        if (fotoJaEnviada(t.nomeArquivo)) { res.jaEstavam++; return; }
+        if (fotoJaEnviada(t.nomeArquivo)) { res.jaEstavam++; passo(); return; }
         for (var tentativa = 1; tentativa <= TENTATIVAS_FOTO; tentativa++) {
           try {
             await postJson(ROTA_FOTO, t);
             marcarFotoEnviada(t.nomeArquivo);
             res.enviadas++;
+            passo();
             return;
           } catch (e) {
             // 422 (o servidor não aceita esta foto) não melhora tentando de novo.
@@ -226,9 +253,11 @@ EC.sync = (function () {
           }
         }
         res.falharam.push(t.nomeArquivo);
+        passo();
       }));
       gravarFotosEnviadas();   // a cada lote: um fechamento do app não perde a marca
     }
+    if (EC.app && EC.app.mostrarProgressoEnvio) EC.app.mostrarProgressoEnvio(0, 0); // limpa
     return res;
   }
 
@@ -261,18 +290,50 @@ EC.sync = (function () {
   // salvo no aparelho, então falha aqui não perde nada. Devolve true/false.
   async function enviarPdf(nome, blob) {
     if (!blob) return false;
+    var limite = comLimite(60000);
     try {
       var resposta = await fetch(ROTA_PDF + '?nome=' + encodeURIComponent(nome || 'Relatorio.pdf'), {
         method: 'POST',
         headers: await cabecalhos({ 'Content-Type': 'application/pdf' }),
-        body: blob
+        body: blob,
+        signal: limite.signal
       });
       var corpo = {};
       try { corpo = await resposta.json(); } catch (e) { /* vazio */ }
       return !!(resposta.ok && corpo.ok);
     } catch (e) {
       return false;
+    } finally { limite.pronto(); }
+  }
+
+  /**
+   * PDFs que ficaram no aparelho sem chegar ao SharePoint. O envio do PDF é
+   * best-effort no momento em que ele é gerado — se o app for para segundo
+   * plano bem nessa hora (é o que acontece quando se compartilha no WhatsApp),
+   * ele se perde em silêncio. Aqui a fila tenta de novo, e só marca quando o
+   * servidor confirma. Devolve quantos subiram.
+   */
+  async function reenviarPdfsPendentes() {
+    if (!EC.db || !EC.db.disponivel()) return 0;
+    var lista = [];
+    try { lista = (await EC.db.getAll('pdfs')) || []; } catch (e) { return 0; }
+    var n = 0;
+    // Só os RECENTES: um aparelho com histórico cheio não vai remandar dezenas
+    // de PDFs antigos (que já estão no servidor) na primeira sincronização.
+    var limite = Date.now() - 3 * 24 * 60 * 60 * 1000;
+    for (var i = 0; i < lista.length; i++) {
+      var rec = lista[i];
+      if (!rec || !rec.blob || rec.enviadoEm) continue;
+      var quando = Date.parse(rec.salvoEm || '');
+      if (quando && quando < limite) continue;
+      var ok = await enviarPdf(rec.nome, rec.blob);
+      if (ok) {
+        n++;
+        rec.enviadoEm = new Date().toISOString();
+        try { await EC.db.set('pdfs', rec.id, rec); } catch (e) { /* ok */ }
+      }
     }
+    return n;
   }
 
   // Chave estável do rascunho na fila (por OS+serviço). DETERMINÍSTICA: re-salvar
@@ -470,8 +531,10 @@ EC.sync = (function () {
         else { pendente++; }
       }
     }
-    if (!silencioso || ok || limpos || fotosPendentes) {
+    var pdfsOk = await reenviarPdfsPendentes();
+    if (!silencioso || ok || limpos || fotosPendentes || pdfsOk) {
       toast('Sincronização: ' + ok + ' enviado(s)' +
+        (pdfsOk ? ', ' + pdfsOk + ' PDF(s)' : '') +
         (pendente ? ', ' + pendente + ' pendente(s)' : '') +
         (fotosPendentes ? ' (' + fotosPendentes + ' foto(s) ainda no aparelho)' : '') +
         (limpos ? ', ' + limpos + ' limpo(s)' : '') + '.');
@@ -487,6 +550,13 @@ EC.sync = (function () {
 
   // Quando a conexão volta, tenta reenviar a fila em silêncio (e auto-limpa fantasmas).
   window.addEventListener('online', function () { sincronizarPendentes(true); });
+  // E quando o app VOLTA para a frente: o iPhone congela o app ao trocar de
+  // aplicativo (compartilhar no WhatsApp) ou ao bloquear a tela, e o envio para
+  // no meio sem avisar. Ao voltar, a fila recomeça sozinha de onde parou — as
+  // fotos que já subiram ficam marcadas, então só sobe o que falta.
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible' && navigator.onLine) sincronizarPendentes(true);
+  });
 
   /* ===== Biblioteca (normas/procedimentos gerenciados pelo SGP) ===== */
 
@@ -572,6 +642,7 @@ EC.sync = (function () {
     arquivarRascunho: arquivarRascunho,
     buscarRascunho: buscarRascunho,
     listarRascunhos: listarRascunhos,
+    reenviarPdfsPendentes: reenviarPdfsPendentes,
     travar: travar,
     renovarTrava: renovarTrava,
     liberarTrava: liberarTrava,

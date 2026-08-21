@@ -976,10 +976,26 @@
   $('btn-aprovacoes').addEventListener('click', abrirMenuSino);
 
   /* ============ Barra de pendências offline ============ */
+  // Envio de fotos em andamento: a barra do topo mostra o andamento e avisa
+  // para não sair do app. O iPhone congela o app ao trocar de aplicativo (ou ao
+  // bloquear a tela) e o envio para no meio — sem isso, ninguém percebe.
+  let envioEmCurso = null;   // { feitas, total }
+  function mostrarProgressoEnvio(feitas, total) {
+    envioEmCurso = (total > 0) ? { feitas: feitas, total: total } : null;
+    atualizarBarraPendencias();
+  }
+
   async function atualizarBarraPendencias() {
     const barra = $('barra-pendencias');
     if (!sessaoAtual()) {
       barra.classList.add('oculto');
+      return;
+    }
+    if (envioEmCurso) {
+      $('pendencias-texto').textContent =
+        '📤 Enviando fotos ' + envioEmCurso.feitas + '/' + envioEmCurso.total +
+        ' — mantenha o app aberto até terminar.';
+      barra.classList.remove('oculto');
       return;
     }
     let pendentes = 0;
@@ -1093,6 +1109,9 @@
     abrirOverlay: abrirOverlay,
     fecharOverlay: fecharOverlay,
     marcarCampos: marcarCampos,
+    mostrarProgressoEnvio: mostrarProgressoEnvio,
+    // exposto para o sync usar ESTA barra (a cópia dele não conhece o progresso)
+    atualizarBarraPendencias: atualizarBarraPendencias,
     limparMarcas: limparMarcas,
     tirarMarca: tirarMarca
   };

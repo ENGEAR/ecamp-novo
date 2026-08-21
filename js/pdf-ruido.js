@@ -99,10 +99,25 @@ EC.pdf = (function () {
 
   // Guarda o PDF (Blob + metadados) no aparelho. Chave = codificação do registro
   // (regerar o mesmo registro substitui, não duplica). Best-effort.
+  function idPdf(reg) {
+    var os = reg.os || {};
+    return reg.codificacao || ('OS_' + (os.numero || 'SEM-OS') + '_' + (reg.salvoEm || ''));
+  }
+  // O PDF subiu para o SharePoint: marca no aparelho para a fila não mandar de
+  // novo. Se falhar, fica sem marca e o "Sincronizar" tenta depois.
+  function marcarPdfEnviado(reg) {
+    if (!EC.db || !EC.db.disponivel()) return;
+    var id = idPdf(reg);
+    EC.db.get('pdfs', id).then(function (rec) {
+      if (!rec) return null;
+      rec.enviadoEm = new Date().toISOString();
+      return EC.db.set('pdfs', id, rec);
+    }).catch(function () { /* best-effort */ });
+  }
   function salvarPdf(reg, blob, nome) {
     if (!EC.db || !EC.db.disponivel()) return Promise.resolve();
+    var id = idPdf(reg);
     var os = reg.os || {};
-    var id = reg.codificacao || ('OS_' + (os.numero || 'SEM-OS') + '_' + (reg.salvoEm || ''));
     var rec = {
       id: id, os: os.numero || '', cliente: os.cliente || '', projeto: os.projeto || '',
       tipo: reg.tipo || '', subtipo: (reg.campo && reg.campo.subtipo) || '',
@@ -1093,7 +1108,13 @@ EC.pdf = (function () {
       var blob = doc.output('blob');
       if (!(opcoes && opcoes.semSalvarLocal)) salvarPdf(reg, blob, nome); // guarda no aparelho (best-effort)
       // Sobe para o SharePoint (pasta "PDFs Campo") — em paralelo, best-effort.
-      try { if (EC.sync && EC.sync.enviarPdf) EC.sync.enviarPdf(nome, blob); } catch (e) { /* best-effort */ }
+      try {
+        if (EC.sync && EC.sync.enviarPdf) {
+          Promise.resolve(EC.sync.enviarPdf(nome, blob)).then(function (subiu) {
+            if (subiu && !(opcoes && opcoes.semSalvarLocal)) marcarPdfEnviado(reg);
+          }).catch(function () { /* a fila tenta de novo */ });
+        }
+      } catch (e) { /* best-effort */ }
       return { blob: blob, nome: nome };
     });
   }
