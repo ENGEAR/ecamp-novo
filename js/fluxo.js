@@ -171,6 +171,10 @@ EC.fluxo = (function () {
         // Endereço do contratante (cadastro da OS). Pode ser outro que não o
         // do local do serviço — na capa do PDF cada um fica na sua seção.
         enderecoCliente: os.enderecoCliente || '',
+        // Quem é o LOCAL quando é outro lugar que não o contratante.
+        localRazao: os.localRazao || '',
+        localCnpj: os.localCnpj || '',
+        localContato: os.localContato || '',
         contato: os.contato || '',
         resumo: os.resumo,
         frequencia: os.frequencia || '',
@@ -1076,7 +1080,9 @@ EC.fluxo = (function () {
       dgCampo('Município / UF', municipioUF(o.enderecoCliente)) +
 
       dgSecao('Local do serviço') +
-      '<div id="dg-local-extra">' + dgCampo('Endereço', o.endereco) + dgCampo('Município / UF', o.municipioUF) + '</div>' +
+      '<div id="dg-local-extra">' +
+        (o.localRazao ? dgCampo('Razão social', o.localRazao) + dgGrade2(dgCampo('CNPJ / CPF', o.localCnpj), dgCampo('Contato', o.localContato)) : '') +
+        dgCampo('Endereço', o.endereco) + dgCampo('Município / UF', o.municipioUF) + '</div>' +
       '<label>Local do monitoramento — link do Google Maps' +
         '<input type="text" id="dg-maps" placeholder="Cole o link do Google Maps" value="' + escDg(o.linkMaps || '') + '"></label>' +
 
@@ -1197,6 +1203,8 @@ EC.fluxo = (function () {
     if ((el = $('dg-local-extra')) && det.local && (det.local.endereco || det.local.cidade || det.local.contato || det.local.referencia)) {
       var L = det.local;
       el.innerHTML =
+        // Razão social/CNPJ do local só quando é outro lugar que não o contratante.
+        (!L.igual && L.razao ? dgCampo('Razão social', L.razao) + dgGrade2(dgCampo('CNPJ / CPF', L.cnpj), dgCampo('Contato', L.contato)) : '') +
         dgCampo('Endereço', L.endereco) +
         dgCampo('Município / UF', L.cidade) +
         (L.contato ? dgCampo('Contato no local', L.contato) : '') +
