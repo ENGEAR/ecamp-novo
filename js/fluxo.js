@@ -204,6 +204,41 @@ EC.fluxo = (function () {
     };
   }
 
+  /* ===== A foto sobe sozinha, sem esperar o "Salvar rascunho" ===== */
+  // Antes, a imagem só saía do celular quando o técnico tocava em "Salvar
+  // rascunho" — quem esquecia (ou perdia o aparelho) perdia o dia de trabalho.
+  // Agora, toda vez que aparece foto NOVA no serviço, o app agenda um envio
+  // silencioso: espera um pouco (o técnico costuma tirar várias seguidas), manda
+  // os dados + as fotos que ainda não subiram e não mostra nada. O que ficar
+  // para trás continua aparecendo na barra de pendências do topo.
+  var ESPERA_ENVIO_MS = 20000;
+  var timerFotos = null, enviandoFotos = false, totalFotosVisto = -1;
+
+  function contarFotos(o) {
+    var n = 0;
+    (function varrer(x) {
+      if (!x || typeof x !== 'object') return;
+      if (Array.isArray(x)) { x.forEach(varrer); return; }
+      if (x.nomeArquivo) { n++; return; }
+      Object.keys(x).forEach(function (k) { varrer(x[k]); });
+    })(o);
+    return n;
+  }
+
+  function agendarEnvioDeFotos() {
+    if (!estado || !estado.iniciado) return;
+    if (!(EC.sync && EC.sync.sincronizarRascunho)) return;
+    clearTimeout(timerFotos);
+    timerFotos = setTimeout(async function () {
+      if (!estado || !navigator.onLine || enviandoFotos) return;
+      enviandoFotos = true;
+      try {
+        await EC.sync.sincronizarRascunho(montarRegistro(), { silencioso: true });
+      } catch (e) { /* a fila e o próximo agendamento cuidam */ }
+      enviandoFotos = false;
+    }, ESPERA_ENVIO_MS);
+  }
+
   // semBump=true persiste SEM avançar `atualizadoEm` — usado para gravar a marca
   // de "enviado" (enviadoEm) sem que isso conte como uma nova alteração pendente.
   // salvarSemMarcar é a versão para NAVEGAÇÃO (trocar de tela/ponto): persiste,
@@ -260,6 +295,11 @@ EC.fluxo = (function () {
     // Versão LEVE no localStorage (status na lista de serviços + restauração
     // básica), SEM fotos, para não estourar a memória. semFotos() está abaixo.
     var ok = EC.storage.salvar(chave, semFotos(estado));
+    // Foto nova no serviço? Agenda o envio automático (só quando o número de
+    // fotos CRESCE — salvar outros campos não precisa mandar imagem nenhuma).
+    var totalAgora = contarFotos(estado.campo);
+    if (totalFotosVisto >= 0 && totalAgora > totalFotosVisto) agendarEnvioDeFotos();
+    totalFotosVisto = totalAgora;
     if (!semBump) atualizarAvisoEnvio();
     return ok;
   }
@@ -834,6 +874,8 @@ EC.fluxo = (function () {
   }
 
   function abrirServico(os, indice, rascunhoExistente) {
+    clearTimeout(timerFotos);
+    totalFotosVisto = -1;   // recomeça a contagem neste serviço
     telaExibida = null; // entrando em serviço novo: não coletar da tela anterior
     telaAntesDados = null; // serviço novo: nunca herda a origem do atalho 📄 anterior
     estado = rascunhoExistente || novoEstadoServico(os, indice);

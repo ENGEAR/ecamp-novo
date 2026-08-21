@@ -413,7 +413,11 @@ EC.sync = (function () {
   // Salva o rascunho no servidor (status Incompleto). Reusa o envio em 2 etapas
   // (dados + fotos). Em falha de REDE, enfileira (igual ao finalizado) para subir
   // sozinho quando a conexão voltar — o dado do campo NÃO fica preso no aparelho.
-  async function sincronizarRascunho(registro) {
+  // opcoes.silencioso: sem toasts. Usado pelo envio automático de fotos (a foto
+  // sobe sozinha assim que é tirada) — avisar a cada foto viraria ruído; quem
+  // mostra que algo ficou para trás é a barra de pendências do topo.
+  async function sincronizarRascunho(registro, opcoes) {
+    var calado = !!(opcoes && opcoes.silencioso);
     var chave = chaveRascPendente(registro);
     try {
       var r = await enviar(registro); // registro vem com finalizar:false + rascunhoId
@@ -423,23 +427,23 @@ EC.sync = (function () {
       var sem = (r && r.fotos && r.fotos.semImagem) || 0;
       if (!faltam && sem) {
         try { await EC.db.remove('pending', chave); } catch (e2) { /* ok */ }
-        toast('⚠️ Rascunho salvo, mas ' + sem + ' foto(s) não estão mais no aparelho (só o nome do arquivo).');
+        if (!calado) toast('⚠️ Rascunho salvo, mas ' + sem + ' foto(s) não estão mais no aparelho (só o nome do arquivo).');
       } else if (faltam) {
         try { await EC.db.set('pending', chave, await leve(registro)); } catch (e2) { /* ok */ }
-        toast('⚠️ Rascunho salvo, mas ' + faltam + ' foto(s) não subiram. Elas seguem no aparelho — toque em Sincronizar com boa conexão.');
+        if (!calado) toast('⚠️ Rascunho salvo, mas ' + faltam + ' foto(s) não subiram. Elas seguem no aparelho — toque em Sincronizar com boa conexão.');
       } else {
         try { await EC.db.remove('pending', chave); } catch (e) { /* ok */ }
-        toast('✅ Rascunho salvo no servidor (Incompleto).');
+        if (!calado) toast('✅ Rascunho salvo no servidor (Incompleto).');
       }
     } catch (e) {
       if (e.naoSuportado) {
         // 422: faltam dados mínimos p/ o servidor aceitar — só o aparelho por ora.
-        toast('💾 Rascunho salvo no aparelho (ainda faltam dados para o servidor).');
+        if (!calado) toast('💾 Rascunho salvo no aparelho (ainda faltam dados para o servidor).');
       } else {
         // Offline/erro de rede: guarda na fila (IndexedDB aguenta as fotos) e
         // reenvia sozinho no próximo "online". Chave estável = sobrescreve.
         try { await EC.db.set('pending', chave, await leve(registro)); } catch (e2) { /* ok */ }
-        toast('📤 Rascunho salvo — sincroniza sozinho quando a conexão voltar.');
+        if (!calado) toast('📤 Rascunho salvo — sincroniza sozinho quando a conexão voltar.');
       }
     }
     atualizarBarra();
