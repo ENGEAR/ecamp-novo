@@ -833,6 +833,20 @@ EC.aprovacoes = (function () {
     } catch (e) { return []; }
   }
 
+  /* Rótulo do status das parcelas irmãs. Isto existia só dentro do reembolso.js,
+     e o histórico aqui chamava `STATUS` como se fosse global — cada arquivo tem
+     o seu escopo, então dava "Can't find variable: STATUS" e a tela "Analisar
+     solicitação" morria inteira (Erick, OS 26255, 21/08/2026). Só entram aqui
+     os três status que a consulta das irmãs traz. */
+  var ROTULO_STATUS = {
+    elaboracao:           '📝 Em elaboração',
+    aguardando_logistica: '⏳ Aguardando aprovação da Logística',
+    correcao:             '✏️ Correção solicitada',
+    rejeitado:            '❌ Rejeitado',
+    aguardando_pagamento: '✅ Aguardando pagamento',
+    pago:                 '💰 Pago'
+  };
+
   function historicoHtml(lista, atualId) {
     if (!lista || lista.length < 1) return '';
     var linhas = lista.map(function (x, i) {
@@ -843,7 +857,7 @@ EC.aprovacoes = (function () {
       var xliq = Math.round(xsol * 100 - xadiant * xpct) / 100;
       var paga = x.status === 'pago';
       var quando = paga ? 'pago em ' + dataBR(x.pago_em)
-        : (STATUS[x.status] ? STATUS[x.status].txt : x.status);
+        : (ROTULO_STATUS[x.status] || x.status);
       return '<div class="apr-orc ' + (paga ? 'apr-orc-verde' : 'apr-orc-cinza') + '" style="margin:6px 0;">' +
         '<strong>' + (i + 1) + 'ª parcela:</strong> ' + xpct + '% · ' + esc(quando) +
         ' = <strong>' + moeda(xliq) + '</strong>' +
