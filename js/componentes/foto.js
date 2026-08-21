@@ -108,6 +108,13 @@ EC.foto = (function () {
   }
 
   // Abre a foto em tela cheia (para conferir). Toque/clique em qualquer lugar fecha.
+  // Endereço da imagem: o rascunho guarda só o base64 (metade do tamanho); o
+  // dataUrl é montado aqui na hora de mostrar. Fotos antigas ainda têm dataUrl.
+  function urlDaFoto(f) {
+    if (!f) return '';
+    return f.dataUrl || (f.base64 ? 'data:image/jpeg;base64,' + f.base64 : '');
+  }
+
   function abrirLightbox(dataUrl) {
     const ov = document.createElement('div');
     ov.className = 'foto-lightbox';
@@ -176,9 +183,9 @@ EC.foto = (function () {
      * Vai a versão CARIMBADA, que é a mesma foto com a identificação do serviço.
      */
     async function salvarNoCelular(f) {
-      if (!f || !f.dataUrl) return;
+      if (!f || !urlDaFoto(f)) return;
       try {
-        const blob = await (await fetch(f.dataUrl)).blob();
+        const blob = await (await fetch(urlDaFoto(f))).blob();
         const arquivo = new File([blob], f.nomeArquivo || 'foto.jpg', { type: blob.type || 'image/jpeg' });
         if (navigator.canShare && navigator.canShare({ files: [arquivo] }) && navigator.share) {
           await navigator.share({ files: [arquivo] });
@@ -199,7 +206,7 @@ EC.foto = (function () {
 
     function renderGaleria() {
       galeria.innerHTML = fotos.map(function (f, i) {
-        return '<div class="foto-item"><img src="' + f.dataUrl + '" alt="Foto ' + (i + 1) + '">' +
+        return '<div class="foto-item"><img src="' + urlDaFoto(f) + '" alt="Foto ' + (i + 1) + '">' +
           '<button type="button" class="foto-salvar" data-i="' + i + '" title="Salvar esta foto no celular">💾</button>' +
           '<button type="button" class="foto-remover" data-i="' + i + '" title="Remover foto">✕</button></div>';
       }).join('');
@@ -213,7 +220,7 @@ EC.foto = (function () {
         b.addEventListener('click', function () { salvarNoCelular(fotos[parseInt(b.dataset.i, 10)]); });
       });
       galeria.querySelectorAll('.foto-item img').forEach(function (img, i) {
-        img.addEventListener('click', function () { abrirLightbox(fotos[i].dataUrl); });
+        img.addEventListener('click', function () { abrirLightbox(urlDaFoto(fotos[i])); });
       });
     }
 
@@ -272,8 +279,8 @@ EC.foto = (function () {
               + (opcoes.ponto || 'P0') + '_'
               + (opcoes.periodo ? String(opcoes.periodo).replace(/\s+/g, '-') + '_' : '')
               + carimboDataHora(agora) + '_F' + doisDigitos(fotos.length + 1) + '.jpg',
-            base64: dataUrl.split(',')[1],
-            dataUrl: dataUrl,
+            base64: dataUrl.split(',')[1],   // dataUrl NÃO é guardado: é o mesmo
+            // conteúdo com um prefixo, e guardar os dois dobrava o rascunho.
             capturadaEm: agora.toISOString(),
             daFototeca: !!daFototeca
           });

@@ -210,6 +210,27 @@ EC.fluxo = (function () {
   // mas não acende o aviso de "não enviado" — os módulos de campo a usam no
   // "lembrar o ponto aberto".
   function salvarSemMarcar() { salvarEstado(true); }
+  // Cópia sem o dataUrl das fotos (mantém o base64, que é o que sobe e o que
+  // desenha o PDF).
+  function semDataUrl(obj) {
+    return JSON.parse(JSON.stringify(obj, function (chave, valor) {
+      return chave === 'dataUrl' ? undefined : valor;
+    }));
+  }
+  // O aparelho não conseguiu guardar o rascunho com as fotos (memória cheia,
+  // por exemplo). Avisa UMA vez por serviço, com o que fazer: enviar agora.
+  var avisouRascunho = false;
+  function avisarRascunhoNaoGuardado(e) {
+    if (avisouRascunho) return;
+    avisouRascunho = true;
+    EC.app.mostrarToast(
+      'Não consegui guardar as fotos deste serviço no aparelho. Toque em ' +
+      '"Salvar rascunho" com internet AGORA — senão elas podem se perder ao sair do app.',
+      'ATENÇÃO — FOTOS EM RISCO'
+    );
+    try { console.error('eCamp: falha ao gravar o rascunho com fotos:', e); } catch (x) {}
+  }
+
   function salvarEstado(semBump) {
     if (!estado) return false;
     // Só marca a OS como "em andamento" (grava rascunho) DEPOIS que o técnico
@@ -219,8 +240,16 @@ EC.fluxo = (function () {
     if (!semBump) estado.atualizadoEm = new Date().toISOString();
     var chave = chaveServico(estado.osNumero, estado.servicoIndice);
     // Rascunho COMPLETO (com fotos) no IndexedDB — aguenta o tamanho e permite
-    // continuar offline depois sem perder as fotos.
-    if (EC.db) EC.db.set('rascunhos', chave, estado).catch(function () { /* ok */ });
+    // continuar offline depois sem perder as fotos. Vai SEM o dataUrl: ele é o
+    // mesmo conteúdo do base64 com um prefixo, e guardar os dois dobrava o
+    // tamanho (serviço de 30 pontos passava de 300 MB num registro só).
+    if (EC.db) {
+      EC.db.set('rascunhos', chave, semDataUrl(estado)).catch(function (e) {
+        // Falha aqui é GRAVE: ao reabrir, as fotos voltam sem imagem. Antes
+        // isso era silencioso — foi assim que a OS 26255 perdeu as fotos.
+        avisarRascunhoNaoGuardado(e);
+      });
+    }
     // Versão LEVE no localStorage (status na lista de serviços + restauração
     // básica), SEM fotos, para não estourar a memória. semFotos() está abaixo.
     var ok = EC.storage.salvar(chave, semFotos(estado));

@@ -225,6 +225,12 @@ EC.pdf = (function () {
     return u ? (val + ' ' + u) : String(val);
   }
 
+  // Endereço da imagem para o jsPDF (o rascunho guarda só o base64).
+  function urlDaFoto(f) {
+    if (!f) return '';
+    return f.dataUrl || (f.base64 ? 'data:image/jpeg;base64,' + f.base64 : '');
+  }
+
   function ehFoto(val) {
     var f = Array.isArray(val) ? val[0] : val;
     return !!(f && typeof f === 'object' && (f.dataUrl || f.base64 || f.nomeArquivo));
@@ -469,7 +475,8 @@ EC.pdf = (function () {
       }
       function fotosDe(lista, rotuloTxt) {
         (Array.isArray(lista) ? lista : (lista ? [lista] : [])).forEach(function (f, i) {
-          if (f && f.dataUrl) foto(f.dataUrl, rotuloTxt + (i > 0 ? ' (' + (i + 1) + ')' : ''));
+          var url = urlDaFoto(f);
+          if (url) foto(url, rotuloTxt + (i > 0 ? ' (' + (i + 1) + ')' : ''));
         });
       }
 
@@ -650,7 +657,7 @@ EC.pdf = (function () {
             kv('Condição do ambiente', amb.mobilia);
             kvSe('Área', (amb.area != null && amb.area !== '') ? amb.area + ' m²' : '');
             kvSe('Pontos calculados', amb.pontosCalculados);
-            if (amb.layoutFoto && amb.layoutFoto.dataUrl) foto(amb.layoutFoto.dataUrl, 'Layout do ambiente');
+            if (amb.layoutFoto && urlDaFoto(amb.layoutFoto)) foto(urlDaFoto(amb.layoutFoto), 'Layout do ambiente');
             var pts = amb.pontos || [];
             var tp = Math.min(pts.length, Math.max(0, parseInt(amb.pontosCalculados, 10) || pts.length));
             for (var i = 0; i < tp; i++) { gN++; pontoRuido(pts[i] || {}, gN, geralRuido); }
@@ -832,7 +839,8 @@ EC.pdf = (function () {
         Object.keys(it).forEach(function (k) {
           if (!ehFoto(it[k])) return;
           (Array.isArray(it[k]) ? it[k] : [it[k]]).forEach(function (f) {
-            if (f && f.dataUrl) todasFotos.push({ dataUrl: f.dataUrl, rotulo: rotuloFoto(k) });
+            var u = urlDaFoto(f);
+            if (u) todasFotos.push({ dataUrl: u, rotulo: rotuloFoto(k) });
           });
         });
         var limiteY = A4_H - MARGEM - 12;
