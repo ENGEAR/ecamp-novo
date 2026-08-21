@@ -1069,8 +1069,11 @@ EC.fluxo = (function () {
       dgSecao('Cliente (contratante)') +
       dgCampo('Razão social', o.cliente) +
       dgGrade2(dgCampo('CNPJ / CPF', o.cnpjCpf), dgCampo('Contato', o.contato)) +
-      dgCampo('Endereço', o.endereco) +
-      dgCampo('Município / UF', o.municipioUF) +
+      // Endereço do CONTRATANTE (o.enderecoCliente) — o do local fica na seção
+      // de baixo. Antes as duas seções mostravam o endereço do local, e o
+      // cliente aparecia "morando" no local do serviço.
+      dgCampo('Endereço', o.enderecoCliente) +
+      dgCampo('Município / UF', municipioUF(o.enderecoCliente)) +
 
       dgSecao('Local do serviço') +
       '<div id="dg-local-extra">' + dgCampo('Endereço', o.endereco) + dgCampo('Município / UF', o.municipioUF) + '</div>' +
