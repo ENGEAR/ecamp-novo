@@ -727,6 +727,34 @@
       '<div id="hist-lista"></div>');
 
     const lista = $('hist-lista');
+    // Conta as fotos do registro: quantas ainda têm a IMAGEM guardada e quantas
+    // sobraram só com o nome do arquivo (aí não há o que reenviar).
+    function resumoFotos(reg) {
+      let comImagem = 0, soNome = 0;
+      const olhar = function (obj) {
+        if (!obj || typeof obj !== 'object') return;
+        Object.keys(obj).forEach(function (k) {
+          const v = obj[k];
+          if (Array.isArray(v)) {
+            if (v.length && v[0] && (v[0].nomeArquivo || v[0].base64)) {
+              v.forEach(function (f) { if (f && f.base64) comImagem++; else if (f && f.nomeArquivo) soNome++; });
+              return;
+            }
+            v.forEach(olhar);
+            return;
+          }
+          if (v && typeof v === 'object') {
+            if (v.nomeArquivo || v.base64) { if (v.base64) comImagem++; else soNome++; return; }
+            olhar(v);
+          }
+        });
+      };
+      olhar(reg.campo);
+      if (!comImagem && !soNome) return 'sem fotos neste registro';
+      if (!soNome) return '📷 ' + comImagem + ' foto(s) guardadas no aparelho';
+      if (!comImagem) return '⚠️ ' + soNome + ' foto(s) só pelo nome — a imagem não está mais no aparelho';
+      return '📷 ' + comImagem + ' guardada(s) · ⚠️ ' + soNome + ' só pelo nome';
+    }
     function itemHtml(it) {
       const r = it.reg;
       const os = r.os || {};
@@ -736,6 +764,9 @@
         (os.projeto ? '<br><small>' + os.projeto + '</small>' : '') +
         '<br><small>' + ((r.servico && r.servico.escopo) || r.tipo || '') + (r.tecnico ? ' · ' + r.tecnico : '') + (data ? ' · ' + data : '') + '</small>' +
         (it.completo ? '' : '<br><small>⚠️ registro antigo — o PDF sai sem as fotos</small>') +
+        // Quantas fotos ainda TÊM a imagem no aparelho. Sem isso não dá para
+        // saber por que um "Reenviar" não sobe foto nenhuma (caso da OS 26255).
+        (it.completo ? '<br><small>' + resumoFotos(r) + '</small>' : '') +
         '<div class="overlay-item-acoes">' +
         '<button type="button" class="botao botao-secundario hist-pdf" data-cod="' + it.cod + '">📄 Gerar PDF</button>' +
         // Reenviar ao servidor: só faz sentido quando temos o registro COMPLETO
