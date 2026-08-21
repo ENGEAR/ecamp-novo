@@ -1065,6 +1065,9 @@ EC.pdf = (function () {
       tituloSecao('Cliente (contratante)');
       kv('Razão social', os.cliente);
       kv('CNPJ / CPF', os.cnpjCpf);
+      // Endereço do contratante: só aparece quando a OS tem esse dado (nos
+      // rascunhos antigos o campo não existe, e uma linha vazia só confundiria).
+      kvSe('Endereço', os.enderecoCliente);
       kv('Contato', os.contato);
 
       /* ---------- Serviço ---------- */

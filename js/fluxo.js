@@ -168,6 +168,9 @@ EC.fluxo = (function () {
         cnpjCpf: os.cnpjCpf || '',
         endereco: os.endereco,
         municipioUF: municipioUF(os.endereco),
+        // Endereço do contratante (cadastro da OS). Pode ser outro que não o
+        // do local do serviço — na capa do PDF cada um fica na sua seção.
+        enderecoCliente: os.enderecoCliente || '',
         contato: os.contato || '',
         resumo: os.resumo,
         frequencia: os.frequencia || '',
